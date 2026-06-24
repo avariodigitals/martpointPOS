@@ -295,16 +295,11 @@ export default function MartPointRetailPage() {
                     </div>
                     {/* Screen */}
                     <div className="relative rounded-lg overflow-hidden bg-white aspect-[16/10]">
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 text-slate-400 z-0">
-                        <Monitor className="w-10 h-10 mb-2" />
-                        <span className="text-xs font-medium">Dashboard Preview</span>
-                        <span className="text-[10px] text-slate-300 mt-1">Save loginUI.png to /public/</span>
-                      </div>
                       <Image
                         src="/loginUI.png"
                         alt="MartPoint Retail Login Interface"
                         fill
-                        className="object-cover object-top z-10"
+                        className="object-cover object-top"
                         priority
                       />
                     </div>
@@ -484,16 +479,11 @@ export default function MartPointRetailPage() {
             <div className="relative mx-auto max-w-5xl">
               <div className="rounded-xl border border-border bg-slate-100 p-2 md:p-4 shadow-xl">
                 <div className="relative rounded-lg overflow-hidden aspect-[4/3] bg-white">
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 text-slate-400 z-0">
-                    <Monitor className="w-12 h-12 mb-2" />
-                    <span className="text-sm font-medium">Dashboard Preview</span>
-                    <span className="text-xs text-slate-300 mt-1">Save retail-dash.png to /public/</span>
-                  </div>
                   <Image
                     src="/retail-dash.png"
                     alt="MartPoint Retail Dashboard with sales metrics, stock alerts and transaction history"
                     fill
-                    className="object-cover object-top z-10"
+                    className="object-cover object-top"
                   />
                 </div>
               </div>

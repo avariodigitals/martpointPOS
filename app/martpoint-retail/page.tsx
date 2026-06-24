@@ -298,11 +298,11 @@ export default function MartPointRetailPage() {
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 text-slate-400 z-0">
                         <Monitor className="w-10 h-10 mb-2" />
                         <span className="text-xs font-medium">Dashboard Preview</span>
-                        <span className="text-[10px] text-slate-300 mt-1">Save retail-dashboard.png to /public/</span>
+                        <span className="text-[10px] text-slate-300 mt-1">Save loginUI.png to /public/</span>
                       </div>
                       <Image
-                        src="/retail-dashboard.png"
-                        alt="MartPoint Retail Dashboard showing sales, stock alerts and branch performance"
+                        src="/loginUI.png"
+                        alt="MartPoint Retail Login Interface"
                         fill
                         className="object-cover object-top z-10"
                         priority
@@ -487,10 +487,10 @@ export default function MartPointRetailPage() {
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 text-slate-400 z-0">
                     <Monitor className="w-12 h-12 mb-2" />
                     <span className="text-sm font-medium">Dashboard Preview</span>
-                    <span className="text-xs text-slate-300 mt-1">Save retail-dashboard.png to /public/</span>
+                    <span className="text-xs text-slate-300 mt-1">Save retail-dash.png to /public/</span>
                   </div>
                   <Image
-                    src="/retail-dashboard.png"
+                    src="/retail-dash.png"
                     alt="MartPoint Retail Dashboard with sales metrics, stock alerts and transaction history"
                     fill
                     className="object-cover object-top z-10"

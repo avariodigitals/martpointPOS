@@ -1,0 +1,26 @@
+{
+  "seo": {
+    "title": "MartPoint — Retail & ERP Software for Nigerian Businesses",
+    "description": "Business management software built for Nigerian retail stores and enterprises. POS, inventory, accounting, and operations in one ecosystem.",
+    "keywords": "pos software nigeria, retail software, inventory management, erp nigeria, supermarket pos",
+    "ogImage": "/og-image.jpg"
+  },
+  "analytics": {
+    "ga4MeasurementId": "G-CPKJNXBXJ5",
+    "gtmId": "G-4BD1LP717X"
+  },
+  "general": {
+    "contactEmail": "support@martpoint.com.ng",
+    "whatsappNumber": "+2348036028069",
+    "companyName": "MartPoint"
+  },
+  "openai": {
+    "apiKey": ""
+  },
+  "social": {
+    "facebook": "https://facebook.com/martpointpos",
+    "instagram": "https://facebook.com/martpointpos",
+    "twitter": "https://facebook.com/martpointpos",
+    "linkedin": "https://facebook.com/martpointpos"
+  }
+}

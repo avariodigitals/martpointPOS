@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { ExitIntentPopup } from "@/components/exit-intent-popup"
+import { BlogPreview } from "@/components/sections/blog-preview"
+import { SoftwareApplicationSchema, FAQPageSchema } from "@/components/structured-data"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -21,6 +23,7 @@ import {
   Eye,
   TrendingUp,
   Wifi,
+  WifiOff,
   Wallet,
   GraduationCap,
   Headphones,
@@ -32,6 +35,13 @@ import {
   Building2,
   Quote,
   Star,
+  MessageCircle,
+  Globe,
+  FileText,
+  CheckCircle2,
+  Camera,
+  QrCode,
+  Bot,
 } from "lucide-react"
 
 export const metadata: Metadata = {
@@ -50,32 +60,32 @@ const trustBullets = [
 
 const whoUses = [
   {
-    photo: "https://images.unsplash.com/photo-1701241284324-9afefe58e53b?w=400&h=200&fit=crop&q=80",
-    title: "Supermart",
+    photo: "/whouses/supermart.png",
+    title: "Supermarket / Mini Mart",
     description: "Manage thousands of products, multiple cashiers and daily sales operations.",
   },
   {
-    photo: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=400&h=200&fit=crop&q=80",
+    photo: "/whouses/pharmacies.png",
     title: "Pharmacies",
     description: "Track stock levels, monitor inventory movement and improve operational visibility.",
   },
   {
-    photo: "https://images.pexels.com/photos/36756598/pexels-photo-36756598.jpeg?auto=compress&cs=tinysrgb&w=400&h=200",
+    photo: "/whouses/restaurants.png",
     title: "Restaurants",
     description: "Process orders quickly, track sales and manage daily transactions efficiently.",
   },
   {
-    photo: "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400&h=200&fit=crop&q=80",
+    photo: "/whouses/electronic-store.png",
     title: "Electronics Stores",
     description: "Monitor high-value inventory and maintain accurate stock records.",
   },
   {
-    photo: "https://images.pexels.com/photos/32184048/pexels-photo-32184048.jpeg?auto=compress&cs=tinysrgb&w=400&h=200",
+    photo: "/whouses/fashion.png",
     title: "Fashion Stores",
     description: "Manage product variants, stock movement and sales performance.",
   },
   {
-    photo: "https://images.pexels.com/photos/17290985/pexels-photo-17290985.jpeg?auto=compress&cs=tinysrgb&w=400&h=200",
+    photo: "/whouses/multi-branch.png",
     title: "Multi-Branch Retailers",
     description: "View and manage all locations from one dashboard.",
   },
@@ -133,12 +143,11 @@ const capabilities = [
 ]
 
 const dashboardCallouts = [
-  "Today&apos;s Sales",
-  "Top Selling Products",
-  "Stock Alerts",
-  "Branch Performance",
-  "Recent Transactions",
-  "Purchase Summary",
+  "Total Revenue",
+  "Total Orders",
+  "Daily Report",
+  "Daily Summary",
+  "Inventory Alerts",
 ]
 
 const hardwareOptions = [
@@ -176,6 +185,54 @@ const whyChoose = [
   { icon: Building2, text: "Multi-branch visibility" },
   { icon: Headphones, text: "Local support" },
   { icon: MapPin, text: "Built for Nigerian businesses" },
+]
+
+const powerFeatures = [
+  {
+    icon: MessageCircle,
+    title: "WhatsApp Invoice",
+    description: "Send branded invoices directly to customers via WhatsApp. No printing needed — just share and get paid faster.",
+  },
+  {
+    icon: Globe,
+    title: "Online Payment",
+    description: "Accept card and transfer payments securely online. Integrated with Paystack and Flutterwave for instant settlement.",
+  },
+  {
+    icon: FileText,
+    title: "Daily Summary Report",
+    description: "Get an automated daily breakdown of sales, expenses, stock movement and cashier performance every night.",
+  },
+  {
+    icon: CheckCircle2,
+    title: "Approvals",
+    description: "Set approval workflows for refunds, stock transfers, discounts and expenses. Every action is tracked and authorised.",
+  },
+  {
+    icon: Camera,
+    title: "Attendance (Face Capture)",
+    description: "Staff clock in and out with facial recognition. No buddy punching — accurate attendance records for payroll and compliance.",
+  },
+  {
+    icon: Store,
+    title: "Online Store",
+    description: "Launch your own branded e-commerce storefront. Customers browse, order and pay online while inventory syncs automatically.",
+  },
+  {
+    icon: QrCode,
+    title: "QR Menu",
+    description: "Customers scan a QR code to view your product catalogue or menu on their phones. No app download required.",
+  },
+  {
+    icon: Building2,
+    title: "Multi Branch",
+    description: "Manage unlimited locations from one dashboard. Transfer stock, compare sales and oversee every branch in real time.",
+  },
+  {
+    icon: Bot,
+    title: "MartPoint Assist Chat Bot",
+    description: "AI-powered assistant answers customer questions, guides staff and helps resolve common issues instantly — 24/7.",
+  },
 ]
 
 const testimonials = [
@@ -246,17 +303,46 @@ const trustedBy = [
 export default function MartPointRetailPage() {
   return (
     <>
+      <SoftwareApplicationSchema
+        name="MartPoint Retail"
+        description="Retail management software for supermarkets, pharmacies, restaurants, and fashion stores. Sales, inventory, receipts, and multi-branch operations in one system."
+        image="https://martpoint.ng/og-image.jpg"
+        url="https://martpoint.ng/martpoint-retail"
+        category="BusinessApplication"
+        price="99999"
+      />
+      <FAQPageSchema
+        faqs={[
+          {
+            question: "What is MartPoint Retail?",
+            answer: "MartPoint Retail is a POS and inventory management software built for Nigerian retail businesses including supermarkets, pharmacies, restaurants, and fashion stores.",
+          },
+          {
+            question: "Does MartPoint Retail work offline?",
+            answer: "Yes. MartPoint Retail works offline and syncs data when the internet connection is restored. Your business never stops.",
+          },
+          {
+            question: "How much does MartPoint Retail cost?",
+            answer: "MartPoint Retail Cloud costs ₦99,999 per year. The offline version costs ₦250,000 as a one-time purchase.",
+          },
+          {
+            question: "Can I manage multiple branches with MartPoint Retail?",
+            answer: "Yes. MartPoint Retail supports multi-branch operations allowing you to track sales, inventory, and staff across all locations from a single dashboard.",
+          },
+          {
+            question: "Is MartPoint Retail suitable for pharmacies?",
+            answer: "Yes. MartPoint Retail is used by pharmacies across Nigeria for stock management, sales tracking, and compliance reporting.",
+          },
+        ]}
+      />
       <Header />
       <main className="flex-1">
         {/* SECTION 1 — HERO */}
         <section className="w-full bg-background border-b border-border overflow-hidden">
-          <div className="container-martpoint py-16 md:py-24 lg:py-28">
+          <div className="container-martpoint py-10 md:py-16 lg:py-20">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
               {/* Left: Copy */}
               <div className="max-w-xl">
-                <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-4">
-                  MartPoint Retail
-                </span>
                 <h1 className="text-4xl md:text-5xl lg:text-[3.25rem] font-extrabold tracking-tight leading-[1.05] text-foreground">
                   See Every Sale. Track Every Stock Item. <span className="text-accent italic">Manage Every Branch.</span>
                 </h1>
@@ -285,7 +371,7 @@ export default function MartPointRetailPage() {
               </div>
 
               {/* Right: Hero Image */}
-              <div className="relative mx-auto lg:mx-0 w-full max-w-xl">
+              <div className="relative mx-auto lg:mx-0 w-full max-w-sm">
                 <div className="relative rounded-xl overflow-hidden shadow-2xl">
                   <Image
                     src="/loginUI.png"
@@ -302,7 +388,7 @@ export default function MartPointRetailPage() {
         </section>
 
         {/* SECTION 2 — WHO USES MARTPOINT RETAIL */}
-        <section className="w-full bg-muted py-16 md:py-24 lg:py-28">
+        <section className="w-full bg-muted py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
             <SectionHeader
               headline="Built For The Way Retail Businesses Operate"
@@ -335,7 +421,7 @@ export default function MartPointRetailPage() {
         </section>
 
         {/* SECTION 3 — RETAIL BUSINESS CHALLENGES */}
-        <section className="w-full bg-[#023047] py-16 md:py-24 lg:py-28">
+        <section className="w-full bg-[#023047] py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
             <div className="max-w-3xl mx-auto text-center mb-14">
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
@@ -370,7 +456,7 @@ export default function MartPointRetailPage() {
         </section>
 
         {/* SECTION 4 — HOW A SALE FLOWS */}
-        <section className="w-full bg-background py-16 md:py-24 lg:py-28">
+        <section className="w-full bg-background py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
             <SectionHeader
               label="How It Works"
@@ -407,7 +493,7 @@ export default function MartPointRetailPage() {
         </section>
 
         {/* SECTION 5 — CAPABILITIES */}
-        <section className="w-full bg-muted py-16 md:py-24 lg:py-28">
+        <section className="w-full bg-muted py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
             <SectionHeader
               label="What You Get"
@@ -435,7 +521,7 @@ export default function MartPointRetailPage() {
         </section>
 
         {/* SECTION 6 — OWNER DASHBOARD SHOWCASE */}
-        <section className="w-full bg-background py-16 md:py-24 lg:py-28">
+        <section className="w-full bg-background py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
             <div className="max-w-3xl mx-auto text-center mb-14">
               <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-3">
@@ -451,23 +537,24 @@ export default function MartPointRetailPage() {
 
             <div className="relative mx-auto max-w-5xl">
               <div className="rounded-xl border border-border bg-slate-100 p-2 md:p-4 shadow-xl">
-                <div className="relative rounded-lg overflow-hidden aspect-[4/3] bg-white">
+                <div className="relative rounded-lg overflow-hidden bg-white">
                   <Image
                     src="/retail-dash.png"
                     alt="MartPoint Retail Dashboard with sales metrics, stock alerts and transaction history"
-                    fill
-                    className="object-cover object-top"
+                    width={1200}
+                    height={800}
+                    className="w-full h-auto"
                   />
                 </div>
               </div>
-              <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
                 {dashboardCallouts.map((callout) => (
                   <div
                     key={callout}
-                    className="flex items-center gap-2 rounded-lg border border-retail-muted bg-retail-soft px-3 py-2"
+                    className="inline-flex items-center gap-2 rounded-lg border border-retail-muted bg-retail-soft px-4 py-2"
                   >
                     <div className="w-2 h-2 rounded-full bg-retail shrink-0" />
-                    <span className="text-xs font-medium text-retail">{callout}</span>
+                    <span className="text-sm font-medium text-retail">{callout}</span>
                   </div>
                 ))}
               </div>
@@ -484,8 +571,53 @@ export default function MartPointRetailPage() {
           </div>
         </section>
 
+        {/* SECTION 6A — OFFLINE & ONLINE MODE */}
+        <section className="w-full bg-[#023047] py-10 md:py-16 lg:py-20">
+          <div className="container-martpoint">
+            <div className="max-w-3xl mx-auto text-center mb-12">
+              <span className="inline-block text-xs font-semibold uppercase tracking-widest text-white mb-3">
+                No Internet? No Problem.
+              </span>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
+                Works Offline. Works Online. Your Business Never Stops.
+              </h2>
+              <p className="mt-4 text-lg text-white/70 leading-relaxed max-w-2xl mx-auto">
+                Whether you have strong internet, patchy connection, or none at all — MartPoint Retail keeps your business running. Sales, inventory and receipts work seamlessly in any environment.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+              <div className="rounded-xl bg-white/5 border border-white/10 p-6 md:p-8">
+                <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center mb-4">
+                  <WifiOff className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-2">Fully Offline Mode</h3>
+                <p className="text-sm text-white/70 leading-relaxed">
+                  Sell, manage stock and print receipts with zero internet. All data is stored locally on your device. Perfect for locations with unreliable connectivity.
+                </p>
+              </div>
+              <div className="rounded-xl bg-white/5 border border-white/10 p-6 md:p-8">
+                <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center mb-4">
+                  <Wifi className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-2">Auto-Sync When Online</h3>
+                <p className="text-sm text-white/70 leading-relaxed">
+                  The moment you are back online, everything syncs to the cloud — sales, stock levels, attendance and reports. No manual upload needed.
+                </p>
+              </div>
+            </div>
+            <div className="mt-10 flex justify-center">
+              <Button asChild size="lg" variant="retail">
+                <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                  See How It Works — Book a Demo
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+
         {/* SECTION 6B — PRICING */}
-        <section className="w-full bg-background py-16 md:py-24 lg:py-28">
+        <section className="w-full bg-slate-50 py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
             <div className="max-w-3xl mx-auto text-center mb-14">
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
@@ -515,17 +647,16 @@ export default function MartPointRetailPage() {
                 </p>
                 <ul className="mt-6 space-y-3">
                   {[
-                    "POS Sales",
-                    "Inventory Management",
-                    "Customer Management",
-                    "Expense Tracking",
-                    "Supplier Management",
-                    "Reports & Analytics",
-                    "Receipt Printing",
-                    "Cloud Backup",
-                    "Software Updates",
-                    "Technical Support",
-                    "Mobile, Tablet & Desktop Access",
+                    "POS Sales & Checkout",
+                    "Inventory & Stock Control",
+                    "WhatsApp Invoice",
+                    "Online Payment",
+                    "Online Store",
+                    "Attendance (Face Capture)",
+                    "Daily Report",
+                    "AI Chatbot",
+                    "Training & Onboarding",
+                    "Mobile & Desktop Access",
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-2 text-sm text-foreground">
                       <Check className="w-4 h-4 text-retail shrink-0" />
@@ -534,8 +665,8 @@ export default function MartPointRetailPage() {
                   ))}
                 </ul>
                 <div className="mt-6 rounded-lg bg-retail-soft p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Includes 1 Branch</p>
-                  <p className="text-xs text-muted-foreground mt-1">Additional Branch: ₦50,000 / Year</p>
+                  <p className="text-sm font-semibold text-foreground">Includes 1 Branch · 3 Users</p>
+                  <p className="text-base font-bold text-retail mt-1">Additional Branch: ₦49,999 / Year</p>
                 </div>
                 <div className="mt-6">
                   <Button asChild size="lg" variant="retail" className="w-full">
@@ -547,22 +678,29 @@ export default function MartPointRetailPage() {
               </div>
 
               {/* Offline Plan */}
-              <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
-                <h3 className="text-xl font-bold text-foreground">MartPoint Retail Offline</h3>
+              <div className="relative rounded-2xl border border-border bg-card p-8 shadow-sm">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="inline-block rounded-full bg-foreground px-4 py-1 text-xs font-bold uppercase tracking-wider text-white">
+                    One-Time
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mt-2">MartPoint Retail Offline</h3>
                 <div className="mt-4 flex items-baseline gap-1">
                   <span className="text-4xl sm:text-5xl font-extrabold text-foreground">₦250,000</span>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">One-Time Payment</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  For businesses that prefer a perpetual offline deployment.
+                  Full software installed locally. No recurring subscription. Works without internet.
                 </p>
                 <ul className="mt-6 space-y-3">
                   {[
                     "Full Retail Software",
-                    "POS Sales",
-                    "Inventory Management",
+                    "POS Sales & Checkout",
+                    "Inventory & Stock Control",
                     "Receipt Printing",
-                    "Reporting",
+                    "Daily Report",
+                    "WhatsApp Invoice",
+                    "Attendance (Face Capture)",
                     "Local Installation",
                     "Staff Setup & Training",
                   ].map((item) => (
@@ -586,45 +724,40 @@ export default function MartPointRetailPage() {
               </div>
             </div>
 
-            {/* Price Examples */}
-            <div className="max-w-2xl mx-auto mb-16">
-              <h3 className="text-lg sm:text-xl font-bold text-center text-foreground mb-6">
-                Growing? Adding More Stores Is Simple.
-              </h3>
-              <div className="rounded-xl border border-border overflow-x-auto">
-                <table className="w-full text-sm min-w-[320px]">
-                  <thead>
-                    <tr className="bg-muted">
-                      <th className="text-left px-6 py-3 font-semibold text-foreground">Branches</th>
-                      <th className="text-right px-6 py-3 font-semibold text-foreground">Annual Cost</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { branches: "1 Branch", cost: "₦99,999" },
-                      { branches: "2 Branches", cost: "₦149,999" },
-                      { branches: "3 Branches", cost: "₦199,999" },
-                      { branches: "5 Branches", cost: "₦299,999" },
-                      { branches: "10 Branches", cost: "₦549,999" },
-                    ].map((row) => (
-                      <tr key={row.branches} className="border-t border-border">
-                        <td className="px-6 py-3 text-foreground">{row.branches}</td>
-                        <td className="px-6 py-3 text-right font-bold text-retail">{row.cost}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-4 text-center space-y-1">
-                <p className="text-sm text-muted-foreground">Only pay for the branches you operate.</p>
-                <p className="text-sm text-muted-foreground">No hidden charges. No forced upgrades.</p>
-              </div>
+          </div>
+        </section>
+
+        {/* SECTION 6C — POWER FEATURES */}
+        <section className="w-full bg-muted py-10 md:py-16 lg:py-20">
+          <div className="container-martpoint">
+            <SectionHeader
+              label="What&apos;s New"
+              headline="Everything You Need To Run A Modern Retail Business"
+              description="MartPoint Retail goes beyond traditional POS with modern tools designed for how retail works today."
+            />
+            <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {powerFeatures.map((feature) => (
+                <div
+                  key={feature.title}
+                  className="rounded-xl border border-border bg-background p-6 transition-all duration-200 hover:border-retail/30 hover:shadow-sm"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center mb-4">
+                    <feature.icon className="w-5 h-5 text-retail" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
+                    {feature.title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {feature.description}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
         {/* SECTION 7 — HARDWARE & SETUP OPTIONS */}
-        <section className="w-full bg-muted py-16 md:py-24 lg:py-28">
+        <section className="w-full bg-background py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
             <SectionHeader
               headline="Flexible Setup For Every Retail Environment"
@@ -665,7 +798,7 @@ export default function MartPointRetailPage() {
         </section>
 
         {/* SECTION 8 — WHY NIGERIAN BUSINESSES CHOOSE MARTPOINT */}
-        <section className="w-full bg-[#023047] py-16 md:py-24 lg:py-28">
+        <section className="w-full bg-[#023047] py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
             <div className="max-w-3xl mx-auto text-center mb-14">
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
@@ -697,7 +830,7 @@ export default function MartPointRetailPage() {
         </section>
 
         {/* SECTION 8B — TESTIMONIALS & TRUSTED BY */}
-        <section className="w-full bg-muted py-16 md:py-24 lg:py-28">
+        <section className="w-full bg-slate-50 py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
             <div className="max-w-3xl mx-auto text-center mb-14">
               <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-3">
@@ -775,7 +908,7 @@ export default function MartPointRetailPage() {
         </section>
 
         {/* SECTION 9 — FINAL CTA */}
-        <section className="w-full bg-background py-16 md:py-24 lg:py-28">
+        <section className="w-full bg-background py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
@@ -798,6 +931,8 @@ export default function MartPointRetailPage() {
             </div>
           </div>
         </section>
+
+        <BlogPreview />
       </main>
       <Footer />
       <ExitIntentPopup />

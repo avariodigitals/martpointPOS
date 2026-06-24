@@ -1,0 +1,389 @@
+[
+  {
+    "id": "884ea369-f93e-47f2-adb0-9a16bb4504d3",
+    "text": "Close",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:32:16.966Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "fadb1983-c85c-48b1-b01e-a6c36816a50d",
+    "text": "Book Demo",
+    "href": "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:33:03.600Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "caa39e7f-fd99-48a3-948e-143fc5c1cf9c",
+    "text": "Book Demo",
+    "href": "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:33:06.804Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "145c4721-b819-4162-9a32-a7f510377c8f",
+    "text": "Terms of Service",
+    "href": "#",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:33:29.887Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "fd98bd67-b5b4-46d4-8949-6867eb92cbd7",
+    "text": "Privacy Policy",
+    "href": "#",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:33:34.304Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "d6b25c1a-a198-4902-852d-cdaec8742049",
+    "text": "Close",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:35:07.458Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "8e63aac7-5c5a-47e7-b9e7-a67767782d40",
+    "text": "Privacy Policy",
+    "href": "/privacy-policy",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:36:51.016Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "848664a8-7bad-4578-a166-b40389341f49",
+    "text": "Save Settings",
+    "href": "/admin/settings",
+    "pagePath": "/admin/settings",
+    "timestamp": "2026-06-24T15:38:33.900Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "cfddbcec-abc0-4e48-8ccf-9d15025de482",
+    "text": "Customize",
+    "href": "/privacy-policy",
+    "pagePath": "/privacy-policy",
+    "timestamp": "2026-06-24T15:40:24.057Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "fa57ce97-aa08-442d-9061-ee86c2f07ba8",
+    "text": "Back",
+    "href": "/privacy-policy",
+    "pagePath": "/privacy-policy",
+    "timestamp": "2026-06-24T15:40:29.622Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "53328bd2-2524-48b5-bffd-e111580853f7",
+    "text": "Accept All",
+    "href": "/privacy-policy",
+    "pagePath": "/privacy-policy",
+    "timestamp": "2026-06-24T15:40:31.367Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "8636e1f4-9fbc-4bb6-98df-b40b3e90ed53",
+    "text": "Unknown",
+    "href": "/",
+    "pagePath": "/privacy-policy",
+    "timestamp": "2026-06-24T15:40:36.259Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "22fcc591-4780-4fa9-a55e-a58f34e80ed0",
+    "text": "MartPoint Retail",
+    "href": "/martpoint-retail",
+    "pagePath": "/",
+    "timestamp": "2026-06-24T15:50:07.529Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "a26e3db5-28c0-47c6-aff6-3c7b5aa67290",
+    "text": "Close",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:50:24.123Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "f911e6dd-7eb9-4abd-acba-47b01f2ee214",
+    "text": "Close",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:55:06.044Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "5577e47b-3ba0-4879-87e1-7f39022415cd",
+    "text": "Unknown",
+    "href": "/",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:55:07.702Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "30af0225-1d26-4b6f-93d2-b74ca8547a8c",
+    "text": "MartPoint Retail",
+    "href": "/martpoint-retail",
+    "pagePath": "/",
+    "timestamp": "2026-06-24T15:55:11.775Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "04099d18-26cf-41e1-ac6e-b056bb4b8f27",
+    "text": "MartPoint ERP",
+    "href": "/martpoint-erp",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T15:55:14.114Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "6730694d-45e0-439b-adb8-c7bd1d6303d4",
+    "text": "MartPoint Retail",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-erp",
+    "timestamp": "2026-06-24T15:58:32.178Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "8cab2972-3726-42b6-9c6e-a3538031b19b",
+    "text": "Close",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:02:47.070Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "81c0fa38-d836-4664-ba81-fbee4d17c2bd",
+    "text": "Close",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:08:33.872Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "acbce0c3-5f1c-455a-8f4b-40029aa46718",
+    "text": "MartPoint ERP",
+    "href": "/martpoint-erp",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:08:53.436Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "c8d61e1c-dd76-482f-ab8f-ba7546962960",
+    "text": "MartPoint Retail",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-erp",
+    "timestamp": "2026-06-24T16:08:59.892Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "6a4a298f-d1f5-430b-9ba1-f30b195c11e5",
+    "text": "Close",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:10:49.757Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "38fd8b1f-77ea-492a-8012-e4a2f9d6dbf4",
+    "text": "Unknown",
+    "href": "/",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:14:40.079Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "d1f3c537-9fac-451c-924d-e16614857163",
+    "text": "Unknown",
+    "href": "/",
+    "pagePath": "/",
+    "timestamp": "2026-06-24T16:14:40.663Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "dbea8e04-6d4e-4265-83f6-765b0c07c59f",
+    "text": "MartPoint Retail",
+    "href": "/martpoint-retail",
+    "pagePath": "/",
+    "timestamp": "2026-06-24T16:14:43.585Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "ea70a5ac-0551-4862-9f35-5c9d168787d0",
+    "text": "Unknown",
+    "href": "/",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:27:30.825Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "b8e850b9-64be-4887-8adb-8c72134357e8",
+    "text": "MartPoint Retail",
+    "href": "/martpoint-retail",
+    "pagePath": "/",
+    "timestamp": "2026-06-24T16:27:37.987Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "2e3689ea-2bdc-4a6a-81b5-d808675740bd",
+    "text": "MartPoint ERP",
+    "href": "/martpoint-erp",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:27:40.310Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "19792467-9111-439d-8e73-37293bb1fe39",
+    "text": "Unknown",
+    "href": "/",
+    "pagePath": "/martpoint-erp",
+    "timestamp": "2026-06-24T16:27:42.678Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "2f632ab3-49e6-4705-b9d8-cab08808d58e",
+    "text": "MartPoint Retail",
+    "href": "/martpoint-retail",
+    "pagePath": "/",
+    "timestamp": "2026-06-24T16:27:51.587Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "e09b850b-4ad7-45d9-93b9-6a628d8cd0c9",
+    "text": "MartPoint Retail",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:28:11.523Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "8a7a9a56-bdb4-4c74-aae2-3845fdac50de",
+    "text": "Unknown",
+    "href": "/",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:28:12.645Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "2a6c3776-8d1b-4515-9b84-2c70a3bae202",
+    "text": "MartPoint Retail",
+    "href": "/martpoint-retail",
+    "pagePath": "/",
+    "timestamp": "2026-06-24T16:28:15.500Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "7f4f1bb2-af1e-423f-b9b4-379c9a083bd3",
+    "text": "Close",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:28:34.260Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "d6e35584-99dd-41eb-8658-2b04b1d1e285",
+    "text": "Close",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:33:17.343Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "64f9aecc-630b-40fe-9090-bdbd726c9d75",
+    "text": "Save Settings",
+    "href": "/admin/settings",
+    "pagePath": "/admin/settings",
+    "timestamp": "2026-06-24T16:42:12.552Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "7765e5c5-1bb4-4c6b-b42e-068d6d036f1f",
+    "text": "Close",
+    "href": "/martpoint-retail",
+    "pagePath": "/martpoint-retail",
+    "timestamp": "2026-06-24T16:42:18.567Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "a388e09e-0609-4f21-b39c-819feca9a620",
+    "text": "Save Settings",
+    "href": "/admin/settings",
+    "pagePath": "/admin/settings",
+    "timestamp": "2026-06-24T16:42:36.495Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "c94ba4e8-6659-4226-a415-dc401c72c337",
+    "text": "Save Settings",
+    "href": "/admin/settings",
+    "pagePath": "/admin/settings",
+    "timestamp": "2026-06-24T16:42:38.138Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "44896f23-85d3-4cf4-8996-431a8e06fb66",
+    "text": "Save Settings",
+    "href": "/admin/settings",
+    "pagePath": "/admin/settings",
+    "timestamp": "2026-06-24T16:42:51.368Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  },
+  {
+    "id": "02a34330-3afb-4de4-a355-ad32456af406",
+    "text": "Save Settings",
+    "href": "/admin/settings",
+    "pagePath": "/admin/settings",
+    "timestamp": "2026-06-24T16:43:09.191Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "ip": "::1"
+  }
+]

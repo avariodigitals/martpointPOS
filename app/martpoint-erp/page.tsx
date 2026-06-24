@@ -80,19 +80,19 @@ export default function MartPointERPPage() {
         {/* Hero */}
         <section className="w-full bg-background border-b border-border">
           <div className="container-martpoint py-16 md:py-24 lg:py-32">
-            <div className="max-w-3xl">
+            <div className="max-w-3xl mx-auto text-center">
               <span className="inline-block text-xs font-semibold uppercase tracking-widest text-erp mb-4">
                 MartPoint ERP
               </span>
               <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-extrabold tracking-tight leading-[1.05] text-foreground">
                 One system that connects every department in your business
               </h1>
-              <p className="mt-6 text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl">
+              <p className="mt-6 text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
                 Accounting, procurement, HR, CRM, approvals, and reporting — all
                 connected. Built for Nigerian distributors, wholesalers, and
                 multi-branch enterprises.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="erp">
                   <Link href="/book-demo">
                     Book a Demo
@@ -226,19 +226,18 @@ export default function MartPointERPPage() {
                   Customer Story
                 </div>
                 <blockquote className="text-lg text-foreground leading-relaxed italic">
-                  &ldquo;Placeholder — real customer testimonial will be added
-                  here once collection is complete.&rdquo;
+                  &ldquo;MartPoint has helped us centralize key business processes and improve visibility across our operations. Having access to reports, records and operational data from one platform has made day-to-day management significantly more efficient.&rdquo;
                 </blockquote>
                 <div className="mt-6 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-erp/10 flex items-center justify-center text-erp font-bold text-sm">
-                    MP
+                    BS
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-foreground">
-                      MartPoint Customer
+                      Management Team
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Enterprise Business, Nigeria
+                      Bin Sheeth Group
                     </div>
                   </div>
                 </div>

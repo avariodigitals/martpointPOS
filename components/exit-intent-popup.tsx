@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { X } from "lucide-react"
+import { X, WifiOff, Wifi, MessageCircle, Globe, FileText, Bot, Check } from "lucide-react"
 
 export function ExitIntentPopup() {
   const [show, setShow] = useState(false)
@@ -47,12 +47,47 @@ export function ExitIntentPopup() {
           <p className="mt-3 text-lg text-muted-foreground">
             <span className="text-retail font-extrabold">₦99,999 / Year</span> — Everything you need to run a modern retail business.
           </p>
-          <ul className="mt-4 space-y-1 text-sm text-muted-foreground text-left max-w-xs mx-auto">
-            <li>✓ POS Sales & Inventory</li>
-            <li>✓ Cloud Backup & Reports</li>
-            <li>✓ Works Online & Offline</li>
-            <li>✓ 1 Branch Included</li>
-          </ul>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-left max-w-xs mx-auto">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <WifiOff className="w-4 h-4 text-retail shrink-0" />
+              <span>Works Offline</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Wifi className="w-4 h-4 text-retail shrink-0" />
+              <span>Works Online</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <MessageCircle className="w-4 h-4 text-retail shrink-0" />
+              <span>WhatsApp Invoice</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Globe className="w-4 h-4 text-retail shrink-0" />
+              <span>Online Store</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <FileText className="w-4 h-4 text-retail shrink-0" />
+              <span>Daily Report</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Bot className="w-4 h-4 text-retail shrink-0" />
+              <span>AI Chatbot</span>
+            </div>
+          </div>
+          <div className="mt-5 rounded-lg bg-muted p-3 text-center">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fee Covers</p>
+            <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1">
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />1 Branch</span>
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />POS Sales</span>
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Inventory Control</span>
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />WhatsApp Invoice</span>
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Online Store</span>
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />AI Chatbot</span>
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Attendance</span>
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Daily Report</span>
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Training</span>
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Support</span>
+            </div>
+          </div>
           <div className="mt-6 flex flex-col gap-3">
             <Button asChild size="lg" variant="retail" className="w-full">
               <a

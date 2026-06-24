@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { AnalyticsData } from "@/components/analytics-data";
+import { TrackingScript } from "@/components/tracking-script";
+import { CookieConsentBanner, CookieConsentSettingsButton } from "@/components/cookie-consent";
+import { OrganizationSchema, WebsiteSchema } from "@/components/structured-data";
 import "./globals.css";
 
 const inter = Inter({
@@ -45,8 +49,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+      <body className="min-h-full flex flex-col font-sans">
+        <OrganizationSchema />
+        <WebsiteSchema />
+        <AnalyticsData />
+        <TrackingScript />
+        {children}
+        <CookieConsentBanner />
+        <CookieConsentSettingsButton />
+      </body>
     </html>
   );
 }

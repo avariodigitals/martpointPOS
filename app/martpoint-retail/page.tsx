@@ -284,44 +284,17 @@ export default function MartPointRetailPage() {
                 </div>
               </div>
 
-              {/* Right: Laptop Mockup */}
+              {/* Right: Hero Image */}
               <div className="relative mx-auto lg:mx-0 w-full max-w-xl">
-                <div className="relative">
-                  {/* Screen bezel */}
-                  <div className="rounded-xl bg-slate-800 p-2 pb-0 shadow-2xl">
-                    {/* Camera dot */}
-                    <div className="flex justify-center pb-2">
-                      <div className="w-2 h-2 rounded-full bg-slate-600" />
-                    </div>
-                    {/* Screen */}
-                    <div className="relative rounded-lg overflow-hidden bg-white aspect-[16/10]">
-                      <Image
-                        src="/loginUI.png"
-                        alt="MartPoint Retail Login Interface"
-                        fill
-                        className="object-cover object-top"
-                        priority
-                      />
-                    </div>
-                  </div>
-                  {/* Laptop base */}
-                  <div className="h-3 bg-slate-700 rounded-b-lg mx-4 shadow-lg" />
-                  <div className="h-1 bg-slate-600 rounded-b-sm mx-12" />
-                  {/* Labels */}
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-retail-soft text-retail border border-retail-muted">
-                      Today&apos;s Sales
-                    </span>
-                    <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-retail-soft text-retail border border-retail-muted">
-                      Stock Alerts
-                    </span>
-                    <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-retail-soft text-retail border border-retail-muted">
-                      Recent Transactions
-                    </span>
-                    <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-retail-soft text-retail border border-retail-muted">
-                      Branch Performance
-                    </span>
-                  </div>
+                <div className="relative rounded-xl overflow-hidden shadow-2xl">
+                  <Image
+                    src="/loginUI.png"
+                    alt="MartPoint Retail Login Interface"
+                    width={800}
+                    height={500}
+                    className="w-full h-auto"
+                    priority
+                  />
                 </div>
               </div>
             </div>

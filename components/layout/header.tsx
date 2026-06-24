@@ -14,14 +14,14 @@ const navLinks = [
 export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container-martpoint flex h-24 items-center justify-between">
+      <div className="container-martpoint flex h-16 sm:h-20 lg:h-24 items-center justify-between">
         <Link href="/" className="flex items-center gap-2 shrink-0">
           <Image
             src="/logo.png"
             alt="MartPoint"
             width={280}
             height={72}
-            className="h-20 w-auto"
+            className="h-10 sm:h-14 lg:h-20 w-auto"
             priority
           />
         </Link>

@@ -374,11 +374,11 @@ export default function MartPointRetailPage() {
                 Still Managing Your Store With Guesswork?
               </h2>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-5 max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-5 max-w-4xl mx-auto">
               {challenges.map((item) => (
                 <div
                   key={item.title}
-                  className="rounded-xl bg-white/5 border border-white/10 p-8 text-center transition-all duration-200 hover:bg-white/10 hover:border-white/20"
+                  className="rounded-xl bg-white/5 border border-white/10 p-5 sm:p-8 text-center transition-all duration-200 hover:bg-white/10 hover:border-white/20"
                 >
                   <div className="w-14 h-14 rounded-xl bg-white/10 flex items-center justify-center mx-auto mb-4">
                     <item.icon className="w-7 h-7 text-white" />
@@ -544,7 +544,7 @@ export default function MartPointRetailPage() {
                 </div>
                 <h3 className="text-xl font-bold text-foreground mt-2">MartPoint Retail Cloud</h3>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-5xl font-extrabold text-retail">₦99,999</span>
+                  <span className="text-4xl sm:text-5xl font-extrabold text-retail">₦99,999</span>
                   <span className="text-muted-foreground">/ Year</span>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -587,7 +587,7 @@ export default function MartPointRetailPage() {
               <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
                 <h3 className="text-xl font-bold text-foreground">MartPoint Retail Offline</h3>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-5xl font-extrabold text-foreground">₦250,000</span>
+                  <span className="text-4xl sm:text-5xl font-extrabold text-foreground">₦250,000</span>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">One-Time Payment</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -625,11 +625,11 @@ export default function MartPointRetailPage() {
 
             {/* Price Examples */}
             <div className="max-w-2xl mx-auto mb-16">
-              <h3 className="text-xl font-bold text-center text-foreground mb-6">
+              <h3 className="text-lg sm:text-xl font-bold text-center text-foreground mb-6">
                 Growing? Adding More Stores Is Simple.
               </h3>
-              <div className="rounded-xl border border-border overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="rounded-xl border border-border overflow-x-auto">
+                <table className="w-full text-sm min-w-[320px]">
                   <thead>
                     <tr className="bg-muted">
                       <th className="text-left px-6 py-3 font-semibold text-foreground">Branches</th>
@@ -790,11 +790,11 @@ export default function MartPointRetailPage() {
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-8">
                 Trusted By
               </p>
-              <div className="flex flex-wrap justify-center items-center gap-x-12 gap-y-10 max-w-6xl mx-auto">
+              <div className="flex flex-wrap justify-center items-center gap-x-6 sm:gap-x-10 lg:gap-x-12 gap-y-6 sm:gap-y-8 max-w-6xl mx-auto">
                 {trustedBy.map((brand) => (
                   <div
                     key={brand.name}
-                    className="relative h-28 w-auto shrink-0 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
+                    className="relative h-14 sm:h-20 lg:h-28 w-auto shrink-0 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
                     title={brand.name}
                   >
                     <Image
@@ -802,7 +802,7 @@ export default function MartPointRetailPage() {
                       alt={`${brand.name} logo`}
                       width={320}
                       height={112}
-                      className="h-28 w-auto object-contain"
+                      className="h-14 sm:h-20 lg:h-28 w-auto object-contain"
                     />
                   </div>
                 ))}

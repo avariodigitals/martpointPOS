@@ -778,9 +778,9 @@ export default async function MartPointRetailPage() {
                 <div className="mt-4 flex items-baseline gap-1">
                   <span className="text-4xl sm:text-5xl font-extrabold text-foreground">{offline.price || "₦250,000"}</span>
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground">{offline.period || "₦150,000/year Maintenance & License Renewal"}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{offline.period || "One-Time Payment fee (Deployment Only)"}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {offline.description || "Full software installed locally. No recurring subscription. Works without internet."}
+                  {offline.description || "Full software installed locally. Needed, Maintenance & License renewal. Works without internet."}
                 </p>
                 <ul className="mt-6 space-y-3">
                   {((offline.features as string[]) || [
@@ -789,13 +789,13 @@ export default async function MartPointRetailPage() {
                     "Receipt Printing",
                     "Barcode & SKU Management",
                     "Customer & Supplier Records",
-                    "Staff Attendance (Face Capture)",
+                    "Staff Attendance (No Face Capture)",
                     "Daily Sales Report",
                     "Multi-Branch (LAN Connected)",
                     "Offline-First Sync",
                     "Local Installation",
                     "Staff Setup & Training",
-                    "No Recurring Fees",
+                    "Maintenance & License Renewal",
                   ]).map((item: string) => (
                     <li key={item} className="flex items-center gap-2 text-sm text-foreground">
                       <Check className="w-4 h-4 text-retail shrink-0" />
@@ -803,10 +803,13 @@ export default async function MartPointRetailPage() {
                     </li>
                   ))}
                 </ul>
-                <div className="mt-6 rounded-lg bg-muted p-4 text-center">
+                <p className="mt-4 text-center text-sm font-bold text-foreground">
+                  1 Branch 5 Users
+                </p>
+                <div className="mt-4 rounded-lg bg-muted p-4 text-center">
                   <p className="text-sm font-semibold text-foreground">Additional Branch: {offline.branchAddonPrice as string || "₦100,000 One-Time"}</p>
                   {offline.supportRenewal && (
-                    <p className="text-xs text-muted-foreground mt-1">Optional Support Renewal: {offline.supportRenewal as string}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Maintenance & License Renewal: {offline.supportRenewal as string}</p>
                   )}
                 </div>
                 <div className="mt-6">
@@ -815,6 +818,17 @@ export default async function MartPointRetailPage() {
                       {offline.ctaText as string || "Request Offline Setup"}
                     </a>
                   </Button>
+                </div>
+                <div className="mt-3 text-center">
+                  <a
+                    href="https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Enterprise%20On-Premise%20setup.%20Can%20we%20talk%3F"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <span className="font-medium">Enterprise On-Premise</span>
+                    <span className="block text-[11px] opacity-70">For larger organizations</span>
+                  </a>
                 </div>
               </div>
             </div>

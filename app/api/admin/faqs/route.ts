@@ -1,31 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
-import fs from "fs"
-import path from "path"
-
-const faqsPath = path.join(process.cwd(), "data", "faqs.json")
-
-function readFaqs() {
-  try {
-    if (!fs.existsSync(faqsPath)) return []
-    const data = fs.readFileSync(faqsPath, "utf-8")
-    return JSON.parse(data)
-  } catch {
-    return []
-  }
-}
-
-function writeFaqs(faqs: unknown[]) {
-  try {
-    fs.writeFileSync(faqsPath, JSON.stringify(faqs, null, 2), "utf-8")
-    return true
-  } catch {
-    return false
-  }
-}
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 // GET — return all FAQs
 export async function GET() {
-  const faqs = readFaqs()
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ faqs: [] })
+  }
+  const { data, error } = await supabase
+    .from("faqs")
+    .select("*")
+    .order("sort_order", { ascending: true })
+
+  if (error) {
+    console.error("[Supabase FAQs Error]", error)
+    return NextResponse.json({ faqs: [] })
+  }
+
+  const faqs = (data || []).map((row) => ({ id: row.id, question: row.question, answer: row.answer }))
   return NextResponse.json({ faqs })
 }
 
@@ -38,7 +29,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid data: faqs must be an array" }, { status: 400 })
     }
 
-    // Validate each FAQ has required fields
     for (const faq of faqs) {
       if (!faq.id || !faq.question || !faq.answer) {
         return NextResponse.json(
@@ -48,8 +38,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const success = writeFaqs(faqs)
-    if (!success) {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
+    }
+
+    // Delete existing and insert new
+    await supabase.from("faqs").delete().neq("id", "")
+    const rows = faqs.map((f: Record<string, unknown>, i: number) => ({
+      id: f.id,
+      question: f.question,
+      answer: f.answer,
+      sort_order: i,
+    }))
+    const { error } = await supabase.from("faqs").insert(rows)
+
+    if (error) {
+      console.error("[Supabase FAQs Save Error]", error)
       return NextResponse.json({ error: "Failed to save FAQs" }, { status: 500 })
     }
 

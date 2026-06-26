@@ -1,27 +1,6 @@
 import { NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
-import fs from "fs"
-import path from "path"
-
-const clicksPath = path.join(process.cwd(), "data", "clicks.json")
-
-function readClicks(): Array<{
-  id: string
-  text: string
-  href: string
-  pagePath: string
-  timestamp: string
-  userAgent: string
-  ip: string
-}> {
-  try {
-    if (!fs.existsSync(clicksPath)) return []
-    const data = fs.readFileSync(clicksPath, "utf-8")
-    return JSON.parse(data)
-  } catch {
-    return []
-  }
-}
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 export async function GET() {
   const authenticated = await isAdminAuthenticated()
@@ -29,27 +8,39 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const clicks = readClicks()
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ total: 0, today: 0, topButtons: [], topPages: [], dailyCounts: [], recent: [] })
+  }
+
+  const { data, error } = await supabase
+    .from("clicks")
+    .select("*")
+    .order("timestamp", { ascending: true })
+
+  if (error) {
+    console.error("[Supabase Clicks Error]", error)
+    return NextResponse.json({ error: "Failed to fetch clicks" }, { status: 500 })
+  }
+
+  const clicks = data || []
 
   // Total clicks
   const total = clicks.length
 
   // Clicks today
   const today = new Date().toISOString().split("T")[0]
-  const todayClicks = clicks.filter((c) => c.timestamp.startsWith(today)).length
+  const todayClicks = clicks.filter((c: Record<string, unknown>) => (c.timestamp as string).startsWith(today)).length
 
   // Top buttons/links
   const buttonCounts: Record<string, number> = {}
   const pageCounts: Record<string, number> = {}
   const dailyCounts: Record<string, number> = {}
 
-  clicks.forEach((c) => {
+  clicks.forEach((c: Record<string, unknown>) => {
     const key = `${c.text}||${c.href}`
     buttonCounts[key] = (buttonCounts[key] || 0) + 1
-
-    pageCounts[c.pagePath] = (pageCounts[c.pagePath] || 0) + 1
-
-    const day = c.timestamp.split("T")[0]
+    pageCounts[c.page_path as string] = (pageCounts[c.page_path as string] || 0) + 1
+    const day = (c.timestamp as string).split("T")[0]
     dailyCounts[day] = (dailyCounts[day] || 0) + 1
   })
 
@@ -72,7 +63,16 @@ export async function GET() {
     .slice(-30)
 
   // Recent 50 clicks
-  const recent = [...clicks].reverse().slice(0, 50)
+  const recent = [...clicks].reverse().slice(0, 50).map((c: Record<string, unknown>) => ({
+    id: c.id,
+    text: c.text,
+    href: c.href,
+    pagePath: c.page_path,
+    referrer: c.referrer,
+    timestamp: c.timestamp,
+    userAgent: c.user_agent,
+    ip: c.ip,
+  }))
 
   return NextResponse.json({
     total,
@@ -90,12 +90,15 @@ export async function DELETE() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  try {
-    if (fs.existsSync(clicksPath)) {
-      fs.unlinkSync(clicksPath)
-    }
+  if (!isSupabaseConfigured()) {
     return NextResponse.json({ success: true })
-  } catch {
+  }
+
+  const { error } = await supabase.from("clicks").delete().neq("id", "00000000-0000-0000-0000-000000000000")
+  if (error) {
+    console.error("[Supabase Clicks Delete Error]", error)
     return NextResponse.json({ error: "Failed to clear data" }, { status: 500 })
   }
+
+  return NextResponse.json({ success: true })
 }

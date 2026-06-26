@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
-import fs from "fs"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import path from "path"
+
+const BUCKET = "uploads"
 
 export async function POST(request: Request) {
   const authenticated = await isAdminAuthenticated()
   if (!authenticated) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
   }
 
   try {
@@ -18,50 +24,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    // Validate file type (MIME + extension whitelist)
+    // Validate file type
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"]
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json({ error: "Only JPEG, PNG, WebP, and GIF images are allowed" }, { status: 400 })
     }
 
-    // Validate file extension
     const ext = path.extname(file.name).toLowerCase()
     const allowedExts = [".jpg", ".jpeg", ".png", ".webp", ".gif"]
     if (!allowedExts.includes(ext)) {
       return NextResponse.json({ error: "Invalid file extension" }, { status: 400 })
     }
 
-    // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024
     if (file.size > maxSize) {
       return NextResponse.json({ error: "File size must be less than 5MB" }, { status: 400 })
     }
 
-    // Create upload directory
-    const uploadDir = path.join(process.cwd(), "public", "uploads", folder)
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
-    }
-
-    // Generate unique filename — force safe extension
+    // Generate unique filename
     const safeExt = ext || ".jpg"
     const timestamp = Date.now()
     const filename = `${timestamp}-${Math.random().toString(36).substring(2, 8)}${safeExt}`
-    const filepath = path.join(uploadDir, filename)
+    const storagePath = `${folder}/${filename}`
 
-    // Save file
+    // Upload to Supabase Storage
     const bytes = await file.arrayBuffer()
-    fs.writeFileSync(filepath, Buffer.from(bytes))
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(storagePath, Buffer.from(bytes), {
+        contentType: file.type,
+        upsert: false,
+      })
 
-    // Return public URL
-    const publicUrl = `/uploads/${folder}/${filename}`
+    if (uploadError) {
+      console.error("[Supabase Upload Error]", uploadError)
+      return NextResponse.json({ error: "Failed to upload file", details: uploadError.message }, { status: 500 })
+    }
+
+    // Get public URL
+    const { data: publicUrlData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath)
 
     return NextResponse.json({
       success: true,
-      url: publicUrl,
-      filename: filename,
+      url: publicUrlData.publicUrl,
+      filename,
     })
-  } catch {
-    return NextResponse.json({ error: "Failed to upload file" }, { status: 500 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error("[Upload Error]", message)
+    return NextResponse.json({ error: "Failed to upload file", details: message }, { status: 500 })
   }
 }

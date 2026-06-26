@@ -20,11 +20,11 @@ export async function GET(request: Request) {
     const action = searchParams.get("action") || "list"
 
     if (action === "summary") {
-      const summary = calculateSummary()
+      const summary = await calculateSummary()
       return NextResponse.json({ success: true, summary })
     }
 
-    const finance = readFinanceData()
+    const finance = await readFinanceData()
     return NextResponse.json({ success: true, transactions: finance.transactions, settings: finance.settings })
   } catch {
     return NextResponse.json({ error: "Failed to load finance data" }, { status: 500 })
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    const finance = readFinanceData()
+    const finance = await readFinanceData()
 
     const txn: FinanceTransaction = {
       id: crypto.randomUUID(),
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     }
 
     finance.transactions.unshift(txn)
-    writeFinanceData(finance)
+    await writeFinanceData(finance)
 
     return NextResponse.json({ success: true, transaction: txn })
   } catch {
@@ -89,7 +89,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Transaction ID required" }, { status: 400 })
     }
 
-    const finance = readFinanceData()
+    const finance = await readFinanceData()
     const idx = finance.transactions.findIndex((t) => t.id === id)
     if (idx === -1) {
       return NextResponse.json({ error: "Transaction not found" }, { status: 404 })
@@ -108,7 +108,7 @@ export async function PUT(request: Request) {
     if (frequency !== undefined) finance.transactions[idx].frequency = frequency
     finance.transactions[idx].updatedAt = new Date().toISOString()
 
-    writeFinanceData(finance)
+    await writeFinanceData(finance)
     return NextResponse.json({ success: true, transaction: finance.transactions[idx] })
   } catch {
     return NextResponse.json({ error: "Failed to update transaction" }, { status: 500 })
@@ -130,14 +130,14 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Transaction ID required" }, { status: 400 })
     }
 
-    const finance = readFinanceData()
+    const finance = await readFinanceData()
     const filtered = finance.transactions.filter((t) => t.id !== id)
     if (filtered.length === finance.transactions.length) {
       return NextResponse.json({ error: "Transaction not found" }, { status: 404 })
     }
 
     finance.transactions = filtered
-    writeFinanceData(finance)
+    await writeFinanceData(finance)
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: "Failed to delete transaction" }, { status: 500 })

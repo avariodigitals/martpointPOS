@@ -1,17 +1,25 @@
 import { NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
-import fs from "fs"
-import path from "path"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
-const settingsPath = path.join(process.cwd(), "data", "settings.json")
+async function readSettings(): Promise<Record<string, unknown>> {
+  if (!isSupabaseConfigured()) {
+    return getDefaultSettings()
+  }
 
-function readSettings() {
   try {
-    if (!fs.existsSync(settingsPath)) {
+    const { data, error } = await supabase
+      .from("settings")
+      .select("data")
+      .eq("id", 1)
+      .single()
+
+    if (error || !data) {
+      console.error("[Supabase Settings Read Error]", error)
       return getDefaultSettings()
     }
-    const data = fs.readFileSync(settingsPath, "utf-8")
-    return JSON.parse(data)
+
+    return (data.data as Record<string, unknown>) || getDefaultSettings()
   } catch {
     return getDefaultSettings()
   }
@@ -194,16 +202,26 @@ function getDefaultSettings() {
   }
 }
 
-function writeSettings(settings: unknown) {
+async function writeSettings(settings: unknown): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) {
+    return { success: false, error: "Supabase not configured" }
+  }
+
   try {
-    const dir = path.dirname(settingsPath)
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true })
+    const { error } = await supabase
+      .from("settings")
+      .upsert({ id: 1, data: settings, updated_at: new Date().toISOString() })
+
+    if (error) {
+      console.error("[Supabase Settings Write Error]", error)
+      return { success: false, error: error.message }
     }
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8")
-    return true
-  } catch {
-    return false
+
+    return { success: true }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error("[Settings Save Error]", message)
+    return { success: false, error: message }
   }
 }
 
@@ -213,7 +231,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const settings = readSettings()
+  const settings = await readSettings()
   return NextResponse.json(settings)
 }
 
@@ -225,12 +243,12 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const current = readSettings()
+    const current = await readSettings()
     const updated = { ...current, ...body }
 
-    const success = writeSettings(updated)
-    if (!success) {
-      return NextResponse.json({ error: "Failed to save settings" }, { status: 500 })
+    const result = await writeSettings(updated)
+    if (!result.success) {
+      return NextResponse.json({ error: "Failed to save settings", details: result.error }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, settings: updated })

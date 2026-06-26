@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
+import { readSettings } from "@/lib/settings"
 import OpenAI from "openai"
-import fs from "fs"
-import path from "path"
 
-function getOpenAiKey(): string | undefined {
+async function getOpenAiKey(): Promise<string | undefined> {
   try {
-    const settingsPath = path.join(process.cwd(), "data", "settings.json")
-    if (fs.existsSync(settingsPath)) {
-      const data = JSON.parse(fs.readFileSync(settingsPath, "utf-8"))
-      if (data.openai?.apiKey) return data.openai.apiKey
-    }
+    const settings = await readSettings()
+    const openai = settings?.openai as Record<string, string> | undefined
+    if (openai?.apiKey) return openai.apiKey
   } catch {
     // ignore
   }
@@ -23,7 +20,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const apiKey = getOpenAiKey()
+  const apiKey = await getOpenAiKey()
   if (!apiKey) {
     return NextResponse.json({ error: "OpenAI API key not configured. Add it in Settings > OpenAI or via OPENAI_API_KEY env variable." }, { status: 500 })
   }

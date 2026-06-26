@@ -2,8 +2,7 @@ import type { Metadata } from "next"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import Link from "next/link"
-import fs from "fs"
-import path from "path"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 export const metadata: Metadata = {
   title: "Blog — MartPoint",
@@ -22,20 +21,30 @@ interface BlogPost {
   status: "published" | "draft"
 }
 
-function getPublishedPosts(): BlogPost[] {
-  try {
-    const blogPath = path.join(process.cwd(), "data", "blog.json")
-    if (!fs.existsSync(blogPath)) return []
-    const data = fs.readFileSync(blogPath, "utf-8")
-    const posts = JSON.parse(data).posts || []
-    return posts.filter((p: BlogPost) => p.status === "published")
-  } catch {
-    return []
-  }
+async function getPublishedPosts(): Promise<BlogPost[]> {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select("id, slug, title, excerpt, cover_image, category, author, published_at, status")
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+
+  if (error || !data) return []
+  return data.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt,
+    coverImage: row.cover_image,
+    category: row.category,
+    author: row.author,
+    publishedAt: row.published_at,
+    status: row.status,
+  }))
 }
 
-export default function BlogPage() {
-  const posts = getPublishedPosts()
+export default async function BlogPage() {
+  const posts = await getPublishedPosts()
 
   return (
     <>

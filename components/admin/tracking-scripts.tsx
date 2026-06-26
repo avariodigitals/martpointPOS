@@ -1,21 +1,9 @@
 import Script from "next/script"
-import fs from "fs"
-import path from "path"
+import { readSettings } from "@/lib/settings"
 
-function readSettings() {
-  try {
-    const settingsPath = path.join(process.cwd(), "data", "settings.json")
-    if (!fs.existsSync(settingsPath)) return null
-    const data = fs.readFileSync(settingsPath, "utf-8")
-    return JSON.parse(data)
-  } catch {
-    return null
-  }
-}
-
-export function TrackingScripts() {
-  const settings = readSettings()
-  const analytics = settings?.analytics
+export async function TrackingScripts() {
+  const settings = await readSettings()
+  const analytics = settings?.analytics as Record<string, string> | undefined
 
   const gaId = analytics?.ga4MeasurementId || process.env.NEXT_PUBLIC_GA_ID || ""
   const fbPixelId = analytics?.fbPixelId || process.env.NEXT_PUBLIC_FB_PIXEL_ID || ""

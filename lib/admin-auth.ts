@@ -1,12 +1,10 @@
 import { cookies } from "next/headers"
-import fs from "fs"
-import path from "path"
 import crypto from "crypto"
 import type { User, UserRole, SessionPayload } from "./admin-types"
+import { supabase, isSupabaseConfigured } from "./supabase"
 export type { User, UserRole, SessionPayload }
 
 const ADMIN_COOKIE_NAME = "admin-session"
-const usersPath = path.join(process.cwd(), "data", "users.json")
 
 /* ───────────────────────────  PASSWORD UTILS  ─────────────────────────── */
 
@@ -23,43 +21,54 @@ function verifyPassword(password: string, stored: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(derived))
 }
 
-/* ───────────────────────────  USER STORE  ─────────────────────────── */
+/* ───────────────────────────  USER STORE (Supabase)  ─────────────────────────── */
 
-function readUsers(): User[] {
-  try {
-    if (!fs.existsSync(usersPath)) return []
-    const data = fs.readFileSync(usersPath, "utf-8")
-    return (JSON.parse(data).users || []) as User[]
-  } catch {
-    return []
+function mapUser(row: Record<string, unknown>): User {
+  return {
+    id: row.id as string,
+    username: row.username as string,
+    name: row.name as string,
+    passwordHash: row.password_hash as string,
+    role: row.role as UserRole,
+    createdAt: row.created_at as string,
   }
 }
 
-export function writeUsers(users: User[]) {
-  const dir = path.dirname(usersPath)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(usersPath, JSON.stringify({ users }, null, 2), "utf-8")
+async function readUsers(): Promise<User[]> {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: true })
+  if (error || !data) return []
+  return data.map(mapUser)
 }
 
-export function getUserByUsername(username: string): User | undefined {
-  return readUsers().find((u) => u.username.toLowerCase() === username.toLowerCase())
+export async function getUserByUsername(username: string): Promise<User | undefined> {
+  if (!isSupabaseConfigured()) return undefined
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .ilike("username", username)
+    .single()
+  if (error || !data) return undefined
+  return mapUser(data)
 }
 
-export function getUserById(id: string): User | undefined {
-  return readUsers().find((u) => u.id === id)
+export async function getUserById(id: string): Promise<User | undefined> {
+  if (!isSupabaseConfigured()) return undefined
+  const { data, error } = await supabase.from("users").select("*").eq("id", id).single()
+  if (error || !data) return undefined
+  return mapUser(data)
 }
 
-export function getAllUsers(): User[] {
+export async function getAllUsers(): Promise<User[]> {
   return readUsers()
 }
 
-export function createUser(
+export async function createUser(
   username: string,
   password: string,
   name: string,
   role: UserRole
-): User {
-  const users = readUsers()
+): Promise<User> {
   const user: User = {
     id: crypto.randomUUID(),
     username: username.toLowerCase().trim(),
@@ -68,31 +77,42 @@ export function createUser(
     role,
     createdAt: new Date().toISOString(),
   }
-  users.push(user)
-  writeUsers(users)
+  if (isSupabaseConfigured()) {
+    await supabase.from("users").insert({
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      password_hash: user.passwordHash,
+      role: user.role,
+      created_at: user.createdAt,
+    })
+  }
   return user
 }
 
-export function updateUser(id: string, updates: Partial<Omit<User, "id" | "createdAt" | "passwordHash"> & { password?: string }>): User | null {
-  const users = readUsers()
-  const idx = users.findIndex((u) => u.id === id)
-  if (idx === -1) return null
-  const next = { ...users[idx], ...updates } as User
-  if (updates.password) {
-    next.passwordHash = hashPassword(updates.password)
-    delete (next as unknown as Record<string, unknown>).password
-  }
-  users[idx] = next
-  writeUsers(users)
-  return users[idx]
+export async function updateUser(
+  id: string,
+  updates: Partial<Omit<User, "id" | "createdAt" | "passwordHash"> & { password?: string }>
+): Promise<User | null> {
+  if (!isSupabaseConfigured()) return null
+  const { data } = await supabase.from("users").select("*").eq("id", id).single()
+  if (!data) return null
+
+  const updateData: Record<string, unknown> = {}
+  if (updates.username) updateData.username = updates.username
+  if (updates.name) updateData.name = updates.name
+  if (updates.role) updateData.role = updates.role
+  if (updates.password) updateData.password_hash = hashPassword(updates.password)
+
+  const { data: updated } = await supabase.from("users").update(updateData).eq("id", id).select().single()
+  if (!updated) return null
+  return mapUser(updated)
 }
 
-export function deleteUser(id: string): boolean {
-  const users = readUsers()
-  const filtered = users.filter((u) => u.id !== id)
-  if (filtered.length === users.length) return false
-  writeUsers(filtered)
-  return true
+export async function deleteUser(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false
+  const { error } = await supabase.from("users").delete().eq("id", id)
+  return !error
 }
 
 /* ───────────────────────────  DEFAULT ADMIN  ─────────────────────────── */
@@ -106,11 +126,11 @@ function generateRandomPassword(length = 16): string {
   return password
 }
 
-export function ensureDefaultAdmin() {
-  const users = readUsers()
+export async function ensureDefaultAdmin() {
+  const users = await readUsers()
   if (users.length === 0) {
     const password = generateRandomPassword()
-    createUser("admin", password, "Administrator", "Admin")
+    await createUser("admin", password, "Administrator", "Admin")
     console.warn("\n============================================================")
     console.warn("  SECURITY: Default admin account created")
     console.warn("  Username: admin")
@@ -169,8 +189,8 @@ function verifySession(token: string): SessionPayload | null {
 }
 
 export async function authenticateUser(username: string, password: string): Promise<SessionPayload | null> {
-  ensureDefaultAdmin()
-  const user = getUserByUsername(username)
+  await ensureDefaultAdmin()
+  const user = await getUserByUsername(username)
   if (!user) return null
   if (!verifyPassword(password, user.passwordHash)) return null
   return { userId: user.id, username: user.username, role: user.role, name: user.name }

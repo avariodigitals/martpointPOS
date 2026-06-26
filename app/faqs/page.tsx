@@ -2,8 +2,7 @@ import type { Metadata } from "next"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { FAQPageSchema } from "@/components/structured-data"
-import fs from "fs"
-import path from "path"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 export const metadata: Metadata = {
   title: "Frequently Asked Questions — MartPoint by Avario Digitals",
@@ -22,19 +21,23 @@ interface FAQ {
   answer: string
 }
 
-function readFaqs(): FAQ[] {
+async function readFaqs(): Promise<FAQ[]> {
+  if (!isSupabaseConfigured()) return []
   try {
-    const faqsPath = path.join(process.cwd(), "data", "faqs.json")
-    if (!fs.existsSync(faqsPath)) return []
-    const data = fs.readFileSync(faqsPath, "utf-8")
-    return JSON.parse(data)
+    const { data, error } = await supabase
+      .from("faqs")
+      .select("id, question, answer")
+      .order("sort_order", { ascending: true })
+
+    if (error || !data) return []
+    return data.map((row) => ({ id: row.id, question: row.question, answer: row.answer }))
   } catch {
     return []
   }
 }
 
-export default function FAQsPage() {
-  const faqs = readFaqs()
+export default async function FAQsPage() {
+  const faqs = await readFaqs()
 
   return (
     <>

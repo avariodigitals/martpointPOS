@@ -1,26 +1,7 @@
 import { NextResponse } from "next/server"
-import fs from "fs"
-import path from "path"
 import crypto from "crypto"
 import { checkRateLimit } from "@/lib/rate-limit"
-
-const leadsPath = path.join(process.cwd(), "data", "leads.json")
-
-function readLeads() {
-  try {
-    if (!fs.existsSync(leadsPath)) return []
-    const data = fs.readFileSync(leadsPath, "utf-8")
-    return (JSON.parse(data).leads || []) as LeadRecord[]
-  } catch {
-    return []
-  }
-}
-
-function writeLeads(leads: LeadRecord[]) {
-  const dir = path.dirname(leadsPath)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(leadsPath, JSON.stringify({ leads }, null, 2), "utf-8")
-}
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 interface LeadRecord {
   id: string
@@ -76,7 +57,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Save to local JSON store
+    // Save to Supabase
     const lead: LeadRecord = {
       id: crypto.randomUUID(),
       fullName,
@@ -94,9 +75,29 @@ export async function POST(request: Request) {
       submittedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
-    const leads = readLeads()
-    leads.unshift(lead)
-    writeLeads(leads)
+
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.from("leads").insert({
+        id: lead.id,
+        full_name: lead.fullName,
+        business_name: lead.businessName,
+        email: lead.email,
+        phone: lead.phone,
+        business_type: lead.businessType,
+        product_interest: lead.productInterest,
+        branches: lead.branches,
+        staff_size: lead.staffSize,
+        challenge: lead.challenge,
+        message: lead.message,
+        source: lead.source,
+        status: lead.status,
+        submitted_at: lead.submittedAt,
+        updated_at: lead.updatedAt,
+      })
+      if (error) {
+        console.error("[Supabase Lead Insert Error]", error)
+      }
+    }
 
     // Determine pipeline ID based on product interest
     const pipelineId =

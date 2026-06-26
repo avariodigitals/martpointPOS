@@ -1,24 +1,13 @@
-import fs from "fs"
-import path from "path"
+import { readSettings } from "@/lib/settings"
 
-function readSettings() {
-  try {
-    const settingsPath = path.join(process.cwd(), "data", "settings.json")
-    if (!fs.existsSync(settingsPath)) return null
-    const data = fs.readFileSync(settingsPath, "utf-8")
-    return JSON.parse(data)
-  } catch {
-    return null
-  }
-}
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.ng"
-
-export function OrganizationSchema() {
-  const settings = readSettings()
-  const companyName = settings?.general?.companyName || "MartPoint"
-  const email = settings?.general?.contactEmail || "hello@martpoint.ng"
-  const whatsapp = settings?.general?.whatsappNumber || "+2348036028069"
+export async function OrganizationSchema() {
+  const settings = await readSettings()
+  const general = settings?.general as Record<string, string> | undefined
+  const companyName = general?.companyName || "MartPoint"
+  const email = general?.contactEmail || "hello@martpoint.com.ng"
+  const whatsapp = general?.whatsappNumber || "+2348036028069"
 
   const schema = {
     "@context": "https://schema.org",

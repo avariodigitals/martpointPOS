@@ -11,73 +11,64 @@ import {
   ArrowUpRight,
 } from "lucide-react"
 import Link from "next/link"
-import fs from "fs"
-import path from "path"
+import { readSettings } from "@/lib/settings"
 
-function getSettings() {
-  try {
-    const settingsPath = path.join(process.cwd(), "data", "settings.json")
-    if (!fs.existsSync(settingsPath)) return null
-    const data = fs.readFileSync(settingsPath, "utf-8")
-    return JSON.parse(data)
-  } catch {
-    return null
-  }
+async function getSettings() {
+  return await readSettings()
 }
 
-function getLeads() {
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+
+async function getLeads() {
+  if (!isSupabaseConfigured()) return []
+
   try {
-    const leadsPath = path.join(process.cwd(), "data", "leads.json")
-    if (!fs.existsSync(leadsPath)) return []
-    const data = fs.readFileSync(leadsPath, "utf-8")
-    return (JSON.parse(data).leads || []) as Array<{
-      id: string
-      fullName: string
-      businessName: string
-      email: string
-      phone: string
-      businessType: string
-      productInterest: string
-      source: string
-      status: "New" | "Contacted" | "Qualified" | "Proposal" | "Won" | "Lost"
-      submittedAt: string
-    }>
+    const { data, error } = await supabase
+      .from("leads")
+      .select("id, full_name, business_name, email, phone, business_type, product_interest, source, status, submitted_at")
+      .order("submitted_at", { ascending: false })
+
+    if (error || !data) {
+      console.error("[Supabase Leads Error]", error)
+      return []
+    }
+
+    return data.map((row) => ({
+      id: row.id,
+      fullName: row.full_name,
+      businessName: row.business_name,
+      email: row.email,
+      phone: row.phone,
+      businessType: row.business_type,
+      productInterest: row.product_interest,
+      source: row.source,
+      status: row.status as "New" | "Contacted" | "Qualified" | "Proposal" | "Won" | "Lost",
+      submittedAt: row.submitted_at,
+    }))
   } catch {
     return []
   }
 }
 
-function getBlogPosts() {
-  try {
-    const blogPath = path.join(process.cwd(), "data", "blog.json")
-    if (!fs.existsSync(blogPath)) return []
-    const data = fs.readFileSync(blogPath, "utf-8")
-    return (JSON.parse(data).posts || []) as Array<{ status: string }>
-  } catch {
-    return []
-  }
+async function getBlogPosts() {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase.from("blog_posts").select("status")
+  if (error || !data) return []
+  return data as Array<{ status: string }>
 }
 
-function getClicks() {
-  try {
-    const clicksPath = path.join(process.cwd(), "data", "clicks.json")
-    if (!fs.existsSync(clicksPath)) return []
-    const data = fs.readFileSync(clicksPath, "utf-8")
-    return JSON.parse(data) as Array<{ timestamp: string }>
-  } catch {
-    return []
-  }
+async function getClicks() {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase.from("clicks").select("timestamp")
+  if (error || !data) return []
+  return data as Array<{ timestamp: string }>
 }
 
-function getUsers() {
-  try {
-    const usersPath = path.join(process.cwd(), "data", "users.json")
-    if (!fs.existsSync(usersPath)) return []
-    const data = fs.readFileSync(usersPath, "utf-8")
-    return (JSON.parse(data).users || []) as Array<unknown>
-  } catch {
-    return []
-  }
+async function getUsers() {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase.from("users").select("*")
+  if (error || !data) return []
+  return data
 }
 
 const STAGE_COLORS: Record<string, string> = {
@@ -90,15 +81,15 @@ const STAGE_COLORS: Record<string, string> = {
 }
 
 export default async function AdminDashboardPage() {
-  const settings = getSettings()
-  const leads = getLeads()
-  const posts = getBlogPosts()
-  const clicks = getClicks()
-  const users = getUsers()
+  const settings = await getSettings()
+  const leads = await getLeads()
+  const posts = await getBlogPosts()
+  const clicks = await getClicks()
+  const users = await getUsers()
 
-  const seo = settings?.seo
-  const analytics = settings?.analytics
-  const general = settings?.general
+  const seo = settings?.seo as Record<string, string> | undefined
+  const analytics = settings?.analytics as Record<string, string> | undefined
+  const general = settings?.general as Record<string, string> | undefined
 
   const gaActive = analytics?.ga4MeasurementId && analytics.ga4MeasurementId.startsWith("G-")
 

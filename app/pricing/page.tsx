@@ -1,27 +1,15 @@
 import type { Metadata } from "next"
-import fs from "fs"
-import path from "path"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
 import { Check, ArrowRight, HelpCircle } from "lucide-react"
+import { readSettings } from "@/lib/settings"
 
 export const metadata: Metadata = {
   title: "Pricing",
   description:
     "Transparent pricing for MartPoint Retail and ERP. Plans for every business size.",
-}
-
-function readSettings() {
-  try {
-    const settingsPath = path.join(process.cwd(), "data", "settings.json")
-    if (!fs.existsSync(settingsPath)) return null
-    const data = fs.readFileSync(settingsPath, "utf-8")
-    return JSON.parse(data)
-  } catch {
-    return null
-  }
 }
 
 interface PlanData {
@@ -117,12 +105,12 @@ function PricingCard({
   )
 }
 
-export default function PricingPage() {
-  const settings = readSettings()
-  const pricing = settings?.pricing || {}
-  const cloud = pricing.cloud || {}
-  const offline = pricing.offline || {}
-  const erp = Array.isArray(pricing.erp) ? pricing.erp : []
+export default async function PricingPage() {
+  const settings = await readSettings()
+  const pricing = (settings?.pricing as Record<string, unknown>) || {}
+  const cloud = (pricing.cloud as unknown as PlanData) || {} as PlanData
+  const offline = (pricing.offline as unknown as PlanData) || {} as PlanData
+  const erp = Array.isArray(pricing.erp) ? (pricing.erp as unknown as PlanData[]) : []
 
   const retailPlans: PlanData[] = [
     {

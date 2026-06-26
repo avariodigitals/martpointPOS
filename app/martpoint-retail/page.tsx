@@ -1,6 +1,4 @@
 import type { Metadata } from "next"
-import fs from "fs"
-import path from "path"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { ExitIntentPopup } from "@/components/exit-intent-popup"
@@ -13,6 +11,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
+import { readSettings } from "@/lib/settings"
 import {
   ArrowRight,
   Check,
@@ -53,17 +52,6 @@ import {
   Smartphone,
   Shirt,
 } from "lucide-react"
-
-function readSettings() {
-  try {
-    const settingsPath = path.join(process.cwd(), "data", "settings.json")
-    if (!fs.existsSync(settingsPath)) return null
-    const data = fs.readFileSync(settingsPath, "utf-8")
-    return JSON.parse(data)
-  } catch {
-    return null
-  }
-}
 
 export const metadata: Metadata = {
   title: "MartPoint Retail — Retail Commerce Platform for African Businesses",
@@ -336,11 +324,11 @@ const trustedBy = [
   { name: "Zion Bookshop", logo: "/trust/zionbookshop.webp" },
 ]
 
-export default function MartPointRetailPage() {
-  const settings = readSettings()
-  const pricing = settings?.pricing || {}
-  const cloud = pricing.cloud || {}
-  const offline = pricing.offline || {}
+export default async function MartPointRetailPage() {
+  const settings = await readSettings()
+  const pricing = (settings?.pricing as Record<string, unknown>) || {}
+  const cloud = (pricing.cloud as unknown as Record<string, string | string[] | number>) || {}
+  const offline = (pricing.offline as unknown as Record<string, string | string[] | number>) || {}
 
   return (
     <>
@@ -419,7 +407,7 @@ export default function MartPointRetailPage() {
                   <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
                     Built For Businesses Like
                   </p>
-                  <div className="flex flex-wrap items-center justify-center sm:items-start sm:justify-start gap-x-8 gap-y-4">
+                  <div className="grid grid-cols-3 lg:grid-cols-4 gap-4">
                     {[
                       { label: "Supermarkets", icon: Store },
                       { label: "Mini Marts", icon: ShoppingCart },
@@ -427,8 +415,10 @@ export default function MartPointRetailPage() {
                       { label: "Restaurants", icon: UtensilsCrossed },
                       { label: "Electronics Stores", icon: Smartphone },
                       { label: "Fashion Retailers", icon: Shirt },
-                    ].map(({ label, icon: Icon }) => (
-                      <div key={label} className="flex flex-col items-center gap-2 min-w-[6rem]">
+                      { label: "Bakeries", icon: Store, desktopOnly: true },
+                      { label: "Laundry", icon: Shirt, desktopOnly: true },
+                    ].map(({ label, icon: Icon, desktopOnly }) => (
+                      <div key={label} className={`flex flex-col items-center gap-2 ${desktopOnly ? 'hidden lg:flex' : 'flex'}`}>
                         <div className="w-12 h-12 rounded-xl bg-retail-soft flex items-center justify-center">
                           <Icon className="w-6 h-6 text-retail" />
                         </div>
@@ -741,7 +731,7 @@ export default function MartPointRetailPage() {
                   {cloud.description || "Everything you need to run a modern retail business."}
                 </p>
                 <ul className="mt-6 space-y-3">
-                  {(cloud.features || [
+                  {((cloud.features as string[]) || [
                     "POS Sales & Checkout",
                     "Inventory & Stock Control",
                     "Online Store",
@@ -765,13 +755,13 @@ export default function MartPointRetailPage() {
                   ))}
                 </ul>
                 <div className="mt-6 rounded-lg bg-retail-soft p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Includes {cloud.branchesIncluded ?? 1} Branch · {cloud.usersIncluded ?? 5} Users</p>
-                  <p className="text-base font-bold text-retail mt-1">Additional Branch: {cloud.branchAddonPrice || "₦49,999 / Year"}</p>
+                  <p className="text-sm font-semibold text-foreground">Includes {cloud.branchesIncluded as number ?? 1} Branch · {cloud.usersIncluded as number ?? 5} Users</p>
+                  <p className="text-base font-bold text-retail mt-1">Additional Branch: {cloud.branchAddonPrice as string || "₦49,999 / Year"}</p>
                 </div>
                 <div className="mt-6">
                   <Button asChild size="lg" variant="retail" className="w-full">
-                    <a href={cloud.ctaLink || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
-                      {cloud.ctaText || "Get Started"}
+                    <a href={cloud.ctaLink as string || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
+                      {cloud.ctaText as string || "Get Started"}
                     </a>
                   </Button>
                 </div>
@@ -793,7 +783,7 @@ export default function MartPointRetailPage() {
                   {offline.description || "Full software installed locally. No recurring subscription. Works without internet."}
                 </p>
                 <ul className="mt-6 space-y-3">
-                  {(offline.features || [
+                  {((offline.features as string[]) || [
                     "POS Sales & Checkout",
                     "Inventory & Stock Control",
                     "Receipt Printing",
@@ -814,15 +804,15 @@ export default function MartPointRetailPage() {
                   ))}
                 </ul>
                 <div className="mt-6 rounded-lg bg-muted p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Additional Branch: {offline.branchAddonPrice || "₦100,000 One-Time"}</p>
+                  <p className="text-sm font-semibold text-foreground">Additional Branch: {offline.branchAddonPrice as string || "₦100,000 One-Time"}</p>
                   {offline.supportRenewal && (
-                    <p className="text-xs text-muted-foreground mt-1">Optional Support Renewal: {offline.supportRenewal}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Optional Support Renewal: {offline.supportRenewal as string}</p>
                   )}
                 </div>
                 <div className="mt-6">
                   <Button asChild size="lg" variant="outline" className="w-full">
-                    <a href={offline.ctaLink || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20setup.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
-                      {offline.ctaText || "Request Offline Setup"}
+                    <a href={offline.ctaLink as string || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20setup.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
+                      {offline.ctaText as string || "Request Offline Setup"}
                     </a>
                   </Button>
                 </div>
@@ -885,19 +875,21 @@ export default function MartPointRetailPage() {
                 </div>
               ))}
             </div>
-            <div className="mt-12 rounded-xl border border-retail-muted bg-retail-soft p-8 text-center">
+            <div className="mt-12 rounded-xl border border-retail-muted bg-retail-soft p-6 sm:p-8 text-center">
               <h3 className="text-lg font-semibold text-foreground mb-2">
                 Need hardware too?
               </h3>
               <p className="text-muted-foreground max-w-xl mx-auto mb-6">
                 MartPoint can provide a complete retail deployment including software setup, hardware recommendations, onboarding and training.
               </p>
-              <Button asChild size="lg" variant="retail">
-                <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
-                  Request Complete Setup
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
+              <div className="flex justify-center">
+                <Button asChild size="lg" variant="retail" className="w-full sm:w-auto">
+                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                    Request Complete Setup
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
         </section>

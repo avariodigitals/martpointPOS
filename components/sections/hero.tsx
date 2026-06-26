@@ -88,13 +88,15 @@ export function Hero() {
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Button asChild size="lg" className="shadow-sm">
-                <Link href="/book-demo">
-                  Book a Demo
+                <a href="#features">
+                  Learn more
                   <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                </a>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link href="/request-quote">Request a Quote</Link>
+                <Link href="/contact">
+                  Request a Call
+                </Link>
               </Button>
             </div>
             <div className="mt-10 flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-muted-foreground">

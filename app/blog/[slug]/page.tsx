@@ -3,10 +3,9 @@ import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import fs from "fs"
-import path from "path"
 import { notFound } from "next/navigation"
 import { ArticleSchema } from "@/components/structured-data"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 interface BlogPost {
   id: string
@@ -23,37 +22,64 @@ interface BlogPost {
   keywords: string
 }
 
-function getPostBySlug(slug: string): BlogPost | null {
-  try {
-    const blogPath = path.join(process.cwd(), "data", "blog.json")
-    if (!fs.existsSync(blogPath)) return null
-    const data = fs.readFileSync(blogPath, "utf-8")
-    const posts: BlogPost[] = JSON.parse(data).posts || []
-    return posts.find((p) => p.slug === slug && p.status === "published") || null
-  } catch {
-    return null
+async function getPostBySlug(slug: string): Promise<BlogPost | null> {
+  if (!isSupabaseConfigured()) return null
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select("*")
+    .eq("slug", slug)
+    .eq("status", "published")
+    .single()
+
+  if (error || !data) return null
+  return {
+    id: data.id,
+    slug: data.slug,
+    title: data.title,
+    excerpt: data.excerpt,
+    content: data.content,
+    coverImage: data.cover_image,
+    category: data.category,
+    author: data.author,
+    publishedAt: data.published_at,
+    status: data.status,
+    metaDescription: data.meta_description,
+    keywords: data.keywords,
   }
 }
 
-function getAllPosts(): BlogPost[] {
-  try {
-    const blogPath = path.join(process.cwd(), "data", "blog.json")
-    if (!fs.existsSync(blogPath)) return []
-    const data = fs.readFileSync(blogPath, "utf-8")
-    return (JSON.parse(data).posts || []).filter((p: BlogPost) => p.status === "published")
-  } catch {
-    return []
-  }
+async function getAllPosts(): Promise<BlogPost[]> {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select("id, slug, title, excerpt, content, cover_image, category, author, published_at, status, meta_description, keywords")
+    .eq("status", "published")
+
+  if (error || !data) return []
+  return data.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title || "",
+    excerpt: row.excerpt || "",
+    content: row.content || "",
+    coverImage: row.cover_image || "",
+    category: row.category || "",
+    author: row.author || "",
+    publishedAt: row.published_at || "",
+    status: row.status,
+    metaDescription: row.meta_description || "",
+    keywords: row.keywords || "",
+  }))
 }
 
 export async function generateStaticParams() {
-  const posts = getAllPosts()
+  const posts = await getAllPosts()
   return posts.map((post) => ({ slug: post.slug }))
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const post = getPostBySlug(slug)
+  const post = await getPostBySlug(slug)
   if (!post) return { title: "Not Found" }
 
   return {
@@ -71,7 +97,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const post = getPostBySlug(slug)
+  const post = await getPostBySlug(slug)
 
   if (!post) {
     notFound()

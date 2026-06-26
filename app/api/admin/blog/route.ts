@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
-import fs from "fs"
-import path from "path"
-
-const blogPath = path.join(process.cwd(), "data", "blog.json")
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 interface BlogPost {
   id: string
@@ -20,24 +17,20 @@ interface BlogPost {
   keywords: string
 }
 
-function readBlog(): BlogPost[] {
-  try {
-    if (!fs.existsSync(blogPath)) return []
-    const data = fs.readFileSync(blogPath, "utf-8")
-    return JSON.parse(data).posts || []
-  } catch {
-    return []
-  }
-}
-
-function writeBlog(posts: BlogPost[]) {
-  try {
-    const dir = path.dirname(blogPath)
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(blogPath, JSON.stringify({ posts }, null, 2), "utf-8")
-    return true
-  } catch {
-    return false
+function mapPost(row: Record<string, unknown>): BlogPost {
+  return {
+    id: row.id as string,
+    slug: row.slug as string,
+    title: row.title as string,
+    excerpt: row.excerpt as string,
+    content: row.content as string,
+    coverImage: row.cover_image as string,
+    category: row.category as string,
+    author: row.author as string,
+    publishedAt: row.published_at as string,
+    status: row.status as "published" | "draft",
+    metaDescription: row.meta_description as string,
+    keywords: row.keywords as string,
   }
 }
 
@@ -55,7 +48,21 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const posts = readBlog()
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ posts: [] })
+  }
+
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select("*")
+    .order("published_at", { ascending: false })
+
+  if (error) {
+    console.error("[Supabase Blog GET Error]", error)
+    return NextResponse.json({ error: "Failed to fetch posts" }, { status: 500 })
+  }
+
+  const posts = (data || []).map(mapPost)
   return NextResponse.json({ posts })
 }
 
@@ -67,36 +74,34 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const posts = readBlog()
+    const slug = body.slug || generateSlug(body.title)
 
-    const newPost: BlogPost = {
+    // Check for duplicate slug
+    const { data: existing } = await supabase.from("blog_posts").select("slug").eq("slug", slug).single()
+    const finalSlug = existing ? `${slug}-${Date.now().toString(36)}` : slug
+
+    const newPost = {
       id: Date.now().toString(36) + Math.random().toString(36).substring(2, 8),
-      slug: body.slug || generateSlug(body.title),
+      slug: finalSlug,
       title: body.title || "Untitled",
       excerpt: body.excerpt || "",
       content: body.content || "",
-      coverImage: body.coverImage || "",
+      cover_image: body.coverImage || "",
       category: body.category || "General",
       author: body.author || "MartPoint Team",
-      publishedAt: body.publishedAt || new Date().toISOString(),
+      published_at: body.publishedAt || new Date().toISOString(),
       status: body.status || "draft",
-      metaDescription: body.metaDescription || "",
+      meta_description: body.metaDescription || "",
       keywords: body.keywords || "",
     }
 
-    // Check for duplicate slug
-    if (posts.some((p) => p.slug === newPost.slug)) {
-      newPost.slug = `${newPost.slug}-${Date.now().toString(36)}`
-    }
-
-    posts.unshift(newPost)
-    const success = writeBlog(posts)
-
-    if (!success) {
+    const { error } = await supabase.from("blog_posts").insert(newPost)
+    if (error) {
+      console.error("[Supabase Blog Insert Error]", error)
       return NextResponse.json({ error: "Failed to save post" }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, post: newPost })
+    return NextResponse.json({ success: true, post: mapPost(newPost) })
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   }
@@ -110,21 +115,39 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json()
-    const posts = readBlog()
+    const { id, ...updates } = body
 
-    const index = posts.findIndex((p) => p.id === body.id)
-    if (index === -1) {
-      return NextResponse.json({ error: "Post not found" }, { status: 404 })
+    if (!id) {
+      return NextResponse.json({ error: "ID is required" }, { status: 400 })
     }
 
-    posts[index] = { ...posts[index], ...body }
-    const success = writeBlog(posts)
+    const updateData: Record<string, unknown> = {}
+    if (updates.title !== undefined) updateData.title = updates.title
+    if (updates.slug !== undefined) updateData.slug = updates.slug
+    if (updates.excerpt !== undefined) updateData.excerpt = updates.excerpt
+    if (updates.content !== undefined) updateData.content = updates.content
+    if (updates.coverImage !== undefined) updateData.cover_image = updates.coverImage
+    if (updates.category !== undefined) updateData.category = updates.category
+    if (updates.author !== undefined) updateData.author = updates.author
+    if (updates.publishedAt !== undefined) updateData.published_at = updates.publishedAt
+    if (updates.status !== undefined) updateData.status = updates.status
+    if (updates.metaDescription !== undefined) updateData.meta_description = updates.metaDescription
+    if (updates.keywords !== undefined) updateData.keywords = updates.keywords
+    updateData.updated_at = new Date().toISOString()
 
-    if (!success) {
-      return NextResponse.json({ error: "Failed to save post" }, { status: 500 })
+    const { data, error } = await supabase
+      .from("blog_posts")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single()
+
+    if (error || !data) {
+      console.error("[Supabase Blog Update Error]", error)
+      return NextResponse.json({ error: "Post not found or update failed" }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true, post: posts[index] })
+    return NextResponse.json({ success: true, post: mapPost(data) })
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   }
@@ -144,16 +167,10 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "ID is required" }, { status: 400 })
     }
 
-    const posts = readBlog()
-    const filtered = posts.filter((p) => p.id !== id)
-
-    if (filtered.length === posts.length) {
-      return NextResponse.json({ error: "Post not found" }, { status: 404 })
-    }
-
-    const success = writeBlog(filtered)
-    if (!success) {
-      return NextResponse.json({ error: "Failed to delete post" }, { status: 500 })
+    const { error } = await supabase.from("blog_posts").delete().eq("id", id)
+    if (error) {
+      console.error("[Supabase Blog Delete Error]", error)
+      return NextResponse.json({ error: "Post not found or delete failed" }, { status: 404 })
     }
 
     return NextResponse.json({ success: true })

@@ -5,36 +5,36 @@ import Image from "next/image"
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { MobileNav } from "./mobile-nav"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, ShoppingCart, Building2, FileText, HelpCircle, Tag, Users, MessageCircle, MapPin } from "lucide-react"
 
 interface NavItem {
   label: string
   href?: string
-  children?: { label: string; href: string; description?: string }[]
+  children?: { label: string; href: string; description?: string; icon?: React.ElementType }[]
 }
 
 const navItems: NavItem[] = [
   {
     label: "Products",
     children: [
-      { label: "MartPoint Retail", href: "/martpoint-retail" },
-      { label: "MartPoint ERP", href: "/martpoint-erp" },
+      { label: "MartPoint Retail", href: "/martpoint-retail", icon: ShoppingCart },
+      { label: "MartPoint ERP", href: "/martpoint-erp", icon: Building2 },
     ],
   },
   {
     label: "Resources",
     children: [
-      { label: "Blog", href: "/blog" },
-      { label: "FAQs", href: "/faqs" },
-      { label: "Pricing", href: "/pricing" },
+      { label: "Blog", href: "/blog", icon: FileText },
+      { label: "FAQs", href: "/faqs", icon: HelpCircle },
+      { label: "Pricing", href: "/pricing", icon: Tag },
     ],
   },
   {
     label: "Company",
     children: [
-      { label: "About Us", href: "/about" },
-      { label: "Contact", href: "/contact" },
-      { label: "Industries", href: "/industries" },
+      { label: "About Us", href: "/about", icon: Users },
+      { label: "Contact", href: "/contact", icon: MessageCircle },
+      { label: "Industries", href: "/industries", icon: MapPin },
     ],
   },
 ]

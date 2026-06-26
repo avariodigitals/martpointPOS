@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next"
-import fs from "fs"
-import path from "path"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 export const dynamic = "force-static"
 
@@ -10,18 +9,22 @@ interface BlogPost {
   status: string
 }
 
-function getBlogPosts(): BlogPost[] {
+async function getBlogPosts(): Promise<BlogPost[]> {
+  if (!isSupabaseConfigured()) return []
   try {
-    const blogPath = path.join(process.cwd(), "data", "blog.json")
-    if (!fs.existsSync(blogPath)) return []
-    const data = JSON.parse(fs.readFileSync(blogPath, "utf-8"))
-    return (data.posts || []).filter((p: BlogPost) => p.status === "published")
+    const { data, error } = await supabase
+      .from("blog_posts")
+      .select("slug, published_at, status")
+      .eq("status", "published")
+
+    if (error || !data) return []
+    return data.map((p) => ({ slug: p.slug, publishedAt: p.published_at, status: p.status }))
   } catch {
     return []
   }
 }
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://martpoint.com.ng"
 
   const staticPages: MetadataRoute.Sitemap = [
@@ -40,7 +43,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/terms-of-service`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
   ]
 
-  const posts = getBlogPosts()
+  const posts = await getBlogPosts()
   const blogPages: MetadataRoute.Sitemap = posts.map((post) => ({
     url: `${baseUrl}/blog/${post.slug}`,
     lastModified: new Date(post.publishedAt),

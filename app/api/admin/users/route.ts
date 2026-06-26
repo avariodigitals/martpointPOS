@@ -8,7 +8,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const users = getAllUsers().map(({ passwordHash, ...u }) => u)
+  const users = (await getAllUsers()).map(({ passwordHash, ...u }) => u)
   return NextResponse.json({ users })
 }
 
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 })
     }
 
-    const user = createUser(username, password, name, role)
+    const user = await createUser(username, password, name, role)
     const { passwordHash: _, ...safe } = user
     return NextResponse.json({ success: true, user: safe })
   } catch (err: unknown) {
@@ -51,7 +51,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
-    const user = updateUser(id, updates)
+    const user = await updateUser(id, updates)
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
@@ -78,7 +78,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
-    const success = deleteUser(id)
+    const success = await deleteUser(id)
     if (!success) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }

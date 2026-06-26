@@ -4,8 +4,7 @@ import { AnalyticsData } from "@/components/analytics-data";
 import { TrackingScript } from "@/components/tracking-script";
 import { CookieConsentLoader } from "@/components/cookie-consent-loader";
 import { OrganizationSchema, WebsiteSchema } from "@/components/structured-data";
-import fs from "fs";
-import path from "path";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import "./globals.css";
 
 const inter = Inter({
@@ -19,23 +18,39 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
-function readSettings() {
+async function readSettings(): Promise<Record<string, unknown> | null> {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+
   try {
-    const settingsPath = path.join(process.cwd(), "data", "settings.json");
-    if (!fs.existsSync(settingsPath)) return null;
-    const data = fs.readFileSync(settingsPath, "utf-8");
-    return JSON.parse(data);
+    const { data, error } = await supabase
+      .from("settings")
+      .select("data")
+      .eq("id", 1)
+      .single();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return (data.data as Record<string, unknown>) || null;
   } catch {
     return null;
   }
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const settings = readSettings();
-  const seo = settings?.seo || {};
-  const searchConsoleCode = settings?.searchConsole?.verificationCode || "";
-  const favicon = settings?.header?.favicon || "/icon.webp";
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.ng";
+  const settings = await readSettings();
+  const seo = (settings?.seo as Record<string, string>) || {};
+  const searchConsole = (settings?.searchConsole as Record<string, string>) || {};
+  const header = (settings?.header as Record<string, string>) || {};
+  const searchConsoleCode = searchConsole.verificationCode || "";
+  const favicon = header.favicon || "/icon.webp";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng";
+  const ogImage = seo.ogImage || "/retail-dashboard.webp";
+  // Cache-busting: append timestamp so social platforms refetch
+  const ogImageUrl = `${ogImage}?v=${Date.now()}`;
 
   const meta: Metadata = {
     title: {
@@ -52,16 +67,16 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: "MartPoint",
       images: [
         {
-          url: "/retail-dashboard.webp",
-          width: 1908,
-          height: 956,
-          alt: "MartPoint — Retail & ERP Software for African Businesses",
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: seo.title || "MartPoint — Retail & ERP Software for African Businesses",
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      images: ["/retail-dashboard.webp"],
+      images: [ogImageUrl],
     },
     robots: {
       index: true,

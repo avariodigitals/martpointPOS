@@ -1,21 +1,31 @@
-import fs from "fs"
-import path from "path"
 import { HeaderClient } from "./header-client"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
-function readSettings() {
+async function readSettings(): Promise<Record<string, unknown> | null> {
+  if (!isSupabaseConfigured()) {
+    return null
+  }
+
   try {
-    const settingsPath = path.join(process.cwd(), "data", "settings.json")
-    if (!fs.existsSync(settingsPath)) return null
-    const data = fs.readFileSync(settingsPath, "utf-8")
-    return JSON.parse(data)
+    const { data, error } = await supabase
+      .from("settings")
+      .select("data")
+      .eq("id", 1)
+      .single()
+
+    if (error || !data) {
+      return null
+    }
+
+    return (data.data as Record<string, unknown>) || null
   } catch {
     return null
   }
 }
 
-export function Header() {
-  const settings = readSettings()
-  const header = settings?.header || {}
+export async function Header() {
+  const settings = await readSettings()
+  const header = (settings?.header as Record<string, string>) || {}
 
   return (
     <HeaderClient

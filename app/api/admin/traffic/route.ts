@@ -1,30 +1,6 @@
 import { NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
-import fs from "fs"
-import path from "path"
-
-const clicksPath = path.join(process.cwd(), "data", "clicks.json")
-
-interface ClickRecord {
-  id: string
-  text: string
-  href: string
-  pagePath: string
-  referrer: string
-  timestamp: string
-  userAgent: string
-  ip: string
-}
-
-function readClicks(): ClickRecord[] {
-  try {
-    if (!fs.existsSync(clicksPath)) return []
-    const data = fs.readFileSync(clicksPath, "utf-8")
-    return JSON.parse(data)
-  } catch {
-    return []
-  }
-}
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 function classifyReferrer(referrer: string): string {
   if (!referrer || referrer === "") return "Direct"
@@ -52,10 +28,24 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ totalClicks: 0, sources: [], dailyTrend: [], topPages: [], period: "all" })
+  }
+
   const { searchParams } = new URL(request.url)
   const period = searchParams.get("period") || "all"
 
-  const clicks = readClicks()
+  const { data, error } = await supabase
+    .from("clicks")
+    .select("*")
+    .order("timestamp", { ascending: true })
+
+  if (error) {
+    console.error("[Supabase Traffic Error]", error)
+    return NextResponse.json({ error: "Failed to fetch data" }, { status: 500 })
+  }
+
+  const clicks = (data || []) as Array<Record<string, unknown>>
 
   // Filter by period
   const now = new Date()
@@ -64,15 +54,15 @@ export async function GET(request: Request) {
   if (period === "7d") {
     const cutoff = new Date(now)
     cutoff.setDate(cutoff.getDate() - 7)
-    filtered = clicks.filter((c) => new Date(c.timestamp) >= cutoff)
+    filtered = clicks.filter((c) => new Date(c.timestamp as string) >= cutoff)
   } else if (period === "30d") {
     const cutoff = new Date(now)
     cutoff.setDate(cutoff.getDate() - 30)
-    filtered = clicks.filter((c) => new Date(c.timestamp) >= cutoff)
+    filtered = clicks.filter((c) => new Date(c.timestamp as string) >= cutoff)
   } else if (period === "90d") {
     const cutoff = new Date(now)
     cutoff.setDate(cutoff.getDate() - 90)
-    filtered = clicks.filter((c) => new Date(c.timestamp) >= cutoff)
+    filtered = clicks.filter((c) => new Date(c.timestamp as string) >= cutoff)
   }
 
   // Referrer breakdown
@@ -81,14 +71,14 @@ export async function GET(request: Request) {
   const landingPages: Record<string, number> = {}
 
   for (const c of filtered) {
-    const source = classifyReferrer(c.referrer)
+    const source = classifyReferrer(c.referrer as string)
     referrerCounts[source] = (referrerCounts[source] || 0) + 1
 
-    const day = c.timestamp.split("T")[0]
+    const day = (c.timestamp as string).split("T")[0]
     if (!referrerDaily[day]) referrerDaily[day] = {}
     referrerDaily[day][source] = (referrerDaily[day][source] || 0) + 1
 
-    const page = c.pagePath || "/"
+    const page = (c.page_path as string) || "/"
     landingPages[page] = (landingPages[page] || 0) + 1
   }
 
@@ -100,7 +90,7 @@ export async function GET(request: Request) {
 
   // Daily trend for top 5 sources
   const top5Sources = sources.slice(0, 5).map((s) => s.name)
-  const days = Array.from(new Set(filtered.map((c) => c.timestamp.split("T")[0]))).sort()
+  const days = Array.from(new Set(filtered.map((c) => (c.timestamp as string).split("T")[0]))).sort()
   const dailyTrend = days.map((day) => {
     const entry: Record<string, number | string> = { day }
     for (const source of top5Sources) {

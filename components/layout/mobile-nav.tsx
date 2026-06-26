@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 interface NavItem {
   label: string
   href?: string
-  children?: { label: string; href: string; description?: string }[]
+  children?: { label: string; href: string; description?: string; icon?: React.ElementType }[]
 }
 
 interface MobileNavProps {
@@ -97,16 +97,25 @@ export function MobileNav({ navItems, logo, ctaText, ctaLink, secondaryCtaText, 
                           <ChevronDown className={`w-5 h-5 transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""}`} />
                         </button>
                         {isExpanded && (
-                          <div className="pb-3 pl-4 space-y-2">
-                            {item.children.map((child) => (
-                              <Link
-                                key={child.href}
-                                href={child.href}
-                                onClick={() => setOpen(false)}
-                                className="block text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
-                              >
-                                {child.label}
-                              </Link>
+                          <div className="pb-4 pl-4">
+                            {item.children.map((child, idx) => (
+                              <div key={child.href}>
+                                <Link
+                                  href={child.href}
+                                  onClick={() => setOpen(false)}
+                                  className="flex items-center gap-3 text-base font-medium text-foreground hover:text-retail transition-colors py-3 px-2 rounded-lg active:bg-muted"
+                                >
+                                  {child.icon && (
+                                    <div className="w-8 h-8 rounded-lg bg-retail-soft flex items-center justify-center shrink-0">
+                                      <child.icon className="w-4 h-4 text-retail" />
+                                    </div>
+                                  )}
+                                  {child.label}
+                                </Link>
+                                {idx < item.children!.length - 1 && (
+                                  <div className="h-px bg-border ml-12" />
+                                )}
+                              </div>
                             ))}
                           </div>
                         )}

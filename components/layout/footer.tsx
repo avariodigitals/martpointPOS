@@ -1,17 +1,5 @@
 import Link from "next/link"
-import fs from "fs"
-import path from "path"
-
-function readSettings() {
-  try {
-    const settingsPath = path.join(process.cwd(), "data", "settings.json")
-    if (!fs.existsSync(settingsPath)) return null
-    const data = fs.readFileSync(settingsPath, "utf-8")
-    return JSON.parse(data)
-  } catch {
-    return null
-  }
-}
+import { readSettings } from "@/lib/settings"
 
 const productLinks = [
   { label: "MartPoint Retail", href: "/martpoint-retail" },
@@ -33,9 +21,9 @@ const legalLinks = [
 ]
 
 export async function Footer() {
-  const settings = readSettings()
-  const social = settings?.social || {}
-  const footer = settings?.footer || {}
+  const settings = await readSettings()
+  const social = (settings?.social as Record<string, string>) || {}
+  const footer = (settings?.footer as Record<string, string>) || {}
 
   const socialLinks = [
     { key: "facebook", label: "Facebook", url: social.facebook },

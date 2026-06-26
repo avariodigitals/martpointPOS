@@ -1,30 +1,37 @@
 import { NextResponse } from "next/server"
-import fs from "fs"
-import path from "path"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
-const settingsPath = path.join(process.cwd(), "data", "settings.json")
+async function readSettings(): Promise<Record<string, unknown>> {
+  if (!isSupabaseConfigured()) {
+    return {}
+  }
 
-function readSettings() {
   try {
-    if (!fs.existsSync(settingsPath)) {
+    const { data, error } = await supabase
+      .from("settings")
+      .select("data")
+      .eq("id", 1)
+      .single()
+
+    if (error || !data) {
       return {}
     }
-    const data = fs.readFileSync(settingsPath, "utf-8")
-    return JSON.parse(data)
+
+    return (data.data as Record<string, unknown>) || {}
   } catch {
     return {}
   }
 }
 
 export async function GET() {
-  const settings = readSettings()
+  const settings = await readSettings()
   // Only expose public-safe settings
   return NextResponse.json({
-    popup: settings.popup || null,
+    popup: (settings.popup as Record<string, unknown>) || null,
     general: {
-      companyName: settings.general?.companyName || "MartPoint",
-      whatsappNumber: settings.general?.whatsappNumber || "",
-      contactEmail: settings.general?.contactEmail || "",
+      companyName: (settings.general as Record<string, string>)?.companyName || "MartPoint",
+      whatsappNumber: (settings.general as Record<string, string>)?.whatsappNumber || "",
+      contactEmail: (settings.general as Record<string, string>)?.contactEmail || "",
     },
   })
 }

@@ -1,8 +1,4 @@
-import fs from "fs"
-import path from "path"
-
-export const financePath = path.join(process.cwd(), "data", "finance.json")
-export const leadsPath = path.join(process.cwd(), "data", "leads.json")
+import { supabase, isSupabaseConfigured } from "./supabase"
 
 export interface FinanceTransaction {
   id: string
@@ -62,31 +58,81 @@ export const INCOME_CATEGORIES = [
   "Other Revenue",
 ]
 
-export function readFinanceData(): FinanceData {
+export async function readFinanceData(): Promise<FinanceData> {
+  if (!isSupabaseConfigured()) {
+    return { transactions: [], settings: { currency: "NGN", currencySymbol: "₦", fiscalYearStart: "2026-01-01", targetMrr: 1000000 } }
+  }
   try {
-    if (!fs.existsSync(financePath)) {
-      const defaultData: FinanceData = { transactions: [], settings: { currency: "NGN", currencySymbol: "₦", fiscalYearStart: "2026-01-01", targetMrr: 1000000 } }
-      fs.mkdirSync(path.dirname(financePath), { recursive: true })
-      fs.writeFileSync(financePath, JSON.stringify(defaultData, null, 2), "utf-8")
-      return defaultData
+    const { data: txnData, error: txnError } = await supabase
+      .from("finance_transactions")
+      .select("*")
+      .order("date", { ascending: false })
+
+    const { data: settingsData, error: settingsError } = await supabase
+      .from("finance_settings")
+      .select("*")
+      .eq("id", 1)
+      .single()
+
+    if (txnError || settingsError) {
+      return { transactions: [], settings: { currency: "NGN", currencySymbol: "₦", fiscalYearStart: "2026-01-01", targetMrr: 1000000 } }
     }
-    return JSON.parse(fs.readFileSync(financePath, "utf-8")) as FinanceData
+
+    const transactions = (txnData || []).map((row) => ({
+      id: row.id,
+      type: row.type,
+      category: row.category,
+      subcategory: row.subcategory,
+      amount: row.amount,
+      tax: row.tax,
+      description: row.description,
+      date: row.date,
+      leadId: row.lead_id,
+      account: row.account,
+      recurring: row.recurring,
+      frequency: row.frequency,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    })) as FinanceTransaction[]
+
+    const settings = settingsData
+      ? {
+          currency: settingsData.currency,
+          currencySymbol: settingsData.currency_symbol,
+          fiscalYearStart: settingsData.fiscal_year_start,
+          targetMrr: settingsData.target_mrr,
+        }
+      : { currency: "NGN", currencySymbol: "₦", fiscalYearStart: "2026-01-01", targetMrr: 1000000 }
+
+    return { transactions, settings }
   } catch {
     return { transactions: [], settings: { currency: "NGN", currencySymbol: "₦", fiscalYearStart: "2026-01-01", targetMrr: 1000000 } }
   }
 }
 
-export function writeFinanceData(data: FinanceData) {
-  const dir = path.dirname(financePath)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(financePath, JSON.stringify(data, null, 2), "utf-8")
+export async function writeFinanceData(data: FinanceData) {
+  if (!isSupabaseConfigured()) return
+  // Upsert settings
+  await supabase.from("finance_settings").upsert({
+    id: 1,
+    currency: data.settings.currency,
+    currency_symbol: data.settings.currencySymbol,
+    fiscal_year_start: data.settings.fiscalYearStart,
+    target_mrr: data.settings.targetMrr,
+    updated_at: new Date().toISOString(),
+  })
 }
 
 /* ─── LEADS ─── */
-export function readLeads() {
+export async function readLeads() {
+  if (!isSupabaseConfigured()) return { leads: [] }
   try {
-    if (!fs.existsSync(leadsPath)) return { leads: [] }
-    return JSON.parse(fs.readFileSync(leadsPath, "utf-8")) as { leads: Array<Record<string, unknown>> }
+    const { data, error } = await supabase
+      .from("leads")
+      .select("*")
+      .order("submitted_at", { ascending: false })
+    if (error || !data) return { leads: [] }
+    return { leads: data }
   } catch {
     return { leads: [] }
   }
@@ -157,9 +203,9 @@ export function getEndOfMonth(dateStr: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()).padStart(2, "0")}`
 }
 
-export function calculateSummary(): FinanceSummary {
-  const finance = readFinanceData()
-  const leads = readLeads()
+export async function calculateSummary(): Promise<FinanceSummary> {
+  const finance = await readFinanceData()
+  const leads = await readLeads()
   const transactions = finance.transactions
 
   // Converted leads = customers

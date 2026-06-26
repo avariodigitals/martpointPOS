@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server"
-import fs from "fs"
-import path from "path"
 import crypto from "crypto"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
-
-const leadsPath = path.join(process.cwd(), "data", "leads.json")
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 interface LeadRecord {
   id: string
@@ -27,22 +24,6 @@ interface LeadRecord {
   updatedAt: string
 }
 
-function readLeads(): LeadRecord[] {
-  try {
-    if (!fs.existsSync(leadsPath)) return []
-    const data = fs.readFileSync(leadsPath, "utf-8")
-    return (JSON.parse(data).leads || []) as LeadRecord[]
-  } catch {
-    return []
-  }
-}
-
-function writeLeads(leads: LeadRecord[]) {
-  const dir = path.dirname(leadsPath)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(leadsPath, JSON.stringify({ leads }, null, 2), "utf-8")
-}
-
 async function guardLeadsAccess() {
   const session = await getSession()
   if (!session || !hasPermission(session.role as UserRole, "leads")) {
@@ -56,7 +37,40 @@ export async function GET() {
   const denied = await guardLeadsAccess()
   if (denied) return denied
 
-  const leads = readLeads()
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ leads: [] })
+  }
+
+  const { data, error } = await supabase
+    .from("leads")
+    .select("*")
+    .order("submitted_at", { ascending: false })
+
+  if (error) {
+    console.error("[Supabase Leads GET Error]", error)
+    return NextResponse.json({ error: "Failed to fetch leads" }, { status: 500 })
+  }
+
+  const leads = (data || []).map((row) => ({
+    id: row.id,
+    fullName: row.full_name,
+    businessName: row.business_name,
+    email: row.email,
+    phone: row.phone,
+    businessType: row.business_type,
+    productInterest: row.product_interest,
+    branches: row.branches,
+    staffSize: row.staff_size,
+    challenge: row.challenge,
+    message: row.message,
+    source: row.source,
+    status: row.status,
+    assignedTo: row.assigned_to,
+    notes: row.notes,
+    submittedAt: row.submitted_at,
+    updatedAt: row.updated_at,
+  }))
+
   return NextResponse.json({ leads })
 }
 
@@ -73,19 +87,48 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Lead ID is required" }, { status: 400 })
     }
 
-    const leads = readLeads()
-    const idx = leads.findIndex((l) => l.id === id)
-    if (idx === -1) {
-      return NextResponse.json({ error: "Lead not found" }, { status: 404 })
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
     }
 
-    if (status) leads[idx].status = status
-    if (notes !== undefined) leads[idx].notes = notes
-    if (assignedTo !== undefined) leads[idx].assignedTo = assignedTo
-    leads[idx].updatedAt = new Date().toISOString()
+    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (status) updateData.status = status
+    if (notes !== undefined) updateData.notes = notes
+    if (assignedTo !== undefined) updateData.assigned_to = assignedTo
 
-    writeLeads(leads)
-    return NextResponse.json({ success: true, lead: leads[idx] })
+    const { data, error } = await supabase
+      .from("leads")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single()
+
+    if (error || !data) {
+      console.error("[Supabase Lead Update Error]", error)
+      return NextResponse.json({ error: "Lead not found or update failed" }, { status: 404 })
+    }
+
+    const lead = {
+      id: data.id,
+      fullName: data.full_name,
+      businessName: data.business_name,
+      email: data.email,
+      phone: data.phone,
+      businessType: data.business_type,
+      productInterest: data.product_interest,
+      branches: data.branches,
+      staffSize: data.staff_size,
+      challenge: data.challenge,
+      message: data.message,
+      source: data.source,
+      status: data.status,
+      assignedTo: data.assigned_to,
+      notes: data.notes,
+      submittedAt: data.submitted_at,
+      updatedAt: data.updated_at,
+    }
+
+    return NextResponse.json({ success: true, lead })
   } catch {
     return NextResponse.json({ error: "Failed to update lead" }, { status: 500 })
   }
@@ -119,8 +162,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
+    const leadId = crypto.randomUUID()
+    const now = new Date().toISOString()
+
     const lead: LeadRecord = {
-      id: crypto.randomUUID(),
+      id: leadId,
       fullName,
       businessName,
       email,
@@ -135,13 +181,35 @@ export async function POST(request: Request) {
       status: status || "New",
       assignedTo: assignedTo || "",
       notes: notes || "",
-      submittedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      submittedAt: now,
+      updatedAt: now,
     }
 
-    const leads = readLeads()
-    leads.unshift(lead)
-    writeLeads(leads)
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.from("leads").insert({
+        id: leadId,
+        full_name: fullName,
+        business_name: businessName,
+        email,
+        phone,
+        business_type: businessType,
+        product_interest: productInterest,
+        branches,
+        staff_size: staffSize,
+        challenge: challenge || "",
+        message: message || "",
+        source: source || "manual",
+        status: status || "New",
+        assigned_to: assignedTo || "",
+        notes: notes || "",
+        submitted_at: now,
+        updated_at: now,
+      })
+      if (error) {
+        console.error("[Supabase Lead Insert Error]", error)
+        return NextResponse.json({ error: "Failed to save lead" }, { status: 500 })
+      }
+    }
 
     return NextResponse.json({ success: true, lead }, { status: 200 })
   } catch {
@@ -162,13 +230,17 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Lead ID is required" }, { status: 400 })
     }
 
-    const leads = readLeads()
-    const filtered = leads.filter((l) => l.id !== id)
-    if (filtered.length === leads.length) {
-      return NextResponse.json({ error: "Lead not found" }, { status: 404 })
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
     }
 
-    writeLeads(filtered)
+    const { error } = await supabase.from("leads").delete().eq("id", id)
+
+    if (error) {
+      console.error("[Supabase Lead Delete Error]", error)
+      return NextResponse.json({ error: "Lead not found or delete failed" }, { status: 404 })
+    }
+
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: "Failed to delete lead" }, { status: 500 })

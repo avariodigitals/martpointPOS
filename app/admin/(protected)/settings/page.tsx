@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Save, Settings, Sparkles, MousePointerClick } from "lucide-react"
 
@@ -235,9 +235,7 @@ export default function AdminSettingsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    console.log("[handleSubmit] Save button clicked")
+  async function doSave(body: Record<string, unknown>) {
     setSaving(true)
     setMessage("")
 
@@ -245,24 +243,11 @@ export default function AdminSettingsPage() {
     const timeoutId = setTimeout(() => controller.abort(), 15000)
 
     try {
-      console.log("[handleSubmit] Sending POST to /api/admin/settings")
+      console.log("[doSave] Sending POST to /api/admin/settings", Object.keys(body))
       const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          general: settings,
-          social,
-          searchConsole,
-          openai,
-          popup,
-          header,
-          footer,
-          pricing: {
-            cloud: { ...pricing.cloud, features: pricing.cloud.features.split("\n").map((f) => f.trim()).filter(Boolean) },
-            offline: { ...pricing.offline, features: pricing.offline.features.split("\n").map((f) => f.trim()).filter(Boolean) },
-            erp: pricing.erp.map((plan) => ({ ...plan, features: plan.features.split("\n").map((f) => f.trim()).filter(Boolean) })),
-          },
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       })
       clearTimeout(timeoutId)
@@ -300,6 +285,25 @@ export default function AdminSettingsPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    console.log("[handleSubmit] Save All clicked")
+    await doSave({
+      general: settings,
+      social,
+      searchConsole,
+      openai,
+      popup,
+      header,
+      footer,
+      pricing: {
+        cloud: { ...pricing.cloud, features: pricing.cloud.features.split("\n").map((f) => f.trim()).filter(Boolean) },
+        offline: { ...pricing.offline, features: pricing.offline.features.split("\n").map((f) => f.trim()).filter(Boolean) },
+        erp: pricing.erp.map((plan) => ({ ...plan, features: plan.features.split("\n").map((f) => f.trim()).filter(Boolean) })),
+      },
+    })
   }
 
   const uploadLogo = async (file: File, type: "header" | "footer", field: "logo" | "favicon" = "logo") => {
@@ -350,7 +354,7 @@ export default function AdminSettingsPage() {
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} noValidate className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card>
             <CardHeader>
               <CardTitle>Contact Information</CardTitle>
@@ -388,6 +392,12 @@ export default function AdminSettingsPage() {
                 />
               </div>
             </CardContent>
+            <CardFooter className="border-t pt-4 flex justify-end">
+              <Button type="button" onClick={() => doSave({ general: settings })} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Contact
+              </Button>
+            </CardFooter>
           </Card>
 
           <Card>
@@ -437,6 +447,12 @@ export default function AdminSettingsPage() {
                 />
               </div>
             </CardContent>
+            <CardFooter className="border-t pt-4 flex justify-end">
+              <Button type="button" onClick={() => doSave({ social })} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Social
+              </Button>
+            </CardFooter>
           </Card>
 
           <Card>
@@ -472,6 +488,12 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             </CardContent>
+            <CardFooter className="border-t pt-4 flex justify-end">
+              <Button type="button" onClick={() => doSave({ searchConsole })} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Search Console
+              </Button>
+            </CardFooter>
           </Card>
 
           <Card>
@@ -497,6 +519,12 @@ export default function AdminSettingsPage() {
                 </p>
               </div>
             </CardContent>
+            <CardFooter className="border-t pt-4 flex justify-end">
+              <Button type="button" onClick={() => doSave({ openai })} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save OpenAI
+              </Button>
+            </CardFooter>
           </Card>
 
           <Card className="lg:col-span-2">
@@ -611,6 +639,12 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             </CardContent>
+            <CardFooter className="border-t pt-4 flex justify-end">
+              <Button type="button" onClick={() => doSave({ popup })} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Pop Up
+              </Button>
+            </CardFooter>
           </Card>
 
           <Card>
@@ -730,6 +764,12 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             </CardContent>
+            <CardFooter className="border-t pt-4 flex justify-end">
+              <Button type="button" onClick={() => doSave({ header })} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Header
+              </Button>
+            </CardFooter>
           </Card>
 
           <Card>
@@ -803,6 +843,12 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             </CardContent>
+            <CardFooter className="border-t pt-4 flex justify-end">
+              <Button type="button" onClick={() => doSave({ footer })} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Footer
+              </Button>
+            </CardFooter>
           </Card>
 
           <Card className="lg:col-span-2">
@@ -1153,6 +1199,18 @@ export default function AdminSettingsPage() {
                 </div>
               ))}
             </CardContent>
+            <CardFooter className="border-t pt-4 flex justify-end">
+              <Button type="button" onClick={() => doSave({
+                pricing: {
+                  cloud: { ...pricing.cloud, features: pricing.cloud.features.split("\n").map((f) => f.trim()).filter(Boolean) },
+                  offline: { ...pricing.offline, features: pricing.offline.features.split("\n").map((f) => f.trim()).filter(Boolean) },
+                  erp: pricing.erp.map((plan) => ({ ...plan, features: plan.features.split("\n").map((f) => f.trim()).filter(Boolean) })),
+                },
+              })} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Pricing
+              </Button>
+            </CardFooter>
           </Card>
 
           <div className="lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -1170,7 +1228,7 @@ export default function AdminSettingsPage() {
               ) : (
                 <>
                   <Save className="mr-2 h-4 w-4" />
-                  Save Settings
+                  Save All Changes
                 </>
               )}
             </Button>

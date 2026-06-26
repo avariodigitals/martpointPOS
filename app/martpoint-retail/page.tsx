@@ -774,11 +774,11 @@ export default async function MartPointRetailPage() {
                     {offline.badge || "One-Time"}
                   </span>
                 </div>
-                <h3 className="text-xl font-bold text-foreground mt-2">{offline.name || "MartPoint Retail Offline"}</h3>
+                <h3 className="text-xl font-bold text-foreground mt-2">{offline.name || "MartPoint On-Premise Offline"}</h3>
                 <div className="mt-4 flex items-baseline gap-1">
                   <span className="text-4xl sm:text-5xl font-extrabold text-foreground">{offline.price || "₦250,000"}</span>
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground">{offline.period || "One-Time Payment"}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{offline.period || "₦150,000/year Maintenance & License Renewal"}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {offline.description || "Full software installed locally. No recurring subscription. Works without internet."}
                 </p>

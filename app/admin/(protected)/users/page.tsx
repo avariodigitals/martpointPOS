@@ -55,6 +55,16 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function parseResponse(res: Response): Promise<Record<string, unknown>> {
+    const text = await res.text()
+    try {
+      return JSON.parse(text)
+    } catch {
+      console.error("Non-JSON response:", text.slice(0, 500))
+      return { error: `Server error (${res.status}). Check console for details.` }
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
@@ -62,7 +72,6 @@ export default function AdminUsersPage() {
 
     try {
       if (editing) {
-        // Update existing user
         const body: Record<string, unknown> = {
           id: editing.id,
           username: form.username,
@@ -76,16 +85,17 @@ export default function AdminUsersPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         })
-        const data = await res.json()
-        if (data.success) {
+        const data = await parseResponse(res)
+        if (res.ok && data.success) {
           setMessage("User updated successfully.")
           resetForm()
           fetchUsers()
         } else {
-          setMessage(data.error || "Failed to update user.")
+          const errorMsg = (data.error as string) || `Failed to update user (${res.status}).`
+          console.error("Update error:", errorMsg, data)
+          setMessage(errorMsg)
         }
       } else {
-        // Create new user
         const res = await fetch("/api/admin/users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -96,17 +106,20 @@ export default function AdminUsersPage() {
             role: form.role,
           }),
         })
-        const data = await res.json()
-        if (data.success) {
+        const data = await parseResponse(res)
+        if (res.ok && data.success) {
           setMessage("User created successfully.")
           resetForm()
           fetchUsers()
         } else {
-          setMessage(data.error || "Failed to create user.")
+          const errorMsg = (data.error as string) || `Failed to create user (${res.status}).`
+          console.error("Create error:", errorMsg, data)
+          setMessage(errorMsg)
         }
       }
-    } catch {
-      setMessage("Something went wrong.")
+    } catch (err) {
+      console.error("Network or unexpected error:", err)
+      setMessage("Network error. Check your connection and try again.")
     } finally {
       setSaving(false)
     }
@@ -116,15 +129,18 @@ export default function AdminUsersPage() {
     if (!confirm("Are you sure you want to delete this user?")) return
     try {
       const res = await fetch(`/api/admin/users?id=${id}`, { method: "DELETE" })
-      const data = await res.json()
-      if (data.success) {
+      const data = await parseResponse(res)
+      if (res.ok && data.success) {
         setMessage("User deleted.")
         fetchUsers()
       } else {
-        setMessage(data.error || "Failed to delete user.")
+        const errorMsg = (data.error as string) || `Failed to delete user (${res.status}).`
+        console.error("Delete error:", errorMsg, data)
+        setMessage(errorMsg)
       }
-    } catch {
-      setMessage("Something went wrong.")
+    } catch (err) {
+      console.error("Network or unexpected error:", err)
+      setMessage("Network error. Check your connection and try again.")
     }
   }
 

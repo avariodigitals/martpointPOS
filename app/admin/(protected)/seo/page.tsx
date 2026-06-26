@@ -45,14 +45,27 @@ export default function AdminSeoPage() {
         body: JSON.stringify({ seo: settings }),
       })
 
-      const data = await res.json()
-      if (data.success) {
+      let data: Record<string, unknown> = {}
+      const text = await res.text()
+      try {
+        data = JSON.parse(text)
+      } catch {
+        console.error("Non-JSON response:", text.slice(0, 500))
+        setMessage(`Server error (${res.status}). Check console for details.`)
+        setSaving(false)
+        return
+      }
+
+      if (res.ok && data.success) {
         setMessage("SEO settings saved successfully.")
       } else {
-        setMessage(data.error || "Failed to save.")
+        const errorMsg = (data.error as string) || `Failed to save (${res.status}).`
+        console.error("Save error:", errorMsg, data)
+        setMessage(errorMsg)
       }
-    } catch {
-      setMessage("Something went wrong.")
+    } catch (err) {
+      console.error("Network or unexpected error:", err)
+      setMessage("Network error. Check your connection and try again.")
     } finally {
       setSaving(false)
     }

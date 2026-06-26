@@ -40,10 +40,20 @@ export default function AdminBlogPage() {
       if (res.ok) {
         setPosts(posts.filter((p) => p.id !== id))
       } else {
-        alert("Failed to delete post")
+        const text = await res.text()
+        let errorMsg = "Failed to delete post"
+        try {
+          const data = JSON.parse(text)
+          errorMsg = data.error || errorMsg
+        } catch {
+          console.error("Non-JSON delete response:", text.slice(0, 500))
+        }
+        console.error("Delete error:", errorMsg)
+        alert(errorMsg)
       }
-    } catch {
-      alert("Something went wrong")
+    } catch (err) {
+      console.error("Network error deleting post:", err)
+      alert("Network error. Check your connection and try again.")
     } finally {
       setDeleting(null)
     }

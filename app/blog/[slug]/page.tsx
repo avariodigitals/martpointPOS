@@ -82,16 +82,35 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const post = await getPostBySlug(slug)
   if (!post) return { title: "Not Found" }
 
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
+  const coverImageUrl = post.coverImage?.startsWith("http") ? post.coverImage : `${baseUrl}${post.coverImage}`
+
   return {
     title: `${post.title} — MartPoint Blog`,
     description: post.metaDescription || post.excerpt,
     keywords: post.keywords,
     authors: [{ name: post.author || "MartPoint by Avario Digitals" }],
     openGraph: {
+      type: "article",
+      locale: "en_NG",
+      siteName: "MartPoint",
+      url: `${baseUrl}/blog/${post.slug}`,
       title: post.title,
       description: post.metaDescription || post.excerpt,
-      images: post.coverImage ? [{ url: post.coverImage }] : undefined,
-      type: "article",
+      publishedTime: post.publishedAt,
+      authors: [post.author || "MartPoint by Avario Digitals"],
+      images: post.coverImage
+        ? [
+            {
+              url: coverImageUrl,
+              secureUrl: coverImageUrl,
+              width: 1200,
+              height: 630,
+              alt: post.title,
+              type: "image/webp",
+            },
+          ]
+        : undefined,
     },
   }
 }

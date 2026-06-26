@@ -49,8 +49,6 @@ export async function generateMetadata(): Promise<Metadata> {
   const favicon = header.favicon || "/icon.webp";
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng";
   const ogImage = seo.ogImage || "/retail-dashboard.webp";
-  // Cache-busting: append timestamp so social platforms refetch
-  const ogImageUrl = `${ogImage}?v=${Date.now()}`;
 
   const meta: Metadata = {
     title: {
@@ -66,18 +64,21 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       locale: "en_NG",
       siteName: "MartPoint",
+      url: baseUrl,
       images: [
         {
-          url: ogImageUrl,
+          url: ogImage,
+          secureUrl: `${baseUrl}${ogImage}`,
           width: 1200,
           height: 630,
           alt: seo.title || "MartPoint — Retail & ERP Software for African Businesses",
+          type: "image/webp",
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      images: [ogImageUrl],
+      images: [ogImage],
     },
     robots: {
       index: true,

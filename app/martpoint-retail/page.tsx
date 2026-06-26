@@ -690,8 +690,8 @@ export default async function MartPointRetailPage() {
                 </p>
               </div>
             </div>
-            <div className="mt-10 flex justify-center">
-              <Button asChild size="lg" variant="retail">
+            <div className="mt-10 flex justify-center px-4 sm:px-0">
+              <Button asChild size="lg" variant="retail" className="w-full sm:w-auto text-center">
                 <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
                   See How It Works — Book a Demo
                   <ArrowRight className="ml-2 h-4 w-4" />

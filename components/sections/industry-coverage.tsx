@@ -49,7 +49,7 @@ export function IndustryCoverage() {
       <div className="container-martpoint">
         <SectionHeader
           label="Industries"
-          headline="Built for the businesses that power Nigeria"
+          headline="Built for the businesses that power Africa"
           description="Whatever you sell or distribute, MartPoint is designed for your operational reality."
         />
 
@@ -59,13 +59,13 @@ export function IndustryCoverage() {
               key={industry.name}
               className="group rounded-xl border border-border bg-background p-6 transition-all duration-200 hover:border-accent/30 hover:shadow-sm"
             >
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-3 mb-4 justify-center sm:justify-start">
                 <div className="w-2 h-2 rounded-full bg-accent" />
                 <h3 className="text-base font-semibold text-foreground">
                   {industry.name}
                 </h3>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
+              <p className="text-sm text-muted-foreground leading-relaxed text-center sm:text-left">
                 {industry.scenario}
               </p>
             </div>

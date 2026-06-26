@@ -29,7 +29,7 @@ const erpFeatures = [
 
 export function ProductSplit() {
   return (
-    <section className="w-full bg-muted py-16 md:py-24 lg:py-32">
+    <section id="features" className="w-full bg-muted py-16 md:py-24 lg:py-32">
       <div className="container-martpoint">
         <SectionHeader
           label="Products"
@@ -39,8 +39,8 @@ export function ProductSplit() {
 
         <div className="mt-14 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
           {/* Retail Card */}
-          <div className="group relative rounded-2xl border border-retail-muted bg-retail-soft p-8 md:p-10 transition-all duration-300 hover:shadow-lg hover:border-retail/30">
-            <div className="absolute left-0 top-8 bottom-8 w-1 rounded-r bg-retail" />
+          <div className="group relative rounded-2xl border border-retail-muted bg-retail-soft p-8 md:p-10 transition-all duration-300 hover:shadow-lg hover:border-retail/30 text-center md:text-left">
+            <div className="absolute left-0 top-8 bottom-8 w-1 rounded-r bg-retail hidden md:block" />
 
             <div className="mb-6">
               <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-2">
@@ -61,7 +61,7 @@ export function ProductSplit() {
               {retailFeatures.map((feature) => (
                 <div
                   key={feature.label}
-                  className="flex items-center gap-3 bg-white/60 rounded-lg px-3 py-2.5"
+                  className="flex items-center gap-3 bg-white/60 rounded-lg px-3 py-2.5 justify-center md:justify-start"
                 >
                   <feature.icon className="w-4 h-4 text-retail shrink-0" />
                   <span className="text-sm font-medium text-foreground">
@@ -84,18 +84,26 @@ export function ProductSplit() {
             <Button
               asChild
               variant="retail"
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto mx-auto md:mx-0"
             >
               <Link href="/martpoint-retail">
                 Explore Retail
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
+
+            <div className="mt-4">
+              <Button asChild variant="default" className="w-full sm:w-auto mx-auto md:mx-0">
+                <Link href="/pricing">
+                  Start From ₦99,999/Year
+                </Link>
+              </Button>
+            </div>
           </div>
 
           {/* ERP Card */}
-          <div className="group relative rounded-2xl border border-erp-muted bg-erp-soft p-8 md:p-10 transition-all duration-300 hover:shadow-lg hover:border-erp/30">
-            <div className="absolute left-0 top-8 bottom-8 w-1 rounded-r bg-erp" />
+          <div className="group relative rounded-2xl border border-erp-muted bg-erp-soft p-8 md:p-10 transition-all duration-300 hover:shadow-lg hover:border-erp/30 text-center md:text-left">
+            <div className="absolute left-0 top-8 bottom-8 w-1 rounded-r bg-erp hidden md:block" />
 
             <div className="mb-6">
               <span className="inline-block text-xs font-semibold uppercase tracking-widest text-erp mb-2">
@@ -116,7 +124,7 @@ export function ProductSplit() {
               {erpFeatures.map((feature) => (
                 <div
                   key={feature.label}
-                  className="flex items-center gap-3 bg-white/60 rounded-lg px-3 py-2.5"
+                  className="flex items-center gap-3 bg-white/60 rounded-lg px-3 py-2.5 justify-center md:justify-start"
                 >
                   <feature.icon className="w-4 h-4 text-erp shrink-0" />
                   <span className="text-sm font-medium text-foreground">
@@ -139,13 +147,21 @@ export function ProductSplit() {
             <Button
               asChild
               variant="erp"
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto mx-auto md:mx-0"
             >
               <Link href="/martpoint-erp">
                 Explore ERP
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
+
+            <div className="mt-4">
+              <Button asChild variant="default" className="w-full sm:w-auto mx-auto md:mx-0">
+                <Link href="/pricing">
+                  Start From ₦99,999/Year
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
       </div>

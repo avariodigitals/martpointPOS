@@ -74,7 +74,7 @@ export function Hero() {
     <section className="relative w-full overflow-hidden bg-background">
       <div className="container-martpoint py-16 md:py-24 lg:py-32">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          <div className="max-w-xl">
+          <div className="max-w-xl mx-auto lg:mx-0 text-center lg:text-left">
             <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-extrabold tracking-tight leading-[1.05] text-foreground">
               Run your business with{" "}
               <span className="text-retail">clarity</span>,{" "}
@@ -82,11 +82,11 @@ export function Hero() {
               <span className="text-accent">confidence</span>.
             </h1>
             <p className="mt-6 text-lg md:text-xl text-muted-foreground leading-relaxed">
-              MartPoint is business management software built for Nigerian
+              MartPoint is business management software built for African
               businesses. From your store counter to your boardroom — one
               ecosystem, complete visibility.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row gap-4">
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Button asChild size="lg" className="shadow-sm">
                 <Link href="/book-demo">
                   Book a Demo
@@ -97,7 +97,7 @@ export function Hero() {
                 <Link href="/request-quote">Request a Quote</Link>
               </Button>
             </div>
-            <div className="mt-10 flex items-center gap-6 text-sm text-muted-foreground">
+            <div className="mt-10 flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-success" />
                 POS & Sales

@@ -7,7 +7,7 @@ import path from "path"
 
 export const metadata: Metadata = {
   title: "Blog — MartPoint",
-  description: "Tips, guides, and insights for Nigerian retail businesses and enterprises.",
+  description: "Tips, guides, and insights for African retail businesses and enterprises.",
 }
 
 interface BlogPost {
@@ -48,7 +48,7 @@ export default function BlogPage() {
                 Blog
               </span>
               <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                Tips & Insights for Nigerian Retailers
+                Tips & Insights for African Retailers
               </h1>
               <p className="mt-4 text-lg text-muted-foreground">
                 Practical guides, industry news, and growth strategies for your business.

@@ -4,23 +4,115 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { X, WifiOff, Wifi, MessageCircle, Globe, FileText, Bot, Check } from "lucide-react"
 
+interface PopupSettings {
+  enabled: boolean
+  trigger: "mouseleave" | "timer" | "both"
+  delaySeconds: number
+  maxShowsPerSession: number
+  title: string
+  priceText: string
+  priceSubtext: string
+  ctaText: string
+  ctaLink: string
+}
+
+const defaultSettings: PopupSettings = {
+  enabled: true,
+  trigger: "mouseleave",
+  delaySeconds: 0,
+  maxShowsPerSession: 1,
+  title: "Start With MartPoint Retail Cloud",
+  priceText: "₦99,999 / Year",
+  priceSubtext: "Everything you need to run a modern retail business.",
+  ctaText: "Get Started on WhatsApp",
+  ctaLink: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F",
+}
+
+const SESSION_KEY = "martpoint_popup_shown"
+
+function getSessionCount(): number {
+  try {
+    return parseInt(sessionStorage.getItem(SESSION_KEY) || "0", 10)
+  } catch {
+    return 0
+  }
+}
+
+function incrementSessionCount(): number {
+  try {
+    const count = getSessionCount() + 1
+    sessionStorage.setItem(SESSION_KEY, String(count))
+    return count
+  } catch {
+    return 0
+  }
+}
+
 export function ExitIntentPopup() {
   const [show, setShow] = useState(false)
-  const [hasShown, setHasShown] = useState(false)
+  const [config, setConfig] = useState<PopupSettings>(defaultSettings)
+  const [loaded, setLoaded] = useState(false)
 
+  // Fetch popup settings from public API
   useEffect(() => {
+    fetch("/api/settings", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.popup) {
+          setConfig({ ...defaultSettings, ...data.popup })
+        }
+      })
+      .catch(() => {/* fallback to defaults */})
+      .finally(() => setLoaded(true))
+  }, [])
+
+  const canShow = () => {
+    if (!loaded || !config.enabled) return false
+    return getSessionCount() < config.maxShowsPerSession
+  }
+
+  const doShow = () => {
+    if (!canShow()) return
+    incrementSessionCount()
+    setShow(true)
+  }
+
+  // Mouse leave trigger
+  useEffect(() => {
+    if (!loaded || !config.enabled) return
+    if (config.trigger !== "mouseleave" && config.trigger !== "both") return
+
     const handleMouseLeave = (e: MouseEvent) => {
-      if (e.clientY < 10 && !hasShown) {
-        setShow(true)
-        setHasShown(true)
+      if (e.clientY < 10 && canShow()) {
+        const delayMs = config.delaySeconds * 1000
+        if (delayMs > 0) {
+          setTimeout(() => doShow(), delayMs)
+        } else {
+          doShow()
+        }
       }
     }
 
     document.addEventListener("mouseleave", handleMouseLeave)
     return () => document.removeEventListener("mouseleave", handleMouseLeave)
-  }, [hasShown])
+  }, [loaded, config])
 
-  if (!show) return null
+  // Timer trigger
+  useEffect(() => {
+    if (!loaded || !config.enabled) return
+    if (config.trigger !== "timer" && config.trigger !== "both") return
+
+    const delayMs = config.delaySeconds * 1000
+    if (delayMs <= 0) return
+
+    const timer = setTimeout(() => {
+      doShow()
+    }, delayMs)
+
+    return () => clearTimeout(timer)
+  }, [loaded, config])
+
+  if (!loaded || !config.enabled || !show) return null
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -42,10 +134,10 @@ export function ExitIntentPopup() {
             Limited Time
           </span>
           <h3 className="text-2xl font-bold text-foreground leading-tight">
-            Start With MartPoint Retail Cloud
+            {config.title}
           </h3>
           <p className="mt-3 text-lg text-muted-foreground">
-            <span className="text-retail font-extrabold">₦99,999 / Year</span> — Everything you need to run a modern retail business.
+            <span className="text-retail font-extrabold">{config.priceText}</span> — {config.priceSubtext}
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2 text-left max-w-xs mx-auto">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -91,11 +183,11 @@ export function ExitIntentPopup() {
           <div className="mt-6 flex flex-col gap-3">
             <Button asChild size="lg" variant="retail" className="w-full">
               <a
-                href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"
+                href={config.ctaLink}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Get Started on WhatsApp
+                {config.ctaText}
               </a>
             </Button>
             <button

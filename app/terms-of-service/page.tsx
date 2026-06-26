@@ -32,7 +32,7 @@ export default function TermsOfServicePage() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground mb-3">2. Description of Services</h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  MartPoint provides business management software including point-of-sale (POS) systems, inventory management, enterprise resource planning (ERP), and related tools designed for Nigerian retail businesses and enterprises. Our Services may include software downloads, cloud-based applications, mobile applications, and support services.
+                  MartPoint provides business management software including point-of-sale (POS) systems, inventory management, enterprise resource planning (ERP), and related tools designed for African retail businesses and enterprises. Our Services may include software downloads, cloud-based applications, mobile applications, and support services.
                 </p>
               </div>
 
@@ -61,7 +61,7 @@ export default function TermsOfServicePage() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground mb-3">5. Payment and Billing</h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  Certain Services require payment of fees. All fees are stated in Nigerian Naira (₦) and are exclusive of applicable taxes. You agree to pay all fees and charges associated with your account on a timely basis. Failure to pay may result in suspension or termination of your account. All purchases are final unless otherwise stated. Subscription fees are billed in advance on a periodic basis depending on your selected plan.
+                  Certain Services require payment of fees. All fees are stated in African Naira (₦) and are exclusive of applicable taxes. You agree to pay all fees and charges associated with your account on a timely basis. Failure to pay may result in suspension or termination of your account. All purchases are final unless otherwise stated. Subscription fees are billed in advance on a periodic basis depending on your selected plan.
                 </p>
               </div>
 
@@ -124,7 +124,7 @@ export default function TermsOfServicePage() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground mb-3">14. Governing Law</h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  These Terms shall be governed by and construed in accordance with the laws of the Federal Republic of Nigeria, without regard to its conflict of law provisions. Any dispute arising under these Terms shall be subject to the exclusive jurisdiction of the courts of Lagos State, Nigeria.
+                  These Terms shall be governed by and construed in accordance with the laws of the Federal Republic of Africa, without regard to its conflict of law provisions. Any dispute arising under these Terms shall be subject to the exclusive jurisdiction of the courts of Lagos State, Africa.
                 </p>
               </div>
 
@@ -138,7 +138,7 @@ export default function TermsOfServicePage() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground mb-3">16. Contact Us</h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  If you have any questions about these Terms of Service, please contact us at hello@martpoint.com.ng or via WhatsApp at +234 803 602 8069.
+                  If you have any questions about these Terms of Service, please contact us at <a href="mailto:hello@martpoint.com.ng" className="text-retail underline hover:text-retail/80 transition-colors">hello@martpoint.com.ng</a> or via WhatsApp at <a href="tel:+2348036028069" className="text-retail underline hover:text-retail/80 transition-colors">+234 803 602 8069</a>.
                 </p>
               </div>
             </div>

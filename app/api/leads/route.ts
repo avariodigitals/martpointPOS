@@ -1,6 +1,56 @@
 import { NextResponse } from "next/server"
+import fs from "fs"
+import path from "path"
+import crypto from "crypto"
+import { checkRateLimit } from "@/lib/rate-limit"
+
+const leadsPath = path.join(process.cwd(), "data", "leads.json")
+
+function readLeads() {
+  try {
+    if (!fs.existsSync(leadsPath)) return []
+    const data = fs.readFileSync(leadsPath, "utf-8")
+    return (JSON.parse(data).leads || []) as LeadRecord[]
+  } catch {
+    return []
+  }
+}
+
+function writeLeads(leads: LeadRecord[]) {
+  const dir = path.dirname(leadsPath)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(leadsPath, JSON.stringify({ leads }, null, 2), "utf-8")
+}
+
+interface LeadRecord {
+  id: string
+  fullName: string
+  businessName: string
+  email: string
+  phone: string
+  businessType: string
+  productInterest: string
+  branches: string
+  staffSize: string
+  challenge?: string
+  message?: string
+  source: string
+  status: "New" | "Contacted" | "Qualified" | "Proposal" | "Won" | "Lost"
+  assignedTo?: string
+  notes?: string
+  submittedAt: string
+  updatedAt: string
+}
 
 export async function POST(request: Request) {
+  const limit = checkRateLimit(request, { key: "leads", max: 5, windowSeconds: 3600 })
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many submissions. Please try again later." },
+      { status: 429 }
+    )
+  }
+
   try {
     const body = await request.json()
 
@@ -25,6 +75,28 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+
+    // Save to local JSON store
+    const lead: LeadRecord = {
+      id: crypto.randomUUID(),
+      fullName,
+      businessName,
+      email,
+      phone,
+      businessType,
+      productInterest,
+      branches,
+      staffSize,
+      challenge: challenge || "",
+      message: message || "",
+      source: source || "website",
+      status: "New",
+      submittedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    const leads = readLeads()
+    leads.unshift(lead)
+    writeLeads(leads)
 
     // Determine pipeline ID based on product interest
     const pipelineId =

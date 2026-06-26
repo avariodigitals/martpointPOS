@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
+import fs from "fs"
+import path from "path"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
 import { Check, ArrowRight, HelpCircle } from "lucide-react"
@@ -12,219 +13,172 @@ export const metadata: Metadata = {
     "Transparent pricing for MartPoint Retail and ERP. Plans for every business size.",
 }
 
-const retailTiers = [
-  {
-    name: "MartPoint Retail Cloud",
-    price: "₦99,999",
-    period: "/ Year",
-    description: "Everything you need to run a modern retail business.",
-    features: [
-      "POS Sales",
-      "Inventory Management",
-      "Customer Management",
-      "Expense Tracking",
-      "Supplier Management",
-      "Reports & Analytics",
-      "Receipt Printing",
-      "Cloud Backup",
-      "Software Updates",
-      "Technical Support",
-      "Mobile, Tablet & Desktop Access",
-    ],
-    branchNote: "Includes 1 Branch",
-    extraBranch: "Additional Branch: ₦50,000 / Year",
-    cta: "Get Started",
-    href: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F",
-    highlighted: true,
-    external: true,
-  },
-  {
-    name: "MartPoint Retail Offline",
-    price: "₦250,000",
-    period: "One-Time",
-    description: "For businesses that prefer a perpetual offline deployment.",
-    features: [
-      "Full Retail Software",
-      "POS Sales",
-      "Inventory Management",
-      "Receipt Printing",
-      "Reporting",
-      "Local Installation",
-      "Staff Setup & Training",
-    ],
-    branchNote: "",
-    extraBranch: "Additional Branch: ₦100,000 One-Time",
-    supportNote: "Optional Support Renewal: ₦50,000 / Year",
-    cta: "Request Offline Setup",
-    href: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20setup.%20Can%20we%20talk%3F",
-    highlighted: false,
-    external: true,
-  },
-]
+function readSettings() {
+  try {
+    const settingsPath = path.join(process.cwd(), "data", "settings.json")
+    if (!fs.existsSync(settingsPath)) return null
+    const data = fs.readFileSync(settingsPath, "utf-8")
+    return JSON.parse(data)
+  } catch {
+    return null
+  }
+}
 
-const erpTiers = [
-  {
-    name: "Growth",
-    price: "₦85,000",
-    period: "/month",
-    description: "For SMEs ready to systematize operations",
-    features: [
-      "Up to 20 employees",
-      "Accounting module",
-      "Procurement module",
-      "Basic HR & CRM",
-      "Standard reports",
-      "Email support",
-    ],
-    branchNote: "",
-    extraBranch: "",
-    supportNote: "",
-    cta: "Get Started",
-    href: "/book-demo",
-    highlighted: false,
-    external: false,
-  },
-  {
-    name: "Scale",
-    price: "₦180,000",
-    period: "/month",
-    description: "For multi-department businesses",
-    features: [
-      "Up to 100 employees",
-      "Full accounting suite",
-      "Advanced procurement",
-      "HR, CRM & approvals",
-      "Custom reports",
-      "Priority support",
-    ],
-    branchNote: "",
-    extraBranch: "",
-    supportNote: "",
-    cta: "Get Started",
-    href: "/book-demo",
-    highlighted: true,
-    external: false,
-  },
-  {
-    name: "Corporate",
-    price: "Custom",
-    period: "",
-    description: "For enterprises with complex needs",
-    features: [
-      "Unlimited employees",
-      "All modules included",
-      "Custom workflows",
-      "API access",
-      "White-label options",
-      "Dedicated support team",
-    ],
-    branchNote: "",
-    extraBranch: "",
-    supportNote: "",
-    cta: "Request Quote",
-    href: "/request-quote",
-    highlighted: false,
-    external: false,
-  },
-]
+interface PlanData {
+  name: string
+  price: string
+  period: string
+  badge: string
+  description: string
+  features: string[]
+  branchesIncluded?: number
+  usersIncluded?: number
+  branchAddonPrice?: string
+  supportRenewal?: string
+  ctaText: string
+  ctaLink: string
+}
 
-function PricingSection({
-  title,
-  subtitle,
-  tiers,
-  accentColor,
+function PricingCard({
+  plan,
+  accent,
 }: {
-  title: string
-  subtitle: string
-  tiers: typeof retailTiers
-  accentColor: "retail" | "erp"
+  plan: PlanData
+  accent: "retail" | "erp"
 }) {
+  const isHighlighted = plan.badge && plan.badge !== ""
+  const borderClass = isHighlighted
+    ? accent === "retail"
+      ? "border-2 border-retail"
+      : "border-2 border-erp"
+    : "border border-border"
+  const badgeBg = accent === "retail" ? "bg-retail" : "bg-erp"
+  const accentText = accent === "retail" ? "text-retail" : "text-erp"
+  const accentSoft = accent === "retail" ? "bg-retail-soft" : "bg-erp-soft"
+
+  const isExternal = plan.ctaLink.startsWith("http")
+
   return (
-    <div>
-      <div className="text-center mb-10">
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-          {title}
-        </h2>
-        <p className="mt-2 text-muted-foreground">{subtitle}</p>
+    <div className={`relative rounded-2xl ${borderClass} bg-card p-8 shadow-sm flex flex-col`}>
+      {isHighlighted && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+          <span className={`inline-block rounded-full ${badgeBg} px-4 py-1 text-xs font-bold uppercase tracking-wider text-white`}>
+            {plan.badge}
+          </span>
+        </div>
+      )}
+      <h3 className="text-xl font-bold text-foreground mt-2">{plan.name}</h3>
+      <div className="mt-4 flex items-baseline gap-1">
+        <span className={`text-4xl sm:text-5xl font-extrabold ${isHighlighted ? accentText : "text-foreground"}`}>
+          {plan.price}
+        </span>
+        {plan.period && <span className="text-muted-foreground">{plan.period}</span>}
       </div>
-      <div className={`grid grid-cols-1 ${accentColor === "retail" ? "md:grid-cols-2 max-w-3xl mx-auto" : "md:grid-cols-3"} gap-6`}>
-        {tiers.map((tier) => (
-          <div
-            key={tier.name}
-            className={`rounded-2xl border p-8 flex flex-col ${
-              tier.highlighted
-                ? accentColor === "retail"
-                  ? "border-retail bg-retail-soft"
-                  : "border-erp bg-erp-soft"
-                : "border-border bg-card"
-            }`}
-          >
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-foreground">
-                {tier.name}
-              </h3>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-4xl font-extrabold text-foreground">
-                  {tier.price}
-                </span>
-                <span className="text-muted-foreground">{tier.period}</span>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {tier.description}
-              </p>
-            </div>
-            <ul className="space-y-3 mb-6 flex-1">
-              {tier.features.map((feature) => (
-                <li key={feature} className="flex items-start gap-2 text-sm">
-                  <Check
-                    className={`w-4 h-4 mt-0.5 shrink-0 ${
-                      accentColor === "retail" ? "text-retail" : "text-erp"
-                    }`}
-                  />
-                  <span className="text-foreground">{feature}</span>
-                </li>
-              ))}
-            </ul>
-            {"branchNote" in tier && tier.branchNote && (
-              <div className="rounded-lg bg-muted p-3 text-center mb-3">
-                <p className="text-sm font-semibold text-foreground">{tier.branchNote}</p>
-                <p className="text-xs text-muted-foreground mt-1">{tier.extraBranch}</p>
-              </div>
-            )}
-            {"supportNote" in tier && tier.supportNote && (
-              <p className="text-xs text-muted-foreground text-center mb-3">{tier.supportNote}</p>
-            )}
-            {tier.external ? (
-              <Button
-                asChild
-                variant={tier.highlighted ? accentColor : "outline"}
-                className="w-full"
-              >
-                <a href={tier.href} target="_blank" rel="noopener noreferrer">
-                  {tier.cta}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </a>
-              </Button>
-            ) : (
-              <Button
-                asChild
-                variant={tier.highlighted ? accentColor : "outline"}
-                className="w-full"
-              >
-                <Link href={tier.href}>
-                  {tier.cta}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            )}
-          </div>
+      <p className="mt-2 text-sm text-muted-foreground">{plan.description}</p>
+      <ul className="mt-6 space-y-3 flex-1">
+        {plan.features.map((item: string) => (
+          <li key={item} className="flex items-center gap-2 text-sm text-foreground">
+            <Check className={`w-4 h-4 ${accentText} shrink-0`} />
+            {item}
+          </li>
         ))}
+      </ul>
+
+      {(plan.branchesIncluded !== undefined || plan.usersIncluded !== undefined) && (
+        <div className={`mt-6 rounded-lg ${accentSoft} p-4 text-center`}>
+          {plan.branchesIncluded !== undefined && plan.usersIncluded !== undefined && (
+            <p className="text-sm font-semibold text-foreground">
+              Includes {plan.branchesIncluded} Branch{plan.branchesIncluded !== 1 ? "es" : ""} · {plan.usersIncluded} User{plan.usersIncluded !== 1 ? "s" : ""}
+            </p>
+          )}
+          {plan.branchAddonPrice && (
+            <p className={`text-base font-bold ${accentText} mt-1`}>Additional Branch: {plan.branchAddonPrice}</p>
+          )}
+          {plan.supportRenewal && (
+            <p className="text-xs text-muted-foreground mt-1">Optional Support Renewal: {plan.supportRenewal}</p>
+          )}
+        </div>
+      )}
+
+      <div className="mt-6">
+        {isExternal ? (
+          <Button asChild size="lg" variant={isHighlighted ? accent : "outline"} className="w-full">
+            <a href={plan.ctaLink} target="_blank" rel="noopener noreferrer">
+              {plan.ctaText}
+            </a>
+          </Button>
+        ) : (
+          <Button asChild size="lg" variant={isHighlighted ? accent : "outline"} className="w-full">
+            <a href={plan.ctaLink}>{plan.ctaText}</a>
+          </Button>
+        )}
       </div>
     </div>
   )
 }
 
 export default function PricingPage() {
+  const settings = readSettings()
+  const pricing = settings?.pricing || {}
+  const cloud = pricing.cloud || {}
+  const offline = pricing.offline || {}
+  const erp = Array.isArray(pricing.erp) ? pricing.erp : []
+
+  const retailPlans: PlanData[] = [
+    {
+      name: cloud.name || "MartPoint Retail Cloud",
+      price: cloud.price || "₦99,999",
+      period: cloud.period || "/ Year",
+      badge: cloud.badge || "Most Popular",
+      description: cloud.description || "Everything you need to run a modern retail business.",
+      features: cloud.features || [
+        "POS Sales & Checkout", "Inventory & Stock Control", "Online Store",
+        "WhatsApp Ordering & Invoice", "QR Menu Ordering", "Payment Links",
+        "PayPlan™ Installment Plans", "Loyalty & Rewards", "Customer Verification",
+        "Collections Tracking", "Attendance (Face Capture)", "Daily Report",
+        "AI Chatbot", "Training & Onboarding", "Mobile & Desktop Access",
+      ],
+      branchesIncluded: cloud.branchesIncluded ?? 1,
+      usersIncluded: cloud.usersIncluded ?? 5,
+      branchAddonPrice: cloud.branchAddonPrice || "₦49,999 / Year",
+      ctaText: cloud.ctaText || "Get Started",
+      ctaLink: cloud.ctaLink || "https://wa.me/+2348036028069",
+    },
+    {
+      name: offline.name || "MartPoint Retail Offline",
+      price: offline.price || "₦250,000",
+      period: offline.period || "One-Time Payment",
+      badge: offline.badge || "One-Time",
+      description: offline.description || "Full software installed locally. No recurring subscription. Works without internet.",
+      features: offline.features || [
+        "POS Sales & Checkout", "Inventory & Stock Control", "Receipt Printing",
+        "Barcode & SKU Management", "Customer & Supplier Records",
+        "Staff Attendance (Face Capture)", "Daily Sales Report",
+        "Multi-Branch (LAN Connected)", "Offline-First Sync",
+        "Local Installation", "Staff Setup & Training", "No Recurring Fees",
+      ],
+      branchesIncluded: offline.branchesIncluded ?? 1,
+      usersIncluded: offline.usersIncluded ?? 5,
+      branchAddonPrice: offline.branchAddonPrice || "₦100,000 One-Time",
+      supportRenewal: offline.supportRenewal || "₦50,000 / Year",
+      ctaText: offline.ctaText || "Request Offline Setup",
+      ctaLink: offline.ctaLink || "https://wa.me/+2348036028069",
+    },
+  ]
+
+  const erpPlans: PlanData[] = erp.map((plan: PlanData) => ({
+    name: plan.name || "ERP Plan",
+    price: plan.price || "Custom",
+    period: plan.period || "",
+    badge: plan.badge || "",
+    description: plan.description || "",
+    features: Array.isArray(plan.features) ? plan.features : [],
+    branchesIncluded: plan.branchesIncluded,
+    usersIncluded: plan.usersIncluded,
+    ctaText: plan.ctaText || "Get Started",
+    ctaLink: plan.ctaLink || "https://wa.me/+2348036028069",
+  }))
+
   return (
     <>
       <Header />
@@ -241,18 +195,37 @@ export default function PricingPage() {
 
         <section className="w-full bg-muted py-16 md:py-24">
           <div className="container-martpoint space-y-20">
-            <PricingSection
-              title="MartPoint Retail"
-              subtitle="Store management software that scales with you"
-              tiers={retailTiers}
-              accentColor="retail"
-            />
-            <PricingSection
-              title="MartPoint ERP"
-              subtitle="Enterprise software for businesses that need control"
-              tiers={erpTiers}
-              accentColor="erp"
-            />
+            {/* Retail Plans */}
+            <div>
+              <div className="max-w-3xl mx-auto text-center mb-10">
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+                  MartPoint Retail
+                </h2>
+                <p className="mt-2 text-muted-foreground">Store management software that scales with you</p>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                {retailPlans.map((plan) => (
+                  <PricingCard key={plan.name} plan={plan} accent="retail" />
+                ))}
+              </div>
+            </div>
+
+            {/* ERP Plans */}
+            {erpPlans.length > 0 && (
+              <div>
+                <div className="max-w-3xl mx-auto text-center mb-10">
+                  <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+                    MartPoint ERP
+                  </h2>
+                  <p className="mt-2 text-muted-foreground">Enterprise software for businesses that need control</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                  {erpPlans.map((plan) => (
+                    <PricingCard key={plan.name} plan={plan} accent="erp" />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

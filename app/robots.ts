@@ -7,7 +7,8 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
+      disallow: ["/admin", "/api"],
     },
-    sitemap: "https://martpoint.ng/sitemap.xml",
+    sitemap: "https://martpoint.com.ng/sitemap.xml",
   }
 }

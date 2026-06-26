@@ -9,7 +9,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-accent text-accent-foreground hover:bg-accent/90 focus-visible:ring-accent/50 shadow-sm",
+          "bg-retail text-white hover:bg-retail/90 focus-visible:ring-retail/50 shadow-sm",
         primary:
           "bg-foreground text-background hover:bg-foreground/90 focus-visible:ring-foreground/50 shadow-sm",
         retail:

@@ -1,0 +1,21 @@
+{
+  "leads": [
+    {
+      "id": "6d5f7b88-4e83-4ea3-bf0f-ba6d7d96bfb2",
+      "fullName": "John",
+      "businessName": "Your",
+      "email": "hd@h.com",
+      "phone": "09099998989",
+      "businessType": "Mini Mart",
+      "productInterest": "retail",
+      "branches": "2-3",
+      "staffSize": "1-5",
+      "challenge": "Offline",
+      "message": "",
+      "source": "contact",
+      "status": "New",
+      "submittedAt": "2026-06-25T19:24:16.365Z",
+      "updatedAt": "2026-06-25T19:24:16.365Z"
+    }
+  ]
+}

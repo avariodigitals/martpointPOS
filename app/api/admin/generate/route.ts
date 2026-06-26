@@ -35,21 +35,21 @@ export async function POST(request: Request) {
     const { type, topic, content } = body
 
     let prompt = ""
-    let systemPrompt = "You are an expert SEO, AEO (Answer Engine Optimization), and GEO (Generative Engine Optimization) content strategist for a Nigerian retail software company called MartPoint. You write compelling, authoritative blog content."
+    let systemPrompt = "You are an expert SEO, AEO (Answer Engine Optimization), and GEO (Generative Engine Optimization) content strategist for a African retail software company called MartPoint. You write compelling, authoritative blog content."
 
     switch (type) {
       case "full_post":
-        prompt = `Write a comprehensive, SEO-optimized blog post about: "${topic || "retail management software for Nigerian businesses"}".
+        prompt = `Write a comprehensive, SEO-optimized blog post about: "${topic || "retail management software for African businesses"}".
 
 Requirements:
 - Write 800-1200 words of high-quality, engaging content
 - Use H2 and H3 headings with proper hierarchy
 - Include bullet points and numbered lists where relevant
-- Naturally weave in keywords: POS software Nigeria, inventory management, retail software, supermarket POS, pharmacy POS, stock control, MartPoint
+- Naturally weave in keywords: POS software Africa, inventory management, retail software, supermarket POS, pharmacy POS, stock control, MartPoint
 - Include a compelling introduction that hooks the reader
 - End with a strong call-to-action encouraging readers to try MartPoint
 - Make it informative, practical, and actionable
-- Target Nigerian business owners and retail managers
+- Target African business owners and retail managers
 - Return ONLY the HTML body content (no <html>, <head>, or <body> tags, just the content elements like <h2>, <p>, <ul>, etc.)`
         break
 
@@ -72,7 +72,7 @@ The excerpt should:
 
 Generate:
 1. A meta description (150-160 characters) optimized for Google search results
-2. A comma-separated list of 10-15 SEO keywords targeting Nigerian retail business owners
+2. A comma-separated list of 10-15 SEO keywords targeting African retail business owners
 
 Return in this exact format:
 META_DESCRIPTION: [description]

@@ -38,7 +38,7 @@ export function BusinessImpact() {
           {impacts.map((impact) => (
             <div
               key={impact.label}
-              className="rounded-xl bg-white/5 border border-white/10 p-6"
+              className="rounded-xl bg-white/5 border border-white/10 p-6 text-center md:text-left"
             >
               <div className="text-4xl md:text-5xl font-extrabold text-accent mb-2">
                 {impact.stat}

@@ -1,0 +1,77 @@
+[
+  {
+    "id": "what-is-martpoint",
+    "question": "What is MartPoint and who owns it?",
+    "answer": "MartPoint is a complete retail commerce platform built by Avario Digitals, a African technology company. It includes POS, inventory management, online store, WhatsApp ordering, installment payments (PayPlan), and multi-branch operations — designed specifically for African businesses."
+  },
+  {
+    "id": "who-is-avario-digitals",
+    "question": "Who is Avario Digitals?",
+    "answer": "Avario Digitals is the African technology company that owns and develops MartPoint. Founded in 2019 and headquartered in Lagos, Avario Digitals builds software solutions specifically for African businesses, with a focus on retail and enterprise management."
+  },
+  {
+    "id": "martpoint-vs-pos",
+    "question": "Is MartPoint just a POS system?",
+    "answer": "No. MartPoint is far more than a POS. It is a complete retail commerce platform that lets you sell in-store, online, and on WhatsApp. It includes inventory management, online store, QR ordering, payment links, installment payments (PayPlan), customer verification, collections tracking, multi-branch management, and AI-powered assistance."
+  },
+  {
+    "id": "what-is-payplan",
+    "question": "What is MartPoint PayPlan?",
+    "answer": "PayPlan is MartPoint's installment payment feature that lets your customers buy products and services with a deposit and pay the balance over time. It automatically tracks deposits, outstanding balances, due dates, payment history, and collections — so you never need to manage credit sales in exercise books again."
+  },
+  {
+    "id": "how-much-does-martpoint-cost",
+    "question": "How much does MartPoint cost?",
+    "answer": "MartPoint Retail Cloud costs ₦99,999 per year. This includes POS, inventory, online store, WhatsApp ordering, QR ordering, payment links, PayPlan installment plans, customer verification, collections tracking, attendance, daily reports, AI chatbot, training, onboarding, and mobile/desktop access. The offline version costs ₦250,000 as a one-time purchase."
+  },
+  {
+    "id": "does-martpoint-work-offline",
+    "question": "Does MartPoint work without internet?",
+    "answer": "Yes. MartPoint Retail works offline and syncs data when your internet connection is restored. You can make sales, print receipts, and manage inventory even in areas with poor or no connectivity. Your business never stops."
+  },
+  {
+    "id": "industries-supported",
+    "question": "What types of businesses can use MartPoint?",
+    "answer": "MartPoint is built for supermarkets, mini marts, pharmacies, restaurants, fashion stores, electronics shops, and any retail business. MartPoint ERP also serves manufacturing, distribution, and larger enterprises with accounting, procurement, HR, and operational management."
+  },
+  {
+    "id": "multi-branch",
+    "question": "Can I manage multiple branches with MartPoint?",
+    "answer": "Yes. MartPoint supports unlimited branches from a single dashboard. You can transfer stock between locations, compare sales across branches, and oversee every outlet in real time."
+  },
+  {
+    "id": "online-store",
+    "question": "Does MartPoint include an online store?",
+    "answer": "Yes. MartPoint includes a branded e-commerce storefront where customers can browse your products, place orders, and pay online. Inventory syncs automatically between your physical store and online store."
+  },
+  {
+    "id": "whatsapp-ordering",
+    "question": "Can customers order through WhatsApp?",
+    "answer": "Yes. MartPoint includes WhatsApp ordering and invoicing. Customers can view your catalogue, place orders, and receive branded invoices directly on WhatsApp. You can also send payment links and order confirmations automatically."
+  },
+  {
+    "id": "payment-methods",
+    "question": "What payment methods does MartPoint accept?",
+    "answer": "MartPoint integrates with Paystack and Flutterwave to accept card payments, bank transfers, USSD, and mobile money. You can also generate payment links for remote customers."
+  },
+  {
+    "id": "customer-verification",
+    "question": "What is customer verification in MartPoint?",
+    "answer": "MartPoint allows you to verify customers before offering them installment plans or credit. You can use NIN verification, BVN verification, or set your own custom approval rules to protect your business."
+  },
+  {
+    "id": "training-onboarding",
+    "question": "Does MartPoint provide training and onboarding?",
+    "answer": "Yes. Every MartPoint subscription includes training and onboarding for your staff. We guide you through setup, product configuration, and day-to-day operations to ensure your team is confident from day one."
+  },
+  {
+    "id": "data-security",
+    "question": "Is my business data safe with MartPoint?",
+    "answer": "Yes. MartPoint uses encrypted connections, secure cloud backups, and role-based access controls. Your sales, inventory, and customer data are protected with enterprise-grade security standards."
+  },
+  {
+    "id": "ai-chatbot",
+    "question": "What is MartPoint Assist?",
+    "answer": "MartPoint Assist is an AI-powered chatbot built into the platform. It answers customer questions, guides your staff through common tasks, and helps resolve issues instantly — available 24/7."
+  }
+]

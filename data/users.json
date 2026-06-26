@@ -1,0 +1,20 @@
+{
+  "users": [
+    {
+      "id": "3f0b41f8-6b0c-4ee1-91c3-ce0aee80d1c3",
+      "username": "admin",
+      "name": "Administrator",
+      "passwordHash": "eea81a9e38155a2890799064f3004008:5788da1259c5d9089e7e9072f2863b2cf5b37dd36eeb00b9e503784a917f596b5f804466d9ac835dab0346d09096306517132a6c61525f094c28b2ba8869455d",
+      "role": "Admin",
+      "createdAt": "2026-06-25T17:45:33.136Z"
+    },
+    {
+      "id": "0d4e6658-f30f-4153-b5b5-8008ac839a6b",
+      "username": "luther",
+      "name": "Happiness Luther",
+      "passwordHash": "eeb70c705922b0140715c662fad1aa53:d21c76747b18d7d9944737d23557f8ae5d70567ebd1e2ee5a42df1ff70e2d199ad686d656d2225306f35481d4b00d223b2c805a0d4dace4e448dc1fb24283e7b",
+      "role": "Editor",
+      "createdAt": "2026-06-25T21:00:14.867Z"
+    }
+  ]
+}

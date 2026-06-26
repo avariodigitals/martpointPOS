@@ -4,9 +4,9 @@ import { XCircle, Clock, FileX } from "lucide-react"
 const pains = [
   {
     icon: XCircle,
-    headline: "You don&apos;t know what sold today",
+    headline: "You don't know what sold today",
     description:
-      "Sales data is scattered across notebooks, spreadsheets, and memory. You can&apos;t see trends, bestsellers, or slow movers.",
+      "Sales data is scattered across notebooks, spreadsheets, and memory. You can't see trends, bestsellers, or slow movers.",
   },
   {
     icon: Clock,
@@ -28,7 +28,7 @@ export function PainPoints() {
       <div className="container-martpoint">
         <SectionHeader
           label="The Problem"
-          headline="Running a business in Nigeria shouldn&apos;t feel this hard"
+          headline="Running a business in Africa shouldn&apos;t feel this hard"
           description="These are the daily realities we hear from business owners across Lagos, Abuja, Port Harcourt, and everywhere in between."
         />
 
@@ -36,9 +36,9 @@ export function PainPoints() {
           {pains.map((pain, index) => (
             <div
               key={index}
-              className="relative rounded-2xl bg-background border border-border p-8"
+              className="relative rounded-2xl bg-background border border-border p-8 text-center md:text-left"
             >
-              <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center mb-6">
+              <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center mb-6 mx-auto md:mx-0">
                 <pain.icon className="w-6 h-6 text-destructive" />
               </div>
               <h3 className="text-xl font-bold text-foreground leading-tight mb-3">

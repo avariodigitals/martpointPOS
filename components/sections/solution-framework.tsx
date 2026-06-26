@@ -14,8 +14,8 @@ export function SolutionFramework() {
         <div className="mt-14">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
             {/* Before */}
-            <div className="rounded-2xl border border-border bg-muted p-8">
-              <div className="flex items-center gap-3 mb-6">
+            <div className="rounded-2xl border border-border bg-muted p-8 text-center md:text-left">
+              <div className="flex items-center gap-3 mb-6 justify-center md:justify-start">
                 <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
                   <Unlink className="w-5 h-5 text-destructive" />
                 </div>
@@ -48,8 +48,8 @@ export function SolutionFramework() {
             </div>
 
             {/* After */}
-            <div className="rounded-2xl border border-success/20 bg-success/5 p-8">
-              <div className="flex items-center gap-3 mb-6">
+            <div className="rounded-2xl border border-success/20 bg-success/5 p-8 text-center md:text-left">
+              <div className="flex items-center gap-3 mb-6 justify-center md:justify-start">
                 <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
                   <Link2 className="w-5 h-5 text-success" />
                 </div>

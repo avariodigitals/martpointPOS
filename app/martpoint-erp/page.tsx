@@ -21,7 +21,7 @@ import {
 export const metadata: Metadata = {
   title: "MartPoint ERP — Business Management Software",
   description:
-    "Enterprise software for accounting, procurement, HR, CRM, and operations. Built for Nigerian distributors, wholesalers, and multi-branch businesses.",
+    "Enterprise software for accounting, procurement, HR, CRM, and operations. Built for African distributors, wholesalers, and multi-branch businesses.",
 }
 
 const capabilities = [
@@ -29,7 +29,7 @@ const capabilities = [
     icon: Calculator,
     title: "Accounting & Finance",
     description:
-      "General ledger, accounts payable and receivable, bank reconciliation, and tax reporting. Built for Nigerian GAAP and tax structures.",
+      "General ledger, accounts payable and receivable, bank reconciliation, and tax reporting. Built for African GAAP and tax structures.",
   },
   {
     icon: Truck,
@@ -89,7 +89,7 @@ export default function MartPointERPPage() {
               </h1>
               <p className="mt-6 text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
                 Accounting, procurement, HR, CRM, approvals, and reporting — all
-                connected. Built for Nigerian distributors, wholesalers, and
+                connected. Built for African distributors, wholesalers, and
                 multi-branch enterprises.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">

@@ -1,61 +1,136 @@
-import { Eye, PackageCheck, SlidersHorizontal, LineChart } from "lucide-react"
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import {
+  CalendarClock,
+  Building2,
+  Users,
+  ShieldCheck,
+  Globe,
+  MapPin,
+} from "lucide-react"
+
+/* ───────────────────────────  ANIMATED NUMBER  ─────────────────────────── */
+
+function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string }) {
+  const [displayValue, setDisplayValue] = useState(0)
+  const ref = useRef<HTMLSpanElement>(null)
+  const hasAnimated = useRef(false)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasAnimated.current) {
+          hasAnimated.current = true
+          const duration = 2000
+          const start = performance.now()
+          const animate = (now: number) => {
+            const elapsed = now - start
+            const progress = Math.min(elapsed / duration, 1)
+            const eased = 1 - Math.pow(1 - progress, 3)
+            setDisplayValue(Math.floor(eased * value))
+            if (progress < 1) requestAnimationFrame(animate)
+          }
+          requestAnimationFrame(animate)
+        }
+      },
+      { threshold: 0.3 }
+    )
+    if (ref.current) observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [value])
+
+  return (
+    <span ref={ref}>
+      {displayValue}
+      {suffix}
+    </span>
+  )
+}
+
+/* ───────────────────────────  METRICS DATA  ─────────────────────────── */
 
 const metrics = [
   {
-    icon: Eye,
-    value: "Sales Visibility",
-    description:
-      "See every transaction, every branch, every cashier in real time. No more guessing what sold today.",
+    icon: CalendarClock,
+    value: 7,
+    suffix: "+",
+    extra: " Years",
+    description: "Continuous Platform Engineering",
   },
   {
-    icon: PackageCheck,
-    value: "Stock Accuracy",
-    description:
-      "Track inventory across all locations. Know what you have, where it is, and when to reorder.",
+    icon: Building2,
+    value: 100,
+    suffix: "+",
+    extra: "",
+    description: "Enterprise & Retail Brands Served",
   },
   {
-    icon: SlidersHorizontal,
-    value: "Operational Control",
-    description:
-      "Manage staff, approvals, and workflows from a single dashboard. Standardize how your business runs.",
+    icon: Users,
+    value: 300,
+    suffix: "+",
+    extra: "",
+    description: "Active Operations Professionals",
   },
   {
-    icon: LineChart,
-    value: "Business Insights",
-    description:
-      "Make decisions based on data, not assumptions. Reports that actually tell you what to do next.",
+    icon: ShieldCheck,
+    value: 100,
+    suffix: "%",
+    extra: "",
+    description: "Verified System Uptime",
+  },
+  {
+    icon: Globe,
+    value: null as number | null,
+    text: "24/7",
+    description: "Cloud-Synced Business Visibility",
+  },
+  {
+    icon: MapPin,
+    value: 54,
+    suffix: "+",
+    extra: "",
+    description: "African Markets Covered",
   },
 ]
 
+/* ───────────────────────────  COMPONENT  ─────────────────────────── */
+
 export function TrustLayer() {
   return (
-    <section className="w-full bg-background py-16 md:py-24">
+    <section className="w-full bg-[#023047] py-16 md:py-24">
       <div className="container-martpoint">
-        <div className="max-w-2xl mx-auto text-center mb-12">
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-            Businesses can&apos;t grow with disconnected tools.
+        {/* Header */}
+        <div className="max-w-3xl mx-auto text-center mb-14">
+          <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-white">
+            Trusted by Businesses That Demand Absolute Operational Control
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-            MartPoint centralizes sales, inventory, operations, and reporting —
-            so you see the full picture and act on it.
+          <p className="mt-4 text-lg text-white/70 leading-relaxed max-w-2xl mx-auto">
+            Avario built MartPoint to engineer reliable POS and ERP retail management solutions. We empower growing businesses and commercial retail brands across Africa to eliminate stock leakage, unify multi-branch data, and make financial decisions with absolute clarity.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
           {metrics.map((metric) => (
             <div
-              key={metric.value}
-              className="group rounded-xl border border-border bg-card p-6 transition-all duration-200 hover:border-accent/30 hover:shadow-sm"
+              key={metric.description}
+              className="group relative rounded-2xl border border-white/10 bg-white/5 p-6 text-center backdrop-blur-sm transition-all duration-300 hover:bg-white/10 hover:border-retail/40 hover:-translate-y-1"
             >
-              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center mb-4 group-hover:bg-accent/10 transition-colors">
-                <metric.icon className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors" />
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-retail/20 transition-colors group-hover:bg-retail/30">
+                <metric.icon className="h-5 w-5 text-white" />
               </div>
-              <h3 className="text-base font-semibold text-foreground mb-2">
-                {metric.value}
-              </h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {metric.description}
-              </p>
+              <div className="text-3xl font-bold text-white mb-2">
+                {metric.value !== null ? (
+                  <>
+                    <AnimatedNumber value={metric.value} suffix={metric.suffix} />
+                    {metric.extra && <span className="text-lg font-medium ml-1">{metric.extra}</span>}
+                  </>
+                ) : (
+                  <span>{metric.text}</span>
+                )}
+              </div>
+              <p className="text-sm text-white/60 leading-relaxed">{metric.description}</p>
             </div>
           ))}
         </div>

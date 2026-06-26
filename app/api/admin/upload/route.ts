@@ -18,10 +18,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    // Validate file type
+    // Validate file type (MIME + extension whitelist)
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"]
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json({ error: "Only JPEG, PNG, WebP, and GIF images are allowed" }, { status: 400 })
+    }
+
+    // Validate file extension
+    const ext = path.extname(file.name).toLowerCase()
+    const allowedExts = [".jpg", ".jpeg", ".png", ".webp", ".gif"]
+    if (!allowedExts.includes(ext)) {
+      return NextResponse.json({ error: "Invalid file extension" }, { status: 400 })
     }
 
     // Validate file size (max 5MB)
@@ -36,10 +43,10 @@ export async function POST(request: Request) {
       fs.mkdirSync(uploadDir, { recursive: true })
     }
 
-    // Generate unique filename
-    const ext = path.extname(file.name) || ".jpg"
+    // Generate unique filename — force safe extension
+    const safeExt = ext || ".jpg"
     const timestamp = Date.now()
-    const filename = `${timestamp}-${Math.random().toString(36).substring(2, 8)}${ext}`
+    const filename = `${timestamp}-${Math.random().toString(36).substring(2, 8)}${safeExt}`
     const filepath = path.join(uploadDir, filename)
 
     // Save file

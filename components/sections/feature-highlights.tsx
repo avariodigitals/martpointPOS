@@ -22,15 +22,15 @@ const features = [
   },
   {
     icon: Globe,
-    title: "Built for Nigeria, from day one",
+    title: "Built for Africa, from day one",
     description:
-      "Naira pricing, local tax configurations, Nigerian business structures, and support that understands your market. Not an afterthought.",
+      "Naira pricing, local tax configurations, African business structures, and support that understands your market. Not an afterthought.",
   },
 ]
 
 export function FeatureHighlights() {
   return (
-    <section className="w-full bg-background py-16 md:py-24 lg:py-32">
+    <section id="whats-new" className="w-full bg-background py-16 md:py-24 lg:py-32">
       <div className="container-martpoint">
         <SectionHeader
           label="Why MartPoint"
@@ -41,7 +41,7 @@ export function FeatureHighlights() {
           {features.map((feature, index) => (
             <div
               key={index}
-              className="flex gap-5 items-start"
+              className="flex flex-col md:flex-row gap-5 items-center md:items-start text-center md:text-left"
             >
               <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0">
                 <feature.icon className="w-5 h-5 text-foreground" />

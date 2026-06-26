@@ -35,6 +35,7 @@ const legalLinks = [
 export async function Footer() {
   const settings = readSettings()
   const social = settings?.social || {}
+  const footer = settings?.footer || {}
 
   const socialLinks = [
     { key: "facebook", label: "Facebook", url: social.facebook },
@@ -44,25 +45,25 @@ export async function Footer() {
   ].filter((s) => s.url && s.url.trim() !== "")
 
   return (
-    <footer className="w-full border-t border-border bg-muted">
-      <div className="container-martpoint py-12 md:py-16">
+    <footer className="w-full border-t border-white/15 bg-[#0047CC] text-white relative overflow-hidden">
+      <div className="container-martpoint py-12 md:py-16 relative">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-16">
           <div className="md:col-span-1">
             <Link href="/" className="block -ml-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/logo.png"
+                src={footer.logo || "/logo.webp"}
                 alt="MartPoint"
                 className="h-20 w-auto block"
               />
             </Link>
-            <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-xs">
-              MartPoint helps businesses track sales, manage inventory, monitor staff and make better decisions with real-time insights.
+            <p className="mt-3 text-sm text-white/90 leading-relaxed max-w-xs">
+              {footer.description || "MartPoint helps businesses track sales, manage inventory, monitor staff and make better decisions with real-time insights."}
             </p>
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-foreground mb-4">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
               Products
             </h4>
             <ul className="space-y-3">
@@ -70,7 +71,7 @@ export async function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -80,7 +81,7 @@ export async function Footer() {
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-foreground mb-4">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
               Get Started
             </h4>
             <ul className="space-y-3">
@@ -90,7 +91,7 @@ export async function Footer() {
                     href={link.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.label}
                   </a>
@@ -100,7 +101,7 @@ export async function Footer() {
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-foreground mb-4">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
               Legal
             </h4>
             <ul className="space-y-3">
@@ -108,7 +109,7 @@ export async function Footer() {
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -118,9 +119,9 @@ export async function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-6">
-          <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} MartPoint. All rights reserved.
+        <div className="mt-12 pt-8 border-t border-white/15 flex flex-col sm:flex-row justify-between items-center gap-6">
+          <p className="text-sm text-white/90">
+            &copy; {new Date().getFullYear()} {footer.copyrightText || "MartPoint. All rights reserved."}
           </p>
 
           {socialLinks.length > 0 && (
@@ -132,7 +133,7 @@ export async function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={s.label}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-white/90 hover:text-white transition-colors"
                 >
                   {s.key === "facebook" && (
                     <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -159,8 +160,8 @@ export async function Footer() {
             </div>
           )}
 
-          <p className="text-sm text-muted-foreground">
-            Built for Nigerian businesses.
+          <p className="text-sm text-white/90">
+            {footer.tagline || "Built for African businesses."}
           </p>
         </div>
       </div>

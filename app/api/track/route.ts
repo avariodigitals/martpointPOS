@@ -27,7 +27,7 @@ function writeClicks(clicks: unknown[]) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { text, href, pagePath } = body
+    const { text, href, pagePath, referrer } = body
 
     if (!text || !pagePath) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       text: String(text).slice(0, 100),
       href: String(href || "").slice(0, 500),
       pagePath: String(pagePath).slice(0, 200),
+      referrer: String(referrer || "").slice(0, 500),
       timestamp: new Date().toISOString(),
       userAgent: request.headers.get("user-agent")?.slice(0, 200) || "",
       ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "",

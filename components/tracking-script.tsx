@@ -6,6 +6,9 @@ export function TrackingScript() {
   useEffect(() => {
     // Track clicks on links and buttons
     const handleClick = (e: MouseEvent) => {
+      // Skip tracking on admin pages entirely
+      if (window.location.pathname.startsWith("/admin")) return
+
       const target = e.target as HTMLElement
       const el = target.closest("a, button") as HTMLElement | null
       if (!el) return

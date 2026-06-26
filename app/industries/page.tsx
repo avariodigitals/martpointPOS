@@ -72,7 +72,7 @@ export default function IndustriesPage() {
           <div className="container-martpoint py-16 md:py-24">
             <SectionHeader
               label="Industries"
-              headline="Built for the businesses that power Nigeria"
+              headline="Built for the businesses that power Africa"
               description="Whatever you sell or distribute, MartPoint is designed for your operational reality."
             />
           </div>

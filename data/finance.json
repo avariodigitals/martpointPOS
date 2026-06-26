@@ -1,0 +1,70 @@
+{
+  "transactions": [
+    {
+      "id": "23e4badc-bea5-4c46-936d-5db08a7c0dbd",
+      "type": "expense",
+      "category": "Software & Tools",
+      "subcategory": "",
+      "amount": 5000,
+      "description": "Brevo",
+      "date": "2026-06-26",
+      "leadId": "",
+      "account": "",
+      "recurring": true,
+      "frequency": "one-time",
+      "createdAt": "2026-06-26T08:38:21.418Z",
+      "updatedAt": "2026-06-26T08:38:21.418Z"
+    },
+    {
+      "id": "fac68400-ac84-4aba-988c-352729017b41",
+      "type": "expense",
+      "category": "Software & Tools",
+      "subcategory": "",
+      "amount": 15000,
+      "description": "Open AI Partial Subscription",
+      "date": "2026-06-26",
+      "leadId": "",
+      "account": "",
+      "recurring": true,
+      "frequency": "one-time",
+      "createdAt": "2026-06-26T08:37:13.274Z",
+      "updatedAt": "2026-06-26T08:37:13.274Z"
+    },
+    {
+      "id": "02f65880-eebe-4ad1-8982-cd21d0df09ee",
+      "type": "expense",
+      "category": "Hosting & Infrastructure",
+      "subcategory": "",
+      "amount": 60000,
+      "description": "Hosting Renewals Reseller+OrangeHost",
+      "date": "2026-06-26",
+      "leadId": "",
+      "account": "",
+      "recurring": true,
+      "frequency": "one-time",
+      "createdAt": "2026-06-26T08:36:21.880Z",
+      "updatedAt": "2026-06-26T08:36:21.880Z"
+    },
+    {
+      "id": "2b7a38dd-cee6-4ebc-a1e3-01c1220c3e00",
+      "type": "expense",
+      "category": "Payroll & Salaries",
+      "subcategory": "",
+      "amount": 420000,
+      "description": "Payment for Development of new features",
+      "date": "2026-06-26",
+      "leadId": "",
+      "account": "",
+      "recurring": false,
+      "frequency": "one-time",
+      "createdAt": "2026-06-26T08:34:58.676Z",
+      "updatedAt": "2026-06-26T08:34:58.676Z"
+    }
+  ],
+  "settings": {
+    "currency": "NGN",
+    "currencySymbol": "₦",
+    "fiscalYearStart": "2026-01-01",
+    "targetMrr": 1000000
+  }
+}

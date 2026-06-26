@@ -24,9 +24,9 @@ export function OrganizationSchema() {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: companyName,
-    alternateName: "MartPoint Nigeria",
+    alternateName: "MartPoint Africa",
     url: BASE_URL,
-    logo: `${BASE_URL}/logo.png`,
+    logo: `${BASE_URL}/logo.webp`,
     sameAs: [
       "https://www.facebook.com/martpoint.ng",
       "https://www.linkedin.com/company/martpoint",
@@ -51,7 +51,7 @@ export function OrganizationSchema() {
     ],
     email,
     description:
-      "MartPoint is a Nigerian retail and ERP software company providing POS, inventory management, accounting, and business operations tools for supermarkets, pharmacies, restaurants, and fashion stores.",
+      "MartPoint is a African retail and ERP software company providing POS, inventory management, accounting, and business operations tools for supermarkets, pharmacies, restaurants, and fashion stores.",
     foundingDate: "2020",
     address: {
       "@type": "PostalAddress",
@@ -87,7 +87,7 @@ export function WebsiteSchema() {
       "@type": "Organization",
       name: "MartPoint",
       url: BASE_URL,
-      logo: `${BASE_URL}/logo.png`,
+      logo: `${BASE_URL}/logo.webp`,
     },
   }
 
@@ -142,7 +142,7 @@ export function SoftwareApplicationSchema({
     brand: {
       "@type": "Brand",
       name: "MartPoint",
-      logo: `${BASE_URL}/logo.png`,
+      logo: `${BASE_URL}/logo.webp`,
     },
     author: {
       "@type": "Organization",
@@ -213,14 +213,14 @@ export function ArticleSchema({
       url: BASE_URL,
       logo: {
         "@type": "ImageObject",
-        url: `${BASE_URL}/logo.png`,
+        url: `${BASE_URL}/logo.webp`,
       },
     },
     mainEntityOfPage: {
       "@type": "WebPage",
       "@id": `${BASE_URL}/blog/${slug}`,
     },
-    keywords: keywords || "POS software, inventory management, retail software Nigeria",
+    keywords: keywords || "POS software, inventory management, retail software Africa",
     articleSection: "Retail Technology",
     inLanguage: "en-NG",
   }
@@ -238,14 +238,14 @@ export function LocalBusinessSchema() {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: "MartPoint",
-    alternateName: "MartPoint Nigeria",
+    alternateName: "MartPoint Africa",
     url: BASE_URL,
     telephone: "+2348036028069",
     email: "hello@martpoint.ng",
     priceRange: "₦₦",
     areaServed: {
       "@type": "Country",
-      name: "Nigeria",
+      name: "Africa",
     },
     hasOfferCatalog: {
       "@type": "OfferCatalog",

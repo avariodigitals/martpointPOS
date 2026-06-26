@@ -100,7 +100,7 @@ export default function PrivacyPolicyPage() {
                   <li>The right to withdraw consent at any time</li>
                 </ul>
                 <p className="text-muted-foreground leading-relaxed mt-3">
-                  To exercise any of these rights, please contact us at hello@martpoint.com.ng.
+                  To exercise any of these rights, please contact us at <a href="mailto:hello@martpoint.com.ng" className="text-retail underline hover:text-retail/80 transition-colors">hello@martpoint.com.ng</a>.
                 </p>
               </div>
 
@@ -128,7 +128,7 @@ export default function PrivacyPolicyPage() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground mb-3">11. Contact Us</h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  If you have any questions about this Privacy Policy, please contact us at hello@martpoint.com.ng or via WhatsApp at +234 803 602 8069.
+                  If you have any questions about this Privacy Policy, please contact us at <a href="mailto:hello@martpoint.com.ng" className="text-retail underline hover:text-retail/80 transition-colors">hello@martpoint.com.ng</a> or via WhatsApp at <a href="tel:+2348036028069" className="text-retail underline hover:text-retail/80 transition-colors">+234 803 602 8069</a>.
                 </p>
               </div>
             </div>

@@ -86,6 +86,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: `${post.title} — MartPoint Blog`,
     description: post.metaDescription || post.excerpt,
     keywords: post.keywords,
+    authors: [{ name: post.author || "MartPoint by Avario Digitals" }],
     openGraph: {
       title: post.title,
       description: post.metaDescription || post.excerpt,

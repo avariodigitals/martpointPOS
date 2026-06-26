@@ -60,6 +60,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description:
       seo.description ||
       "Business management software built for African retail stores and enterprises. POS, inventory, accounting, and operations in one ecosystem.",
+    authors: [{ name: "MartPoint by Avario Digitals" }],
     metadataBase: new URL(baseUrl),
     openGraph: {
       type: "website",

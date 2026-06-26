@@ -237,10 +237,15 @@ export default function AdminSettingsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log("[handleSubmit] Save button clicked")
     setSaving(true)
     setMessage("")
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+
     try {
+      console.log("[handleSubmit] Sending POST to /api/admin/settings")
       const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -258,7 +263,9 @@ export default function AdminSettingsPage() {
             erp: pricing.erp.map((plan) => ({ ...plan, features: plan.features.split("\n").map((f) => f.trim()).filter(Boolean) })),
           },
         }),
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
 
       let data: Record<string, unknown> = {}
       const text = await res.text()
@@ -266,7 +273,9 @@ export default function AdminSettingsPage() {
         data = JSON.parse(text)
       } catch {
         console.error("Non-JSON response:", text.slice(0, 500))
-        setMessage(`Server error (${res.status}). Check console for details.`)
+        const errMsg = `Server error (${res.status}). Check console for details.`
+        setMessage(errMsg)
+        window.alert(errMsg)
         setSaving(false)
         return
       }
@@ -277,10 +286,17 @@ export default function AdminSettingsPage() {
         const errorMsg = (data.error as string) || `Failed to save (${res.status}).`
         console.error("Save error:", errorMsg, data)
         setMessage(errorMsg)
+        window.alert(errorMsg)
       }
     } catch (err) {
+      clearTimeout(timeoutId)
+      const errMsg = err instanceof Error ? err.message : String(err)
       console.error("Network or unexpected error:", err)
-      setMessage("Network error. Check your connection and try again.")
+      const displayMsg = errMsg.includes("abort") || errMsg.includes("Abort")
+        ? "Request timed out. The server took too long to respond."
+        : "Network error. Check your connection and try again."
+      setMessage(displayMsg)
+      window.alert(displayMsg)
     } finally {
       setSaving(false)
     }
@@ -1141,9 +1157,9 @@ export default function AdminSettingsPage() {
 
           <div className="lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center gap-3">
             {message && (
-              <p className={`text-sm ${message.includes("success") ? "text-success" : "text-destructive"}`}>
+              <div className={`text-sm px-3 py-2 rounded-md ${message.includes("success") ? "bg-green-100 text-green-800 border border-green-200" : "bg-red-100 text-red-800 border border-red-200"}`}>
                 {message}
-              </p>
+              </div>
             )}
             <Button type="submit" disabled={saving}>
               {saving ? (

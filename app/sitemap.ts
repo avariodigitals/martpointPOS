@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
-export const dynamic = "force-static"
+export const dynamic = "force-dynamic"
 
 interface BlogPost {
   slug: string

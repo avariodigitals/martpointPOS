@@ -103,10 +103,10 @@ export function TrustLayer() {
         {/* Header */}
         <div className="max-w-3xl mx-auto text-center mb-14">
           <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-white">
-            Trusted by Businesses That Demand Absolute Operational Control
+            Built for Businesses That Sell Every Day
           </h2>
           <p className="mt-4 text-lg text-white/70 leading-relaxed max-w-2xl mx-auto">
-            Avario built MartPoint to engineer reliable POS and ERP retail management solutions. We empower growing businesses and commercial retail brands across Africa to eliminate stock leakage, unify multi-branch data, and make financial decisions with absolute clarity.
+            MartPoint helps African retailers sell faster, track inventory accurately, manage customers, accept every payment and grow with confidence. Whether you run one store or multiple branches, MartPoint gives you complete visibility over your business.
           </p>
         </div>
 

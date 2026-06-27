@@ -11,7 +11,6 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
-import { readSettings } from "@/lib/settings"
 import {
   ArrowRight,
   Check,
@@ -26,31 +25,19 @@ import {
   Clock,
   Eye,
   TrendingUp,
-  Wifi,
   WifiOff,
   Wallet,
-  GraduationCap,
   Headphones,
   MapPin,
-  Laptop,
-  Monitor,
-  ScanLine,
-  LayoutGrid,
   Building2,
   Quote,
   Star,
   MessageCircle,
-  Globe,
-  FileText,
-  CheckCircle2,
-  Camera,
-  QrCode,
-  Bot,
-  Heart,
   Pill,
   UtensilsCrossed,
   Smartphone,
   Shirt,
+  HandCoins,
 } from "lucide-react"
 
 export const metadata: Metadata = {
@@ -72,17 +59,17 @@ const whoUses = [
   {
     photo: "/whouses/supermart.webp",
     title: "Supermarket / Mini Mart",
-    description: "Manage thousands of products, multiple cashiers and daily sales operations.",
+    description: "Process sales quickly, manage thousands of products, prevent stock shortages and monitor every cashier from one dashboard.",
   },
   {
     photo: "/whouses/pharmacies.webp",
     title: "Pharmacies",
-    description: "Track stock levels, monitor inventory movement and improve operational visibility.",
+    description: "Track medicine inventory, monitor expiry dates, manage prescriptions and never run out of essential products.",
   },
   {
     photo: "/whouses/restaurants.webp",
     title: "Restaurants",
-    description: "Process orders quickly, track sales and manage daily transactions efficiently.",
+    description: "Take orders faster, manage tables, print kitchen tickets and monitor daily sales in real time.",
   },
   {
     photo: "/whouses/electronic-store.webp",
@@ -152,114 +139,6 @@ const capabilities = [
   },
 ]
 
-const dashboardCallouts = [
-  "Total Revenue",
-  "Total Orders",
-  "Daily Report",
-  "Daily Summary",
-  "Inventory Alerts",
-]
-
-const hardwareOptions = [
-  {
-    icon: Laptop,
-    title: "Laptop + Receipt Printer",
-    description: "Standard setup for counter-based sales",
-  },
-  {
-    icon: Monitor,
-    title: "Touchscreen POS Setup",
-    description: "All-in-one terminal for fast checkout",
-  },
-  {
-    icon: ScanLine,
-    title: "Barcode Scanner Setup",
-    description: "Speed up item entry and inventory counts",
-  },
-  {
-    icon: LayoutGrid,
-    title: "Multi-Counter Setup",
-    description: "Multiple checkout points in one location",
-  },
-  {
-    icon: Building2,
-    title: "Multi-Branch Setup",
-    description: "Centralised management across all stores",
-  },
-]
-
-const whyChoose = [
-  { icon: Wifi, text: "Available on offline or Cloud" },
-  { icon: Wallet, text: "Supports multiple payment methods" },
-  { icon: GraduationCap, text: "Easy cashier onboarding" },
-  { icon: Building2, text: "Multi-branch visibility" },
-  { icon: Headphones, text: "Local support" },
-  { icon: MapPin, text: "Built for African businesses" },
-]
-
-const powerFeatures = [
-  {
-    icon: MessageCircle,
-    title: "WhatsApp Invoice",
-    description: "Send branded invoices directly to customers via WhatsApp. No printing needed — just share and get paid faster.",
-  },
-  {
-    icon: Globe,
-    title: "Online Payment",
-    description: "Accept card and transfer payments securely online. Integrated with Paystack and Flutterwave for instant settlement.",
-  },
-  {
-    icon: Wallet,
-    title: "PayPlan™ Installments",
-    description: "Let customers buy now and pay over time with structured installment plans. Automatically track deposits, balances and collections.",
-  },
-  {
-    icon: QrCode,
-    title: "QR Menu & Ordering",
-    description: "Customers scan a QR code to view your product catalogue or menu on their phones. No app download required.",
-  },
-  {
-    icon: Store,
-    title: "Online Store",
-    description: "Launch your own branded e-commerce storefront. Customers browse, order and pay online while inventory syncs automatically.",
-  },
-  {
-    icon: CheckCircle2,
-    title: "Customer Verification",
-    description: "Verify customers with NIN, BVN or custom approval rules before offering credit or installment plans.",
-  },
-  {
-    icon: Building2,
-    title: "Multi Branch",
-    description: "Manage unlimited locations from one dashboard. Transfer stock, compare sales and oversee every branch in real time.",
-  },
-  {
-    icon: FileText,
-    title: "Daily Summary Report",
-    description: "Get an automated daily breakdown of sales, expenses, stock movement and cashier performance every night.",
-  },
-  {
-    icon: Camera,
-    title: "Attendance (Face Capture)",
-    description: "Staff clock in and out with facial recognition. No buddy punching — accurate attendance records for payroll and compliance.",
-  },
-  {
-    icon: Bot,
-    title: "MartPoint Assist Chat Bot",
-    description: "AI-powered assistant answers customer questions, guides staff and helps resolve common issues instantly — 24/7.",
-  },
-  {
-    icon: Heart,
-    title: "Loyalty & Rewards",
-    description: "Keep customers coming back with loyalty points, membership tiers, gift cards, store credit, birthday rewards and referral incentives — all tracked automatically.",
-  },
-  {
-    icon: Receipt,
-    title: "Expense & Profit Tracking",
-    description: "Record every business expense from rent to supplies. See true profit margins after all costs, not just top-line sales. Know where your money really goes.",
-  },
-]
-
 const testimonials = [
   {
     quote:
@@ -325,11 +204,6 @@ const trustedBy = [
 ]
 
 export default async function MartPointRetailPage() {
-  const settings = await readSettings()
-  const pricing = (settings?.pricing as Record<string, unknown>) || {}
-  const cloud = (pricing.cloud as unknown as Record<string, string | string[] | number>) || {}
-  const offline = (pricing.offline as unknown as Record<string, string | string[] | number>) || {}
-
   return (
     <>
       <SoftwareApplicationSchema
@@ -483,44 +357,6 @@ export default async function MartPointRetailPage() {
           </div>
         </section>
 
-        {/* SECTION 3 — RETAIL BUSINESS CHALLENGES */}
-        <section className="w-full bg-[#023047] py-10 md:py-16 lg:py-20">
-          <div className="container-martpoint">
-            <div className="max-w-3xl mx-auto text-center mb-14">
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
-                Still Managing Your Store With Guesswork?
-              </h2>
-              <p className="mt-4 text-lg text-white/70 leading-relaxed max-w-2xl mx-auto">
-                A complete retail commerce platform. Sell in-store, online and on WhatsApp. Accept every payment, offer installment plans and manage inventory, collections and staff — all from one simple dashboard.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-5 max-w-4xl mx-auto">
-              {challenges.map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-xl bg-white/5 border border-white/10 p-5 sm:p-8 text-center transition-all duration-200 hover:bg-white/10 hover:border-white/20"
-                >
-                  <div className="w-14 h-14 rounded-xl bg-white/10 flex items-center justify-center mx-auto mb-4">
-                    <item.icon className="w-7 h-7 text-white" />
-                  </div>
-                  <p className="text-base font-semibold text-white/95">{item.title}</p>
-                </div>
-              ))}
-            </div>
-            <p className="mt-10 text-center text-white/70 text-lg max-w-2xl mx-auto leading-relaxed">
-              MartPoint Retail gives you the visibility and control needed to run retail operations confidently.
-            </p>
-            <div className="mt-8 flex justify-center">
-              <Button asChild size="lg" variant="retail">
-                <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
-                  Book a Demo
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </section>
-
         {/* SECTION 4 — HOW A SALE FLOWS */}
         <section className="w-full bg-background py-10 md:py-16 lg:py-20">
           <div className="container-martpoint">
@@ -558,6 +394,113 @@ export default async function MartPointRetailPage() {
           </div>
         </section>
 
+        {/* SECTION 4A — BUILT FOR AFRICA */}
+        <section className="w-full bg-muted py-10 md:py-16 lg:py-20">
+          <div className="container-martpoint">
+            <SectionHeader
+              label="Designed For Africa"
+              headline="Built For The Way Africa Does Business"
+              description="MartPoint wasn&apos;t adapted for Africa. It was designed for Africa."
+            />
+            <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                { icon: CreditCard, title: "Accept Transfer Payments", description: "Record cash, card, transfer and mobile money in one place. No missed transactions." },
+                { icon: Wallet, title: "Sell on Credit", description: "Track customer debts, set credit limits and know exactly who owes what at any time." },
+                { icon: MessageCircle, title: "WhatsApp Orders", description: "Receive orders, send invoices and collect payments directly through WhatsApp." },
+                { icon: Building2, title: "Multiple Branches", description: "Manage unlimited locations from one dashboard. Compare sales and transfer stock in real time." },
+                { icon: HandCoins, title: "Installment Payments", description: "Let customers pay in deposits and track balances automatically. No more forgotten debts." },
+                { icon: WifiOff, title: "Works Even During Poor Connectivity", description: "Sell and manage stock offline. Everything syncs automatically when connection returns." },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-xl border border-border bg-background p-6 transition-all duration-200 hover:border-retail/30 hover:shadow-sm"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center mb-4">
+                    <item.icon className="w-5 h-5 text-retail" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">{item.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION 3 — RETAIL BUSINESS CHALLENGES */}
+        <section className="w-full bg-[#023047] py-10 md:py-16 lg:py-20">
+          <div className="container-martpoint">
+            <div className="max-w-3xl mx-auto text-center mb-14">
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
+                Still Managing Your Store With Guesswork?
+              </h2>
+              <p className="mt-4 text-lg text-white/70 leading-relaxed max-w-2xl mx-auto">
+                Every day, retailers lose money through stock errors, forgotten debts, delayed reports and poor visibility. MartPoint brings your sales, inventory, customers, staff and payments together so you always know what&apos;s happening in your business.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-5 max-w-4xl mx-auto">
+              {challenges.map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-xl bg-white/5 border border-white/10 p-5 sm:p-8 text-center transition-all duration-200 hover:bg-white/10 hover:border-white/20"
+                >
+                  <div className="w-14 h-14 rounded-xl bg-white/10 flex items-center justify-center mx-auto mb-4">
+                    <item.icon className="w-7 h-7 text-white" />
+                  </div>
+                  <p className="text-base font-semibold text-white/95">{item.title}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-10 text-center text-white/70 text-lg max-w-2xl mx-auto leading-relaxed">
+              MartPoint Retail gives you the visibility and control needed to run retail operations confidently.
+            </p>
+            <div className="mt-8 flex justify-center">
+              <Button asChild size="lg" variant="retail">
+                <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                  Book a Demo
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION 4H — WHY WE BUILT MARTPOINT */}
+        <section className="w-full bg-background py-10 md:py-16 lg:py-20">
+          <div className="container-martpoint">
+            <div className="max-w-3xl mx-auto text-center mb-14">
+              <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-3">
+                Our Story
+              </span>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                Why We Built MartPoint
+              </h2>
+              <p className="mt-4 text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
+                African retail is different. Customers pay by transfer. Some buy on credit. Internet isn&apos;t always reliable. Businesses sell products and services together. Most retail software wasn&apos;t designed for these realities. MartPoint was.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-4xl mx-auto">
+              {[
+                { icon: CreditCard, text: "Transfer payments built-in" },
+                { icon: Wallet, text: "Credit sales tracked automatically" },
+                { icon: WifiOff, text: "Works offline when internet fails" },
+                { icon: Store, text: "Products and services together" },
+                { icon: MapPin, text: "Designed for African businesses" },
+                { icon: Headphones, text: "Local support that understands you" },
+              ].map((item) => (
+                <div
+                  key={item.text}
+                  className="flex items-center gap-4 rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:border-retail/30 hover:shadow-sm"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center shrink-0">
+                    <item.icon className="w-5 h-5 text-retail" />
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">{item.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* SECTION 4B — PAYPLAN */}
         <PayPlanSection />
 
@@ -575,6 +518,43 @@ export default async function MartPointRetailPage() {
 
         {/* SECTION 4G — LOYALTY TRUST CALLOUT */}
         <LoyaltyTrustCallout />
+
+        {/* SECTION 4I — MARTPOINT INTELLIGENCE */}
+        <section className="w-full bg-muted py-10 md:py-16 lg:py-20">
+          <div className="container-martpoint">
+            <div className="max-w-3xl mx-auto text-center mb-14">
+              <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-3">
+                AI-Powered Insights
+              </span>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                Meet MartPoint Intelligence
+              </h2>
+              <p className="mt-4 text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
+                MartPoint doesn&apos;t just show reports. It tells you what needs your attention next.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+              {[
+                { icon: TrendingUp, title: "Sales dropped because beverages sold 23% less.", color: "bg-amber-50 border-amber-200 text-amber-800" },
+                { icon: Package, title: "Bread will finish tomorrow.", color: "bg-blue-50 border-blue-200 text-blue-800" },
+                { icon: Wallet, title: "Three customers are due for payment today.", color: "bg-green-50 border-green-200 text-green-800" },
+                { icon: Users, title: "Cashier Sarah achieved the highest sales this week.", color: "bg-purple-50 border-purple-200 text-purple-800" },
+                { icon: AlertTriangle, title: "₦420,000 worth of products haven&apos;t sold in 120 days.", color: "bg-red-50 border-red-200 text-red-800" },
+                { icon: BarChart3, title: "Your best-selling product this month is running low.", color: "bg-retail-soft border-retail-muted text-retail" },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className={`rounded-xl border p-6 transition-all duration-200 hover:shadow-sm ${item.color}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <item.icon className="w-5 h-5 shrink-0 mt-0.5" />
+                    <p className="text-sm font-medium leading-relaxed">{item.title}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
         {/* SECTION 5 — CAPABILITIES */}
         <section className="w-full bg-muted py-10 md:py-16 lg:py-20">
@@ -600,342 +580,6 @@ export default async function MartPointRetailPage() {
                   </p>
                 </div>
               ))}
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 6 — OWNER DASHBOARD SHOWCASE */}
-        <section className="w-full bg-background py-10 md:py-16 lg:py-20">
-          <div className="container-martpoint">
-            <div className="max-w-3xl mx-auto text-center mb-14">
-              <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-3">
-                Dashboard
-              </span>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                See What Business Owners See Every Day
-              </h2>
-              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Monitor your entire retail operation from one dashboard.
-              </p>
-            </div>
-
-            <div className="relative mx-auto max-w-5xl">
-              <div className="rounded-xl border border-border bg-slate-100 p-2 md:p-4 shadow-xl">
-                <div className="relative rounded-lg overflow-hidden bg-white">
-                  <Image
-                    src="/retail-dash.webp"
-                    alt="MartPoint Retail Dashboard with sales metrics, stock alerts and transaction history"
-                    width={1200}
-                    height={800}
-                    className="w-full h-auto"
-                    loading="lazy"
-                  />
-                </div>
-              </div>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                {dashboardCallouts.map((callout) => (
-                  <div
-                    key={callout}
-                    className="inline-flex items-center gap-2 rounded-lg border border-retail-muted bg-retail-soft px-4 py-2"
-                  >
-                    <div className="w-2 h-2 rounded-full bg-retail shrink-0" />
-                    <span className="text-sm font-medium text-retail">{callout}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-10 flex justify-center">
-              <Button asChild size="lg" variant="retail">
-                <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
-                  See It Live — Book a Demo
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 6A — OFFLINE & ONLINE MODE */}
-        <section className="w-full bg-[#023047] py-10 md:py-16 lg:py-20">
-          <div className="container-martpoint">
-            <div className="max-w-3xl mx-auto text-center mb-12">
-              <span className="inline-block text-xs font-semibold uppercase tracking-widest text-white mb-3">
-                No Internet? No Problem.
-              </span>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
-                Works Offline. Works Online. Your Business Never Stops.
-              </h2>
-              <p className="mt-4 text-lg text-white/70 leading-relaxed max-w-2xl mx-auto">
-                Whether you have strong internet, patchy connection, or none at all — MartPoint Retail keeps your business running. Sales, inventory and receipts work seamlessly in any environment.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-              <div className="rounded-xl bg-white/5 border border-white/10 p-6 md:p-8">
-                <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center mb-4">
-                  <WifiOff className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="text-lg font-semibold text-white mb-2">Fully Offline Mode</h3>
-                <p className="text-sm text-white/70 leading-relaxed">
-                  Sell, manage stock and print receipts with zero internet. All data is stored locally on your device. Perfect for locations with unreliable connectivity.
-                </p>
-              </div>
-              <div className="rounded-xl bg-white/5 border border-white/10 p-6 md:p-8">
-                <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center mb-4">
-                  <Wifi className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="text-lg font-semibold text-white mb-2">Auto-Sync When Online</h3>
-                <p className="text-sm text-white/70 leading-relaxed">
-                  The moment you are back online, everything syncs to the cloud — sales, stock levels, attendance and reports. No manual upload needed.
-                </p>
-              </div>
-            </div>
-            <div className="mt-10 flex justify-center px-4 sm:px-0">
-              <Button asChild size="lg" variant="retail" className="w-full sm:w-auto text-center">
-                <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
-                  See How It Works — Book a Demo
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 6B — PRICING */}
-        <section className="w-full bg-slate-50 py-10 md:py-16 lg:py-20">
-          <div className="container-martpoint">
-            <div className="max-w-3xl mx-auto text-center mb-14">
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                Simple Pricing. No Confusing Plans.
-              </h2>
-              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Whether you operate one store or multiple branches, MartPoint Retail grows with your business.
-              </p>
-            </div>
-
-              {/* Pricing Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto mb-16">
-              {/* Cloud Plan */}
-              <div className="relative rounded-2xl border-2 border-retail bg-card p-8 shadow-sm">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="inline-block rounded-full bg-retail px-4 py-1 text-xs font-bold uppercase tracking-wider text-white">
-                    {cloud.badge || "Most Popular"}
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-foreground mt-2">{cloud.name || "MartPoint Retail Cloud"}</h3>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl sm:text-5xl font-extrabold text-retail">{cloud.price || "₦99,999"}</span>
-                  <span className="text-muted-foreground">{cloud.period || "/ Year"}</span>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {cloud.description || "Everything you need to run a modern retail business."}
-                </p>
-                <ul className="mt-6 space-y-3">
-                  {((cloud.features as string[]) || [
-                    "POS Sales & Checkout",
-                    "Inventory & Stock Control",
-                    "Online Store",
-                    "WhatsApp Ordering & Invoice",
-                    "QR Menu Ordering",
-                    "Payment Links",
-                    "PayPlan™ Installment Plans",
-                    "Loyalty & Rewards",
-                    "Customer Verification",
-                    "Collections Tracking",
-                    "Attendance (Face Capture)",
-                    "Daily Report",
-                    "AI Chatbot",
-                    "Training & Onboarding",
-                    "Mobile & Desktop Access",
-                  ]).map((item: string) => (
-                    <li key={item} className="flex items-center gap-2 text-sm text-foreground">
-                      <Check className="w-4 h-4 text-retail shrink-0" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-6 rounded-lg bg-retail-soft p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Includes {cloud.branchesIncluded as number ?? 1} Branch · {cloud.usersIncluded as number ?? 5} Users</p>
-                  <p className="text-base font-bold text-retail mt-1">Additional Branch: {cloud.branchAddonPrice as string || "₦49,999 / Year"}</p>
-                </div>
-                <div className="mt-6">
-                  <Button asChild size="lg" variant="retail" className="w-full">
-                    <a href={cloud.ctaLink as string || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
-                      {cloud.ctaText as string || "Get Started"}
-                    </a>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Offline Plan */}
-              <div className="relative rounded-2xl border border-border bg-card p-8 shadow-sm">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="inline-block rounded-full bg-foreground px-4 py-1 text-xs font-bold uppercase tracking-wider text-white">
-                    {offline.badge || "One-Time"}
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-foreground mt-2">{offline.name || "MartPoint On-Premise Offline"}</h3>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl sm:text-5xl font-extrabold text-foreground">{offline.price || "₦250,000"}</span>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">{offline.period || "One-Time Payment fee (Deployment Only)"}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {offline.description || "Full software installed locally. Needed, Maintenance & License renewal. Works without internet."}
-                </p>
-                <ul className="mt-6 space-y-3">
-                  {((offline.features as string[]) || [
-                    "POS Sales & Checkout",
-                    "Inventory & Stock Control",
-                    "Receipt Printing",
-                    "Barcode & SKU Management",
-                    "Customer & Supplier Records",
-                    "Staff Attendance (No Face Capture)",
-                    "Daily Sales Report",
-                    "Multi-Branch (LAN Connected)",
-                    "Offline-First Sync",
-                    "Local Installation",
-                    "Staff Setup & Training",
-                    "Maintenance & License Renewal",
-                  ]).map((item: string) => (
-                    <li key={item} className="flex items-center gap-2 text-sm text-foreground">
-                      <Check className="w-4 h-4 text-retail shrink-0" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-4 text-center text-sm font-bold text-foreground">
-                  1 Branch 5 Users
-                </p>
-                <div className="mt-4 rounded-lg bg-muted p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Additional Branch: {offline.branchAddonPrice as string || "₦100,000 One-Time"}</p>
-                  {offline.supportRenewal && (
-                    <p className="text-xs text-muted-foreground mt-1">Maintenance & License Renewal: {offline.supportRenewal as string}</p>
-                  )}
-                </div>
-                <div className="mt-6">
-                  <Button asChild size="lg" variant="outline" className="w-full">
-                    <a href={offline.ctaLink as string || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20setup.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
-                      {offline.ctaText as string || "Request Offline Setup"}
-                    </a>
-                  </Button>
-                </div>
-                <div className="mt-3 text-center">
-                  <a
-                    href="https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Enterprise%20On-Premise%20setup.%20Can%20we%20talk%3F"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <span className="font-medium">Enterprise On-Premise</span>
-                    <span className="block text-[11px] opacity-70">For larger organizations</span>
-                  </a>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </section>
-
-        {/* SECTION 6C — POWER FEATURES */}
-        <section className="w-full bg-muted py-10 md:py-16 lg:py-20">
-          <div className="container-martpoint">
-            <SectionHeader
-              label="What&apos;s New"
-              headline="Everything You Need To Run A Modern Retail Business"
-              description="MartPoint Retail goes beyond traditional POS with modern tools designed for how retail works today."
-            />
-            <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {powerFeatures.map((feature) => (
-                <div
-                  key={feature.title}
-                  className="rounded-xl border border-border bg-background p-6 transition-all duration-200 hover:border-retail/30 hover:shadow-sm"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center mb-4">
-                    <feature.icon className="w-5 h-5 text-retail" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">
-                    {feature.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {feature.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 7 — HARDWARE & SETUP OPTIONS */}
-        <section className="w-full bg-background py-10 md:py-16 lg:py-20">
-          <div className="container-martpoint">
-            <SectionHeader
-              headline="Flexible Setup For Every Retail Environment"
-            />
-            <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-              {hardwareOptions.map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-xl border border-border bg-background p-6 text-center transition-all duration-200 hover:border-retail/30 hover:shadow-sm"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center mx-auto mb-4">
-                    <item.icon className="w-5 h-5 text-retail" />
-                  </div>
-                  <h3 className="text-base font-semibold text-foreground mb-1">
-                    {item.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {item.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-12 rounded-xl border border-retail-muted bg-retail-soft p-6 sm:p-8 text-center">
-              <h3 className="text-lg font-semibold text-foreground mb-2">
-                Need hardware too?
-              </h3>
-              <p className="text-muted-foreground max-w-xl mx-auto mb-6">
-                MartPoint can provide a complete retail deployment including software setup, hardware recommendations, onboarding and training.
-              </p>
-              <div className="flex justify-center">
-                <Button asChild size="lg" variant="retail" className="w-full sm:w-auto">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
-                    Request Complete Setup
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 8 — WHY NIGERIAN BUSINESSES CHOOSE MARTPOINT */}
-        <section className="w-full bg-[#023047] py-10 md:py-16 lg:py-20">
-          <div className="container-martpoint">
-            <div className="max-w-3xl mx-auto text-center mb-14">
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
-                Why African Businesses Choose MartPoint
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-4xl mx-auto">
-              {whyChoose.map((item) => (
-                <div
-                  key={item.text}
-                  className="flex items-center gap-4 rounded-xl bg-white/5 border border-white/10 p-6 transition-all duration-200 hover:bg-white/10 hover:border-white/20"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-                    <item.icon className="w-6 h-6 text-white" />
-                  </div>
-                  <span className="text-base font-semibold text-white/95">{item.text}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-10 flex justify-center">
-              <Button asChild size="lg" variant="retail">
-                <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
-                  Book a Demo
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
             </div>
           </div>
         </section>

@@ -47,10 +47,10 @@ export function PayPlanSection() {
             Installment Payments
           </span>
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-            Turn More Walk-Ins Into Paying Customers
+            Sell More. Collect Better.
           </h2>
           <p className="mt-4 text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-            MartPoint PayPlan™ helps businesses sell products and services through structured installment payments while automatically tracking deposits, balances, payment schedules and collections.
+            Turn customers who can&apos;t pay in full today into paying customers with structured installment plans, automatic balance tracking and payment reminders.
           </p>
         </div>
 

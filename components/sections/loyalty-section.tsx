@@ -36,6 +36,11 @@ const loyaltyCards = [
     title: "Store Credit",
     description: "Issue store credit for returns, referrals or promotions. Customers see their balance at checkout and can apply it instantly.",
   },
+  {
+    icon: Users,
+    title: "Recover Lost Customers",
+    description: "Automatically identify customers who haven&apos;t visited in weeks and send promotions to bring them back.",
+  },
 ]
 
 export function LoyaltySection() {

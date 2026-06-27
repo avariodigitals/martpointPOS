@@ -189,9 +189,9 @@ export default function AdminSettingsPage() {
     ],
   })
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving] = useState<Record<string, boolean>>({})
   const [uploading, setUploading] = useState<{ header: boolean; footer: boolean }>({ header: false, footer: false })
-  const [message, setMessage] = useState("")
+  const [message, setMessage] = useState<Record<string, string>>({})
 
   useEffect(() => {
     fetch("/api/admin/settings", { cache: "no-store" })
@@ -235,9 +235,9 @@ export default function AdminSettingsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  async function doSave(body: Record<string, unknown>) {
-    setSaving(true)
-    setMessage("")
+  async function doSave(section: string, body: Record<string, unknown>) {
+    setSaving((prev) => ({ ...prev, [section]: true }))
+    setMessage((prev) => ({ ...prev, [section]: "" }))
 
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 15000)
@@ -259,18 +259,18 @@ export default function AdminSettingsPage() {
       } catch {
         console.error("Non-JSON response:", text.slice(0, 500))
         const errMsg = `Server error (${res.status}). Check console for details.`
-        setMessage(errMsg)
+        setMessage((prev) => ({ ...prev, [section]: errMsg }))
         window.alert(errMsg)
-        setSaving(false)
+        setSaving((prev) => ({ ...prev, [section]: false }))
         return
       }
 
       if (res.ok && data.success) {
-        setMessage("Settings saved successfully.")
+        setMessage((prev) => ({ ...prev, [section]: "Settings saved successfully." }))
       } else {
         const errorMsg = (data.error as string) || `Failed to save (${res.status}).`
         console.error("Save error:", errorMsg, data)
-        setMessage(errorMsg)
+        setMessage((prev) => ({ ...prev, [section]: errorMsg }))
         window.alert(errorMsg)
       }
     } catch (err) {
@@ -280,17 +280,17 @@ export default function AdminSettingsPage() {
       const displayMsg = errMsg.includes("abort") || errMsg.includes("Abort")
         ? "Request timed out. The server took too long to respond."
         : "Network error. Check your connection and try again."
-      setMessage(displayMsg)
+      setMessage((prev) => ({ ...prev, [section]: displayMsg }))
       window.alert(displayMsg)
     } finally {
-      setSaving(false)
+      setSaving((prev) => ({ ...prev, [section]: false }))
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     console.log("[handleSubmit] Save All clicked")
-    await doSave({
+    await doSave("all", {
       general: settings,
       social,
       searchConsole,
@@ -309,7 +309,7 @@ export default function AdminSettingsPage() {
   const uploadLogo = async (file: File, type: "header" | "footer", field: "logo" | "favicon" = "logo") => {
     if (!file) return
     setUploading((prev) => ({ ...prev, [type]: true }))
-    setMessage("")
+    setMessage((prev) => ({ ...prev, [type]: "" }))
 
     try {
       const formData = new FormData()
@@ -328,12 +328,12 @@ export default function AdminSettingsPage() {
         } else {
           setFooter((prev) => ({ ...prev, logo: data.url }))
         }
-        setMessage(`${field === "favicon" ? "Favicon" : "Logo"} uploaded successfully.`)
+        setMessage((prev) => ({ ...prev, [type]: `${field === "favicon" ? "Favicon" : "Logo"} uploaded successfully.` }))
       } else {
-        setMessage(data.error || `Failed to upload ${field === "favicon" ? "favicon" : "logo"}.`)
+        setMessage((prev) => ({ ...prev, [type]: data.error || `Failed to upload ${field === "favicon" ? "favicon" : "logo"}.` }))
       }
     } catch {
-      setMessage(`Failed to upload ${field === "favicon" ? "favicon" : "logo"}.`)
+      setMessage((prev) => ({ ...prev, [type]: `Failed to upload ${field === "favicon" ? "favicon" : "logo"}.` }))
     } finally {
       setUploading((prev) => ({ ...prev, [type]: false }))
     }
@@ -392,9 +392,14 @@ export default function AdminSettingsPage() {
                 />
               </div>
             </CardContent>
-            <CardFooter className="border-t pt-4 flex justify-end">
-              <Button type="button" onClick={() => doSave({ general: settings })} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.general && (
+                <span className={`text-sm px-2 py-1 rounded ${message.general.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.general}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSave("general", { general: settings })} disabled={saving["general"]}>
+                {saving["general"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Contact
               </Button>
             </CardFooter>
@@ -447,9 +452,14 @@ export default function AdminSettingsPage() {
                 />
               </div>
             </CardContent>
-            <CardFooter className="border-t pt-4 flex justify-end">
-              <Button type="button" onClick={() => doSave({ social })} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.social && (
+                <span className={`text-sm px-2 py-1 rounded ${message.social.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.social}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSave("social", { social })} disabled={saving["social"]}>
+                {saving["social"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Social
               </Button>
             </CardFooter>
@@ -488,9 +498,14 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="border-t pt-4 flex justify-end">
-              <Button type="button" onClick={() => doSave({ searchConsole })} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.searchConsole && (
+                <span className={`text-sm px-2 py-1 rounded ${message.searchConsole.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.searchConsole}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSave("searchConsole", { searchConsole })} disabled={saving["searchConsole"]}>
+                {saving["searchConsole"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Search Console
               </Button>
             </CardFooter>
@@ -519,9 +534,14 @@ export default function AdminSettingsPage() {
                 </p>
               </div>
             </CardContent>
-            <CardFooter className="border-t pt-4 flex justify-end">
-              <Button type="button" onClick={() => doSave({ openai })} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.openai && (
+                <span className={`text-sm px-2 py-1 rounded ${message.openai.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.openai}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSave("openai", { openai })} disabled={saving["openai"]}>
+                {saving["openai"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save OpenAI
               </Button>
             </CardFooter>
@@ -639,9 +659,14 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="border-t pt-4 flex justify-end">
-              <Button type="button" onClick={() => doSave({ popup })} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.popup && (
+                <span className={`text-sm px-2 py-1 rounded ${message.popup.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.popup}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSave("popup", { popup })} disabled={saving["popup"]}>
+                {saving["popup"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Pop Up
               </Button>
             </CardFooter>
@@ -764,9 +789,14 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="border-t pt-4 flex justify-end">
-              <Button type="button" onClick={() => doSave({ header })} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.header && (
+                <span className={`text-sm px-2 py-1 rounded ${message.header.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.header}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSave("header", { header })} disabled={saving["header"]}>
+                {saving["header"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Header
               </Button>
             </CardFooter>
@@ -843,9 +873,14 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="border-t pt-4 flex justify-end">
-              <Button type="button" onClick={() => doSave({ footer })} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.footer && (
+                <span className={`text-sm px-2 py-1 rounded ${message.footer.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.footer}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSave("footer", { footer })} disabled={saving["footer"]}>
+                {saving["footer"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Footer
               </Button>
             </CardFooter>
@@ -1199,28 +1234,33 @@ export default function AdminSettingsPage() {
                 </div>
               ))}
             </CardContent>
-            <CardFooter className="border-t pt-4 flex justify-end">
-              <Button type="button" onClick={() => doSave({
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.pricing && (
+                <span className={`text-sm px-2 py-1 rounded ${message.pricing.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.pricing}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSave("pricing", {
                 pricing: {
                   cloud: { ...pricing.cloud, features: pricing.cloud.features.split("\n").map((f) => f.trim()).filter(Boolean) },
                   offline: { ...pricing.offline, features: pricing.offline.features.split("\n").map((f) => f.trim()).filter(Boolean) },
                   erp: pricing.erp.map((plan) => ({ ...plan, features: plan.features.split("\n").map((f) => f.trim()).filter(Boolean) })),
                 },
-              })} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              })} disabled={saving["pricing"]}>
+                {saving["pricing"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Pricing
               </Button>
             </CardFooter>
           </Card>
 
           <div className="lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            {message && (
-              <div className={`text-sm px-3 py-2 rounded-md ${message.includes("success") ? "bg-green-100 text-green-800 border border-green-200" : "bg-red-100 text-red-800 border border-red-200"}`}>
-                {message}
+            {message.all && (
+              <div className={`text-sm px-3 py-2 rounded-md ${message.all.includes("success") ? "bg-green-100 text-green-800 border border-green-200" : "bg-red-100 text-red-800 border border-red-200"}`}>
+                {message.all}
               </div>
             )}
-            <Button type="submit" disabled={saving}>
-              {saving ? (
+            <Button type="submit" disabled={saving["all"]}>
+              {saving["all"] ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Saving...

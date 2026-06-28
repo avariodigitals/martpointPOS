@@ -18,7 +18,7 @@ import {
   TrendingUp,
   Users,
   Eye,
-  Sparkles,
+  Lightbulb,
   Monitor,
 } from "lucide-react"
 
@@ -82,7 +82,7 @@ const intelligence = [
   { icon: Receipt, title: "Outstanding Balances", desc: "Track deposit payments and alert customers when final payments are due before delivery." },
   { icon: AlertTriangle, title: "Slow-Moving Flavours", desc: "Identify which cake flavours are not selling so you can promote them or remove them from the menu." },
   { icon: TrendingUp, title: "Sales Trends", desc: "Spot seasonal demand patterns — wedding season, holidays, back-to-school — and plan production ahead." },
-  { icon: Sparkles, title: "Suggested Actions", desc: "Get alerts to reorder supplies, follow up late payments or offer discounts during slow weeks." },
+  { icon: Lightbulb, title: "Suggested Actions", desc: "Get alerts to reorder supplies, follow up late payments or offer discounts during slow weeks." },
 ]
 
 const faqs = [

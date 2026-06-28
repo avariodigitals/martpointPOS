@@ -17,8 +17,7 @@ import {
   X,
   ChevronDown,
   TrendingUp,
-  Sparkles,
-  Sparkles as SparklesIcon,
+  Lightbulb,
 } from "lucide-react"
 
 export const metadata: Metadata = {
@@ -82,7 +81,7 @@ const intelligence = [
   { icon: TrendingUp, title: "Top Performer Today", desc: "Which stylist generated the highest revenue today and which services they delivered." },
   { icon: BarChart3, title: "Fastest-Growing Service", desc: "Track which treatments are trending up so you can promote and price them confidently." },
   { icon: Users, title: "Clients Not Returning", desc: "Identify clients who have not visited in 60 days and send them a win-back offer." },
-  { icon: SparklesIcon, title: "Suggested Actions", desc: "Get prompts to restock, reward top staff, run promotions or follow up outstanding payments." },
+  { icon: Lightbulb, title: "Suggested Actions", desc: "Get prompts to restock, reward top staff, run promotions or follow up outstanding payments." },
 ]
 
 const faqs = [

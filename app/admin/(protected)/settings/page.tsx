@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, Settings, Sparkles, MousePointerClick } from "lucide-react"
+import { Loader2, Save, Settings, Wand2, MousePointerClick } from "lucide-react"
 
 interface GeneralSettings {
   contactEmail: string
@@ -514,7 +514,7 @@ export default function AdminSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-retail" />
+                <Wand2 className="w-5 h-5 text-retail" />
                 OpenAI Configuration
               </CardTitle>
               <CardDescription>API key for AI content generation in the blog editor.</CardDescription>

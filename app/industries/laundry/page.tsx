@@ -18,7 +18,7 @@ import {
   TrendingUp,
   Users,
   Eye,
-  Sparkles,
+  Lightbulb,
   Monitor,
 } from "lucide-react"
 
@@ -80,7 +80,7 @@ const intelligence = [
   { icon: TrendingUp, title: "Revenue Trends", desc: "Track weekly and monthly revenue patterns to predict busy periods and plan staffing." },
   { icon: BarChart3, title: "Most Requested Services", desc: "Discover which services — wash, press, dry clean — drive the most profit." },
   { icon: Monitor, title: "Repeat Customer Insights", desc: "See who your best customers are and how often they return. Reward loyalty." },
-  { icon: Sparkles, title: "Suggested Actions", desc: "Get alerts to reorder supplies, follow up late payments or promote slow periods." },
+  { icon: Lightbulb, title: "Suggested Actions", desc: "Get alerts to reorder supplies, follow up late payments or promote slow periods." },
 ]
 
 const faqs = [

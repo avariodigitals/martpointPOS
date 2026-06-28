@@ -17,7 +17,7 @@ import {
   ChevronDown,
   TrendingUp,
   Users,
-  Sparkles,
+  Lightbulb,
 } from "lucide-react"
 
 export const metadata: Metadata = {
@@ -83,7 +83,7 @@ const intelligence = [
   { icon: BarChart3, title: "Collection Performance", desc: "Summer collection has slowed significantly. Consider a mid-season promotion to clear space for autumn stock." },
   { icon: Users, title: "Cross-Sell Opportunities", desc: "Customers who bought handbags are also buying matching wallets. Bundle them for higher average ticket." },
   { icon: AlertTriangle, title: "Slow-Moving Stock", desc: "Three products have not sold in 60 days. Recommend a weekend promotion before they become dead inventory." },
-  { icon: Sparkles, title: "Suggested Actions", desc: "Discount winter jackets before the season ends. Reorder size Medium in the floral print. Review Ikeja branch pricing." },
+  { icon: Lightbulb, title: "Suggested Actions", desc: "Discount winter jackets before the season ends. Reorder size Medium in the floral print. Review Ikeja branch pricing." },
 ]
 
 const faqs = [

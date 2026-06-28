@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2, Sparkles, FileText, BookOpen, Globe, Search } from "lucide-react"
+import { Loader2, Wand2, FileText, BookOpen, Globe, Search } from "lucide-react"
 
 interface AiContentGeneratorProps {
   onGenerate: (content: { title?: string; excerpt?: string; content?: string; metaDescription?: string; keywords?: string }) => void
@@ -44,11 +44,11 @@ export function AiContentGenerator({ onGenerate, currentTitle = "", currentConte
     }
   }
 
-  const buttons: { type: GenerationType; label: string; icon: typeof Sparkles; desc: string }[] = [
+  const buttons: { type: GenerationType; label: string; icon: typeof Wand2; desc: string }[] = [
     {
       type: "full_post",
       label: "Generate Full Post",
-      icon: Sparkles,
+      icon: Wand2,
       desc: "AI writes a complete blog post with SEO, AEO & GEO optimization",
     },
     {

@@ -16,7 +16,7 @@ import {
   X,
   ChevronDown,
   TrendingUp,
-  Sparkles,
+  Lightbulb,
 } from "lucide-react"
 
 export const metadata: Metadata = {
@@ -81,7 +81,7 @@ const intelligence = [
   { icon: Receipt, title: "Cashier Reconciliation Review", desc: "Three cashiers have discrepancies above threshold. Review recommended before end of shift." },
   { icon: Building2, title: "Branch Performance Comparison", desc: "Branch 2 is outperforming Branch 1 by 18% this month. Investigate what is working there." },
   { icon: BarChart3, title: "Highest Gross Profit Today", desc: "Soft drinks generated the highest margin today. Consider moving them to a more visible shelf position." },
-  { icon: Sparkles, title: "Suggested Actions", desc: "Reorder cooking oil before Friday. Promote slow-moving pasta. Review Branch 1 staffing on weekends." },
+  { icon: Lightbulb, title: "Suggested Actions", desc: "Reorder cooking oil before Friday. Promote slow-moving pasta. Review Branch 1 staffing on weekends." },
 ]
 
 const faqs = [

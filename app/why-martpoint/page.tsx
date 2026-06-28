@@ -16,7 +16,7 @@ import {
   WifiOff,
   GitBranch,
   Smartphone,
-  Sparkles,
+  Lightbulb,
   ShieldCheck,
   Cloud,
   Lock,
@@ -57,7 +57,7 @@ const differentiators = [
   { icon: Puzzle, title: "One Connected Platform", desc: "Sales, stock, staff, payments and customers live in one system. One login. One source of truth." },
   { icon: GitBranch, title: "Retail + Enterprise Growth", desc: "Start with MartPoint Retail. Grow into MartPoint Enterprise for accounting, HR and procurement. Same data. Same team." },
   { icon: HandCoins, title: "PayPlan Built In", desc: "Offer customers installment plans, track deposits and collect balances without a separate system." },
-  { icon: Sparkles, title: "MartPoint Intelligence", desc: "AI-powered alerts tell you what is low, what is slow and what to reorder before you run out." },
+  { icon: Lightbulb, title: "MartPoint Intelligence", desc: "AI-powered alerts tell you what is low, what is slow and what to reorder before you run out." },
   { icon: WifiOff, title: "Offline-Ready Architecture", desc: "Sales never stop. Work offline and sync automatically when connection returns. No downtime." },
   { icon: Smartphone, title: "Multi-Branch Visibility", desc: "See every branch from one dashboard. Transfer stock, compare performance and manage staff centrally." },
   { icon: TrendingUp, title: "Continuous Innovation", desc: "We ship every month based on real customer feedback. The platform you buy today keeps getting better." },
@@ -301,7 +301,7 @@ export default function WhyMartPointPage() {
               </div>
               <div className="rounded-2xl border border-border bg-background p-8">
                 <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="w-5 h-5 text-retail" />
+                  <Lightbulb className="w-5 h-5 text-retail" />
                   <span className="text-xs font-semibold uppercase tracking-wider text-retail">Example Alert</span>
                 </div>
                 <div className="rounded-xl bg-muted p-5 border border-border">

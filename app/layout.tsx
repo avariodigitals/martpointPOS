@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import { AnalyticsData } from "@/components/analytics-data";
 import { TrackingScript } from "@/components/tracking-script";
 import { CookieConsentLoader } from "@/components/cookie-consent-loader";
-import { OrganizationSchema, WebsiteSchema } from "@/components/structured-data";
+import { OrganizationSchema, WebsiteSchema, SiteNavigationSchema } from "@/components/structured-data";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import "./globals.css";
 
@@ -115,6 +115,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans">
         <OrganizationSchema />
         <WebsiteSchema />
+        <SiteNavigationSchema />
         <AnalyticsData />
         <TrackingScript />
         {children}

@@ -300,3 +300,98 @@ export function FAQPageSchema({
     />
   )
 }
+
+export function SiteNavigationSchema() {
+  const schema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SiteNavigationElement",
+        name: "MartPoint Retail",
+        url: `${BASE_URL}/martpoint-retail`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "MartPoint Enterprise",
+        url: `${BASE_URL}/martpoint-erp`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "MartPoint Intelligence",
+        url: `${BASE_URL}/martpoint-intelligence`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Pricing",
+        url: `${BASE_URL}/pricing`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Industries",
+        url: `${BASE_URL}/industries`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Blog",
+        url: `${BASE_URL}/blog`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Customer Stories",
+        url: `${BASE_URL}/customer-stories`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Help Centre",
+        url: `${BASE_URL}/help-centre`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Product Updates",
+        url: `${BASE_URL}/product-updates`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Download Brochure",
+        url: `${BASE_URL}/download-brochure`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "About MartPoint",
+        url: `${BASE_URL}/about`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Why MartPoint",
+        url: `${BASE_URL}/why-martpoint`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Partners",
+        url: `${BASE_URL}/partners`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Careers",
+        url: `${BASE_URL}/careers`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Contact",
+        url: `${BASE_URL}/contact`,
+      },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Book a Demo",
+        url: `${BASE_URL}/book-demo`,
+      },
+    ],
+  }
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
+  )
+}

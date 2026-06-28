@@ -21,6 +21,7 @@ import {
   Lightbulb,
   Monitor,
 } from "lucide-react"
+import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
   title: "Cake Shop POS & Order Software — MartPoint Retail",
@@ -320,6 +321,8 @@ export default function CakeShopsPage() {
             </div>
           </div>
         </section>
+      <FAQPageSchema faqs={faqs.map((f) => ({ question: f.q, answer: f.a }))} />
+      <HowToSchema name="How MartPoint Works for Cake Shops" description="Step-by-step workflow using MartPoint Retail." steps={workflow.map((w) => ({ name: w.step, text: w.desc }))} />
       </main>
       <Footer />
     </>

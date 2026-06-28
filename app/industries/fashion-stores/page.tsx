@@ -19,6 +19,7 @@ import {
   Users,
   Lightbulb,
 } from "lucide-react"
+import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
   title: "Fashion Retail POS & Inventory — MartPoint Retail",
@@ -322,6 +323,8 @@ export default function FashionStoresPage() {
             </div>
           </div>
         </section>
+      <FAQPageSchema faqs={faqs.map((f) => ({ question: f.q, answer: f.a }))} />
+      <HowToSchema name="How MartPoint Works for Fashion Stores" description="Step-by-step workflow using MartPoint Retail." steps={workflow.map((w) => ({ name: w.step, text: w.desc }))} />
       </main>
       <Footer />
     </>

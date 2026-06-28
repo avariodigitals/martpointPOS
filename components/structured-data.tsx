@@ -278,18 +278,49 @@ export function LocalBusinessSchema() {
 export function FAQPageSchema({
   faqs,
 }: {
-  faqs: Array<{ question: string; answer: string }>
+  faqs: Array<{ question: string; answer?: string }>
 }) {
   const schema = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: faqs.map((faq) => ({
-      "@type": "Question",
-      name: faq.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: faq.answer,
-      },
+    mainEntity: faqs
+      .filter((faq): faq is { question: string; answer: string } => !!faq.answer)
+      .map((faq) => ({
+        "@type": "Question",
+        name: faq.question,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: faq.answer,
+        },
+      })),
+  }
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
+  )
+}
+
+export function HowToSchema({
+  name,
+  description,
+  steps,
+}: {
+  name: string
+  description: string
+  steps: Array<{ name: string; text: string }>
+}) {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name,
+    description,
+    step: steps.map((step) => ({
+      "@type": "HowToStep",
+      name: step.name,
+      text: step.text,
     })),
   }
 

@@ -19,6 +19,7 @@ import {
   ChevronUp,
   Plus,
   X,
+  Rocket,
 } from "lucide-react"
 
 interface Lead {
@@ -699,15 +700,28 @@ export default function AdminLeadsPage() {
               <div className="border-t border-border px-4 py-4 bg-muted/20 space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="font-semibold">{lead.fullName} — Details</p>
-                  <select
-                    value={lead.status}
-                    onChange={(e) => updateStatus(lead.id, e.target.value as Lead["status"])}
-                    className="rounded-md border border-input bg-background px-2 py-1 text-xs"
-                  >
-                    {PIPELINE_STAGES.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    {lead.status === "Won" && (
+                      <Button
+                        size="sm"
+                        variant="retail"
+                        className="h-7 text-xs px-2"
+                        onClick={() => window.location.href = `/admin/onboarding?initiate=${lead.id}`}
+                      >
+                        <Rocket className="w-3.5 h-3.5 mr-1" />
+                        Initiate Onboarding
+                      </Button>
+                    )}
+                    <select
+                      value={lead.status}
+                      onChange={(e) => updateStatus(lead.id, e.target.value as Lead["status"])}
+                      className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                    >
+                      {PIPELINE_STAGES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div><p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Business Type</p><p className="font-medium">{lead.businessType}</p></div>

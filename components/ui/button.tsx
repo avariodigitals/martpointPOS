@@ -11,7 +11,7 @@ const buttonVariants = cva(
         default:
           "bg-retail text-white hover:bg-retail/90 focus-visible:ring-retail/50 shadow-sm",
         primary:
-          "bg-foreground text-background hover:bg-foreground/90 focus-visible:ring-foreground/50 shadow-sm",
+          "bg-[#0A0F1C] text-white hover:bg-[#0A0F1C]/90 focus-visible:ring-[#0A0F1C]/50 shadow-sm",
         retail:
           "bg-retail text-white hover:bg-retail/90 focus-visible:ring-retail/50 shadow-sm",
         erp:

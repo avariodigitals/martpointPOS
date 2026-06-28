@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ArrowRight, Check, ChevronDown } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+import { FAQPageSchema } from "@/components/structured-data"
 
 export interface IndustryTemplateData {
   name: string
@@ -260,6 +261,7 @@ export function IndustryTemplate({ data }: { data: IndustryTemplateData }) {
             </div>
           </div>
         </section>
+      <FAQPageSchema faqs={data.faqs.map((f) => ({ question: f.q, answer: f.a }))} />
       </main>
       <Footer />
     </>

@@ -13,8 +13,8 @@ import {
   GraduationCap,
   Clock,
   Check,
-  Mail,
 } from "lucide-react"
+import { CareersApplicationForm } from "@/components/careers-application-form"
 
 export const metadata: Metadata = {
   title: "Careers — Join the MartPoint Team",
@@ -74,10 +74,7 @@ export default function CareersPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
-                  <Link href="mailto:careers@martpoint.com.ng?subject=I%20want%20to%20join%20MartPoint">
-                    <Mail className="mr-2 h-4 w-4" />
-                    Join Our Team
-                  </Link>
+                  <Link href="#apply">Apply Now</Link>
                 </Button>
                 <Button asChild variant="outline" size="lg">
                   <Link href="/about">About MartPoint</Link>
@@ -195,7 +192,7 @@ export default function CareersPage() {
                       <p className="text-xs text-muted-foreground mt-1">{role.team} · {role.location} · {role.type}</p>
                     </div>
                     <Button asChild variant="retail" size="sm">
-                      <Link href={`mailto:careers@martpoint.com.ng?subject=Application%20for%20${encodeURIComponent(role.title)}`}>Apply</Link>
+                      <Link href="#apply">Apply</Link>
                     </Button>
                   </div>
                 ))}
@@ -208,35 +205,24 @@ export default function CareersPage() {
                   We are not actively hiring right now, but we always welcome exceptional talent. Send us your details and we will reach out when a fitting role opens.
                 </p>
                 <Button asChild variant="outline">
-                  <Link href="mailto:careers@martpoint.com.ng?subject=Future%20Opportunity%20at%20MartPoint">Send Your CV</Link>
+                  <Link href="#apply">Send Your CV</Link>
                 </Button>
               </div>
             )}
           </div>
         </section>
 
-        {/* CTA */}
-        <section className="w-full bg-retail-soft border-y border-retail-muted py-16 md:py-24">
-          <div className="container-martpoint">
-            <div className="max-w-3xl mx-auto text-center">
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                Think You Would Be a Great Fit?
-              </h2>
+        {/* Application Form */}
+        <section id="apply" className="w-full bg-muted py-16 md:py-24">
+          <div className="container-martpoint max-w-2xl">
+            <div className="text-center mb-10">
+              <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-3">Apply</span>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">Join the MartPoint Team</h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Even if there is no open role today, we would love to hear from you. Tell us what you do best and why MartPoint excites you.
+                All fields are required. We review every application personally and respond within one week.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <Button asChild size="lg" variant="retail">
-                  <Link href="mailto:careers@martpoint.com.ng?subject=I%20want%20to%20join%20MartPoint">
-                    <Mail className="mr-2 h-4 w-4" />
-                    Get in Touch
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" size="lg">
-                  <Link href="/about">Learn About MartPoint</Link>
-                </Button>
-              </div>
             </div>
+            <CareersApplicationForm />
           </div>
         </section>
       </main>

@@ -9,6 +9,8 @@ import {
   FileText,
   MousePointerClick,
   ArrowUpRight,
+  ClipboardCheck,
+  Rocket,
 } from "lucide-react"
 import Link from "next/link"
 import { readSettings } from "@/lib/settings"
@@ -71,6 +73,13 @@ async function getUsers() {
   return data
 }
 
+async function getOnboarding() {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase.from("onboarding").select("status, created_at")
+  if (error || !data) return []
+  return data as Array<{ status: string; created_at: string }>
+}
+
 const STAGE_COLORS: Record<string, string> = {
   New: "bg-info",
   Contacted: "bg-warning",
@@ -86,6 +95,7 @@ export default async function AdminDashboardPage() {
   const posts = await getBlogPosts()
   const clicks = await getClicks()
   const users = await getUsers()
+  const onboarding = await getOnboarding()
 
   const seo = settings?.seo as Record<string, string> | undefined
   const analytics = settings?.analytics as Record<string, string> | undefined
@@ -124,6 +134,11 @@ export default async function AdminDashboardPage() {
   // Team stats
   const teamSize = users.length
 
+  // Onboarding stats
+  const onboardingTotal = onboarding.length
+  const onboardingPending = onboarding.filter((o) => o.status === "Pending").length
+  const onboardingCompleted = onboarding.filter((o) => o.status === "Completed").length
+
   return (
     <div className="space-y-6">
       <div>
@@ -132,7 +147,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       {/* ─── Top Stats ─── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -167,6 +182,18 @@ export default async function AdminDashboardPage() {
               <CheckCircle2 className="w-5 h-5 text-success" />
             </div>
             <p className="text-xs text-muted-foreground mt-1">{conversionRate}% conversion</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Onboarding</p>
+                <p className="text-2xl font-bold">{onboardingTotal}</p>
+              </div>
+              <ClipboardCheck className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{onboardingPending} pending · {onboardingCompleted} completed</p>
           </CardContent>
         </Card>
         <Card>

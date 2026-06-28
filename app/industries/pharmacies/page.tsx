@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Lightbulb,
 } from "lucide-react"
+import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
   title: "Pharmacy Inventory & POS Software — MartPoint Retail",
@@ -322,6 +323,8 @@ export default function PharmaciesPage() {
             </div>
           </div>
         </section>
+      <FAQPageSchema faqs={faqs.map((f) => ({ question: f.q, answer: f.a }))} />
+      <HowToSchema name="How MartPoint Works for Pharmacies" description="Step-by-step workflow using MartPoint Retail." steps={workflow.map((w) => ({ name: w.step, text: w.desc }))} />
       </main>
       <Footer />
     </>

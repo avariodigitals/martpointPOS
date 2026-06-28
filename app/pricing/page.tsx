@@ -4,6 +4,7 @@ import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
 import { Check, ArrowRight, HelpCircle } from "lucide-react"
+import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 import { readSettings } from "@/lib/settings"
 
 export const metadata: Metadata = {
@@ -244,6 +245,7 @@ export default async function PricingPage() {
             </div>
           </div>
         </section>
+        <PreFooterCTA />
       </main>
       <Footer />
     </>

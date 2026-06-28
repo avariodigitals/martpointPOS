@@ -3,6 +3,7 @@ import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { ExitIntentPopup } from "@/components/exit-intent-popup"
 import { BlogPreview } from "@/components/sections/blog-preview"
+import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 import { PayPlanSection, PayPlanBenefits, PayPlanTrustCallout } from "@/components/sections/payplan-section"
 import { LoyaltySection, LoyaltyBenefits, LoyaltyTrustCallout } from "@/components/sections/loyalty-section"
 import { TrustLayer } from "@/components/sections/trust-layer"
@@ -664,32 +665,8 @@ export default async function MartPointRetailPage() {
           </div>
         </section>
 
-        {/* SECTION 9 — FINAL CTA */}
-        <section className="w-full bg-background py-10 md:py-16 lg:py-20">
-          <div className="container-martpoint">
-            <div className="max-w-3xl mx-auto text-center">
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                Ready To Take Control Of Your Retail Operations?
-              </h2>
-              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Book a personalized demo and see how MartPoint Retail can fit your business.
-              </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <Button asChild size="lg" variant="retail">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
-                    Book a Demo
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" size="lg">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">Request a Quote</Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <BlogPreview />
+        <PreFooterCTA />
       </main>
       <Footer />
       <ExitIntentPopup />

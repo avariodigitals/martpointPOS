@@ -27,13 +27,5 @@ export async function Header() {
   const settings = await readSettings()
   const header = (settings?.header as Record<string, string>) || {}
 
-  return (
-    <HeaderClient
-      logo={header.logo || "/logo.webp"}
-      ctaText={header.ctaText || "Book a Call"}
-      ctaLink={header.ctaLink || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F"}
-      secondaryCtaText={header.secondaryCtaText || "See Plans"}
-      secondaryCtaLink={header.secondaryCtaLink || "/pricing"}
-    />
-  )
+  return <HeaderClient logo={header.logo || "/logo.webp"} />
 }

@@ -18,6 +18,8 @@ import {
   CheckCircle,
 } from "lucide-react"
 
+import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
+
 export const metadata: Metadata = {
   title: "MartPoint ERP — Business Management Software",
   description:
@@ -271,6 +273,7 @@ export default function MartPointERPPage() {
             </div>
           </div>
         </section>
+        <PreFooterCTA />
       </main>
       <Footer />
     </>

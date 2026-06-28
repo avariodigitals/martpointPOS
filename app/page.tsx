@@ -10,6 +10,7 @@ import { FeatureHighlights } from "@/components/sections/feature-highlights"
 import { BusinessImpact } from "@/components/sections/business-impact"
 import { DemoCTA } from "@/components/sections/demo-cta"
 import { BlogPreview } from "@/components/sections/blog-preview"
+import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 
 export default function Home() {
   return (
@@ -26,6 +27,7 @@ export default function Home() {
         <BusinessImpact />
         <DemoCTA />
         <BlogPreview />
+        <PreFooterCTA />
       </main>
       <Footer />
     </>

@@ -158,7 +158,7 @@ export function ProductSplit() {
             <div className="mt-4">
               <Button asChild variant="default" className="w-full sm:w-auto mx-auto md:mx-0">
                 <Link href="/pricing">
-                  Start From ₦99,999/Year
+                  Start From ₦250,000/Year
                 </Link>
               </Button>
             </div>

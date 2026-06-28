@@ -54,7 +54,7 @@ function DesktopDropdown({ item }: { item: NavItem }) {
       onKeyDown={handleKeyDown}
     >
       <button
-        className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-1"
+        className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-3"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -68,48 +68,52 @@ function DesktopDropdown({ item }: { item: NavItem }) {
 
       {open && (
         <div
-          className={`absolute top-full pt-3 z-50 ${
-            isMega ? "left-1/2 -translate-x-1/2" : "left-0"
+          className={`absolute top-full pt-2 z-50 ${
+            isMega ? "left-0" : "left-0"
           }`}
           role="menu"
         >
           <div
-            className={`rounded-xl border border-border bg-card shadow-lg p-2 ${
-              isMega ? "w-[480px]" : "w-56"
+            className={`rounded-xl border border-border bg-card shadow-2xl p-4 ${
+              isMega ? "w-[540px]" : item.label === "Industries" ? "w-[560px]" : "w-72"
             }`}
           >
-            <div className={isMega ? "grid grid-cols-2 gap-1" : "flex flex-col gap-0.5"}>
-              {item.children.map((child) => (
-                <Link
-                  key={child.href}
-                  href={child.href}
-                  className={`group flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors ${
-                    isMega ? "" : "items-center"
-                  }`}
-                  role="menuitem"
-                  onClick={() => setOpen(false)}
-                >
-                  {child.icon && (
-                    <div className="w-8 h-8 rounded-lg bg-retail-soft flex items-center justify-center shrink-0">
-                      <child.icon className="w-4 h-4 text-retail" aria-hidden="true" />
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">{child.label}</span>
-                      {child.badge && (
-                        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                          {child.badge}
+            <div className={isMega ? "flex flex-col gap-1" : item.label === "Industries" ? "grid grid-cols-2 gap-1" : "flex flex-col gap-0.5"}>
+              {item.children.map((child, idx) => (
+                <div key={child.href}>
+                  <Link
+                    href={child.href}
+                    className={`group flex items-start gap-3 px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted rounded-lg transition-colors ${
+                      child.description ? "items-start" : "items-center"
+                    }`}
+                    role="menuitem"
+                    onClick={() => setOpen(false)}
+                  >
+                    {child.icon && (
+                      <div className={`shrink-0 rounded-lg flex items-center justify-center ${child.description ? "w-9 h-9 bg-muted" : ""}`}>
+                        <child.icon className={`text-retail shrink-0 ${child.description ? "w-4 h-4" : "w-4 h-4"}`} aria-hidden="true" />
+                      </div>
+                    )}
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{child.label}</span>
+                        {child.badge && (
+                          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {child.badge}
+                          </span>
+                        )}
+                      </div>
+                      {child.description && (
+                        <span className="text-xs text-muted-foreground font-normal leading-relaxed mt-0.5">
+                          {child.description}
                         </span>
                       )}
                     </div>
-                    {child.description && (
-                      <p className="text-xs text-muted-foreground leading-snug mt-0.5 line-clamp-2">
-                        {child.description}
-                      </p>
-                    )}
-                  </div>
-                </Link>
+                  </Link>
+                  {isMega && idx < item.children!.length - 1 && (
+                    <div className="h-px bg-border mx-3 my-1" />
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -140,7 +144,7 @@ export function HeaderClient({ logo }: HeaderClientProps) {
         </Link>
 
         {/* Desktop Nav */}
-        <nav className="hidden lg:flex items-center gap-10 xl:gap-12 px-2" aria-label="Main navigation">
+        <nav className="hidden lg:flex items-center gap-8" aria-label="Main navigation">
           {mainNav.map((item) => (
             <DesktopDropdown key={item.label} item={item} />
           ))}

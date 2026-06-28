@@ -2,9 +2,8 @@ import type { Metadata } from "next"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { OrganizationSchema } from "@/components/structured-data"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { ArrowRight, Building2, Target, Users, Globe, Lightbulb, Award } from "lucide-react"
+import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
+import { Building2, Users, Globe, Lightbulb, Award, MapPin, Layers, ShieldCheck, TrendingUp, RefreshCw } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "About Us — MartPoint by Avario Digitals",
@@ -19,73 +18,73 @@ export const metadata: Metadata = {
 
 const values = [
   {
-    icon: Target,
-    title: "Purpose-Driven",
+    icon: Globe,
+    title: "Built For Real Conditions",
     description:
-      "We build software that solves real problems for real businesses. Every feature is designed to help African retailers and enterprises grow.",
-  },
-  {
-    icon: Lightbulb,
-    title: "Innovation First",
-    description:
-      "From offline-first architecture to AI-powered assistants, we embrace technology that makes business operations simpler and smarter.",
+      "We design software that works when the internet drops, when power fluctuates and when customers pay by transfer. African business is not broken — the tools built for other markets are.",
   },
   {
     icon: Users,
-    title: "Customer Obsessed",
+    title: "Design With Shopkeepers",
     description:
-      "Our customers are partners. We listen, iterate, and deliver based on feedback from supermarkets, pharmacies, restaurants and factories across Africa.",
+      "Every feature starts with a conversation. We sit with retailers, pharmacists and restaurant owners to understand what actually slows them down. Then we build.",
   },
   {
-    icon: Globe,
-    title: "Built For Africa",
+    icon: TrendingUp,
+    title: "Grow Without Limits",
     description:
-      "We understand the African business environment — from patchy internet to local payment methods. Our software is built to thrive here.",
+      "From a single checkout counter to twenty branches across the country, MartPoint scales with your ambition. No re-platforming. No enterprise IT team required.",
+  },
+  {
+    icon: Lightbulb,
+    title: "Stay Ahead, Stay Simple",
+    description:
+      "Technology should reduce complexity, not add to it. We bring advanced capabilities — AI insights, offline sync, real-time reports — and make them feel effortless.",
   },
 ]
 
 const milestones = [
   {
     year: "2019",
-    title: "Avario Digitals Founded",
+    title: "Started With a Clear Mission",
     description:
-      "Avario Digitals was established with a mission to build technology solutions specifically for African businesses.",
+      "Avario Digitals was founded to build technology that actually works for African businesses — not imported tools that break under local conditions.",
   },
   {
     year: "2020",
-    title: "MartPoint Retail Launched",
+    title: "First Retailers Ditched the Notebook",
     description:
-      "The first version of MartPoint Retail was released, focused on POS and inventory for small retail stores.",
+      "MartPoint Retail launched with POS and real-time inventory. Shop owners could finally see what was selling while they were still selling it.",
   },
   {
     year: "2021",
-    title: "Multi-Branch",
+    title: "One Dashboard for Every Branch",
     description:
-      "Added support for multiple branches , enabling businesses to operate anywhere in Africa.",
+      "Multi-branch support meant business owners could track stock, sales and staff across every location without phone calls and spreadsheets.",
   },
   {
     year: "2022",
-    title: "MartPoint ERP Released",
+    title: "Enterprises Got the Same Clarity",
     description:
-      "Launched MartPoint ERP to serve manufacturing, supermarkets, distribution, and enterprise clients with accounting, HR, and procurement modules.",
+      "MartPoint ERP brought accounting, procurement and HR to manufacturers and distributors — replacing fragmented systems with one connected platform.",
   },
   {
     year: "2024",
-    title: "Expiry & MFG Date + End of Day Backup",
+    title: "Pharmacies Stopped Losing Money to Expired Stock",
     description:
-      "Added product expiry and manufacturing date tracking for regulated inventory. Introduced automated end-of-day backups to protect daily sales and stock records.",
+      "Expiry and manufacturing date tracking gave regulated businesses precise control. Automated end-of-day backups protected every day's data.",
   },
   {
     year: "2025",
-    title: "Multiple Barcodes & QR Menu Codes",
+    title: "Restaurants Served More Without Hiring More",
     description:
-      "Enabled support for multiple barcodes per product, ideal for bulk and unit pricing. Launched QR menu codes so restaurants and cafés let customers order directly from their tables.",
+      "Multiple barcodes simplified bulk and unit pricing. QR menu codes let customers order directly from their tables, cutting wait times.",
   },
   {
     year: "2026",
-    title: "Online Store, WhatsApp, Offline, PayPlan, Attendance, Customer Verification & Loyalty",
+    title: "Every Business Got a Digital Storefront",
     description:
-      "Released the full retail suite: e-commerce storefronts, WhatsApp ordering and invoicing, reliable offline-first sales, PayPlan installment payments, staff attendance tracking, customer ID verification, and a loyalty rewards program to keep buyers coming back.",
+      "The full retail suite launched: online stores, WhatsApp ordering, offline-first sales, PayPlan instalments, staff attendance, customer verification and loyalty rewards.",
   },
 ]
 
@@ -103,11 +102,10 @@ export default function AboutPage() {
                 About Us
               </span>
               <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground">
-                Technology Built For African Businesses
+                Software That Understands African Business
               </h1>
               <p className="mt-6 text-lg text-muted-foreground leading-relaxed">
-                MartPoint is a product of <strong>Avario Digitals</strong>, an African technology company
-                committed to building software that powers retail and enterprise operations across Africa.
+                Most business tools were built for markets with reliable internet, card-only payments and dedicated IT teams. African retailers operate differently. MartPoint exists because your business deserves software designed around your daily realities — not the other way around.
               </p>
             </div>
           </div>
@@ -123,22 +121,16 @@ export default function AboutPage() {
                 </h2>
                 <div className="space-y-4 text-muted-foreground leading-relaxed">
                   <p>
-                    Avario Digitals was founded with a clear belief: African businesses deserve software
-                    that understands their environment. Not imported tools that break when the internet
-                    drops. Not expensive enterprise suites designed for markets halfway across the world.
+                    Running a business in Africa means dealing with realities that foreign software ignores. Internet drops mid-transaction. Customers pay by bank transfer. Stock runs out before you notice. Staff come and go. And every evening, someone sits down to count cash and reconcile a notebook.
                   </p>
                   <p>
-                    MartPoint was born from conversations with shop owners, pharmacy managers, and
-                    supermarket operators who needed one thing — a system that simply works the way they work.
+                    Avario Digitals was founded because we watched shop owners, pharmacy managers and restaurant operators struggle with tools that were never built for them. Expensive enterprise suites. Fragile apps that crash offline. Spreadsheet workflows that steal hours every day.
                   </p>
                   <p>
-                    Today, MartPoint powers hundreds of businesses across Africa. From single-store
-                    retailers to multi-branch enterprises, our platform handles sales, inventory, payments,
-                    staff, and customer relationships — online and offline.
+                    So we built MartPoint differently. We started by sitting with real businesses — understanding their workflows, their frustrations and their ambitions. Every feature was shaped by those conversations. Offline-first sales. Transfer payment recording. Automatic stock alerts. Staff tracking that actually works.
                   </p>
                   <p>
-                    We are not just a software vendor. We are a partner in your growth. Every update,
-                    every feature, every line of code is written with African business realities in mind.
+                    Today, MartPoint powers businesses from single stores to multi-branch chains. But our mission has not changed: build software that works the way African businesses work. Every update still starts with a customer conversation. Every line of code is written with your reality in mind.
                   </p>
                 </div>
               </div>
@@ -148,18 +140,11 @@ export default function AboutPage() {
                     <Building2 className="w-6 h-6 text-retail" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-foreground">Avario Digitals</h3>
-                    <p className="text-sm text-muted-foreground">Product Owner & Developer</p>
+                    <h3 className="text-lg font-bold text-foreground">Quick Facts</h3>
+                    <p className="text-sm text-muted-foreground">What you should know about MartPoint</p>
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <Award className="w-5 h-5 text-retail shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-foreground">Headquarters</p>
-                      <p className="text-sm text-muted-foreground">Lagos, Africa</p>
-                    </div>
-                  </div>
                   <div className="flex items-start gap-3">
                     <Award className="w-5 h-5 text-retail shrink-0 mt-0.5" />
                     <div>
@@ -170,17 +155,36 @@ export default function AboutPage() {
                   <div className="flex items-start gap-3">
                     <Award className="w-5 h-5 text-retail shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-medium text-foreground">Products</p>
-                      <p className="text-sm text-muted-foreground">MartPoint Retail, MartPoint ERP</p>
+                      <p className="font-medium text-foreground">Built In</p>
+                      <p className="text-sm text-muted-foreground">Lagos, Nigeria</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Award className="w-5 h-5 text-retail shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-foreground">Primary Markets</p>
+                      <p className="text-sm text-muted-foreground">Nigeria & Expanding Across Africa</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <Award className="w-5 h-5 text-retail shrink-0 mt-0.5" />
                     <div>
                       <p className="font-medium text-foreground">Industries Served</p>
-                      <p className="text-sm text-muted-foreground">
-                        Retail, Supermarkets, Pharmacies, Restaurants, Fashion, Manufacturing
-                      </p>
+                      <p className="text-sm text-muted-foreground">Retail, Supermarkets, Pharmacies, Restaurants, Fashion, Manufacturing</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Award className="w-5 h-5 text-retail shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-foreground">Platform</p>
+                      <p className="text-sm text-muted-foreground">Cloud, Offline & Hybrid</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Award className="w-5 h-5 text-retail shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-foreground">Availability</p>
+                      <p className="text-sm text-muted-foreground">24/7 with Local Support</p>
                     </div>
                   </div>
                 </div>
@@ -197,7 +201,7 @@ export default function AboutPage() {
                 What Drives Us
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                The principles that guide every decision we make at Avario Digitals.
+                These are the principles that shape every product decision we make. They are not slogans. They are the standards we hold ourselves to.
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -225,7 +229,7 @@ export default function AboutPage() {
                 Our Journey
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                Key milestones in the evolution of MartPoint and Avario Digitals.
+                Every milestone marks a problem we solved for real businesses. This is how MartPoint evolved from an idea into the operating system for African retail.
               </p>
             </div>
             <div className="max-w-3xl mx-auto space-y-8">
@@ -250,34 +254,51 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* CTA */}
-        <section className="w-full bg-[#023047] py-16 md:py-24">
+        {/* Trust */}
+        <section className="w-full bg-background py-16 md:py-24">
           <div className="container-martpoint">
-            <div className="max-w-3xl mx-auto text-center">
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
-                Ready To Work With Us?
+            <div className="max-w-3xl mx-auto text-center mb-14">
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">
+                Why Businesses Choose MartPoint
               </h2>
-              <p className="mt-4 text-lg text-white/70 leading-relaxed">
-                Whether you run a single store or a multi-branch enterprise, MartPoint is built to help you grow.
+              <p className="mt-4 text-lg text-muted-foreground">
+                Four reasons MartPoint has become the operating system for growing African businesses.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <Button asChild size="lg" variant="retail">
-                  <Link
-                    href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint.%20Can%20we%20talk%3F"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Book a Demo
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" size="lg" className="border-white/20 text-white hover:bg-white/10">
-                  <Link href="/contact">Contact Us</Link>
-                </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="rounded-xl border border-border bg-card p-6 text-center transition-all duration-200 hover:border-retail/30 hover:shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-retail-soft flex items-center justify-center mx-auto mb-4">
+                  <MapPin className="w-6 h-6 text-retail" />
+                </div>
+                <h3 className="text-base font-semibold text-foreground mb-2">Built for African Business</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">From transfer payments to intermittent connectivity, every feature is designed around how African businesses actually operate.</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-6 text-center transition-all duration-200 hover:border-retail/30 hover:shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-retail-soft flex items-center justify-center mx-auto mb-4">
+                  <Layers className="w-6 h-6 text-retail" />
+                </div>
+                <h3 className="text-base font-semibold text-foreground mb-2">One Connected Platform</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">Sales, inventory, staff, payments and customer data live in one place. No more switching between apps and spreadsheets.</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-6 text-center transition-all duration-200 hover:border-retail/30 hover:shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-retail-soft flex items-center justify-center mx-auto mb-4">
+                  <ShieldCheck className="w-6 h-6 text-retail" />
+                </div>
+                <h3 className="text-base font-semibold text-foreground mb-2">Reliable & Secure</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">Your data is encrypted and backed up automatically. Offline mode means you never stop selling, even when the network drops.</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-6 text-center transition-all duration-200 hover:border-retail/30 hover:shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-retail-soft flex items-center justify-center mx-auto mb-4">
+                  <RefreshCw className="w-6 h-6 text-retail" />
+                </div>
+                <h3 className="text-base font-semibold text-foreground mb-2">Continuously Improving</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">We ship updates every month based on real customer feedback. The platform you buy today keeps getting better tomorrow.</p>
               </div>
             </div>
           </div>
         </section>
+
+        <PreFooterCTA />
       </main>
       <Footer />
     </>

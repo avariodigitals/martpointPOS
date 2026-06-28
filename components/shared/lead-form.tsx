@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Loader2 } from "lucide-react"
+import { allIndustries } from "@/lib/industries"
 
 const leadSchema = z.object({
   fullName: z.string().min(2, "Full name is required"),
@@ -28,14 +29,7 @@ interface LeadFormProps {
 }
 
 const businessTypes = [
-  "Supermarket",
-  "Mini Mart",
-  "Restaurant",
-  "Pharmacy",
-  "Electronics Store",
-  "Fashion Retailer",
-  "Distributor",
-  "Wholesaler",
+  ...allIndustries.map((i) => i.name),
   "Other",
 ]
 

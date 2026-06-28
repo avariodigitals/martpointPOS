@@ -19,6 +19,8 @@ import {
   HeartHandshake,
   Briefcase,
   Mail,
+  Truck,
+  Warehouse,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -77,6 +79,8 @@ export const mainNav: NavItem[] = [
       { label: "Electronics Stores", href: "/industries/electronics-stores", icon: Smartphone },
       { label: "Beauty & Salons", href: "/industries/beauty-and-salons", icon: Scissors },
       { label: "Multi-Branch Retail", href: "/industries/multi-branch-retail", icon: GitBranch },
+      { label: "Distributors", href: "/industries/distributors", icon: Truck },
+      { label: "Wholesalers", href: "/industries/wholesalers", icon: Warehouse },
       { label: "View All Industries", href: "/industries", icon: ChevronRight },
     ],
   },
@@ -99,7 +103,6 @@ export const mainNav: NavItem[] = [
     children: [
       { label: "About MartPoint", href: "/about", icon: Users },
       { label: "Why MartPoint", href: "/why-martpoint", icon: HeartHandshake },
-      { label: "Customers", href: "/customer-stories", icon: Users },
       { label: "Partners", href: "/partners", icon: HeartHandshake },
       { label: "Careers", href: "/careers", icon: Briefcase },
       { label: "Contact", href: "/contact", icon: Mail },
@@ -131,6 +134,8 @@ export const footerColumns = {
       { label: "Fashion Stores", href: "/industries/fashion-stores" },
       { label: "Electronics Stores", href: "/industries/electronics-stores" },
       { label: "Beauty & Salons", href: "/industries/beauty-and-salons" },
+      { label: "Distributors", href: "/industries/distributors" },
+      { label: "Wholesalers", href: "/industries/wholesalers" },
       { label: "View All Industries", href: "/industries" },
     ],
   },
@@ -149,7 +154,6 @@ export const footerColumns = {
     links: [
       { label: "About MartPoint", href: "/about" },
       { label: "Why MartPoint", href: "/why-martpoint" },
-      { label: "Customers", href: "/customer-stories" },
       { label: "Partners", href: "/partners" },
       { label: "Careers", href: "/careers" },
       { label: "Contact", href: "/contact" },

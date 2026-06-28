@@ -103,7 +103,7 @@ function getDefaultSettings() {
           "Collections Tracking",
           "Attendance (Face Capture)",
           "Daily Report",
-          "AI Chatbot",
+          "Martpoint Assist",
           "Training & Onboarding",
           "Mobile & Desktop Access",
         ],
@@ -118,7 +118,7 @@ function getDefaultSettings() {
         price: "₦250,000",
         period: "One-Time Payment",
         badge: "One-Time",
-        description: "Full software installed locally. No recurring subscription. Works without internet.",
+        description: "Full software with offline capability installed locally. Maintenance and License Renewal. Works without internet.",
         features: [
           "POS Sales & Checkout",
           "Inventory & Stock Control",

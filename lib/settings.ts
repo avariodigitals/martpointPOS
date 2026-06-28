@@ -1,6 +1,7 @@
+import { cache } from "react"
 import { supabase, isSupabaseConfigured } from "./supabase"
 
-export async function readSettings(): Promise<Record<string, unknown> | null> {
+export const readSettings = cache(async function readSettings(): Promise<Record<string, unknown> | null> {
   if (!isSupabaseConfigured()) {
     return null
   }
@@ -20,4 +21,4 @@ export async function readSettings(): Promise<Record<string, unknown> | null> {
   } catch {
     return null
   }
-}
+})

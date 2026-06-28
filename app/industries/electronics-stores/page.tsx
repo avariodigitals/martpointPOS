@@ -1,18 +1,12 @@
 import type { Metadata } from "next"
-import { PlaceholderPage } from "@/components/shared/placeholder-page"
+import { IndustryTemplate } from "@/app/industries/_components/industry-template"
+import { electronicsStores } from "@/lib/industries"
 
 export const metadata: Metadata = {
-  title: "Electronics Stores - MartPoint Retail",
-  description: "Track serial numbers, warranties and high-value stock across showroom and warehouse.",
+  title: electronicsStores.seo.title,
+  description: electronicsStores.seo.description,
 }
 
 export default function ElectronicsStoresPage() {
-  return (
-    <PlaceholderPage
-      title="Electronics Stores"
-      headline="Electronics Stores"
-      description="Track serial numbers, warranties and high-value stock across showroom and warehouse."
-      subtext="MartPoint Retail gives electronics retailers full visibility into every unit, from purchase to sale with warranty records."
-    />
-  )
+  return <IndustryTemplate data={electronicsStores} />
 }

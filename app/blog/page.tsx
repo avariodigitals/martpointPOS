@@ -3,8 +3,6 @@ import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import Link from "next/link"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
-
 export const metadata: Metadata = {
   title: "Blog — MartPoint",
   description: "Tips, guides, and insights for African retail businesses and enterprises.",
@@ -110,7 +108,6 @@ export default async function BlogPage() {
             )}
           </div>
         </section>
-        <PreFooterCTA />
       </main>
       <Footer />
     </>

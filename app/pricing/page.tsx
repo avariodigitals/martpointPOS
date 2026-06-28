@@ -4,7 +4,6 @@ import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
 import { Check, ArrowRight, HelpCircle } from "lucide-react"
-import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 import { readSettings } from "@/lib/settings"
 
 export const metadata: Metadata = {
@@ -57,7 +56,7 @@ function PricingCard({
         </div>
       )}
       <h3 className="text-xl font-bold text-foreground mt-2">{plan.name}</h3>
-      <div className="mt-4 flex items-baseline gap-1">
+      <div className="mt-4 flex flex-col items-start">
         <span className={`text-4xl sm:text-5xl font-extrabold ${isHighlighted ? accentText : "text-foreground"}`}>
           {plan.price}
         </span>
@@ -77,14 +76,16 @@ function PricingCard({
         <div className={`mt-6 rounded-lg ${accentSoft} p-4 text-center`}>
           {plan.branchesIncluded !== undefined && plan.usersIncluded !== undefined && (
             <p className="text-sm font-semibold text-foreground">
-              Includes {plan.branchesIncluded} Branch{plan.branchesIncluded !== 1 ? "es" : ""} · {plan.usersIncluded} User{plan.usersIncluded !== 1 ? "s" : ""}
+              {plan.branchesIncluded === 0 && plan.usersIncluded === 0
+                ? "Custom Branches & Users"
+                : `Includes ${plan.branchesIncluded} Branch${plan.branchesIncluded !== 1 ? "es" : ""} · ${plan.usersIncluded} User${plan.usersIncluded !== 1 ? "s" : ""}`}
             </p>
           )}
           {plan.branchAddonPrice && (
             <p className={`text-base font-bold ${accentText} mt-1`}>Additional Branch: {plan.branchAddonPrice}</p>
           )}
           {plan.supportRenewal && (
-            <p className="text-xs text-muted-foreground mt-1">Optional Support Renewal: {plan.supportRenewal}</p>
+            <p className="text-xs text-muted-foreground mt-1">Maintenance and License Renewal: {plan.supportRenewal}</p>
           )}
         </div>
       )}
@@ -125,7 +126,7 @@ export default async function PricingPage() {
         "WhatsApp Ordering & Invoice", "QR Menu Ordering", "Payment Links",
         "PayPlan™ Installment Plans", "Loyalty & Rewards", "Customer Verification",
         "Collections Tracking", "Attendance (Face Capture)", "Daily Report",
-        "AI Chatbot", "Training & Onboarding", "Mobile & Desktop Access",
+        "Martpoint Assist", "Training & Onboarding", "Mobile & Desktop Access",
       ],
       branchesIncluded: cloud.branchesIncluded ?? 1,
       usersIncluded: cloud.usersIncluded ?? 5,
@@ -138,7 +139,7 @@ export default async function PricingPage() {
       price: offline.price || "₦250,000",
       period: offline.period || "One-Time Payment",
       badge: offline.badge || "One-Time",
-      description: offline.description || "Full software installed locally. No recurring subscription. Works without internet.",
+      description: offline.description || "Full software with offline capability installed locally. Maintenance and License Renewal. Works without internet.",
       features: offline.features || [
         "POS Sales & Checkout", "Inventory & Stock Control", "Receipt Printing",
         "Barcode & SKU Management", "Customer & Supplier Records",
@@ -204,7 +205,7 @@ export default async function PricingPage() {
               <div>
                 <div className="max-w-3xl mx-auto text-center mb-10">
                   <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-                    MartPoint ERP
+                    MartPoint Enterprise
                   </h2>
                   <p className="mt-2 text-muted-foreground">Enterprise software for businesses that need control</p>
                 </div>
@@ -245,7 +246,6 @@ export default async function PricingPage() {
             </div>
           </div>
         </section>
-        <PreFooterCTA />
       </main>
       <Footer />
     </>

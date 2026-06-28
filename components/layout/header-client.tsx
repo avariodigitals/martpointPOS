@@ -140,7 +140,7 @@ export function HeaderClient({ logo }: HeaderClientProps) {
         </Link>
 
         {/* Desktop Nav */}
-        <nav className="hidden lg:flex items-center gap-7" aria-label="Main navigation">
+        <nav className="hidden lg:flex items-center gap-10 xl:gap-12 px-2" aria-label="Main navigation">
           {mainNav.map((item) => (
             <DesktopDropdown key={item.label} item={item} />
           ))}

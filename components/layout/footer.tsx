@@ -1,5 +1,4 @@
 import Link from "next/link"
-import Image from "next/image"
 import { readSettings } from "@/lib/settings"
 import { footerColumns, socialLinks } from "@/lib/navigation"
 
@@ -13,37 +12,36 @@ export async function Footer() {
     .filter((s) => s.url && s.url.trim() !== "")
 
   return (
-    <footer className="w-full border-t border-border bg-background">
-      <div className="container-martpoint py-14 md:py-20">
+    <footer className="w-full border-t border-white/15 bg-[#0047CC] text-white relative overflow-hidden">
+      <div className="container-martpoint py-14 md:py-20 relative">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-10 lg:gap-8">
           {/* Column 1: Brand */}
           <div className="col-span-2 md:col-span-3 lg:col-span-2">
             <Link href="/" className="inline-block">
-              <Image
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={footer.logo || "/logo.webp"}
                 alt="MartPoint"
-                width={200}
-                height={52}
-                className="h-12 w-auto"
+                className="h-20 w-auto block"
               />
             </Link>
-            <p className="mt-4 text-sm text-muted-foreground leading-relaxed max-w-xs">
+            <p className="mt-4 text-sm text-white/90 leading-relaxed max-w-xs">
               The operating system for African retail and growing businesses.
             </p>
-            <p className="mt-3 text-xs text-muted-foreground">
+            <p className="mt-3 text-xs text-white/80">
               Built in Africa for African businesses.
             </p>
           </div>
 
           {/* Column 2: Solutions */}
           <div>
-            <h4 className="text-sm font-semibold text-foreground mb-4">{footerColumns.solutions.title}</h4>
-            <ul className="space-y-2.5">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">{footerColumns.solutions.title}</h4>
+            <ul className="space-y-3">
               {footerColumns.solutions.links.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -54,13 +52,13 @@ export async function Footer() {
 
           {/* Column 3: Industries */}
           <div>
-            <h4 className="text-sm font-semibold text-foreground mb-4">{footerColumns.industries.title}</h4>
-            <ul className="space-y-2.5">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">{footerColumns.industries.title}</h4>
+            <ul className="space-y-3">
               {footerColumns.industries.links.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -71,13 +69,13 @@ export async function Footer() {
 
           {/* Column 4: Resources */}
           <div>
-            <h4 className="text-sm font-semibold text-foreground mb-4">{footerColumns.resources.title}</h4>
-            <ul className="space-y-2.5">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">{footerColumns.resources.title}</h4>
+            <ul className="space-y-3">
               {footerColumns.resources.links.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -88,13 +86,13 @@ export async function Footer() {
 
           {/* Column 5: Company */}
           <div>
-            <h4 className="text-sm font-semibold text-foreground mb-4">{footerColumns.company.title}</h4>
-            <ul className="space-y-2.5">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">{footerColumns.company.title}</h4>
+            <ul className="space-y-3">
               {footerColumns.company.links.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -105,10 +103,10 @@ export async function Footer() {
         </div>
 
         {/* Legal & Bottom row */}
-        <div className="mt-14 pt-8 border-t border-border">
+        <div className="mt-14 pt-8 border-t border-white/15">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-white/90">
                 &copy; {new Date().getFullYear()} MartPoint. All rights reserved.
               </p>
               <div className="flex items-center gap-4">
@@ -116,7 +114,7 @@ export async function Footer() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-xs text-white/80 hover:text-white transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -133,7 +131,7 @@ export async function Footer() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={s.label}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-white/90 hover:text-white transition-colors"
                   >
                     <SocialIcon name={s.key} />
                   </a>
@@ -143,16 +141,16 @@ export async function Footer() {
           </div>
 
           <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-white/80">
               Built in Africa for African businesses.
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-white/80">
               MartPoint is developed and maintained by{" "}
               <a
                 href="https://avario.digitals"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-foreground transition-colors"
+                className="underline hover:text-white transition-colors"
               >
                 Avario Digitals
               </a>

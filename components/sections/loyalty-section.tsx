@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import {
   ArrowRight,
@@ -115,6 +116,16 @@ export function LoyaltySection() {
                   </div>
                 ))}
               </div>
+            </div>
+            <div className="mt-5 rounded-xl overflow-hidden border border-border shadow-sm">
+              <Image
+                src="/loyal.webp"
+                alt="Loyalty program dashboard showing customer rewards and membership tiers"
+                width={600}
+                height={400}
+                className="w-full h-auto object-cover"
+                loading="lazy"
+              />
             </div>
           </div>
         </div>

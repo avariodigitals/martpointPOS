@@ -1,3 +1,4 @@
+export const revalidate = 86400
 import type { Metadata } from "next"
 import { IndustryTemplate } from "@/app/industries/_components/industry-template"
 import { hospitals } from "@/lib/industries"

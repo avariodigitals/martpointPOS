@@ -13,17 +13,27 @@ const CTA_PATHS = [
   "/blog",
 ]
 
+/** Global throttle: max 1 tracking request per 15 seconds */
+let lastTrackTime = 0
+const TRACK_COOLDOWN_MS = 15000
+
+function isBot(): boolean {
+  if (typeof navigator === "undefined") return true
+  const ua = navigator.userAgent.toLowerCase()
+  return /bot|crawler|spider|scraper|curl|wget|phantomjs|headless/.test(ua)
+}
+
 function isImportantCta(el: HTMLElement): boolean {
-  // Skip admin pages
+  // Skip admin pages entirely
   if (window.location.pathname.startsWith("/admin")) return false
 
   const href = el.getAttribute("href") || ""
   if (href.startsWith("/admin")) return false
 
-  // Always track external links
+  // Only track external links (WhatsApp, social, outbound)
   if (href.startsWith("http")) return true
 
-  // Track specific CTA paths
+  // Only track specific high-value CTA paths — skip general internal navigation
   if (CTA_PATHS.some((p) => href === p || href.startsWith(p + "/"))) return true
 
   // Track elements explicitly marked
@@ -48,6 +58,9 @@ function getCtaKey(el: HTMLElement): string {
 
 export function TrackingScript() {
   useEffect(() => {
+    // Skip entirely for bots / headless browsers
+    if (isBot()) return
+
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       const el = target.closest("a, button") as HTMLElement | null
@@ -55,7 +68,12 @@ export function TrackingScript() {
 
       if (!isImportantCta(el)) return
 
-      // Session throttle: only track each unique CTA once per session
+      // Global time throttle: max 1 request per 15s across the whole session
+      const now = Date.now()
+      if (now - lastTrackTime < TRACK_COOLDOWN_MS) return
+      lastTrackTime = now
+
+      // Session-level dedupe: each unique CTA once per session
       const key = `tracked_${getCtaKey(el)}`
       try {
         if (sessionStorage.getItem(key)) return

@@ -1,7 +1,24 @@
 import { NextResponse } from "next/server"
+import { checkRateLimit } from "@/lib/rate-limit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
+function isBotRequest(request: Request): boolean {
+  const ua = request.headers.get("user-agent")?.toLowerCase() || ""
+  return /bot|crawler|spider|scraper|curl|wget|phantomjs|headless|lighthouse|pagespeed/.test(ua)
+}
+
 export async function POST(request: Request) {
+  // Silently succeed for bots — do not write to DB
+  if (isBotRequest(request)) {
+    return NextResponse.json({ success: true })
+  }
+
+  // Rate limit: 5 tracking requests per minute per IP
+  const limit = checkRateLimit(request, { key: "track", max: 5, windowSeconds: 60 })
+  if (!limit.allowed) {
+    return NextResponse.json({ success: false }, { status: 429 })
+  }
+
   try {
     const body = await request.json()
     const { text, href, pagePath, referrer } = body

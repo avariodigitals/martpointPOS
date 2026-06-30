@@ -12,6 +12,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
+import { readSettings } from "@/lib/settings"
 import {
   ArrowRight,
   Check,
@@ -105,6 +106,14 @@ const workflowSteps = [
   { step: "04", title: "Receipt printed or sent", detail: "Branded receipt via SMS, email, or thermal printer" },
   { step: "05", title: "Stock updates in real time", detail: "Inventory count adjusts across all branches instantly" },
   { step: "06", title: "Sales report ready", detail: "See the transaction in your daily summary immediately" },
+]
+
+const dashboardCallouts = [
+  "Total Revenue",
+  "Total Orders",
+  "Daily Report",
+  "Daily Summary",
+  "Inventory Alerts",
 ]
 
 const capabilities = [
@@ -205,6 +214,11 @@ const trustedBy = [
 ]
 
 export default async function MartPointRetailPage() {
+  const settings = await readSettings()
+  const pricing = (settings?.pricing as Record<string, unknown>) || {}
+  const cloud = (pricing.cloud as Record<string, any>) || {}
+  const offline = (pricing.offline as Record<string, any>) || {}
+
   return (
     <>
       <SoftwareApplicationSchema
@@ -502,6 +516,126 @@ export default async function MartPointRetailPage() {
           </div>
         </section>
 
+        {/* SECTION 4B — PRICING */}
+        <section className="w-full bg-slate-50 py-10 md:py-16 lg:py-20">
+          <div className="container-martpoint">
+            <div className="max-w-3xl mx-auto text-center mb-14">
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                Simple Pricing. No Confusing Plans.
+              </h2>
+              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
+                Whether you operate one store or multiple branches, MartPoint Retail grows with your business.
+              </p>
+            </div>
+
+            {/* Pricing Cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto mb-16">
+              {/* Cloud Plan */}
+              <div className="relative rounded-2xl border-2 border-retail bg-card p-8 shadow-sm">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="inline-block rounded-full bg-retail px-4 py-1 text-xs font-bold uppercase tracking-wider text-white">
+                    {cloud.badge || "Most Popular"}
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mt-2">{cloud.name || "MartPoint Retail Cloud"}</h3>
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="text-4xl sm:text-5xl font-extrabold text-retail">{cloud.price || "₦99,999"}</span>
+                  <span className="text-muted-foreground">{cloud.period || "/ Year"}</span>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {cloud.description || "Everything you need to run a modern retail business."}
+                </p>
+                <ul className="mt-6 space-y-3">
+                  {((cloud.features as string[]) || [
+                    "POS Sales & Checkout",
+                    "Inventory & Stock Control",
+                    "Online Store",
+                    "WhatsApp Ordering & Invoice",
+                    "QR Menu Ordering",
+                    "Payment Links",
+                    "PayPlan™ Installment Plans",
+                    "Loyalty & Rewards",
+                    "Customer Verification",
+                    "Collections Tracking",
+                    "Attendance (Face Capture)",
+                    "Daily Report",
+                    "AI Chatbot",
+                    "Training & Onboarding",
+                    "Mobile & Desktop Access",
+                  ]).map((item: string) => (
+                    <li key={item} className="flex items-center gap-2 text-sm text-foreground">
+                      <Check className="w-4 h-4 text-retail shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-6 rounded-lg bg-retail-soft p-4 text-center">
+                  <p className="text-sm font-semibold text-foreground">Includes {(cloud.branchesIncluded as number) ?? 1} Branch · {(cloud.usersIncluded as number) ?? 5} Users</p>
+                  <p className="text-base font-bold text-retail mt-1">Additional Branch: {cloud.branchAddonPrice || "₦49,999 / Year"}</p>
+                </div>
+                <div className="mt-6">
+                  <Button asChild size="lg" variant="retail" className="w-full">
+                    <a href={(cloud.ctaLink as string) || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
+                      {(cloud.ctaText as string) || "Get Started"}
+                    </a>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Offline Plan */}
+              <div className="relative rounded-2xl border border-border bg-card p-8 shadow-sm">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="inline-block rounded-full bg-foreground px-4 py-1 text-xs font-bold uppercase tracking-wider text-white">
+                    {offline.badge || "One-Time"}
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mt-2">{offline.name || "MartPoint Retail Offline"}</h3>
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="text-4xl sm:text-5xl font-extrabold text-foreground">{offline.price || "₦250,000"}</span>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{offline.period || "One-Time Payment"}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {offline.description || "Full software installed locally. No recurring subscription. Works without internet."}
+                </p>
+                <ul className="mt-6 space-y-3">
+                  {((offline.features as string[]) || [
+                    "POS Sales & Checkout",
+                    "Inventory & Stock Control",
+                    "Receipt Printing",
+                    "Barcode & SKU Management",
+                    "Customer & Supplier Records",
+                    "Staff Attendance (Face Capture)",
+                    "Daily Sales Report",
+                    "Multi-Branch (LAN Connected)",
+                    "Offline-First Sync",
+                    "Local Installation",
+                    "Staff Setup & Training",
+                    "No Recurring Fees",
+                  ]).map((item: string) => (
+                    <li key={item} className="flex items-center gap-2 text-sm text-foreground">
+                      <Check className="w-4 h-4 text-retail shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-6 rounded-lg bg-muted p-4 text-center">
+                  <p className="text-sm font-semibold text-foreground">Additional Branch: {offline.branchAddonPrice || "₦100,000 One-Time"}</p>
+                  {offline.supportRenewal && (
+                    <p className="text-xs text-muted-foreground mt-1">Optional Support Renewal: {offline.supportRenewal}</p>
+                  )}
+                </div>
+                <div className="mt-6">
+                  <Button asChild size="lg" variant="outline" className="w-full">
+                    <a href={(offline.ctaLink as string) || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20setup.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
+                      {(offline.ctaText as string) || "Request Offline Setup"}
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* SECTION 4B — PAYPLAN */}
         <PayPlanSection />
 
@@ -581,6 +715,58 @@ export default async function MartPointRetailPage() {
                   </p>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION 6 — OWNER DASHBOARD SHOWCASE */}
+        <section className="w-full bg-background py-10 md:py-16 lg:py-20">
+          <div className="container-martpoint">
+            <div className="max-w-3xl mx-auto text-center mb-14">
+              <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-3">
+                Dashboard
+              </span>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                See What Business Owners See Every Day
+              </h2>
+              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
+                Monitor your entire retail operation from one dashboard.
+              </p>
+            </div>
+
+            <div className="relative mx-auto max-w-5xl">
+              <div className="rounded-xl border border-border bg-slate-100 p-2 md:p-4 shadow-xl">
+                <div className="relative rounded-lg overflow-hidden bg-white">
+                  <Image
+                    src="/retail-dash.webp"
+                    alt="MartPoint Retail Dashboard with sales metrics, stock alerts and transaction history"
+                    width={1200}
+                    height={800}
+                    className="w-full h-auto"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                {dashboardCallouts.map((callout) => (
+                  <div
+                    key={callout}
+                    className="inline-flex items-center gap-2 rounded-lg border border-retail-muted bg-retail-soft px-4 py-2"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-retail shrink-0" />
+                    <span className="text-sm font-medium text-retail">{callout}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-10 flex justify-center">
+              <Button asChild size="lg" variant="retail">
+                <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                  See It Live — Book a Demo
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
             </div>
           </div>
         </section>

@@ -57,7 +57,8 @@ function PricingCard({
         </div>
       )}
       <h3 className="text-xl font-bold text-foreground mt-2">{plan.name}</h3>
-      <div className="mt-4 flex flex-col items-start">
+      <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Starting from</p>
+      <div className="mt-1 flex flex-col items-start">
         <span className={`text-4xl sm:text-5xl font-extrabold ${isHighlighted ? accentText : "text-foreground"}`}>
           {plan.price}
         </span>
@@ -130,7 +131,7 @@ export default async function PricingPage() {
         "Martpoint Assist", "Training & Onboarding", "Mobile & Desktop Access",
       ],
       branchesIncluded: cloud.branchesIncluded ?? 1,
-      usersIncluded: cloud.usersIncluded ?? 5,
+      usersIncluded: cloud.usersIncluded ?? 3,
       branchAddonPrice: cloud.branchAddonPrice || "₦49,999 / Year",
       ctaText: cloud.ctaText || "Get Started",
       ctaLink: cloud.ctaLink || "https://wa.me/+2348036028069",
@@ -149,7 +150,7 @@ export default async function PricingPage() {
         "Local Installation", "Staff Setup & Training", "No Recurring Fees",
       ],
       branchesIncluded: offline.branchesIncluded ?? 1,
-      usersIncluded: offline.usersIncluded ?? 5,
+      usersIncluded: offline.usersIncluded ?? 3,
       branchAddonPrice: offline.branchAddonPrice || "₦100,000 One-Time",
       supportRenewal: offline.supportRenewal || "₦50,000 / Year",
       ctaText: offline.ctaText || "Request Offline Setup",
@@ -192,7 +193,7 @@ export default async function PricingPage() {
                 <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
                   MartPoint Retail
                 </h2>
-                <p className="mt-2 text-muted-foreground">Store management software that scales with you</p>
+                <p className="mt-2 text-muted-foreground">We don&apos;t charge you for growing your business. We only charge when your organization becomes larger or uses more infrastructure.</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto">
                 {retailPlans.map((plan) => (

@@ -525,7 +525,7 @@ export default async function MartPointRetailPage() {
                 Simple Pricing. No Confusing Plans.
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Whether you operate one store or multiple branches, MartPoint Retail grows with your business.
+                We don&apos;t charge you for growing your business. We only charge when your organization becomes larger or uses more infrastructure.
               </p>
             </div>
 
@@ -539,7 +539,8 @@ export default async function MartPointRetailPage() {
                   </span>
                 </div>
                 <h3 className="text-xl font-bold text-foreground mt-2">{cloud.name || "MartPoint Retail Cloud"}</h3>
-                <div className="mt-4 flex items-baseline gap-1">
+                <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Starting from</p>
+                <div className="mt-1 flex items-baseline gap-1">
                   <span className="text-4xl sm:text-5xl font-extrabold text-retail">{cloud.price || "₦99,999"}</span>
                   <span className="text-muted-foreground">{cloud.period || "/ Year"}</span>
                 </div>
@@ -571,7 +572,7 @@ export default async function MartPointRetailPage() {
                   ))}
                 </ul>
                 <div className="mt-6 rounded-lg bg-retail-soft p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Includes {(cloud.branchesIncluded as number) ?? 1} Branch · {(cloud.usersIncluded as number) ?? 5} Users</p>
+                  <p className="text-sm font-semibold text-foreground">Includes {(cloud.branchesIncluded as number) ?? 1} Branch · {(cloud.usersIncluded as number) ?? 3} Users</p>
                   <p className="text-base font-bold text-retail mt-1">Additional Branch: {cloud.branchAddonPrice || "₦49,999 / Year"}</p>
                 </div>
                 <div className="mt-6">
@@ -591,7 +592,8 @@ export default async function MartPointRetailPage() {
                   </span>
                 </div>
                 <h3 className="text-xl font-bold text-foreground mt-2">{offline.name || "MartPoint Retail Offline"}</h3>
-                <div className="mt-4 flex items-baseline gap-1">
+                <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Starting from</p>
+                <div className="mt-1 flex items-baseline gap-1">
                   <span className="text-4xl sm:text-5xl font-extrabold text-foreground">{offline.price || "₦250,000"}</span>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{offline.period || "One-Time Payment"}</p>

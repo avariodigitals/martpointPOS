@@ -57,9 +57,8 @@ export const mainNav: NavItem[] = [
       {
         label: "MartPoint Intelligence",
         href: "/martpoint-intelligence",
-        description: "AI-powered insights, recommendations and business alerts.",
+        description: "Business insights, alerts and recommendations from your MartPoint data.",
         icon: Sparkles,
-        badge: "Coming Soon",
       },
       {
         label: "Compare Plans",

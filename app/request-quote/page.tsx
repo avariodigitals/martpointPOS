@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   title: "Request a Quote",
   description:
     "Get a custom quote for MartPoint Retail or ERP. Tailored pricing for your business size and needs.",
+  alternates: {
+    canonical: "/request-quote",
+  },
 }
 
 export default function RequestQuotePage() {

@@ -32,6 +32,9 @@ export const metadata: Metadata = {
   title: "Partners — MartPoint Partner Programme",
   description:
     "Join the MartPoint partner network. Technology, payment, channel, implementation and referral partnerships for companies helping African businesses grow.",
+  alternates: {
+    canonical: "/partners",
+  },
 }
 
 const partnerTypes = [

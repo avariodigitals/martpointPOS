@@ -5,8 +5,16 @@ import { Footer } from "@/components/layout/footer"
 import { LeadForm } from "@/components/shared/lead-form"
 
 export const metadata: Metadata = {
-  title: "Contact Sales",
-  description: "Talk to our sales team about MartPoint for your business.",
+  title: "Contact Sales — Talk to MartPoint Team",
+  description: "Talk to our sales team about MartPoint POS and ERP software for your business in Nigeria and Africa.",
+  alternates: {
+    canonical: "/contact",
+  },
+  openGraph: {
+    title: "Contact Sales — Talk to MartPoint Team",
+    description: "Talk to our sales team about MartPoint POS and ERP for your business.",
+    url: "https://martpoint.com.ng/contact",
+  },
 }
 
 export default function ContactPage() {

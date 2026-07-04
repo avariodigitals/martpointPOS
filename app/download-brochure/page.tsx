@@ -5,6 +5,9 @@ import { PlaceholderPage } from "@/components/shared/placeholder-page"
 export const metadata: Metadata = {
   title: "Download Brochure - MartPoint",
   description: "Download the MartPoint product brochure.",
+  alternates: {
+    canonical: "/download-brochure",
+  },
 }
 
 export default function DownloadBrochurePage() {

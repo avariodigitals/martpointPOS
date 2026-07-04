@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   title: "Product Updates — MartPoint Changelog",
   description:
     "Latest releases, improvements and upcoming features for MartPoint Retail and Enterprise. See what we have shipped and what is coming next.",
+  alternates: {
+    canonical: "/product-updates",
+  },
 }
 
 const latestReleases = [

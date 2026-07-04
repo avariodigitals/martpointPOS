@@ -13,9 +13,23 @@ import {
 } from "@/lib/industries"
 
 export const metadata: Metadata = {
-  title: "Industries We Serve",
+  title: "Industries We Serve — POS Software for 30+ Business Types",
   description:
-    "MartPoint software for supermarkets, restaurants, pharmacies, electronics, fashion, distributors, and 30+ more industries.",
+    "MartPoint POS and inventory software for supermarkets, restaurants, pharmacies, electronics stores, fashion boutiques, distributors, and 30+ more industries across Nigeria and Africa.",
+  keywords: [
+    "supermarket POS Nigeria", "pharmacy software", "restaurant POS system",
+    "fashion store software", "electronics store POS", "distributor software Nigeria",
+    "bakery POS", "salon software", "industry POS software Africa",
+  ],
+  alternates: {
+    canonical: "/industries",
+  },
+  openGraph: {
+    title: "Industries We Serve — POS Software for 30+ Business Types",
+    description:
+      "POS and inventory software for supermarkets, restaurants, pharmacies, fashion stores & 30+ more industries in Nigeria.",
+    url: "https://martpoint.com.ng/industries",
+  },
 }
 
 export default function IndustriesPage() {

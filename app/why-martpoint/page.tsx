@@ -37,10 +37,18 @@ export const metadata: Metadata = {
   title: "Why MartPoint — The Operating System for African Retail",
   description:
     "Discover why supermarkets, pharmacies, restaurants and retail chains across Africa choose MartPoint. Built for African business realities — not adapted from abroad.",
+  keywords: [
+    "best POS software Nigeria", "why MartPoint", "African retail software",
+    "offline POS system", "Nigerian business software", "POS for African stores",
+  ],
+  alternates: {
+    canonical: "/why-martpoint",
+  },
   openGraph: {
     title: "Why MartPoint — The Operating System for African Retail",
     description:
       "Software built around how African businesses actually operate. From offline-first sales to transfer payment tracking and multi-branch management.",
+    url: "https://martpoint.com.ng/why-martpoint",
   },
 }
 

@@ -5,8 +5,16 @@ import { Footer } from "@/components/layout/footer"
 import Link from "next/link"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 export const metadata: Metadata = {
-  title: "Blog — MartPoint",
-  description: "Tips, guides, and insights for African retail businesses and enterprises.",
+  title: "Blog — Retail Tips & Business Guides for African Businesses",
+  description: "Tips, guides, and insights for African retail businesses and enterprises. Learn how to grow your supermarket, pharmacy, restaurant or retail store.",
+  alternates: {
+    canonical: "/blog",
+  },
+  openGraph: {
+    title: "Blog — Retail Tips & Business Guides",
+    description: "Tips, guides, and insights for African retail businesses and enterprises.",
+    url: "https://martpoint.com.ng/blog",
+  },
 }
 
 interface BlogPost {

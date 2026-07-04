@@ -5,6 +5,9 @@ import { PlaceholderPage } from "@/components/shared/placeholder-page"
 export const metadata: Metadata = {
   title: "MartPoint Intelligence - AI-Powered Business Insights",
   description: "AI-powered insights, recommendations and business alerts from MartPoint.",
+  alternates: {
+    canonical: "/martpoint-intelligence",
+  },
 }
 
 export default function MartPointIntelligencePage() {

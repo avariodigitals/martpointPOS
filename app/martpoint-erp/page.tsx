@@ -22,9 +22,26 @@ import {
 import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 
 export const metadata: Metadata = {
-  title: "MartPoint ERP — Business Management Software",
+  title: "MartPoint ERP — Enterprise Business Management Software",
   description:
-    "Enterprise software for accounting, procurement, HR, CRM, and operations. Built for African distributors, wholesalers, and multi-branch businesses.",
+    "Enterprise software for accounting, procurement, HR, CRM, and operations. Built for African distributors, wholesalers, manufacturers, and multi-branch businesses.",
+  keywords: [
+    "ERP software Nigeria", "enterprise resource planning Africa",
+    "accounting software Nigeria", "procurement management",
+    "HR management software", "CRM software Africa",
+    "wholesale management system", "distribution software Nigeria",
+    "manufacturing ERP", "multi-branch business software",
+    "MartPoint ERP", "business operations software",
+  ],
+  alternates: {
+    canonical: "/martpoint-erp",
+  },
+  openGraph: {
+    title: "MartPoint ERP — Enterprise Business Management Software",
+    description:
+      "Accounting, procurement, HR, CRM & operations for African distributors, wholesalers and multi-branch businesses.",
+    url: "https://martpoint.com.ng/martpoint-erp",
+  },
 }
 
 const capabilities = [

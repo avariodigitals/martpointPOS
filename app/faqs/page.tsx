@@ -9,10 +9,14 @@ export const metadata: Metadata = {
   title: "Frequently Asked Questions — MartPoint by Avario Digitals",
   description:
     "Find answers to common questions about MartPoint Retail, MartPoint ERP, PayPlan installment payments, pricing, offline support, and more. Built by Avario Digitals for African businesses.",
+  alternates: {
+    canonical: "/faqs",
+  },
   openGraph: {
     title: "Frequently Asked Questions — MartPoint by Avario Digitals",
     description:
       "Find answers to common questions about MartPoint Retail, MartPoint ERP, PayPlan, pricing, offline support, and more.",
+    url: "https://martpoint.com.ng/faqs",
   },
 }
 

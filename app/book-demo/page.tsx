@@ -5,9 +5,17 @@ import { Footer } from "@/components/layout/footer"
 import { LeadForm } from "@/components/shared/lead-form"
 
 export const metadata: Metadata = {
-  title: "Book a Demo",
+  title: "Book a Free Demo — See MartPoint POS in Action",
   description:
-    "Schedule a personalized demo of MartPoint Retail or ERP. See how it works for your business.",
+    "Schedule a free personalized demo of MartPoint Retail POS or ERP software. See how it works for your supermarket, pharmacy, restaurant or retail store.",
+  alternates: {
+    canonical: "/book-demo",
+  },
+  openGraph: {
+    title: "Book a Free Demo — See MartPoint POS in Action",
+    description: "Schedule a free demo of MartPoint Retail POS or ERP. See how it works for your business.",
+    url: "https://martpoint.com.ng/book-demo",
+  },
 }
 
 export default function BookDemoPage() {

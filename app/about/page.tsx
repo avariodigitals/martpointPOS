@@ -10,10 +10,14 @@ export const metadata: Metadata = {
   title: "About Us — MartPoint by Avario Digitals",
   description:
     "Learn about Avario Digitals, the African technology company behind MartPoint Retail and MartPoint ERP. Built for African businesses, by Africans.",
+  alternates: {
+    canonical: "/about",
+  },
   openGraph: {
     title: "About Us — MartPoint by Avario Digitals",
     description:
       "Learn about Avario Digitals, the African technology company behind MartPoint Retail and MartPoint ERP.",
+    url: "https://martpoint.com.ng/about",
   },
 }
 

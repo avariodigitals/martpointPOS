@@ -6,6 +6,9 @@ import { Footer } from "@/components/layout/footer"
 export const metadata: Metadata = {
   title: "Terms of Service",
   description: "MartPoint terms of service — rules and guidelines for using our software and services.",
+  alternates: {
+    canonical: "/terms-of-service",
+  },
 }
 
 export default function TermsOfServicePage() {

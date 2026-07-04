@@ -23,6 +23,9 @@ export const metadata: Metadata = {
   title: "Help Centre — MartPoint Support",
   description:
     "Find answers, guides and support for MartPoint Retail and Enterprise. Search our knowledge base or contact our support team.",
+  alternates: {
+    canonical: "/help-centre",
+  },
 }
 
 const categories = [

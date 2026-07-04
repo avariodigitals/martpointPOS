@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   title: "Careers — Join the MartPoint Team",
   description:
     "Build the future of African business software. Explore open roles, culture and benefits at MartPoint.",
+  alternates: {
+    canonical: "/careers",
+  },
 }
 
 const values = [

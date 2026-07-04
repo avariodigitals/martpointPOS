@@ -8,7 +8,7 @@ import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 import { PayPlanSection, PayPlanBenefits, PayPlanTrustCallout } from "@/components/sections/payplan-section"
 import { LoyaltySection, LoyaltyBenefits, LoyaltyTrustCallout } from "@/components/sections/loyalty-section"
 import { TrustLayer } from "@/components/sections/trust-layer"
-import { SoftwareApplicationSchema, FAQPageSchema } from "@/components/structured-data"
+import { SoftwareApplicationSchema, FAQPageSchema, BreadcrumbSchema } from "@/components/structured-data"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -44,9 +44,28 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "MartPoint Retail — Retail Commerce Platform for African Businesses",
+  title: "MartPoint Retail — POS & Inventory Software for African Businesses",
   description:
-    "Complete retail commerce platform. Sell in-store, online and on WhatsApp. POS, inventory, loyalty rewards, installment payments, online store and multi-branch management.",
+    "Complete retail commerce platform. Sell in-store, online and on WhatsApp. POS, inventory, loyalty rewards, installment payments, online store and multi-branch management. Built for supermarkets, pharmacies, restaurants & fashion stores in Nigeria.",
+  keywords: [
+    "retail POS software Nigeria", "inventory management system",
+    "supermarket POS system", "pharmacy software Nigeria",
+    "restaurant POS Nigeria", "fashion store POS",
+    "WhatsApp ordering system", "online store builder Nigeria",
+    "loyalty rewards software", "installment payment POS",
+    "multi-branch retail software", "MartPoint Retail",
+    "offline POS system", "receipt printing software",
+    "barcode scanner POS Nigeria", "stock management software",
+  ],
+  alternates: {
+    canonical: "/martpoint-retail",
+  },
+  openGraph: {
+    title: "MartPoint Retail — POS & Inventory Software for African Businesses",
+    description:
+      "Sell in-store, online and on WhatsApp. POS, inventory, loyalty, installment payments & multi-branch management for African retail.",
+    url: "https://martpoint.com.ng/martpoint-retail",
+  },
 }
 
 const trustBullets = [
@@ -222,6 +241,10 @@ export default async function MartPointRetailPage() {
 
   return (
     <>
+      <BreadcrumbSchema items={[
+        { name: "Home", href: "/" },
+        { name: "MartPoint Retail", href: "/martpoint-retail" },
+      ]} />
       <SoftwareApplicationSchema
         name="MartPoint Retail"
         description="Complete retail commerce platform for African businesses. Sell in-store, online and on WhatsApp with POS, inventory, loyalty rewards, installment payments, online store and multi-branch management."

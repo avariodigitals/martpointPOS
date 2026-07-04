@@ -6,6 +6,9 @@ import { Footer } from "@/components/layout/footer"
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "MartPoint privacy policy — how we collect, use, and protect your data.",
+  alternates: {
+    canonical: "/privacy-policy",
+  },
 }
 
 export default function PrivacyPolicyPage() {

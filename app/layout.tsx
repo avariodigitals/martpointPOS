@@ -4,7 +4,7 @@ import { AnalyticsData } from "@/components/analytics-data";
 import { TrackingScript } from "@/components/tracking-script";
 import { CookieConsentLoader } from "@/components/cookie-consent-loader";
 import { OrganizationSchema, WebsiteSchema, SiteNavigationSchema } from "@/components/structured-data";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { readSettings } from "@/lib/settings";
 import "./globals.css";
 
 const inter = Inter({
@@ -17,28 +17,6 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
 };
-
-async function readSettings(): Promise<Record<string, unknown> | null> {
-  if (!isSupabaseConfigured()) {
-    return null;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("settings")
-      .select("data")
-      .eq("id", 1)
-      .single();
-
-    if (error || !data) {
-      return null;
-    }
-
-    return (data.data as Record<string, unknown>) || null;
-  } catch {
-    return null;
-  }
-}
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await readSettings();
@@ -58,8 +36,19 @@ export async function generateMetadata(): Promise<Metadata> {
     description:
       seo.description ||
       "Business management software built for African retail stores and enterprises. POS, inventory, accounting, and operations in one ecosystem.",
+    keywords: [
+      "POS software Nigeria", "retail software Africa", "inventory management",
+      "point of sale system", "supermarket software", "pharmacy POS",
+      "restaurant POS Nigeria", "ERP software Africa", "MartPoint",
+      "business management software", "multi-branch POS", "offline POS",
+    ],
     authors: [{ name: "MartPoint by Avario Digitals" }],
+    creator: "MartPoint by Avario Digitals",
+    publisher: "MartPoint by Avario Digitals",
     metadataBase: new URL(baseUrl),
+    alternates: {
+      canonical: "/",
+    },
     openGraph: {
       type: "website",
       locale: "en_NG",
@@ -78,11 +67,20 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
+      site: "@martpointng",
+      creator: "@martpointng",
       images: [ogImage],
     },
     robots: {
       index: true,
       follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
     },
     icons: {
       icon: favicon,

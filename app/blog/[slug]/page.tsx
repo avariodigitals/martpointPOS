@@ -91,6 +91,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     description: post.metaDescription || post.excerpt,
     keywords: post.keywords,
     authors: [{ name: post.author || "MartPoint by Avario Digitals" }],
+    alternates: {
+      canonical: `/blog/${post.slug}`,
+    },
     openGraph: {
       type: "article",
       locale: "en_NG",

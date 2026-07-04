@@ -28,6 +28,9 @@ export const metadata: Metadata = {
     "business management software Africa", "ERP software Nigeria",
     "retail management system", "stock management software",
     "best POS software Nigeria", "affordable POS system Africa",
+    "inventory software in Nigeria", "inventory software for small business",
+    "retail store inventory management software",
+    "pharmacy inventory management system",
   ],
   alternates: {
     canonical: "/",

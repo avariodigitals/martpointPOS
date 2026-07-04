@@ -56,6 +56,9 @@ export const metadata: Metadata = {
     "multi-branch retail software", "MartPoint Retail",
     "offline POS system", "receipt printing software",
     "barcode scanner POS Nigeria", "stock management software",
+    "inventory software in Nigeria", "inventory software for small business",
+    "retail store inventory management software free",
+    "pharmacy inventory management software",
   ],
   alternates: {
     canonical: "/martpoint-retail",

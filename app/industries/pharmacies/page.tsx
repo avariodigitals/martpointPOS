@@ -25,7 +25,25 @@ import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 export const metadata: Metadata = {
   title: "Pharmacy Inventory & POS Software — MartPoint Retail",
   description:
-    "Never run out of essential medicines. Track batches, monitor expiry dates and manage prescription sales with MartPoint Retail built for African pharmacies.",
+    "Pharmacy inventory management system for Nigerian pharmacies. Track batches, monitor expiry dates, manage prescription sales and never run out of essential medicines. Built for African pharmacies.",
+  keywords: [
+    "pharmacy inventory management system", "pharmacy inventory management software",
+    "pharmacy POS software Nigeria", "pharmacy software Nigeria",
+    "pharmacy inventory management system open source",
+    "pharmacy inventory software", "drug inventory management system",
+    "pharmacy stock management", "medicine inventory software Nigeria",
+    "pharmacy billing software", "pharmacy point of sale",
+    "expiry date tracking pharmacy", "batch tracking pharmacy software",
+  ],
+  alternates: {
+    canonical: "/industries/pharmacies",
+  },
+  openGraph: {
+    title: "Pharmacy Inventory & POS Software — MartPoint Retail",
+    description:
+      "Pharmacy inventory management system. Track batches, expiry dates and prescription sales. Built for Nigerian pharmacies.",
+    url: "https://martpoint.com.ng/industries/pharmacies",
+  },
 }
 
 const painPoints = [

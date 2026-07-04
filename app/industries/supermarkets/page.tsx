@@ -24,7 +24,23 @@ import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 export const metadata: Metadata = {
   title: "Supermarket POS & Inventory Software — MartPoint Retail",
   description:
-    "Run your supermarket without stockouts, long queues or manual counting. MartPoint Retail gives you real-time inventory, fast checkout and multi-branch control.",
+    "Retail store inventory management software for supermarkets in Nigeria. Real-time inventory, fast checkout, expiry tracking and multi-branch control. Built for African supermarkets and mini marts.",
+  keywords: [
+    "retail store inventory management software", "supermarket POS software Nigeria",
+    "inventory software in Nigeria", "supermarket inventory management system",
+    "inventory software for small business", "grocery store POS system",
+    "supermarket billing software", "retail stock management Nigeria",
+    "mini mart POS software", "supermarket management system",
+  ],
+  alternates: {
+    canonical: "/industries/supermarkets",
+  },
+  openGraph: {
+    title: "Supermarket POS & Inventory Software — MartPoint Retail",
+    description:
+      "Retail store inventory management software for supermarkets. Real-time inventory, fast checkout and multi-branch control.",
+    url: "https://martpoint.com.ng/industries/supermarkets",
+  },
 }
 
 const painPoints = [

@@ -6,6 +6,7 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { notFound } from "next/navigation"
 import { ArticleSchema } from "@/components/structured-data"
+import { SocialShare } from "@/components/blog/social-share"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 interface BlogPost {
@@ -181,6 +182,8 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               className="mt-8 prose prose-slate max-w-none [&_a]:text-blue-600 [&_a]:underline [&_a]:hover:text-blue-800"
               dangerouslySetInnerHTML={{ __html: post.content }}
             />
+
+            <SocialShare title={post.title} slug={post.slug} />
           </div>
         </article>
       </main>

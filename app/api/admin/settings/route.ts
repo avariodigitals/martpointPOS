@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidateTag } from "next/cache"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
@@ -250,6 +251,8 @@ export async function POST(request: Request) {
     if (!result.success) {
       return NextResponse.json({ error: "Failed to save settings", details: result.error }, { status: 500 })
     }
+
+    revalidateTag("settings", { expire: 0 })
 
     return NextResponse.json({ success: true, settings: updated })
   } catch {

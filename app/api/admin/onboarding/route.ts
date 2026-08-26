@@ -3,6 +3,7 @@ import crypto from "crypto"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { generateSetupQuestions } from "@/lib/onboarding"
 
 /* ─── Types ─── */
 interface OnboardingRecord {
@@ -139,6 +140,17 @@ export async function POST(request: Request) {
     const resendKey = process.env.RESEND_API_KEY
     const notifyEmail = process.env.NOTIFY_EMAIL || email
     const setupQuestions = generateSetupQuestions(productInterest || "retail")
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ""
+    const formLink = `${baseUrl}/onboarding/${recordId}`.replace(/\/$/, "")
+
+    const defaultEmailText = `Hi ${fullName},\n\nWelcome to MartPoint! To get your system up and running, we need a few critical details.\n\n${setupQuestions}\n\nBest regards,\nMartPoint Team`
+    const emailText = (message || defaultEmailText) + `\n\nComplete your onboarding form:\n${formLink}`
+    const emailHtml = `<div style="font-family:sans-serif;max-width:600px">
+      <h2 style="color:#0057FF">Welcome to MartPoint</h2>
+      <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${emailText.replace(/\n/g, "<br>")}</div>
+      <p><a href="${formLink}" style="color:#0057FF">Complete Onboarding Form</a></p>
+      <p>Best regards,<br>MartPoint Team</p>
+    </div>`
 
     if (resendKey && notifyEmail) {
       try {
@@ -152,16 +164,8 @@ export async function POST(request: Request) {
             from: "MartPoint Onboarding <onboarding@martpoint.com.ng>",
             to: email,
             subject: `Welcome to MartPoint — Action Required: Setup Your Account`,
-            text: `Hi ${fullName},\n\nWelcome to MartPoint! To get your system up and running, we need a few critical details.\n\n${setupQuestions}\n\nPlease reply to this email with your answers, or fill out the onboarding form at: ${process.env.NEXT_PUBLIC_BASE_URL || ""}/onboarding/${recordId}\n\nBest regards,\nMartPoint Team`,
-            html: `<div style="font-family:sans-serif;max-width:600px">
-              <h2 style="color:#0057FF">Welcome to MartPoint</h2>
-              <p>Hi ${fullName},</p>
-              <p>To get your system up and running, we need a few critical details:</p>
-              <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${setupQuestions.replace(/\n/g, "<br>")}</div>
-              <p>Please reply to this email with your answers, or complete the onboarding form at:</p>
-              <p><a href="${process.env.NEXT_PUBLIC_BASE_URL || ""}/onboarding/${recordId}" style="color:#0057FF">Complete Onboarding Form</a></p>
-              <p>Best regards,<br>MartPoint Team</p>
-            </div>`,
+            text: emailText,
+            html: emailHtml,
           }),
         })
       } catch (err) {
@@ -276,29 +280,4 @@ export async function DELETE(request: Request) {
   }
 }
 
-/* ─── Helper ─── */
-function generateSetupQuestions(product: string): string {
-  const common = `1. Business registered name and CAC number (if applicable)
-2. Business address and branch locations
-3. Owner / Director full name and phone number
-4. How many staff will use the system?
-5. What devices will you use? (Android tablet, iPad, computer, phone)
-6. Do you have a barcode scanner and receipt printer? (Yes/No)
-7. Preferred go-live date`
 
-  if (product === "erp") {
-    return `${common}
-8. How many warehouses or godowns do you operate?
-9. Do you sell on credit to dealers? (Yes/No)
-10. Do you need multi-branch transfer tracking? (Yes/No)
-11. Who are your key suppliers? (Names)
-12. Do you need API access to other systems? (Yes/No)`
-  }
-
-  return `${common}
-8. What type of store do you run? (supermarket, mini mart, electronics, pharmacy, etc.)
-9. Do you sell on credit to customers? (Yes/No)
-10. Do you need weighing scale integration? (Yes/No)
-11. Do you track expiry dates on products? (Yes/No)
-12. How do you currently manage stock? (notebook, Excel, other software, none)`
-}

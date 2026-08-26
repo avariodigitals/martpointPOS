@@ -12,6 +12,7 @@ import {
   Search,
   ArrowUpRight,
   ArrowDownRight,
+  Pencil,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -85,6 +86,22 @@ export default function FinanceTransactionsPage() {
   })
   const [adding, setAdding] = useState(false)
 
+  // Edit Transaction modal
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [editForm, setEditForm] = useState({
+    type: "expense" as "income" | "expense",
+    category: "",
+    amount: "",
+    tax: "",
+    account: "",
+    description: "",
+    date: new Date().toISOString().split("T")[0],
+    recurring: false,
+    frequency: "one-time" as string,
+  })
+
   const [filterType, setFilterType] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
 
@@ -99,6 +116,7 @@ export default function FinanceTransactionsPage() {
   }, [])
 
   const categories = addForm.type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES
+  const editCategories = editForm.type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES
 
   const filteredTransactions = useMemo(() => {
     let list = transactions
@@ -148,6 +166,54 @@ export default function FinanceTransactionsPage() {
       setMessage("Failed to add transaction")
     } finally {
       setAdding(false)
+    }
+  }
+
+  const openEdit = (t: FinanceTransaction) => {
+    setEditingId(t.id)
+    setEditForm({
+      type: t.type,
+      category: t.category,
+      amount: String(t.amount),
+      tax: t.tax !== undefined ? String(t.tax) : "",
+      account: t.account || "",
+      description: t.description,
+      date: t.date,
+      recurring: t.recurring,
+      frequency: t.frequency || "one-time",
+    })
+    setShowEditModal(true)
+  }
+
+  const updateTransaction = async () => {
+    if (!editingId) return
+    setEditing(true)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/finance", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingId,
+          ...editForm,
+          amount: Number(editForm.amount),
+          tax: editForm.tax ? Number(editForm.tax) : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.transaction) {
+        setTransactions((prev) => prev.map((t) => (t.id === editingId ? data.transaction : t)))
+        setShowEditModal(false)
+        setEditingId(null)
+        setMessage("Transaction updated.")
+        setTimeout(() => setMessage(""), 3000)
+      } else {
+        setMessage(data.error || "Failed to update transaction")
+      }
+    } catch {
+      setMessage("Failed to update transaction")
+    } finally {
+      setEditing(false)
     }
   }
 
@@ -301,12 +367,20 @@ export default function FinanceTransactionsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => deleteTransaction(t.id)}
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => openEdit(t)}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteTransaction(t.id)}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -441,6 +515,127 @@ export default function FinanceTransactionsPage() {
               <Button size="sm" onClick={addTransaction} disabled={adding || !addForm.category || !addForm.amount || !addForm.description}>
                 {adding ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
                 Add Transaction
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Transaction Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Edit Transaction</h3>
+              <button onClick={() => setShowEditModal(false)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium mb-1">Type *</label>
+                <select
+                  value={editForm.type}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, type: e.target.value as "income" | "expense", category: "" }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="expense">Expense</option>
+                  <option value="income">Income</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Date *</label>
+                <input
+                  type="date"
+                  value={editForm.date}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, date: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium mb-1">Category *</label>
+                <select
+                  value={editForm.category}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, category: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Select category...</option>
+                  {editCategories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium mb-1">Amount (₦) *</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editForm.amount}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, amount: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Tax (₦)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editForm.tax}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, tax: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Account / Bank</label>
+                <input
+                  type="text"
+                  value={editForm.account}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, account: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium mb-1">Description *</label>
+                <input
+                  type="text"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={editForm.recurring}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, recurring: e.target.checked }))}
+                    className="rounded border-input"
+                  />
+                  Recurring
+                </label>
+              </div>
+              {editForm.recurring && (
+                <div>
+                  <label className="block text-xs font-medium mb-1">Frequency</label>
+                  <select
+                    value={editForm.frequency}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, frequency: e.target.value }))}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowEditModal(false)} disabled={editing}>Cancel</Button>
+              <Button size="sm" onClick={updateTransaction} disabled={editing || !editForm.category || !editForm.amount || !editForm.description}>
+                {editing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                Save Changes
               </Button>
             </div>
           </div>

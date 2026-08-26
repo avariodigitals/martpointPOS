@@ -6,6 +6,7 @@ import {
   calculateSummary,
   type FinanceTransaction,
 } from "@/lib/finance"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import crypto from "crypto"
 
 /* ─── GET ─── */
@@ -65,6 +66,29 @@ export async function POST(request: Request) {
       updatedAt: new Date().toISOString(),
     }
 
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from("finance_transactions").insert({
+          id: txn.id,
+          type: txn.type,
+          category: txn.category,
+          subcategory: txn.subcategory,
+          amount: txn.amount,
+          tax: txn.tax,
+          description: txn.description,
+          date: txn.date,
+          lead_id: txn.leadId,
+          account: txn.account,
+          recurring: txn.recurring,
+          frequency: txn.frequency,
+          created_at: txn.createdAt,
+          updated_at: txn.updatedAt,
+        })
+      } catch {
+        return NextResponse.json({ error: "Failed to save transaction" }, { status: 500 })
+      }
+    }
+
     finance.transactions.unshift(txn)
     await writeFinanceData(finance)
 
@@ -108,6 +132,28 @@ export async function PUT(request: Request) {
     if (frequency !== undefined) finance.transactions[idx].frequency = frequency
     finance.transactions[idx].updatedAt = new Date().toISOString()
 
+    if (isSupabaseConfigured()) {
+      try {
+        const t = finance.transactions[idx]
+        await supabase.from("finance_transactions").update({
+          type: t.type,
+          category: t.category,
+          subcategory: t.subcategory,
+          amount: t.amount,
+          tax: t.tax,
+          description: t.description,
+          date: t.date,
+          lead_id: t.leadId,
+          account: t.account,
+          recurring: t.recurring,
+          frequency: t.frequency,
+          updated_at: t.updatedAt,
+        }).eq("id", id)
+      } catch {
+        return NextResponse.json({ error: "Failed to update transaction" }, { status: 500 })
+      }
+    }
+
     await writeFinanceData(finance)
     return NextResponse.json({ success: true, transaction: finance.transactions[idx] })
   } catch {
@@ -134,6 +180,14 @@ export async function DELETE(request: Request) {
     const filtered = finance.transactions.filter((t) => t.id !== id)
     if (filtered.length === finance.transactions.length) {
       return NextResponse.json({ error: "Transaction not found" }, { status: 404 })
+    }
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from("finance_transactions").delete().eq("id", id)
+      } catch {
+        return NextResponse.json({ error: "Failed to delete transaction" }, { status: 500 })
+      }
     }
 
     finance.transactions = filtered

@@ -20,6 +20,7 @@ import {
   Plus,
   X,
   Rocket,
+  Pencil,
 } from "lucide-react"
 
 interface Lead {
@@ -98,6 +99,26 @@ export default function AdminLeadsPage() {
     notes: "",
   })
   const [adding, setAdding] = useState(false)
+
+  // Edit Lead modal
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [editForm, setEditForm] = useState({
+    fullName: "",
+    businessName: "",
+    email: "",
+    phone: "",
+    businessType: "",
+    productInterest: "retail",
+    branches: "1",
+    staffSize: "1-5",
+    challenge: "",
+    message: "",
+    source: "manual",
+    status: "New" as Lead["status"],
+    notes: "",
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -282,6 +303,53 @@ export default function AdminLeadsPage() {
       setMessage("Failed to add lead")
     } finally {
       setAdding(false)
+    }
+  }
+
+  const openEdit = (lead: Lead) => {
+    setEditingId(lead.id)
+    setEditForm({
+      fullName: lead.fullName,
+      businessName: lead.businessName,
+      email: lead.email,
+      phone: lead.phone,
+      businessType: lead.businessType,
+      productInterest: lead.productInterest,
+      branches: lead.branches,
+      staffSize: lead.staffSize,
+      challenge: lead.challenge || "",
+      message: lead.message || "",
+      source: lead.source,
+      status: lead.status,
+      notes: lead.notes || "",
+    })
+    setShowEditModal(true)
+  }
+
+  const updateLead = async () => {
+    if (!editingId) return
+    setEditing(true)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/leads", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingId, ...editForm }),
+      })
+      const data = await res.json()
+      if (data.success && data.lead) {
+        setLeads((prev) => prev.map((l) => (l.id === editingId ? data.lead : l)))
+        setShowEditModal(false)
+        setEditingId(null)
+        setMessage("Lead updated.")
+        setTimeout(() => setMessage(""), 3000)
+      } else {
+        setMessage(data.error || "Failed to update lead")
+      }
+    } catch {
+      setMessage("Failed to update lead")
+    } finally {
+      setEditing(false)
     }
   }
 
@@ -668,16 +736,28 @@ export default function AdminLeadsPage() {
                       {new Date(lead.submittedAt).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          deleteLead(lead.id)
-                        }}
-                        className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
-                        title="Delete lead"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEdit(lead)
+                          }}
+                          className="p-1 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                          title="Edit lead"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteLead(lead.id)
+                          }}
+                          className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                          title="Delete lead"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -712,6 +792,15 @@ export default function AdminLeadsPage() {
                         Initiate Onboarding
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs px-2"
+                      onClick={() => openEdit(lead)}
+                    >
+                      <Pencil className="w-3.5 h-3.5 mr-1" />
+                      Edit
+                    </Button>
                     <select
                       value={lead.status}
                       onChange={(e) => updateStatus(lead.id, e.target.value as Lead["status"])}
@@ -927,6 +1016,181 @@ export default function AdminLeadsPage() {
         </div>
       )}
 
+      {/* Edit Lead Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Edit Lead</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  value={editForm.fullName}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, fullName: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Business Name *</label>
+                <input
+                  type="text"
+                  value={editForm.businessName}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, businessName: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, email: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Phone *</label>
+                <input
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Business Type *</label>
+                <select
+                  value={editForm.businessType}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, businessType: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Select...</option>
+                  <option value="Supermarket">Supermarket</option>
+                  <option value="Mini Mart">Mini Mart</option>
+                  <option value="Restaurant">Restaurant</option>
+                  <option value="Pharmacy">Pharmacy</option>
+                  <option value="Electronics Store">Electronics Store</option>
+                  <option value="Fashion Retailer">Fashion Retailer</option>
+                  <option value="Distributor">Distributor</option>
+                  <option value="Wholesaler">Wholesaler</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Product Interest *</label>
+                <select
+                  value={editForm.productInterest}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, productInterest: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="retail">MartPoint Retail</option>
+                  <option value="erp">MartPoint ERP</option>
+                  <option value="not-sure">Not Sure — Need Guidance</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Branches *</label>
+                <select
+                  value={editForm.branches}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, branches: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="1">1</option>
+                  <option value="2-3">2-3</option>
+                  <option value="4-6">4-6</option>
+                  <option value="7-10">7-10</option>
+                  <option value="10+">10+</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Staff Size *</label>
+                <select
+                  value={editForm.staffSize}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, staffSize: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="1-5">1-5</option>
+                  <option value="6-15">6-15</option>
+                  <option value="16-30">16-30</option>
+                  <option value="31-50">31-50</option>
+                  <option value="50+">50+</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Source *</label>
+                <select
+                  value={editForm.source}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, source: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="manual">Manual Entry</option>
+                  <option value="website">Website</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="referral">Referral</option>
+                  <option value="social-media">Social Media</option>
+                  <option value="cold-call">Cold Call</option>
+                  <option value="email">Email</option>
+                  <option value="event">Event</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Status</label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value as Lead["status"] }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {PIPELINE_STAGES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1">Challenge / Pain Point</label>
+              <input
+                type="text"
+                value={editForm.challenge}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, challenge: e.target.value }))}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1">Message / Notes</label>
+              <textarea
+                value={editForm.message}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, message: e.target.value }))}
+                rows={2}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowEditModal(false)} disabled={editing}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={updateLead} disabled={editing}>
+                {editing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {viewMode === "list" && (
         <div className="space-y-3">
           {filteredLeads.map((lead) => (
@@ -962,6 +1226,16 @@ export default function AdminLeadsPage() {
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openEdit(lead)
+                    }}
+                    className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    title="Edit lead"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()

@@ -82,6 +82,19 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json()
     const { id, status, notes, assignedTo } = body
+    const {
+      fullName,
+      businessName,
+      email,
+      phone,
+      businessType,
+      productInterest,
+      branches,
+      staffSize,
+      challenge,
+      message,
+      source,
+    } = body
 
     if (!id) {
       return NextResponse.json({ error: "Lead ID is required" }, { status: 400 })
@@ -92,9 +105,20 @@ export async function PUT(request: Request) {
     }
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
-    if (status) updateData.status = status
+    if (status !== undefined) updateData.status = status
     if (notes !== undefined) updateData.notes = notes
     if (assignedTo !== undefined) updateData.assigned_to = assignedTo
+    if (fullName !== undefined) updateData.full_name = fullName
+    if (businessName !== undefined) updateData.business_name = businessName
+    if (email !== undefined) updateData.email = email
+    if (phone !== undefined) updateData.phone = phone
+    if (businessType !== undefined) updateData.business_type = businessType
+    if (productInterest !== undefined) updateData.product_interest = productInterest
+    if (branches !== undefined) updateData.branches = branches
+    if (staffSize !== undefined) updateData.staff_size = staffSize
+    if (challenge !== undefined) updateData.challenge = challenge
+    if (message !== undefined) updateData.message = message
+    if (source !== undefined) updateData.source = source
 
     const { data, error } = await supabase
       .from("leads")

@@ -17,11 +17,11 @@ export interface SessionPayload {
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
-  Admin: ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "users", "leads", "finance", "onboarding"],
-  Finance: ["dashboard", "finance", "tracker", "analytics", "leads", "onboarding"],
-  "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "onboarding"],
-  Sales: ["tracker", "analytics", "leads", "finance", "onboarding"],
-  Tech: ["settings", "seo", "blog", "faqs"],
+  Admin: ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "users", "leads", "customers", "finance", "onboarding"],
+  Finance: ["dashboard", "finance", "tracker", "analytics", "leads", "customers", "onboarding"],
+  "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "customers", "onboarding"],
+  Sales: ["tracker", "analytics", "leads", "customers", "finance", "onboarding"],
+  Tech: ["settings", "seo", "blog", "faqs", "customers"],
   Editor: ["blog", "faqs"],
 }
 

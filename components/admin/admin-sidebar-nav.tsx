@@ -30,6 +30,7 @@ const navItems: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, page: "dashboard" },
   { href: "/admin/leads", label: "Leads", icon: Funnel, page: "leads" },
   { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardCheck, page: "onboarding" },
+  { href: "/admin/customers", label: "Customers", icon: Users, page: "customers" },
   { href: "/admin/finance", label: "Finance", icon: Landmark, page: "finance" },
   { href: "/admin/seo", label: "SEO", icon: Search, page: "seo" },
   { href: "/admin/blog", label: "Blog", icon: FileText, page: "blog" },

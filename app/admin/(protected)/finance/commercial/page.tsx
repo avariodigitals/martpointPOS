@@ -101,16 +101,21 @@ export default function CommercialFinancePage() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Operational Modules</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Management Modules</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Quotes", href: "/admin/finance/quotes", desc: "Customer quotations" },
-                { label: "Invoices", href: "/admin/finance/invoices", desc: "Issue & manage invoices" },
-                { label: "Payments", href: "/admin/finance/payments", desc: "Record & confirm payments" },
-                { label: "Subscriptions", href: "/admin/finance/subscriptions", desc: "Activate & renew subscriptions" },
-                { label: "Renewals", href: "/admin/finance/renewals", desc: "Renewal pipeline" },
-                { label: "Partner Commissions", href: "/admin/finance/commissions", desc: "Approve & pay commissions" },
-                { label: "Commission Payouts", href: "/admin/finance/payouts", desc: "Payout batches" },
+                { label: "Products", href: "/admin/finance/commercial/products", desc: "Commercial products" },
+                { label: "Plans", href: "/admin/finance/commercial/plans", desc: "Pricing plans" },
+                { label: "Add-ons", href: "/admin/finance/commercial/addons", desc: "Optional add-ons" },
+                { label: "Quotes", href: "/admin/finance/commercial/quotes", desc: "Customer quotations" },
+                { label: "Invoices", href: "/admin/finance/commercial/invoices", desc: "Issue & manage invoices" },
+                { label: "Payments", href: "/admin/finance/commercial/payments", desc: "Record & confirm payments" },
+                { label: "Subscriptions", href: "/admin/finance/commercial/subscriptions", desc: "Activate & renew subscriptions" },
+                { label: "Renewals", href: "/admin/finance/commercial/renewals", desc: "Renewal pipeline" },
+                { label: "Commission Plans", href: "/admin/finance/commercial/commission_plans", desc: "Partner commission plans" },
+                { label: "Commissions", href: "/admin/finance/commercial/commissions", desc: "Approve & pay commissions" },
+                { label: "Payouts", href: "/admin/finance/commercial/payouts", desc: "Payout batches" },
+                { label: "Receipts", href: "/admin/finance/commercial/receipts", desc: "Payment receipts" },
                 { label: "Reports", href: "/admin/finance/reports", desc: "Commercial reports" },
               ].map((m) => (
                 <Card key={m.href} className="hover:bg-muted/50 transition-colors">

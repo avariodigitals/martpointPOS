@@ -325,7 +325,9 @@ export async function getRequiresAttention(): Promise<AdminTask[]> {
     .order("due_at", { ascending: true })
 
   if (error) {
-    console.error("[getRequiresAttention]", error)
+    if ((error as { code?: string }).code !== "PGRST205") {
+      console.warn("[getRequiresAttention]", error.message, error)
+    }
     return []
   }
 
@@ -504,7 +506,9 @@ export async function getCustomerSnapshot(): Promise<CustomerSnapshot> {
     .select("health, stage")
 
   if (error) {
-    console.error("[getCustomerSnapshot]", error)
+    if ((error as { code?: string }).code !== "PGRST205") {
+      console.warn("[getCustomerSnapshot]", error.message, error)
+    }
     return zero
   }
 
@@ -556,7 +560,9 @@ export async function getSupportSnapshot(
   )
 
   if (error) {
-    console.error("[getSupportSnapshot]", error)
+    if ((error as { code?: string }).code !== "PGRST205") {
+      console.warn("[getSupportSnapshot]", error.message, error)
+    }
     return zero
   }
 

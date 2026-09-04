@@ -22,7 +22,7 @@
   {
     "id": "how-much-does-martpoint-cost",
     "question": "How much does MartPoint cost?",
-    "answer": "MartPoint Retail Cloud costs ₦99,999 per year. This includes POS, inventory, online store, WhatsApp ordering, QR ordering, payment links, PayPlan installment plans, customer verification, collections tracking, attendance, daily reports, AI chatbot, training, onboarding, and mobile/desktop access. The offline version costs ₦250,000 as a one-time purchase."
+    "answer": "MartPoint Retail Cloud costs ₦99,999 per year and includes 1 branch, 5 users and a Standard Online Store. The offline version costs ₦250,000 as a one-time purchase. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer."
   },
   {
     "id": "does-martpoint-work-offline",
@@ -62,12 +62,27 @@
   {
     "id": "training-onboarding",
     "question": "Does MartPoint provide training and onboarding?",
-    "answer": "Yes. Every MartPoint subscription includes training and onboarding for your staff. We guide you through setup, product configuration, and day-to-day operations to ensure your team is confident from day one."
+    "answer": "Onboarding and training are provided according to your selected offer and agreed scope. We do not promise unlimited training or unspecified implementation work. You are responsible for preparing, uploading and maintaining your product catalogue, including descriptions, images, prices and stock quantities. MartPoint does not provide product-upload or catalogue-data-entry services. During onboarding, please supply a maximum of 20 sample products for system testing only."
   },
   {
     "id": "data-security",
     "question": "Is my business data safe with MartPoint?",
     "answer": "Yes. MartPoint uses encrypted connections, secure cloud backups, and role-based access controls. Your sales, inventory, and customer data are protected with enterprise-grade security standards."
+  },
+  {
+    "id": "product-uploads",
+    "question": "Does MartPoint upload my products for me?",
+    "answer": "No. You are responsible for preparing, uploading and maintaining your product catalogue, including descriptions, images, prices and stock quantities. MartPoint does not provide product-upload or catalogue-data-entry services. During onboarding, please supply a maximum of 20 sample products for system testing only."
+  },
+  {
+    "id": "support-hours",
+    "question": "What are MartPoint's support hours?",
+    "answer": "Standard software support is available Monday to Friday, 9:00 a.m. to 5:00 p.m. West Africa Time. Messages received outside these hours are attended to on the next business day."
+  },
+  {
+    "id": "implementation-charges",
+    "question": "How are implementation charges calculated?",
+    "answer": "Implementation requirements vary by business. We assess the configuration, workflows, training and deployment assistance required, then provide an itemised quotation with agreed deliverables, responsibilities and an estimated schedule before work begins. Onsite setup, onsite training, travel, marketing and custom requirements are separately assessed unless expressly included in your purchased offer."
   },
   {
     "id": "ai-chatbot",

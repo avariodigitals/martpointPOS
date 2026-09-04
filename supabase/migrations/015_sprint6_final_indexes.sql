@@ -16,7 +16,7 @@ CREATE INDEX IF NOT EXISTS invoices_business_id_status_idx ON invoices (business
 CREATE INDEX IF NOT EXISTS invoices_due_date_idx ON invoices (due_date) WHERE status NOT IN ('PAID','CANCELLED');
 CREATE INDEX IF NOT EXISTS payments_status_idx ON payments (status);
 CREATE INDEX IF NOT EXISTS payments_business_id_idx ON payments (business_id);
-CREATE INDEX IF NOT EXISTS subscriptions_renewal_due_date_idx ON subscriptions (renewal_due_date) WHERE status IN ('ACTIVE','SUSPENDED');
+CREATE INDEX IF NOT EXISTS subscriptions_renewal_due_date_idx ON subscriptions (renewal_date) WHERE status IN ('ACTIVE','SUSPENDED');
 CREATE INDEX IF NOT EXISTS partner_commissions_status_idx ON partner_commissions (status);
 CREATE INDEX IF NOT EXISTS partner_commissions_partner_id_idx ON partner_commissions (partner_id);
 

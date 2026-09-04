@@ -129,7 +129,7 @@ const categories = [
 
 const contactFAQs = [
   { q: "How do I contact MartPoint support?", a: "Message us on WhatsApp at +234 803 602 8069 or email hello@martpoint.com.ng. Our local support team responds within hours during business hours." },
-  { q: "What are your support hours?", a: "We provide support Monday to Saturday, 8:00 AM to 6:00 PM WAT. Critical issues are handled outside hours for Enterprise clients." },
+  { q: "What are your support hours?", a: "Standard software support is available Monday to Friday, 9:00 a.m. to 5:00 p.m. West Africa Time. Messages received outside these hours are attended to on the next business day." },
   { q: "Do you offer on-site support?", a: "Yes. For Enterprise clients and larger retail setups, we offer on-site training and technical support in major Nigerian cities." },
   { q: "Is there a self-service knowledge base?", a: "You are looking at it. Browse the categories above or reach out directly if you need personalised help." },
 ]

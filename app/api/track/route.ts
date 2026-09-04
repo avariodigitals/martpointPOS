@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   }
 
   // Rate limit: 5 tracking requests per minute per IP
-  const limit = checkRateLimit(request, { key: "track", max: 5, windowSeconds: 60 })
+  const limit = await checkRateLimit(request, { key: "track", max: 5, windowSeconds: 60 })
   if (!limit.allowed) {
     return NextResponse.json({ success: false }, { status: 429 })
   }

@@ -123,10 +123,10 @@ export function LeadForm({ pageType, productDefault = "not-sure" }: LeadFormProp
         </h3>
         <p className="text-muted-foreground leading-relaxed max-w-md mx-auto mb-6">
           {pageType === "demo"
-            ? "We have received your demo request. Our team will contact you within 24 hours to schedule a time."
+            ? "We have received your demo request. Our team will contact you to schedule a time."
             : pageType === "quote"
-            ? "We have received your quote request. Our team will review your requirements and respond within 24 hours."
-            : "We have received your message. Our sales team will contact you within 24 hours."}
+            ? "We have received your quote request. Our team will review your requirements and respond."
+            : "We have received your message. Our sales team will contact you."}
         </p>
         <div className="rounded-xl border border-retail/20 bg-retail-soft p-5 max-w-sm mx-auto">
           <p className="text-sm font-semibold text-foreground mb-2">

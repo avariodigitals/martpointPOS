@@ -268,7 +268,15 @@ export default async function MartPointRetailPage() {
           },
           {
             question: "How much does MartPoint Retail cost?",
-            answer: "MartPoint Retail Cloud costs ₦99,999 per year. The offline version costs ₦250,000 as a one-time purchase.",
+            answer: "MartPoint Retail Cloud costs ₦99,999 per year and includes 1 branch, 5 users and a Standard Online Store. The offline version costs ₦250,000 as a one-time purchase. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
+          },
+          {
+            question: "Does MartPoint upload my products for me?",
+            answer: "No. You are responsible for preparing, uploading and maintaining your product catalogue, including descriptions, images, prices and stock quantities. MartPoint does not provide product-upload or catalogue-data-entry services. During onboarding, please supply a maximum of 20 sample products for system testing only.",
+          },
+          {
+            question: "What are MartPoint's support hours?",
+            answer: "Standard software support is available Monday to Friday, 9:00 a.m. to 5:00 p.m. West Africa Time. Messages received outside these hours are attended to on the next business day.",
           },
           {
             question: "Can I manage multiple branches with MartPoint Retail?",
@@ -571,8 +579,11 @@ export default async function MartPointRetailPage() {
                   <span className="text-muted-foreground">{cloud.period || "/ Year"}</span>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {cloud.description || "Everything you need to run a modern retail business."}
+                  {cloud.description || "1 branch · 5 users · Standard Online Store included."}
                 </p>
+                {cloud.implementationNote && (
+                  <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{cloud.implementationNote as string}</p>
+                )}
                 <ul className="mt-6 space-y-3">
                   {((cloud.features as string[]) || [
                     "POS Sales & Checkout",
@@ -598,7 +609,7 @@ export default async function MartPointRetailPage() {
                   ))}
                 </ul>
                 <div className="mt-6 rounded-lg bg-retail-soft p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Includes {(cloud.branchesIncluded as number) ?? 1} Branch · {(cloud.usersIncluded as number) ?? 3} Users</p>
+                  <p className="text-sm font-semibold text-foreground">Includes {(cloud.branchesIncluded as number) ?? 1} Branch · {(cloud.usersIncluded as number) ?? 5} Users</p>
                   <p className="text-base font-bold text-retail mt-1">Additional Branch: {cloud.branchAddonPrice || "₦49,999 / Year"}</p>
                 </div>
                 <div className="mt-6">
@@ -660,6 +671,25 @@ export default async function MartPointRetailPage() {
                     </a>
                   </Button>
                 </div>
+              </div>
+            </div>
+
+            {/* Implementation & Product Catalogue Responsibilities */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+              <div className="rounded-xl border border-border bg-background p-6 md:p-8">
+                <h3 className="text-lg font-semibold text-foreground mb-3">Implementation Charges</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Implementation requirements vary by business. We assess the configuration, workflows, training and deployment assistance required, then provide an itemised quotation with agreed deliverables, responsibilities and an estimated schedule before work begins.
+                </p>
+                <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+                  Onsite setup, onsite training, travel, marketing and custom requirements are separately assessed unless expressly included in your purchased offer.
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-background p-6 md:p-8">
+                <h3 className="text-lg font-semibold text-foreground mb-3">Your Product Catalogue</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  You are responsible for preparing, uploading and maintaining your product catalogue, including descriptions, images, prices and stock quantities. MartPoint does not provide product-upload or catalogue-data-entry services. During onboarding, please supply a maximum of 20 sample products for system testing only.
+                </p>
               </div>
             </div>
           </div>

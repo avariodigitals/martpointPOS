@@ -39,6 +39,7 @@ interface PlanData {
   usersIncluded?: number
   branchAddonPrice?: string
   supportRenewal?: string
+  implementationNote?: string
   ctaText: string
   ctaLink: string
 }
@@ -80,6 +81,9 @@ function PricingCard({
         {plan.period && <span className="text-muted-foreground">{plan.period}</span>}
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{plan.description}</p>
+      {plan.implementationNote && (
+        <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{plan.implementationNote}</p>
+      )}
       <ul className="mt-6 space-y-3 flex-1">
         {plan.features.map((item: string) => (
           <li key={item} className="flex items-center gap-2 text-sm text-foreground">
@@ -137,7 +141,7 @@ export default async function PricingPage() {
       price: cloud.price || "₦99,999",
       period: cloud.period || "/ Year",
       badge: cloud.badge || "Most Popular",
-      description: cloud.description || "Everything you need to run a modern retail business.",
+      description: cloud.description || "1 branch · 5 users · Standard Online Store included.",
       features: cloud.features || [
         "POS Sales & Checkout", "Inventory & Stock Control", "Online Store",
         "WhatsApp Ordering & Invoice", "QR Menu Ordering", "Payment Links",
@@ -146,8 +150,9 @@ export default async function PricingPage() {
         "Martpoint Assist", "Training & Onboarding", "Mobile & Desktop Access",
       ],
       branchesIncluded: cloud.branchesIncluded ?? 1,
-      usersIncluded: cloud.usersIncluded ?? 3,
+      usersIncluded: cloud.usersIncluded ?? 5,
       branchAddonPrice: cloud.branchAddonPrice || "₦49,999 / Year",
+      implementationNote: cloud.implementationNote ?? "Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
       ctaText: cloud.ctaText || "Get Started",
       ctaLink: cloud.ctaLink || "https://wa.me/+2348036028069",
     },
@@ -214,6 +219,25 @@ export default async function PricingPage() {
                 {retailPlans.map((plan) => (
                   <PricingCard key={plan.name} plan={plan} accent="retail" />
                 ))}
+              </div>
+
+              {/* Implementation & Product Responsibilities */}
+              <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                <div className="rounded-xl border border-border bg-background p-6 md:p-8">
+                  <h3 className="text-lg font-semibold text-foreground mb-3">Implementation Charges</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Implementation requirements vary by business. We assess the configuration, workflows, training and deployment assistance required, then provide an itemised quotation with agreed deliverables, responsibilities and an estimated schedule before work begins.
+                  </p>
+                  <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+                    Onsite setup, onsite training, travel, marketing and custom requirements are separately assessed unless expressly included in your purchased offer.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-background p-6 md:p-8">
+                  <h3 className="text-lg font-semibold text-foreground mb-3">Your Product Catalogue</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    You are responsible for preparing, uploading and maintaining your product catalogue, including descriptions, images, prices and stock quantities. MartPoint does not provide product-upload or catalogue-data-entry services. During onboarding, please supply a maximum of 20 sample products for system testing only.
+                  </p>
+                </div>
               </div>
             </div>
 

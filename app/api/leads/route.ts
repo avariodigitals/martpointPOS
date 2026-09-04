@@ -24,7 +24,7 @@ interface LeadRecord {
 }
 
 export async function POST(request: Request) {
-  const limit = checkRateLimit(request, { key: "leads", max: 5, windowSeconds: 3600 })
+  const limit = await checkRateLimit(request, { key: "leads", max: 5, windowSeconds: 3600 })
   if (!limit.allowed) {
     return NextResponse.json(
       { error: "Too many submissions. Please try again later." },
@@ -171,8 +171,10 @@ export async function POST(request: Request) {
     }
 
     // 3. Email notification via Resend (requires RESEND_API_KEY)
+    // Contact/sales leads are sent to the sales inbox by default.
+    // NOTIFY_EMAIL overrides this if a different destination is needed.
     const resendKey = process.env.RESEND_API_KEY
-    const notifyEmail = process.env.NOTIFY_EMAIL
+    const notifyEmail = process.env.NOTIFY_EMAIL || "sales@martpoint.com.ng"
 
     if (resendKey && notifyEmail) {
       try {

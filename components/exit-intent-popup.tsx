@@ -23,7 +23,7 @@ const defaultSettings: PopupSettings = {
   maxShowsPerSession: 1,
   title: "Start With MartPoint Retail Cloud",
   priceText: "₦99,999 / Year",
-  priceSubtext: "Everything you need to run a modern retail business.",
+  priceSubtext: "1 branch · 5 users · Standard Online Store included.",
   ctaText: "Get Started on WhatsApp",
   ctaLink: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F",
 }

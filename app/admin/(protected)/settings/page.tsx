@@ -100,7 +100,7 @@ export default function AdminSettingsPage() {
     maxShowsPerSession: 1,
     title: "Start With MartPoint Retail Cloud",
     priceText: "₦99,999 / Year",
-    priceSubtext: "Everything you need to run a modern retail business.",
+    priceSubtext: "1 branch · 5 users · Standard Online Store included.",
     ctaText: "Get Started on WhatsApp",
     ctaLink: "https://wa.me/+2348036028069",
   })
@@ -124,7 +124,7 @@ export default function AdminSettingsPage() {
       price: "₦99,999",
       period: "/ Year",
       badge: "Most Popular",
-      description: "Everything you need to run a modern retail business.",
+      description: "1 branch · 5 users · Standard Online Store included.",
       features: "POS Sales & Checkout\nInventory & Stock Control\nOnline Store\nWhatsApp Ordering & Invoice\nQR Menu Ordering\nPayment Links\nPayPlan™ Installment Plans\nLoyalty & Rewards\nCustomer Verification\nCollections Tracking\nAttendance (Face Capture)\nDaily Report\nMartpoint Assist\nTraining & Onboarding\nMobile & Desktop Access",
       branchesIncluded: 1,
       usersIncluded: 5,

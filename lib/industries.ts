@@ -106,7 +106,7 @@ export const supermarkets: IndustryData = {
     { q: "Can MartPoint handle thousands of SKUs?", a: "Yes. MartPoint is built for supermarkets with large catalogues. You can import SKUs in bulk, organise by category and search instantly at checkout." },
     { q: "Does it work during network outages?", a: "Absolutely. The offline mode keeps sales and stock updates running. Everything syncs automatically when connection returns." },
     { q: "Can I see what is happening in all my branches?", a: "Yes. The multi-branch dashboard shows live sales, stock levels and staff attendance for every location from one login." },
-    { q: "How long does setup take?", a: "Most supermarkets are live within 24 hours. We handle data import, device setup and staff training." },
+    { q: "How long does setup take?", a: "Setup time varies by business. We assess the configuration, training and deployment assistance required, then provide an estimated schedule before work begins. You are responsible for preparing and uploading your product catalogue; during onboarding, please supply a maximum of 20 sample products for system testing only." },
   ],
 }
 
@@ -643,7 +643,7 @@ export const provisionStores: IndustryData = {
     { q: "Is MartPoint affordable for a small provision store?", a: "Yes. MartPoint is priced for small businesses. You get full retail features without enterprise complexity or cost." },
     { q: "Can I track who owes me money?", a: "Yes. Record credit sales with customer names and due dates. MartPoint reminds you before payments are overdue." },
     { q: "Does it need internet to work?", a: "No. MartPoint works offline. Sales and stock updates sync automatically when connection returns." },
-    { q: "How long does setup take?", a: "Most provision stores are set up within a few hours. We handle product entry, device connection and basic training." },
+    { q: "How long does setup take?", a: "Setup time varies by business. We assess the configuration, training and deployment assistance required, then provide an estimated schedule before work begins. You are responsible for preparing and uploading your product catalogue; during onboarding, please supply a maximum of 20 sample products for system testing only." },
   ],
 }
 

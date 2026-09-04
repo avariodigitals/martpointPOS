@@ -3,7 +3,7 @@ import { authenticateUser, setSessionCookie } from "@/lib/admin-auth"
 import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(request: Request) {
-  const limit = checkRateLimit(request, { key: "admin-login", max: 10, windowSeconds: 300 })
+  const limit = await checkRateLimit(request, { key: "admin-login", max: 10, windowSeconds: 300 })
   if (!limit.allowed) {
     return NextResponse.json(
       { error: "Too many login attempts. Please try again in 5 minutes." },

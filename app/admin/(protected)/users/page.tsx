@@ -4,23 +4,17 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Save, Trash2, Users, Plus, User, Shield, Pencil } from "lucide-react"
+import { ALL_ROLES, ROLE_DESCRIPTIONS, type UserRole } from "@/lib/admin-types"
 
-interface AdminUser {
+type AdminUser = {
   id: string
   username: string
   name: string
-  role: "Admin" | "Sales" | "Tech" | "Editor"
+  role: UserRole
   createdAt: string
 }
 
-const roles: AdminUser["role"][] = ["Admin", "Sales", "Tech", "Editor"]
-
-const roleDescriptions: Record<string, string> = {
-  Admin: "Full access to all admin features",
-  Sales: "Tracker & analytics only",
-  Tech: "Settings, SEO, Blog & FAQs",
-  Editor: "Blog & FAQs content only",
-}
+const roles: UserRole[] = ALL_ROLES
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -246,7 +240,7 @@ export default function AdminUsersPage() {
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </select>
-                  <p className="text-xs text-muted-foreground mt-1">{roleDescriptions[form.role]}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{ROLE_DESCRIPTIONS[form.role]}</p>
                 </div>
               </div>
 
@@ -316,7 +310,7 @@ export default function AdminUsersPage() {
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {roleDescriptions[user.role]}
+                  {ROLE_DESCRIPTIONS[user.role]}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Created {new Date(user.createdAt).toLocaleDateString()}

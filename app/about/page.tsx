@@ -189,7 +189,7 @@ export default function AboutPage() {
                     <Award className="w-5 h-5 text-retail shrink-0 mt-0.5" />
                     <div>
                       <p className="font-medium text-foreground">Availability</p>
-                      <p className="text-sm text-muted-foreground">24/7 with Local Support</p>
+                      <p className="text-sm text-muted-foreground">Mon–Fri, 9am–5pm WAT</p>
                     </div>
                   </div>
                 </div>

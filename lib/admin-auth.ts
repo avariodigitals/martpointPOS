@@ -1,25 +1,15 @@
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
+import { NextResponse } from "next/server"
 import crypto from "crypto"
-import type { User, UserRole, SessionPayload } from "./admin-types"
+import type { User, UserRole, SessionPayload, AdminAction } from "./admin-types"
+import { authorize } from "./admin-types"
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { hashPassword, verifyPassword } from "./crypto"
+import { signSession, verifySession } from "./session-secret"
 export type { User, UserRole, SessionPayload }
 
 const ADMIN_COOKIE_NAME = "admin-session"
-
-/* ───────────────────────────  PASSWORD UTILS  ─────────────────────────── */
-
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString("hex")
-  const hash = crypto.scryptSync(password, salt, 64).toString("hex")
-  return `${salt}:${hash}`
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(":")
-  if (!salt || !hash) return false
-  const derived = crypto.scryptSync(password, salt, 64).toString("hex")
-  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(derived))
-}
 
 /* ───────────────────────────  USER STORE (Supabase)  ─────────────────────────── */
 
@@ -30,6 +20,7 @@ function mapUser(row: Record<string, unknown>): User {
     name: row.name as string,
     passwordHash: row.password_hash as string,
     role: row.role as UserRole,
+    status: (row.status as "ACTIVE" | "DISABLED") ?? "ACTIVE",
     createdAt: row.created_at as string,
   }
 }
@@ -75,6 +66,7 @@ export async function createUser(
     name: name.trim(),
     passwordHash: hashPassword(password),
     role,
+    status: "ACTIVE",
     createdAt: new Date().toISOString(),
   }
   if (isSupabaseConfigured()) {
@@ -84,6 +76,7 @@ export async function createUser(
       name: user.name,
       password_hash: user.passwordHash,
       role: user.role,
+      status: user.status,
       created_at: user.createdAt,
     })
   }
@@ -98,10 +91,11 @@ export async function updateUser(
   const { data } = await supabase.from("users").select("*").eq("id", id).single()
   if (!data) return null
 
-  const updateData: Record<string, unknown> = {}
+  const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (updates.username) updateData.username = updates.username
   if (updates.name) updateData.name = updates.name
   if (updates.role) updateData.role = updates.role
+  if (updates.status) updateData.status = updates.status
   if (updates.password) updateData.password_hash = hashPassword(updates.password)
 
   const { data: updated } = await supabase.from("users").update(updateData).eq("id", id).select().single()
@@ -110,8 +104,24 @@ export async function updateUser(
 }
 
 export async function deleteUser(id: string): Promise<boolean> {
+  return disableUser(id)
+}
+
+export async function disableUser(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) return false
-  const { error } = await supabase.from("users").delete().eq("id", id)
+  const { error } = await supabase
+    .from("users")
+    .update({ status: "DISABLED", updated_at: new Date().toISOString() })
+    .eq("id", id)
+  return !error
+}
+
+export async function enableUser(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false
+  const { error } = await supabase
+    .from("users")
+    .update({ status: "ACTIVE", updated_at: new Date().toISOString() })
+    .eq("id", id)
   return !error
 }
 
@@ -142,56 +152,22 @@ export async function ensureDefaultAdmin() {
 
 /* ───────────────────────────  SESSION / AUTH  ─────────────────────────── */
 
-function getSessionSecret(): string {
-  const secret = process.env.SESSION_SECRET
-  if (secret && secret.length >= 32) {
-    return secret
-  }
-
-  // In production, SESSION_SECRET is mandatory
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "SESSION_SECRET environment variable is required and must be at least 32 characters. " +
-      "Set it in your hosting platform before deploying."
-    )
-  }
-
-  // Dev fallback — app works but warns loudly
-  console.warn(
-    "\n[SECURITY WARNING] SESSION_SECRET not set or too short.\n" +
-    "Using temporary dev fallback. Sessions will NOT be secure.\n" +
-    "Set SESSION_SECRET in .env.local before any production use.\n"
+function isSessionPayload(value: unknown): value is SessionPayload {
+  if (!value || typeof value !== "object") return false
+  const v = value as Record<string, unknown>
+  return (
+    typeof v.userId === "string" &&
+    typeof v.username === "string" &&
+    typeof v.role === "string" &&
+    typeof v.name === "string"
   )
-  return "dev-session-secret-do-not-use-in-production-1234567890"
-}
-
-function signSession(payload: SessionPayload): string {
-  const secret = getSessionSecret()
-  const data = JSON.stringify(payload)
-  const signature = crypto.createHmac("sha256", secret).update(data).digest("hex")
-  return Buffer.from(`${data}.${signature}`).toString("base64")
-}
-
-function verifySession(token: string): SessionPayload | null {
-  try {
-    const decoded = Buffer.from(token, "base64").toString("utf-8")
-    const lastDot = decoded.lastIndexOf(".")
-    if (lastDot === -1) return null
-    const data = decoded.slice(0, lastDot)
-    const signature = decoded.slice(lastDot + 1)
-    const secret = getSessionSecret()
-    const expected = crypto.createHmac("sha256", secret).update(data).digest("hex")
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null
-    return JSON.parse(data) as SessionPayload
-  } catch {
-    return null
-  }
 }
 
 export async function authenticateUser(username: string, password: string): Promise<SessionPayload | null> {
   await ensureDefaultAdmin()
   const user = await getUserByUsername(username)
   if (!user) return null
+  if (user.status !== "ACTIVE") return null
   if (!verifyPassword(password, user.passwordHash)) return null
   return { userId: user.id, username: user.username, role: user.role, name: user.name }
 }
@@ -212,7 +188,7 @@ export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(ADMIN_COOKIE_NAME)
   if (!token?.value) return null
-  return verifySession(token.value)
+  return verifySession(token.value, isSessionPayload)
 }
 
 export async function isAdminAuthenticated(): Promise<boolean> {
@@ -225,9 +201,54 @@ export async function clearAdminCookie() {
   cookieStore.delete(ADMIN_COOKIE_NAME)
 }
 
-export { hasPermission, ROLE_PERMISSIONS } from "./admin-types"
+export { hasPermission, ROLE_PERMISSIONS, authorize, ALL_ROLES, ROLE_DESCRIPTIONS } from "./admin-types"
+export type { AdminAction } from "./admin-types"
 
 // Alias for backward compatibility
 export async function setAdminCookie() {
   // No-op: use setSessionCookie with real payload instead
+}
+
+/* ───────────────────────────  Route-handler guard  ───────────────────────────
+ * Server-side authorization for API routes. Returns either a 401/403
+ * NextResponse (denied) or null (authorized). This is the security boundary
+ * for all admin APIs — never rely on client-side PermissionGuard alone.
+ */
+export async function authorizeAdmin(
+  page: string,
+  action?: AdminAction,
+  resource?: string
+): Promise<{ session: SessionPayload; denied: null } | { session: null; denied: Response }> {
+  const session = await getSession()
+  if (!session) {
+    return {
+      session: null,
+      denied: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    }
+  }
+  if (!authorize(session, page, action, resource)) {
+    return {
+      session: null,
+      denied: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    }
+  }
+  return { session, denied: null }
+}
+
+/* ───────────────────────────  Server page guard  ───────────────────────────
+ * For server components / layouts. Returns the session if authorized, or
+ * redirects to /admin/login (no session) or a forbidden page.
+ */
+export async function requireAdminPage(
+  page: string,
+  action?: AdminAction
+): Promise<SessionPayload> {
+  const session = await getSession()
+  if (!session) {
+    redirect("/admin/login")
+  }
+  if (!authorize(session, page, action)) {
+    redirect("/admin")
+  }
+  return session as SessionPayload
 }

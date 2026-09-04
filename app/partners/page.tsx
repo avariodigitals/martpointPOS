@@ -15,9 +15,7 @@ import {
   Check,
   ChevronDown,
   Wrench,
-  Cloud,
   ShieldCheck,
-  Zap,
   HeadphonesIcon,
   Monitor,
   UserCheck,
@@ -29,89 +27,163 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Partners — MartPoint Partner Programme",
+  title: "Partner with MartPoint | Referral, Sales & Integration",
   description:
-    "Join the MartPoint partner network. Technology, payment, channel, implementation and referral partnerships for companies helping African businesses grow.",
+    "Explore MartPoint referral, channel, implementation, technology and payment partnerships. Learn how each model works and discuss becoming a partner.",
   alternates: {
     canonical: "/partners",
   },
 }
 
+const WHATSAPP_PARTNER =
+  "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20becoming%20a%20MartPoint%20partner.%20Can%20we%20talk%3F"
+const EMAIL_PARTNER = "mailto:partners@martpoint.com.ng"
+
 const partnerTypes = [
   {
-    icon: Cpu,
-    title: "Technology Partners",
-    description: "Integrate your hardware, software or platform with MartPoint. We welcome POS device makers, accounting tools and e-commerce platforms.",
-  },
-  {
-    icon: CreditCard,
-    title: "Payment Partners",
-    description: "Enable your payment solution inside MartPoint Retail and Enterprise. Reach businesses transacting across Africa every day.",
+    icon: Users,
+    title: "Referral Partners",
+    subtitle: null,
+    description:
+      "Introduce eligible businesses to MartPoint. Our team handles the sales process, software deployment and customer onboarding.",
+    earn: "Commission on qualifying software purchases. Any renewal rewards are defined in your partner agreement.",
   },
   {
     icon: Store,
     title: "Channel Partners",
-    description: "Resell MartPoint to your retail, pharmacy or restaurant clients. Earn commissions and provide first-line support.",
-  },
-  {
-    icon: Users,
-    title: "Referral Partners",
-    description: "Refer businesses to MartPoint and earn recurring rewards. No technical knowledge required. Just make the introduction.",
+    subtitle: "Sales & Support",
+    description:
+      "Help businesses choose MartPoint, coordinate onboarding and provide agreed first-line usage guidance to assigned customers. MartPoint manages software invoicing, licensing and deployment.",
+    earn: "Commission on qualifying software sales. Renewal commissions, where offered, follow the agreed terms and servicing responsibilities.",
   },
   {
     icon: Wrench,
     title: "Implementation Partners",
-    description: "For digital agencies, IT companies, consultants and system integrators who deploy, customise, onboard and support MartPoint for customers.",
+    subtitle: null,
+    description:
+      "Help assigned customers configure business information, prepare approved data imports, onboard users and complete training after MartPoint provisions the system.",
+    earn: "Fees for approved implementation work. A separately approved customer referral may also qualify for a sales commission.",
+  },
+  {
+    icon: Cpu,
+    title: "Technology Partners",
+    subtitle: null,
+    description:
+      "Connect compatible hardware, software or services with MartPoint through an agreed integration and technical review.",
+    earn: "Commercial terms are agreed for the relevant product, development work or integration.",
+  },
+  {
+    icon: CreditCard,
+    title: "Payment Partners",
+    subtitle: null,
+    description:
+      "Work with MartPoint to enable approved payment services through a reviewed technical and commercial arrangement.",
+    earn: "Any payment-related fees, referral payments or revenue sharing are defined in a separate agreement.",
   },
 ]
 
 const benefits = [
-  "Revenue share on every deal you refer, resell or implement",
-  "Qualified lead sharing with active partner territories",
-  "Structured partner training and official certification programme",
-  "Technical support and integration documentation",
-  "Early access to new products, APIs and beta features",
-  "Dedicated partner success manager for strategic accounts",
-  "Co-marketing opportunities including joint events and case studies",
+  {
+    icon: ClipboardList,
+    title: "Defined Responsibilities",
+    desc: "Understand the activities covered by your approved partnership.",
+  },
+  {
+    icon: Wallet,
+    title: "Agreed Commercial Terms",
+    desc: "Know how qualifying earnings, service fees and payment conditions apply to your role.",
+  },
+  {
+    icon: UserCheck,
+    title: "Relevant Onboarding",
+    desc: "Receive guidance appropriate to your approved partnership activities.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Approved Product Information",
+    desc: "Use accurate product and sales information when introducing MartPoint to customers.",
+  },
+  {
+    icon: HeadphonesIcon,
+    title: "Coordinated Support",
+    desc: "Work with MartPoint on customer issues within your agreed responsibilities.",
+  },
+  {
+    icon: BarChart3,
+    title: "Opportunities to Grow",
+    desc: "Further collaboration may be considered based on customer needs, partner capability and performance.",
+  },
 ]
 
-const trustCards = [
-  { icon: Cloud, title: "Cloud-First Platform", desc: "Built for reliability, scale and continuous deployment across African markets." },
-  { icon: ShieldCheck, title: "Enterprise Ready", desc: "Security, permissions, audit trails and compliance features built in from day one." },
-  { icon: Zap, title: "Growing Ecosystem", desc: "An expanding network of integrations, partners and connected services." },
-  { icon: HeadphonesIcon, title: "Partner-First Support", desc: "Direct access to our partner team for technical and commercial guidance." },
+const martpointManages = [
+  "Software licensing and subscriptions",
+  "Software invoicing, collections and renewals",
+  "Platform provisioning, deployment and hosting",
+  "Platform maintenance and technical software support",
+  "Partner approval and authorisation of customer access",
+]
+
+const partnersMayProvide = [
+  "Customer introductions and sales assistance",
+  "Agreed first-line usage guidance",
+  "Assigned business configuration and onboarding",
+  "Separately scoped implementation and training",
+  "Approved technology or payment integrations",
 ]
 
 const process = [
-  { step: "01", title: "Apply", desc: "Fill out the partner application. We review within 3 business days." },
-  { step: "02", title: "Meet", desc: "Discovery call to align goals, define the partnership model and set expectations." },
-  { step: "03", title: "Onboard", desc: "Technical integration, team training and co-marketing setup where needed." },
-  { step: "04", title: "Grow", desc: "Start referring, reselling or integrating. Track progress in your partner dashboard." },
-  { step: "05", title: "Scale", desc: "Successful partners receive continuous enablement, product updates, sales support and expansion opportunities." },
+  {
+    step: "01",
+    title: "Contact Us",
+    desc: "Tell us about your business, experience, location and preferred partnership type.",
+  },
+  {
+    step: "02",
+    title: "Review",
+    desc: "We assess the proposed partnership and may request further information or a discussion.",
+  },
+  {
+    step: "03",
+    title: "Agree Terms",
+    desc: "We define the approved role, responsibilities and applicable commercial terms.",
+  },
+  {
+    step: "04",
+    title: "Complete Onboarding",
+    desc: "Complete any guidance, training or technical checks required for your role.",
+  },
+  {
+    step: "05",
+    title: "Begin Approved Activities",
+    desc: "Start working with MartPoint once your partnership is approved and activated.",
+  },
 ]
 
 const whoShouldPartner = [
-  { icon: Monitor, title: "Technology Companies", desc: "Software vendors, hardware manufacturers and API platforms looking to extend into African retail and ERP." },
-  { icon: Wrench, title: "Digital Agencies", desc: "Agencies that build websites, run digital marketing and want to offer POS or ERP as part of their stack." },
-  { icon: UserCheck, title: "IT Consultants", desc: "Independent and firm-based consultants who advise businesses on operational technology." },
-  { icon: ShoppingBag, title: "POS Resellers", desc: "Hardware resellers and systems integrators who already sell POS equipment and want to add software revenue." },
-  { icon: BarChart3, title: "ERP Consultants", desc: "Consultants specialising in inventory, accounting and enterprise process improvement." },
-  { icon: Wallet, title: "Payment Providers", desc: "Fintechs, banks and mobile money operators wanting to embed payments inside MartPoint." },
-  { icon: ClipboardList, title: "Business Consultants", desc: "Advisors who help retailers and distributors improve operations and can recommend MartPoint." },
-  { icon: Server, title: "Managed Service Providers", desc: "MSPs who manage IT infrastructure for client businesses and want to include business software." },
+  { icon: ClipboardList, title: "Business Consultants", desc: "Advisers who help businesses improve operations and select suitable business software." },
+  { icon: Monitor, title: "Digital Agencies", desc: "Agencies that want to introduce MartPoint or provide approved customer onboarding services." },
+  { icon: UserCheck, title: "IT Consultants", desc: "Professionals who help businesses adopt and use technology." },
+  { icon: ShoppingBag, title: "POS Hardware Resellers", desc: "Businesses supplying retail equipment that can introduce customers to MartPoint." },
+  { icon: BarChart3, title: "ERP Consultants", desc: "Consultants with experience in inventory, accounting and business processes." },
+  { icon: Cpu, title: "Technology Companies", desc: "Vendors proposing compatible software, hardware or integrations." },
+  { icon: CreditCard, title: "Payment Providers", desc: "Providers proposing payment services for review and integration." },
+  { icon: Server, title: "Managed Service Providers", desc: "Businesses supporting customer technology environments and seeking an approved MartPoint role." },
 ]
 
 const faqs = [
-  { q: "How do I become a partner?", a: "Start by filling out the partner application or messaging us on WhatsApp. We schedule a discovery call within 3 business days to understand your business and recommend the right partnership tier." },
-  { q: "Is there a cost to join?", a: "No. There is no upfront fee to become a MartPoint partner. Some tiers require certification training, which we provide at no cost." },
-  { q: "How are commissions paid?", a: "Commissions are calculated monthly and paid within 14 days of the close of each month. You track every deal in your partner dashboard." },
-  { q: "Who owns the customer relationship?", a: "Channel and implementation partners typically own the end-customer relationship. Referral partners hand the relationship to MartPoint after introduction. We are flexible." },
-  { q: "Do partners receive training?", a: "Yes. Every partner receives onboarding training. Implementation and channel partners go through a structured certification programme with live sessions and documentation." },
-  { q: "Can agencies implement MartPoint for clients?", a: "Absolutely. Our Implementation Partner programme is designed for agencies and consultants who want to deploy, customise and support MartPoint as a service." },
-  { q: "Do payment providers integrate directly?", a: "Yes. We provide API documentation and a sandbox environment. Our engineering team supports integration and testing before go-live." },
-  { q: "How long does approval take?", a: "Most applications are reviewed within 3 business days. Complex technology integrations may take up to 7 days for technical evaluation." },
-  { q: "Can I operate outside Nigeria?", a: "Yes. We actively welcome partners across Africa. MartPoint is built for multi-currency, multi-country operations." },
-  { q: "Can I resell MartPoint?", a: "Yes. Our Channel Partner programme lets you resell MartPoint Retail and Enterprise with margin, training and sales support included." },
+  { q: "How do I become a MartPoint partner?", a: "Contact us through WhatsApp or email with your business details and preferred partnership type. We will explain the application requirements and relevant next steps." },
+  { q: "Is there a fee to apply?", a: "There is no upfront fee to apply to become a MartPoint partner. Any separately chargeable products or services will be disclosed and agreed in advance." },
+  { q: "Do partners receive discounted licenses or commissions?", a: "Referral and channel partnerships use commissions on qualifying software sales under agreed terms. Implementation work and technology or payment arrangements have separate commercial terms. Partner approval does not automatically provide discounted licenses." },
+  { q: "Are commissions paid on renewals?", a: "Renewal commissions are not automatic. Where offered, the eligible period, rate and any ongoing responsibilities are stated in the partner agreement." },
+  { q: "Who invoices customers for MartPoint software?", a: "MartPoint issues software invoices and manages software payments, licensing and renewals. Customers should pay through the official payment instructions provided by MartPoint." },
+  { q: "When are commissions paid?", a: "Eligible commissions are calculated monthly and paid within 14 days after the relevant month-end. The partner agreement defines eligibility, any applicable holding period and how refunds or payment reversals are handled." },
+  { q: "Can implementation partners charge for their work?", a: "Implementation work may carry a separately agreed fee. The scope, price, invoicing arrangements and delivery responsibilities must be clear before work begins. Customers must not be charged twice for onboarding or training already included in their purchased package." },
+  { q: "Can partners host, deploy or customise MartPoint independently?", a: "No. MartPoint manages platform hosting and deployment. Approved partners may assist with authorised configuration and onboarding. Custom development and integrations require separate review and approval." },
+  { q: "How do partners work with customer accounts?", a: "Customers control their business accounts, while MartPoint manages the software subscription. An approved partner may act as an assigned sales or service contact. Any account access is limited to authorised activities, and customers can contact MartPoint directly." },
+  { q: "Do partners receive training?", a: "Partners receive onboarding appropriate to their approved role. Additional training or technical assessment may be required before certain activities or customer access are authorised." },
+  { q: "Can technology companies and payment providers integrate with MartPoint?", a: "Proposed integrations are reviewed for technical fit, security, support requirements and commercial viability. Available documentation, testing arrangements and implementation requirements are discussed during the review." },
+  { q: "Can I apply from outside Nigeria?", a: "You may express interest from outside Nigeria. Approval depends on product availability, support coverage and the requirements of the proposed market. Contact MartPoint to discuss your location." },
+  { q: "Does applying make me an authorised MartPoint partner?", a: "No. You may represent yourself as an authorised partner only after approval and activation, and only for the activities covered by your agreement." },
 ]
 
 export default function PartnersPage() {
@@ -127,87 +199,141 @@ export default function PartnersPage() {
                 Partner Programme
               </span>
               <h1 className="text-4xl md:text-5xl lg:text-[3.25rem] font-extrabold tracking-tight leading-[1.05] text-foreground">
-                Build the Future of African Commerce With MartPoint
+                Grow Your Business with MartPoint
               </h1>
               <p className="mt-6 text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-                MartPoint is building an ecosystem of implementation partners, technology companies, consultants, payment providers and resellers helping African businesses modernise their operations. Partner with us and grow together.
+                Introduce businesses to MartPoint, help customers get started, support their operations or integrate your technology. Explore a partnership that matches your expertise, with clear responsibilities and agreed commercial terms.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20becoming%20a%20MartPoint%20partner.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                  <Link href="/partners/apply">
                     Become a Partner
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
                 <Button asChild variant="outline" size="lg">
-                  <Link href="mailto:hello@martpoint.com.ng">Email Us</Link>
+                  <Link href={WHATSAPP_PARTNER} target="_blank" rel="noopener noreferrer">
+                    Discuss Becoming a Partner
+                  </Link>
                 </Button>
+              </div>
+              <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center text-sm">
+                <Link href="/partners/application-status" className="text-retail hover:underline">Already applied? Check Application Status</Link>
+                <Link href="/partners/verify" className="text-retail hover:underline">Verify a MartPoint Partner</Link>
+                <Link href="/partners/directory" className="text-retail hover:underline">Find a Partner</Link>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Partner Types */}
+        {/* Partnership Types */}
         <section className="w-full bg-muted py-16 md:py-24">
           <div className="container-martpoint">
             <SectionHeader
-              label="Partnership Models"
-              headline="How You Can Partner With MartPoint"
+              label="Partnership Types"
+              headline="Choose How You Partner with MartPoint"
+              description="Your approved partnership type determines your responsibilities and earning model. You may discuss more than one type with us, with each assessed separately."
             />
-            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
-              {partnerTypes.map((type) => (
-                <div key={type.title} className="rounded-xl border border-border bg-background p-6 transition-all duration-200 hover:border-retail/30 hover:shadow-sm">
+            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-5 max-w-5xl mx-auto">
+              {partnerTypes.map((type, i) => (
+                <div key={type.title} className={`rounded-xl border border-border bg-background p-6 transition-all duration-200 hover:border-retail/30 hover:shadow-sm flex flex-col lg:col-span-2 ${i === 3 ? "lg:col-start-2" : ""}`}>
                   <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center mb-4">
                     <type.icon className="w-5 h-5 text-retail" />
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">{type.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{type.description}</p>
+                  <h3 className="text-lg font-semibold text-foreground">{type.title}</h3>
+                  {type.subtitle && (
+                    <span className="text-xs font-semibold uppercase tracking-widest text-retail mt-1 mb-2">
+                      {type.subtitle}
+                    </span>
+                  )}
+                  <p className="text-sm text-muted-foreground leading-relaxed mt-2">{type.description}</p>
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <span className="text-xs font-semibold uppercase tracking-widest text-foreground">
+                      How you earn
+                    </span>
+                    <p className="text-sm text-muted-foreground leading-relaxed mt-2">{type.earn}</p>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Benefits */}
+        {/* Partner Benefits */}
         <section className="w-full bg-background py-16 md:py-24">
           <div className="container-martpoint">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center max-w-5xl mx-auto">
-              <div>
-                <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-3">
-                  Partner Benefits
-                </span>
-                <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                  Why Partners Choose MartPoint
-                </h2>
-                <div className="mt-8 space-y-5">
-                  {benefits.map((text, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <Check className="w-5 h-5 text-retail mt-0.5 shrink-0" />
-                      <span className="text-foreground">{text}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {trustCards.map((card) => (
-                  <div key={card.title} className="rounded-xl border border-border bg-card p-6 text-center transition-all duration-200 hover:border-retail/30 hover:shadow-sm">
-                    <card.icon className="w-8 h-8 text-retail mx-auto mb-3" />
-                    <div className="text-sm font-bold text-foreground mb-1">{card.title}</div>
-                    <div className="text-xs text-muted-foreground leading-relaxed">{card.desc}</div>
+            <SectionHeader
+              label="Partner Benefits"
+              headline="A Clear Framework for Working Together"
+            />
+            <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
+              {benefits.map((benefit) => (
+                <div key={benefit.title} className="rounded-xl border border-border bg-card p-6 transition-all duration-200 hover:border-retail/30 hover:shadow-sm">
+                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center mb-4">
+                    <benefit.icon className="w-5 h-5 text-retail" />
                   </div>
-                ))}
-              </div>
+                  <h3 className="text-base font-semibold text-foreground mb-2">{benefit.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{benefit.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* Process */}
+        {/* Responsibilities */}
         <section className="w-full bg-muted py-16 md:py-24">
           <div className="container-martpoint">
             <SectionHeader
+              label="Responsibilities"
+              headline="How MartPoint and Partners Work Together"
+              description="MartPoint operates and maintains the software platform. Partners contribute within their approved roles."
+            />
+            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+              <div className="rounded-xl border border-border bg-background p-6 md:p-8">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center">
+                    <ShieldCheck className="w-5 h-5 text-retail" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">MartPoint Manages</h3>
+                </div>
+                <ul className="space-y-3">
+                  {martpointManages.map((item) => (
+                    <li key={item} className="flex items-start gap-3">
+                      <Check className="w-5 h-5 text-retail mt-0.5 shrink-0" />
+                      <span className="text-sm text-foreground leading-relaxed">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-xl border border-border bg-background p-6 md:p-8">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center">
+                    <HeartHandshake className="w-5 h-5 text-retail" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">Approved Partners May Provide</h3>
+                </div>
+                <ul className="space-y-3">
+                  {partnersMayProvide.map((item) => (
+                    <li key={item} className="flex items-start gap-3">
+                      <Check className="w-5 h-5 text-retail mt-0.5 shrink-0" />
+                      <span className="text-sm text-foreground leading-relaxed">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <p className="mt-8 max-w-3xl mx-auto text-center text-sm text-muted-foreground leading-relaxed">
+              Partner approval does not grant unrestricted customer access. Access is limited to assigned customers and authorised activities. Partners may not independently host, deploy or make unapproved modifications to MartPoint.
+            </p>
+          </div>
+        </section>
+
+        {/* Partnership Process */}
+        <section className="w-full bg-background py-16 md:py-24">
+          <div className="container-martpoint">
+            <SectionHeader
               label="How It Works"
-              headline="Partnership Process"
-              description="From application to first deal in under two weeks."
+              headline="How Partnership Begins"
             />
             <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 max-w-6xl mx-auto">
               {process.map((step) => (
@@ -220,20 +346,23 @@ export default function PartnersPage() {
                 </div>
               ))}
             </div>
+            <p className="mt-10 max-w-3xl mx-auto text-center text-sm text-muted-foreground leading-relaxed">
+              An enquiry or application does not confer approved partner status. Review and onboarding times depend on the partnership type and the information required.
+            </p>
           </div>
         </section>
 
-        {/* Who Should Partner */}
-        <section className="w-full bg-background py-16 md:py-24">
+        {/* Who Should Apply */}
+        <section className="w-full bg-muted py-16 md:py-24">
           <div className="container-martpoint">
             <SectionHeader
               label="Who Should Apply"
-              headline="Who Should Become a MartPoint Partner?"
-              description="Our partner programmes are designed for businesses and professionals who serve African retailers, distributors and manufacturers."
+              headline="Who Can Partner with MartPoint?"
+              description="We welcome enquiries from businesses and professionals who can help customers discover, adopt or extend MartPoint. Approval depends on the proposed role, relevant capabilities and our operational coverage."
             />
             <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-6xl mx-auto">
               {whoShouldPartner.map((item) => (
-                <div key={item.title} className="rounded-xl border border-border bg-card p-6 transition-all duration-200 hover:border-retail/30 hover:shadow-sm">
+                <div key={item.title} className="rounded-xl border border-border bg-background p-6 transition-all duration-200 hover:border-retail/30 hover:shadow-sm">
                   <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center mb-4">
                     <item.icon className="w-5 h-5 text-retail" />
                   </div>
@@ -246,15 +375,15 @@ export default function PartnersPage() {
         </section>
 
         {/* FAQ */}
-        <section className="w-full bg-muted py-16 md:py-24">
+        <section className="w-full bg-background py-16 md:py-24">
           <div className="container-martpoint max-w-3xl">
             <SectionHeader
               label="FAQ"
-              headline="Questions Partners Ask"
+              headline="Frequently Asked Questions"
             />
             <div className="mt-10 space-y-4">
               {faqs.map((faq, i) => (
-                <details key={i} className="group rounded-xl border border-border bg-background p-5 cursor-pointer">
+                <details key={i} className="group rounded-xl border border-border bg-card p-5 cursor-pointer">
                   <summary className="flex items-center justify-between list-none">
                     <span className="text-sm font-semibold text-foreground">{faq.q}</span>
                     <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-180" />
@@ -271,21 +400,28 @@ export default function PartnersPage() {
           <div className="container-martpoint">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                Let's Build Better Business Software Together
+                Find the Right Partnership for Your Business
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Become part of the MartPoint partner network. Whether you integrate, implement, refer or resell, we will give you the tools, training and support to succeed.
+                Tell us what you do and how you would like to work with MartPoint. Contact our team to discuss the right partnership and next steps.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20becoming%20a%20MartPoint%20partner.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                  <Link href="/partners/apply">
                     Become a Partner
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
                 <Button asChild variant="outline" size="lg">
-                  <Link href="mailto:hello@martpoint.com.ng">Email Us</Link>
+                  <Link href={WHATSAPP_PARTNER} target="_blank" rel="noopener noreferrer">
+                    Discuss Becoming a Partner
+                  </Link>
                 </Button>
+              </div>
+              <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center text-sm">
+                <Link href="/partners/application-status" className="text-retail hover:underline">Already applied? Check Application Status</Link>
+                <Link href="/partners/verify" className="text-retail hover:underline">Verify a MartPoint Partner</Link>
+                <Link href="/partners/directory" className="text-retail hover:underline">Find a Partner</Link>
               </div>
             </div>
           </div>

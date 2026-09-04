@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Save, Loader2, Building2, ClipboardCheck, Activity, Lock, Landmark, Headset, HeartHandshake, ShieldCheck } from "lucide-react"
+import { ArrowLeft, Save, Loader2, Building2, ClipboardCheck, Activity, Lock, Landmark, Headset, HeartHandshake, ShieldCheck, AlertTriangle } from "lucide-react"
 import type { Business, BusinessStatus } from "@/lib/businesses"
 
 interface Props {
@@ -36,6 +36,7 @@ const TABS: Tab[] = [
   { key: "support", label: "Support", icon: Headset, enabled: true, href: (id: string) => `/admin/businesses/${id}/support` },
   { key: "customer-success", label: "Customer Success", icon: HeartHandshake, enabled: true, href: (id: string) => `/admin/businesses/${id}/customer-success` },
   { key: "compliance", label: "Compliance", icon: ShieldCheck, enabled: true, href: (id: string) => `/admin/businesses/${id}/compliance` },
+  { key: "incidents", label: "Incidents", icon: AlertTriangle, enabled: true, href: (id: string) => `/admin/businesses/${id}/incidents` },
 ]
 
 const STATUS_OPTIONS = ["PROSPECT", "ONBOARDING", "ACTIVE", "SUSPENDED", "INACTIVE", "CHURNED"]

@@ -41,6 +41,7 @@ const navItems: NavItem[] = [
   { href: "/admin/partners", label: "Partners", icon: Handshake, page: "partners" },
   { href: "/admin/finance", label: "Finance", icon: Landmark, page: "finance" },
   { href: "/admin/support", label: "Support", icon: Ticket, page: "support" },
+  { href: "/admin/incidents", label: "Incidents", icon: Shield, page: "support" },
   { href: "/admin/customer-success", label: "Customer Success", icon: Activity, page: "customer_success" },
   { href: "/admin/compliance", label: "Compliance", icon: Shield, page: "compliance" },
   { href: "/admin/tasks", label: "Tasks", icon: ClipboardList, page: "tasks" },

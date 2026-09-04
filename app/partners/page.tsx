@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import {
   ArrowRight,
+  ClipboardCheck,
   Cpu,
   CreditCard,
+  LogIn,
+  Search,
   Store,
   Users,
   HeartHandshake,
@@ -217,11 +220,62 @@ export default function PartnersPage() {
                   </Link>
                 </Button>
               </div>
-              <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center text-sm">
-                <Link href="/partner/login" className="text-retail hover:underline font-medium">Already a partner? Login to Portal</Link>
-                <Link href="/partners/application-status" className="text-retail hover:underline">Already applied? Check Application Status</Link>
-                <Link href="/partners/verify" className="text-retail hover:underline">Verify a MartPoint Partner</Link>
-                <Link href="/partners/directory" className="text-retail hover:underline">Find a Partner</Link>
+
+              {/* Existing partner quick actions */}
+              <div className="mt-12 pt-8 border-t border-border/60">
+                <p className="text-sm text-muted-foreground mb-5">
+                  Already connected to MartPoint?
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+                  <Link
+                    href="/partner/login"
+                    className="group flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-5 text-center transition-all hover:border-retail/40 hover:shadow-sm hover:-translate-y-0.5"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center">
+                      <LogIn className="w-5 h-5 text-retail" />
+                    </div>
+                    <div>
+                      <span className="block text-sm font-semibold text-foreground group-hover:text-retail transition-colors">
+                        Partner Login
+                      </span>
+                      <span className="block text-xs text-muted-foreground mt-0.5">
+                        Access your portal
+                      </span>
+                    </div>
+                  </Link>
+                  <Link
+                    href="/partners/application-status"
+                    className="group flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-5 text-center transition-all hover:border-retail/40 hover:shadow-sm hover:-translate-y-0.5"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center">
+                      <ClipboardCheck className="w-5 h-5 text-retail" />
+                    </div>
+                    <div>
+                      <span className="block text-sm font-semibold text-foreground group-hover:text-retail transition-colors">
+                        Check Application Status
+                      </span>
+                      <span className="block text-xs text-muted-foreground mt-0.5">
+                        Track with your reference
+                      </span>
+                    </div>
+                  </Link>
+                  <Link
+                    href="/partners/directory"
+                    className="group flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-5 text-center transition-all hover:border-retail/40 hover:shadow-sm hover:-translate-y-0.5"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center">
+                      <Search className="w-5 h-5 text-retail" />
+                    </div>
+                    <div>
+                      <span className="block text-sm font-semibold text-foreground group-hover:text-retail transition-colors">
+                        Find or Verify a Partner
+                      </span>
+                      <span className="block text-xs text-muted-foreground mt-0.5">
+                        Browse approved partners
+                      </span>
+                    </div>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
@@ -396,7 +450,7 @@ export default function PartnersPage() {
           </div>
         </section>
 
-        {/* CTA */}
+        {/* Bottom CTA */}
         <section className="w-full bg-retail-soft border-y border-retail-muted py-16 md:py-24">
           <div className="container-martpoint">
             <div className="max-w-3xl mx-auto text-center">
@@ -419,11 +473,57 @@ export default function PartnersPage() {
                   </Link>
                 </Button>
               </div>
-              <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center text-sm">
-                <Link href="/partner/login" className="text-retail hover:underline font-medium">Already a partner? Login to Portal</Link>
-                <Link href="/partners/application-status" className="text-retail hover:underline">Already applied? Check Application Status</Link>
-                <Link href="/partners/verify" className="text-retail hover:underline">Verify a MartPoint Partner</Link>
-                <Link href="/partners/directory" className="text-retail hover:underline">Find a Partner</Link>
+
+              {/* Existing partner quick links */}
+              <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+                <Link
+                  href="/partner/login"
+                  className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-4 text-left transition-all hover:border-retail/40 hover:shadow-sm hover:-translate-y-0.5"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center shrink-0">
+                    <LogIn className="w-5 h-5 text-retail" />
+                  </div>
+                  <div>
+                    <span className="block text-sm font-semibold text-foreground group-hover:text-retail transition-colors">
+                      Partner Login
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      Access your portal
+                    </span>
+                  </div>
+                </Link>
+                <Link
+                  href="/partners/application-status"
+                  className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-4 text-left transition-all hover:border-retail/40 hover:shadow-sm hover:-translate-y-0.5"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center shrink-0">
+                    <ClipboardCheck className="w-5 h-5 text-retail" />
+                  </div>
+                  <div>
+                    <span className="block text-sm font-semibold text-foreground group-hover:text-retail transition-colors">
+                      Check Application Status
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      Track with your reference
+                    </span>
+                  </div>
+                </Link>
+                <Link
+                  href="/partners/directory"
+                  className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-4 text-left transition-all hover:border-retail/40 hover:shadow-sm hover:-translate-y-0.5"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center shrink-0">
+                    <Search className="w-5 h-5 text-retail" />
+                  </div>
+                  <div>
+                    <span className="block text-sm font-semibold text-foreground group-hover:text-retail transition-colors">
+                      Find or Verify a Partner
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      Browse approved partners
+                    </span>
+                  </div>
+                </Link>
               </div>
             </div>
           </div>

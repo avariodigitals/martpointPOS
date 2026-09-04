@@ -30,7 +30,7 @@ export async function createIncident(input: {
   severity: IncidentSeverity
   summary: string
   owner_admin_user_id?: string | null
-  actorId?: string | null
+  actorId?: string | undefined
 }) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
 
@@ -52,7 +52,7 @@ export async function createIncident(input: {
 
   if (error || !data) throw new Error(`Incident create failed: ${error?.message || "unknown"}`)
 
-  await logFinanceAudit("ADMIN", input.actorId, "CUSTOMER_INCIDENT_CREATED", (data as CustomerIncident).id)
+  await logFinanceAudit("ADMIN", input.actorId, "CUSTOMER_INCIDENT_CREATED", "CUSTOMER_INCIDENT", (data as CustomerIncident).id)
   return data as CustomerIncident
 }
 
@@ -77,7 +77,7 @@ export async function listIncidents(filters?: { business_id?: string; status?: s
 export async function updateIncident(
   id: string,
   updates: Partial<CustomerIncident>,
-  actorId?: string | null
+  actorId?: string | undefined
 ) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
 
@@ -99,26 +99,26 @@ export async function updateIncident(
   const d = data as CustomerIncident
 
   if (updates.severity && updates.severity !== current.severity) {
-    await logFinanceAudit("ADMIN", actorId, "CUSTOMER_INCIDENT_SEVERITY_CHANGED", id, { from: current.severity, to: updates.severity })
+    await logFinanceAudit("ADMIN", actorId, "CUSTOMER_INCIDENT_SEVERITY_CHANGED", "CUSTOMER_INCIDENT", id, { from: current.severity, to: updates.severity })
   }
   if (updates.status && updates.status !== current.status) {
     if (updates.status === "RESOLVED") {
       await supabase.from("customer_incidents").update({ resolved_at: now() }).eq("id", id)
-      await logFinanceAudit("ADMIN", actorId, "CUSTOMER_INCIDENT_RESOLVED", id)
+      await logFinanceAudit("ADMIN", actorId, "CUSTOMER_INCIDENT_RESOLVED", "CUSTOMER_INCIDENT", id)
     }
-    await logFinanceAudit("ADMIN", actorId, "CUSTOMER_INCIDENT_STATUS_CHANGED", id, { from: current.status, to: updates.status })
+    await logFinanceAudit("ADMIN", actorId, "CUSTOMER_INCIDENT_STATUS_CHANGED", "CUSTOMER_INCIDENT", id, { from: current.status, to: updates.status })
   }
   if (updates.owner_admin_user_id && updates.owner_admin_user_id !== current.owner_admin_user_id) {
-    await logFinanceAudit("ADMIN", actorId, "CUSTOMER_INCIDENT_ASSIGNED", id, { owner: updates.owner_admin_user_id })
+    await logFinanceAudit("ADMIN", actorId, "CUSTOMER_INCIDENT_ASSIGNED", "CUSTOMER_INCIDENT", id, { owner: updates.owner_admin_user_id })
   }
 
   return d
 }
 
-export async function resolveIncident(id: string, actorId?: string | null) {
+export async function resolveIncident(id: string, actorId?: string | undefined) {
   return updateIncident(id, { status: "RESOLVED" }, actorId)
 }
 
-export async function closeIncident(id: string, actorId?: string | null) {
+export async function closeIncident(id: string, actorId?: string | undefined) {
   return updateIncident(id, { status: "CLOSED" }, actorId)
 }

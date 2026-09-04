@@ -97,12 +97,16 @@ aws --profile "$R2_PROFILE" --endpoint-url "$R2_ENDPOINT" --region auto \
     --no-progress
 
 # Tag the object with metadata so lifecycle/auditing is easier.
-aws --profile "$R2_PROFILE" --endpoint-url "$R2_ENDPOINT" --region auto \
+# R2 does not implement PutObjectTagging, so this is best-effort — a failure
+# here is logged but does not abort the backup (the object is already uploaded).
+if ! aws --profile "$R2_PROFILE" --endpoint-url "$R2_ENDPOINT" --region auto \
     s3api put-object-tagging \
     --bucket "$R2_BUCKET" \
     --key "$KEY" \
     --tagging "$(printf '{"TagSet":[{"Key":"project","Value":"martpoint"},{"Key":"source","Value":"supabase"},{"Key":"created","Value":"%s"}]}' "$DATE_TAG")" \
-    >/dev/null
+    >/dev/null 2>&1; then
+  log "WARNING: put-object-tagging failed (R2 may not support it) — backup object is still uploaded"
+fi
 
 log "Upload complete: s3://${R2_BUCKET}/${KEY}"
 

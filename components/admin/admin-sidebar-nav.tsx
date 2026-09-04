@@ -15,6 +15,12 @@ import {
   Landmark,
   Globe,
   ClipboardCheck,
+  Handshake,
+  Building2,
+  Ticket,
+  Activity,
+  Shield,
+  ClipboardList,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -31,7 +37,13 @@ const navItems: NavItem[] = [
   { href: "/admin/leads", label: "Leads", icon: Funnel, page: "leads" },
   { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardCheck, page: "onboarding" },
   { href: "/admin/customers", label: "Customers", icon: Users, page: "customers" },
+  { href: "/admin/businesses", label: "Businesses", icon: Building2, page: "businesses" },
+  { href: "/admin/partners", label: "Partners", icon: Handshake, page: "partners" },
   { href: "/admin/finance", label: "Finance", icon: Landmark, page: "finance" },
+  { href: "/admin/support", label: "Support", icon: Ticket, page: "support" },
+  { href: "/admin/customer-success", label: "Customer Success", icon: Activity, page: "customer_success" },
+  { href: "/admin/compliance", label: "Compliance", icon: Shield, page: "compliance" },
+  { href: "/admin/tasks", label: "Tasks", icon: ClipboardList, page: "tasks" },
   { href: "/admin/seo", label: "SEO", icon: Search, page: "seo" },
   { href: "/admin/blog", label: "Blog", icon: FileText, page: "blog" },
   { href: "/admin/faqs", label: "FAQs", icon: HelpCircle, page: "faqs" },

@@ -355,6 +355,7 @@ export async function partnersReport(period: ReportPeriod): Promise<PartnerRepor
       .not("paid_at", "is", null)
       .gte("paid_at", start)
       .lte("paid_at", end)
+      .not("businesses.originating_partner_id", "is", null)
     if (attrErr) console.error("attributed revenue error:", attrErr.message)
     const attrRows = (attrData as any[]) || []
 
@@ -364,7 +365,7 @@ export async function partnersReport(period: ReportPeriod): Promise<PartnerRepor
       .not("earned_at", "is", null)
       .gte("earned_at", start)
       .lte("earned_at", end)
-      .not("status", "in", "(CANCELLED,REVERSED)")
+      .in("status", ["PENDING", "ELIGIBLE", "APPROVED", "SCHEDULED", "PAID"])
     if (earnedErr) console.error("commission earned error:", earnedErr.message)
 
     const { data: paidData, error: paidErr } = await supabase
@@ -425,7 +426,7 @@ export async function supportReport(period: ReportPeriod): Promise<SupportReport
     const openBacklog = await supabase
       .from("support_tickets")
       .select("id", { count: "exact", head: true })
-      .not("status", "in", "(RESOLVED,CLOSED,CANCELLED)")
+      .in("status", ["NEW", "ASSIGNED", "IN_PROGRESS", "WAITING_CUSTOMER", "WAITING_PARTNER", "ESCALATED"])
 
     const { data: periodTickets, error: periodErr } = await supabase
       .from("support_tickets")
@@ -465,7 +466,7 @@ export async function supportReport(period: ReportPeriod): Promise<SupportReport
     const { data: openTickets } = await supabase
       .from("support_tickets")
       .select("resolution_due_at")
-      .not("status", "in", "(RESOLVED,CLOSED,CANCELLED)")
+      .in("status", ["NEW", "ASSIGNED", "IN_PROGRESS", "WAITING_CUSTOMER", "WAITING_PARTNER", "ESCALATED"])
     for (const t of (openTickets as any[]) || []) {
       const due = t.resolution_due_at ? new Date(t.resolution_due_at) : null
       if (due && new Date() > due) breaches += 1

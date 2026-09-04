@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import { isSensitiveSupportCategory } from "./support-permissions"
 import { canPartnerAccessBusiness } from "./partner-auth"
 import { logFinanceAudit } from "./finance-commercial"
+import { resolveAdminTasks } from "./tasks"
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPES
@@ -18,6 +19,7 @@ export type SupportTicket = {
   ticket_number: string
   business_id: string
   partner_id?: string | null
+  complained_about_partner_id?: string | null
   created_by_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "SYSTEM"
   created_by_id?: string | null
   source: string
@@ -153,7 +155,7 @@ export async function getBusinessHours(): Promise<BusinessHours | null> {
   return data as BusinessHours
 }
 
-function addBusinessMinutes(start: Date, minutes: number, hours: BusinessHours): Date {
+export function addBusinessMinutes(start: Date, minutes: number, hours: BusinessHours): Date {
   const tz = hours.timezone || "Africa/Lagos"
   let current = new Date(start.toLocaleString("en-US", { timeZone: tz }))
   let remaining = minutes
@@ -222,9 +224,15 @@ export async function getSlaState(
    PARTNER ACCESS CONTROL
    ───────────────────────────────────────────────────────────────────────────── */
 
-export async function canPartnerViewTicket(partnerId: string, ticket: SupportTicket, partnerUserId?: string): Promise<boolean> {
+export function isTicketVisibleToPartner(ticket: SupportTicket, partnerId: string): boolean {
   if (isSensitiveSupportCategory(ticket.category)) return false
+  if (ticket.complained_about_partner_id && ticket.complained_about_partner_id === partnerId) return false
   if (ticket.assigned_partner_id !== partnerId) return false
+  return true
+}
+
+export async function canPartnerViewTicket(partnerId: string, ticket: SupportTicket, partnerUserId?: string): Promise<boolean> {
+  if (!isTicketVisibleToPartner(ticket, partnerId)) return false
   const access = await canPartnerAccessBusiness(partnerId, ticket.business_id, {
     partnerUserId,
     userPermission: "support:view_assigned",
@@ -247,6 +255,7 @@ export async function canPartnerManageTicket(partnerId: string, ticket: SupportT
 export async function createTicket(input: {
   business_id: string
   partner_id?: string | null
+  complained_about_partner_id?: string | null
   created_by_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "SYSTEM"
   created_by_id?: string | null
   source: string
@@ -313,6 +322,21 @@ export async function addMessage(
     await logSupportAudit(authorType, authorId, "SUPPORT_INTERNAL_NOTE_ADDED", ticketId)
   }
 
+  // First qualifying customer-facing public response (admin or partner only)
+  if (visibility === "PUBLIC" && (authorType === "ADMIN" || authorType === "PARTNER")) {
+    const { data: ticket } = await supabase
+      .from("support_tickets")
+      .select("first_responded_at")
+      .eq("id", ticketId)
+      .single()
+    if (ticket && !(ticket as { first_responded_at: string | null }).first_responded_at) {
+      await supabase
+        .from("support_tickets")
+        .update({ first_responded_at: (data as SupportMessage).created_at, updated_at: now() })
+        .eq("id", ticketId)
+    }
+  }
+
   return data as SupportMessage
 }
 
@@ -350,6 +374,7 @@ export async function assignPartner(
   const { data: ticket } = await supabase.from("support_tickets").select("*").eq("id", ticketId).single()
   if (!ticket) throw new Error("Ticket not found")
   if (isSensitiveSupportCategory((ticket as SupportTicket).category)) throw new Error("Cannot assign partner to sensitive ticket")
+  if ((ticket as SupportTicket).complained_about_partner_id === partnerId) throw new Error("Cannot assign the complained-about partner to the complaint")
 
   const prev = (ticket as SupportTicket).assigned_partner_id
   const { data, error } = await supabase
@@ -366,6 +391,7 @@ export async function assignPartner(
 
   if (error || !data) throw new Error(`Assignment failed: ${error?.message || "unknown"}`)
 
+  await resolveAdminTasks("SUPPORT_TICKET", ticketId, ["SUPPORT_UNASSIGNED"])
   await addEvent(ticketId, "PARTNER_ASSIGNED", actorType, actorId, { partner_id: partnerId }, prev || undefined, partnerId)
   await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_PARTNER_ASSIGNED", ticketId)
   return data as SupportTicket
@@ -427,7 +453,10 @@ export async function changeStatus(
 
   await addEvent(ticketId, "STATUS_CHANGED", actorType, actorId, {}, t.status, newStatus)
 
-  if (newStatus === "RESOLVED") await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_RESOLVED", ticketId)
+  if (newStatus === "RESOLVED") {
+    await resolveAdminTasks("SUPPORT_TICKET", ticketId, ["SLA_BREACH"])
+    await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_RESOLVED", ticketId)
+  }
   if (newStatus === "CLOSED") await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_CLOSED", ticketId)
 
   return data as SupportTicket
@@ -519,6 +548,7 @@ export async function assignAdmin(
 
   if (error || !data) throw new Error(`Admin assignment failed: ${error?.message || "unknown"}`)
 
+  await resolveAdminTasks("SUPPORT_TICKET", ticketId, ["SUPPORT_UNASSIGNED"])
   await addEvent(ticketId, "ASSIGNED", actorType, actorId, {}, t.assigned_admin_user_id || undefined, adminUserId)
   await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_ASSIGNED", ticketId)
   return data as SupportTicket

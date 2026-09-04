@@ -2,13 +2,13 @@ import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { generatePartnerId, recordStatusHistory, type PartnerType, type PartnerStatus } from "@/lib/partners"
-import { seedPartnerCapabilities } from "@/lib/partner-service"
-import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
+import { seedPartnerCapabilities, createPartnerInvitation } from "@/lib/partner-service"
+import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession, type AuditContext } from "@/lib/audit"
 
 /* ─── POST: activate a partner from an approved application ───
  * Validates required conditions (application must be APPROVED or AGREEMENT_PENDING/TRAINING/CERTIFICATION_PENDING).
  * Creates/confirms Partner record, generates immutable Partner ID, sets ACTIVE + partner_since.
- * Does NOT create customer access or partner login.
+ * Auto-invites the original applicant as PARTNER_OWNER so they can set a password and access the portal.
  */
 export async function POST(
   request: Request,
@@ -81,7 +81,9 @@ export async function POST(
       await seedPartnerCapabilities(existing.id, existing.partner_type as PartnerType, session!.userId)
       // Also mark application ACTIVE
       await supabase.from("partner_applications").update({ status: "ACTIVE", updated_at: now }).eq("id", id)
-      return NextResponse.json({ success: true, partner: activated, alreadyExisted: true })
+      // Auto-invite the original applicant as PARTNER_OWNER (best-effort, non-blocking)
+      const inviteResult = await autoInviteApplicant(existing.id, app, session!.userId, ctx)
+      return NextResponse.json({ success: true, partner: activated, alreadyExisted: true, invitation: inviteResult })
     }
 
     // Create new partner record
@@ -131,8 +133,40 @@ export async function POST(
     // Mark application ACTIVE
     await supabase.from("partner_applications").update({ status: "ACTIVE", updated_at: now }).eq("id", id)
 
-    return NextResponse.json({ success: true, partner })
+    // Auto-invite the original applicant as PARTNER_OWNER (best-effort, non-blocking)
+    const inviteResult = await autoInviteApplicant(partner.id, app, session!.userId, ctx)
+    return NextResponse.json({ success: true, partner, invitation: inviteResult })
   } catch {
     return NextResponse.json({ error: "Activation failed" }, { status: 500 })
   }
+}
+
+/* ─── Helper: auto-invite the original applicant as PARTNER_OWNER ───
+ * Uses the email + name from the application. If a user with that email already
+ * exists (e.g. re-activation), the invitation is skipped gracefully.
+ */
+async function autoInviteApplicant(
+  partnerId: string,
+  app: Record<string, unknown>,
+  adminUserId: string,
+  ctx: AuditContext
+): Promise<{ sent: boolean; reason?: string } | null> {
+  const email = (app.email as string) || ""
+  const fullName = (app.full_name as string) || ""
+  if (!email || !fullName) return { sent: false, reason: "Missing email or name on application" }
+
+  const result = await createPartnerInvitation({
+    partnerId,
+    fullName,
+    email,
+    role: "PARTNER_OWNER",
+    invitedBy: adminUserId,
+    actorType: ctx.actorType,
+  })
+
+  if (result.ok) {
+    return { sent: true }
+  }
+  // "already exists" is expected on re-activation — not an error
+  return { sent: false, reason: result.error }
 }

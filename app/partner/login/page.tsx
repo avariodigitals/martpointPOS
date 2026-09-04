@@ -64,6 +64,23 @@ export default function PartnerLoginPage() {
           <p className="text-center text-xs text-muted-foreground mt-4">
             <Link href="/partner/forgot-password" className="text-retail hover:underline">Forgot password?</Link>
           </p>
+          <div className="mt-6 pt-4 border-t border-border text-center">
+            <p className="text-xs text-muted-foreground">
+              Don&apos;t have a partner account yet?
+            </p>
+            <Link
+              href="/partners/apply"
+              className="text-sm font-medium text-retail hover:underline mt-1 inline-block"
+            >
+              Apply to become a partner
+            </Link>
+          </div>
+          <p className="text-center text-[11px] text-muted-foreground mt-3">
+            Already applied?{" "}
+            <Link href="/partners/application-status" className="text-retail hover:underline">
+              Check your application status
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -45,3 +45,7 @@ vercel.env
 *.tsbuildinfo
 next-env.d.ts
 /dist/
+
+# internal reports — keep local, don't push to GitHub
+/SPRINT_*.md
+/MartPoint_Audit_Report.pdf

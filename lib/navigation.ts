@@ -114,6 +114,11 @@ export const ctaNav = {
   href: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F",
 }
 
+export const partnerLoginNav = {
+  label: "Partner Login",
+  href: "/partner/login",
+}
+
 export const footerColumns = {
   solutions: {
     title: "Solutions",
@@ -156,6 +161,7 @@ export const footerColumns = {
       { label: "Partners", href: "/partners" },
       { label: "Careers", href: "/careers" },
       { label: "Contact", href: "/contact" },
+      { label: "Partner Login", href: "/partner/login" },
     ],
   },
   legal: {

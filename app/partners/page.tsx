@@ -218,6 +218,7 @@ export default function PartnersPage() {
                 </Button>
               </div>
               <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center text-sm">
+                <Link href="/partner/login" className="text-retail hover:underline font-medium">Already a partner? Login to Portal</Link>
                 <Link href="/partners/application-status" className="text-retail hover:underline">Already applied? Check Application Status</Link>
                 <Link href="/partners/verify" className="text-retail hover:underline">Verify a MartPoint Partner</Link>
                 <Link href="/partners/directory" className="text-retail hover:underline">Find a Partner</Link>
@@ -419,6 +420,7 @@ export default function PartnersPage() {
                 </Button>
               </div>
               <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center text-sm">
+                <Link href="/partner/login" className="text-retail hover:underline font-medium">Already a partner? Login to Portal</Link>
                 <Link href="/partners/application-status" className="text-retail hover:underline">Already applied? Check Application Status</Link>
                 <Link href="/partners/verify" className="text-retail hover:underline">Verify a MartPoint Partner</Link>
                 <Link href="/partners/directory" className="text-retail hover:underline">Find a Partner</Link>

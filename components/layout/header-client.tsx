@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useState, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { MobileNav } from "./mobile-nav"
-import { mainNav, ctaNav } from "@/lib/navigation"
+import { mainNav, ctaNav, partnerLoginNav } from "@/lib/navigation"
 import { ChevronDown } from "lucide-react"
 import type { NavItem } from "@/lib/navigation"
 
@@ -152,6 +152,12 @@ export function HeaderClient({ logo }: HeaderClientProps) {
 
         {/* Desktop CTA */}
         <div className="hidden lg:flex items-center gap-4">
+          <Link
+            href={partnerLoginNav.href}
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {partnerLoginNav.label}
+          </Link>
           {ctaNav.href.startsWith("http") ? (
             <Button asChild variant="default" size="sm" className="bg-retail hover:bg-retail/90 text-white">
               <a href={ctaNav.href} target="_blank" rel="noopener noreferrer">

@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { Menu, X, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { mainNav, ctaNav } from "@/lib/navigation"
+import { mainNav, ctaNav, partnerLoginNav } from "@/lib/navigation"
 
 interface MobileNavProps {
   logo: string
@@ -131,6 +131,16 @@ export function MobileNav({ logo }: MobileNavProps) {
                 })}
 
                 <div className="flex flex-col gap-3 mt-6">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full border-border"
+                    onClick={() => setOpen(false)}
+                  >
+                    <Link href={partnerLoginNav.href}>
+                      {partnerLoginNav.label}
+                    </Link>
+                  </Button>
                   <Button
                     asChild
                     className="w-full bg-retail hover:bg-retail/90 text-white"

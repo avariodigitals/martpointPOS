@@ -20,6 +20,7 @@ function getClient(): SupabaseClient {
 // Lazy wrapper — delays client creation until first use so builds don't fail
 export const supabase = {
   from: (...args: Parameters<SupabaseClient["from"]>) => getClient().from(...args),
+  rpc: (...args: Parameters<SupabaseClient["rpc"]>) => getClient().rpc(...args),
   storage: {
     from: (...args: Parameters<SupabaseClient["storage"]["from"]>) => getClient().storage.from(...args),
   },

@@ -24,14 +24,16 @@ jobs:
       - name: Install PostgreSQL 17 client tools
         run: |
           # Supabase runs Postgres 17 — pg_dump must be >= server version.
-          # The default postgresql-client package on Ubuntu 24.04 is v16, so we
-          # add the official PGDG repo to get v17.
+          # The default postgresql-client on Ubuntu 24.04 is v16, so we add the
+          # official PGDG repo to get v17, then pin pg_dump on PATH.
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl -s -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
             --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
           sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
+          # Put v17's binaries first on PATH so `pg_dump` resolves to v17.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
       - name: Configure AWS CLI credentials for Cloudflare R2
         env:

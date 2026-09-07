@@ -89,6 +89,7 @@ export async function POST(request: Request) {
       const lead = result.lead
       const tpl = await renderEmailTemplate("partner_lead_invite", {
         contactName: lead.contactName || "there",
+        businessName: lead.businessName || "",
         inviteLink,
       })
       await sendEmail({ to: lead.email!, subject: tpl.subject, text: tpl.text, html: tpl.html })

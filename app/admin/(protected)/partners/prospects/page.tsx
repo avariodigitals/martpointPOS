@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, X, UserPlus, Send, Trash2, LayoutGrid, List } from "lucide-react"
+import { Loader2, Plus, X, UserPlus, Send, Trash2, LayoutGrid, List, Pencil } from "lucide-react"
 import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
 
 type ProspectStatus =
@@ -75,8 +75,9 @@ export default function PartnerProspectsPage() {
   const [message, setMessage] = useState("")
   const [viewMode, setViewMode] = useState<"kanban" | "list">("list")
   const [showAdd, setShowAdd] = useState(false)
+  const [editing, setEditing] = useState<Prospect | null>(null)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({
+  const emptyForm = {
     fullName: "",
     businessName: "",
     email: "",
@@ -89,7 +90,40 @@ export default function PartnerProspectsPage() {
     owner: "",
     notes: "",
     nextFollowUp: "",
-  })
+  }
+  const [form, setForm] = useState(emptyForm)
+
+  const openAdd = () => {
+    setEditing(null)
+    setForm(emptyForm)
+    setShowAdd(true)
+  }
+
+  const openEdit = (p: Prospect) => {
+    setEditing(p)
+    setForm({
+      fullName: p.fullName,
+      businessName: p.businessName || "",
+      email: p.email || "",
+      phone: p.phone || "",
+      source: p.source || "",
+      country: p.country || "",
+      state: p.state || "",
+      city: p.city || "",
+      interestedPartnerType: p.interestedPartnerType || "Not Applicable",
+      owner: p.owner || "",
+      notes: p.notes || "",
+      nextFollowUp: p.nextFollowUp ? p.nextFollowUp.slice(0, 16) : "",
+    })
+    setShowAdd(true)
+  }
+
+  const closeModal = () => {
+    setShowAdd(false)
+    setEditing(null)
+    setForm(emptyForm)
+    setMessage("")
+  }
 
   const load = async () => {
     try {
@@ -155,7 +189,7 @@ export default function PartnerProspectsPage() {
   const formStates = useMemo(() => getStatesForCountry(form.country), [form.country])
   const formCities = useMemo(() => getCitiesForState(form.country, form.state), [form.country, form.state])
 
-  const create = async () => {
+  const save = async () => {
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       setMessage("A valid email is required")
       return
@@ -165,18 +199,22 @@ export default function PartnerProspectsPage() {
       return
     }
     setSaving(true)
+    const body = editing ? { id: editing.id, ...form } : { action: "create", ...form }
     const res = await fetch("/api/admin/partner-prospects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "create", ...form }),
+      body: JSON.stringify(body),
     })
     const data = await res.json()
     if (res.ok && data.prospect) {
-      setProspects((prev) => [data.prospect, ...prev])
-      setShowAdd(false)
-      setForm({ fullName: "", businessName: "", email: "", phone: "", source: "", country: "", state: "", city: "", interestedPartnerType: "Not Applicable", owner: "", notes: "", nextFollowUp: "" })
+      if (editing) {
+        setProspects((prev) => prev.map((p) => (p.id === data.prospect.id ? data.prospect : p)))
+      } else {
+        setProspects((prev) => [data.prospect, ...prev])
+      }
+      closeModal()
     } else {
-      setMessage(data.error || "Failed to create")
+      setMessage(data.error || (editing ? "Failed to update" : "Failed to create"))
     }
     setSaving(false)
   }
@@ -211,7 +249,7 @@ export default function PartnerProspectsPage() {
               <LayoutGrid className="w-3.5 h-3.5 mr-1" /> Kanban
             </Button>
           </div>
-          <Button size="sm" onClick={() => setShowAdd(true)}>
+          <Button size="sm" onClick={openAdd}>
             <Plus className="w-4 h-4 mr-1" /> Add Prospect
           </Button>
         </div>
@@ -242,7 +280,10 @@ export default function PartnerProspectsPage() {
                           <p className="font-medium">{p.fullName}</p>
                           <p className="text-xs text-muted-foreground">{p.businessName || "—"}</p>
                         </div>
-                        <button onClick={() => remove(p)} className="text-muted-foreground hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEdit(p)} title="Edit" className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => remove(p)} title="Delete" className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground">{[p.interestedPartnerType, [p.city, p.state, p.country].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</p>
                       <p className="text-xs text-muted-foreground">Source: {p.source || "—"} · Owner: {p.owner || "—"}</p>
@@ -320,6 +361,9 @@ export default function PartnerProspectsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
+                          <button onClick={() => openEdit(p)} title="Edit" className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
                           {p.email && !p.inviteToken && p.status !== "CONVERTED" && (
                             <button onClick={() => invite(p)} title="Send application invite" className="p-1.5 rounded-md text-muted-foreground hover:text-violet-600 hover:bg-violet-50">
                               <Send className="w-3.5 h-3.5" />
@@ -362,8 +406,8 @@ export default function PartnerProspectsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-background p-6 shadow-lg space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Add Partner Prospect</h3>
-              <button onClick={() => setShowAdd(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+              <h3 className="text-lg font-semibold">{editing ? "Edit Partner Prospect" : "Add Partner Prospect"}</h3>
+              <button onClick={closeModal} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><label className={labelCls}>Full name *</label><input required className={inputCls} value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></div>
@@ -416,7 +460,7 @@ export default function PartnerProspectsPage() {
               <div><label className={labelCls}>Next follow-up</label><input type="datetime-local" className={inputCls} value={form.nextFollowUp} onChange={(e) => setForm({ ...form, nextFollowUp: e.target.value })} /></div>
             </div>
             <div><label className={labelCls}>Notes</label><textarea className={inputCls} rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}></textarea></div>
-            <Button onClick={create} disabled={saving || !form.fullName.trim() || !form.email.trim() || !form.phone.trim()}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} Save Prospect</Button>
+            <Button onClick={save} disabled={saving || !form.fullName.trim() || !form.email.trim() || !form.phone.trim()}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} {editing ? "Update Prospect" : "Save Prospect"}</Button>
           </div>
         </div>
       )}

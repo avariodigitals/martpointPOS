@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server"
 import { getLeadByInviteToken } from "@/lib/partner-leads"
 import { getPartnerProspectByToken } from "@/lib/partner-prospects"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
-/* GET /api/partners/invite?token=... — returns prefill data for an invited lead or prospect */
+/* GET /api/partners/invite?token=... — returns prefill data for an invited lead/prospect,
+ * or { submitted: true } if an application has already been submitted from this invite.
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const token = searchParams.get("token") || ""
@@ -10,8 +13,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 })
   }
 
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+  }
+
+  // 1. Partner lead invite
   const lead = await getLeadByInviteToken(token)
   if (lead) {
+    const { data: app } = await supabase
+      .from("partner_applications")
+      .select("reference_number")
+      .eq("partner_lead_id", lead.id)
+      .maybeSingle()
+    if (app) {
+      return NextResponse.json({ submitted: true, reference: app.reference_number as string })
+    }
     return NextResponse.json({
       prefill: {
         fullName: lead.contactName,
@@ -25,8 +41,15 @@ export async function GET(request: Request) {
     })
   }
 
+  // 2. Partner prospect invite
   const prospect = await getPartnerProspectByToken(token)
   if (prospect) {
+    if (prospect.linkedApplicationId || prospect.status === "APPLICATION_SUBMITTED" || prospect.status === "CONVERTED") {
+      const { data: app } = prospect.linkedApplicationId
+        ? await supabase.from("partner_applications").select("reference_number").eq("id", prospect.linkedApplicationId).maybeSingle()
+        : { data: null }
+      return NextResponse.json({ submitted: true, reference: (app?.reference_number as string) || undefined })
+    }
     return NextResponse.json({
       prefill: {
         fullName: prospect.fullName,

@@ -57,6 +57,7 @@ export async function POST(request: Request) {
       const inviteLink = `${baseUrl}/partners/apply?invite=${result.token}`
       const tpl = await renderEmailTemplate("partner_lead_invite", {
         contactName: result.prospect.fullName,
+        businessName: result.prospect.businessName ?? "",
         inviteLink,
       })
       if (result.prospect.email) {

@@ -4,6 +4,7 @@ import { checkRateLimit } from "@/lib/rate-limit"
 import { submitPartnerApplication, sendApplicationSubmittedEmail, type PartnerType, type ApplicantType } from "@/lib/partners"
 import { uploadPartnerDocument, validatePartnerFile, MAX_PARTNER_FILE_BYTES } from "@/lib/partner-documents"
 import { getLeadByInviteToken } from "@/lib/partner-leads"
+import { getPartnerProspectByToken } from "@/lib/partner-prospects"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 const PARTNER_TYPES = ["REFERRAL", "CHANNEL", "IMPLEMENTATION", "CHANNEL_IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"] as const
@@ -149,6 +150,18 @@ export async function POST(request: Request) {
           .from("partner_leads")
           .update({ status: "UNDER_REVIEW", updated_at: new Date().toISOString() })
           .eq("id", lead.id)
+      } else {
+        const prospect = await getPartnerProspectByToken(inviteToken)
+        if (prospect) {
+          await supabase
+            .from("partner_prospects")
+            .update({
+              status: "APPLICATION_SUBMITTED",
+              linked_application_id: applicationId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", prospect.id)
+        }
       }
     }
 

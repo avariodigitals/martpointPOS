@@ -63,30 +63,38 @@ export function PartnerApplicationForm() {
   })
 
   const [inviteToken, setInviteToken] = useState<string | null>(null)
+  const [invitePrefill, setInvitePrefill] = useState<{ loaded: boolean; submitted: boolean; reference?: string }>({ loaded: false, submitted: false })
 
   // Hydration guard: don't render state-dependent helper text until mounted.
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  // Prefill from a partner-lead invite link (?invite=<token>)
+  // Prefill from a partner-lead/prospect invite link (?invite=<token>)
   useEffect(() => {
     const token = new URLSearchParams(window.location.search).get("invite")
     if (!token) return
     fetch(`/api/partners/invite?token=${encodeURIComponent(token)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data?.prefill) return
-        setInviteToken(token)
-        setForm((p) => ({
-          ...p,
-          fullName: data.prefill.fullName || p.fullName,
-          businessName: data.prefill.businessName || p.businessName,
-          email: data.prefill.email || p.email,
-          phone: data.prefill.phone || p.phone,
-          country: data.prefill.country || p.country,
-          state: data.prefill.state || p.state,
-          city: data.prefill.city || p.city,
-        }))
+        if (!data) return
+        if (data.submitted) {
+          setInvitePrefill({ loaded: true, submitted: true, reference: data.reference })
+          return
+        }
+        if (data.prefill) {
+          setInviteToken(token)
+          setInvitePrefill({ loaded: true, submitted: false })
+          setForm((p) => ({
+            ...p,
+            fullName: data.prefill.fullName || p.fullName,
+            businessName: data.prefill.businessName || p.businessName,
+            email: data.prefill.email || p.email,
+            phone: data.prefill.phone || p.phone,
+            country: data.prefill.country || p.country,
+            state: data.prefill.state || p.state,
+            city: data.prefill.city || p.city,
+          }))
+        }
       })
       .catch(() => {})
   }, [])
@@ -211,6 +219,26 @@ export function PartnerApplicationForm() {
         <p className="text-sm text-muted-foreground mb-6">
           Save this reference. You can check your application status anytime.
         </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <Button asChild><Link href="/partners/application-status">Check Application Status</Link></Button>
+          <Button asChild variant="outline"><Link href="/partners">Back to Partners</Link></Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (invitePrefill.submitted) {
+    return (
+      <div className="rounded-xl border border-border bg-background p-8 text-center">
+        <CheckCircle2 className="w-12 h-12 mx-auto text-green-600 mb-4" />
+        <h2 className="text-xl font-bold">Application Already Submitted</h2>
+        <p className="text-muted-foreground mt-2">This invitation has already been used to submit an application.</p>
+        {invitePrefill.reference && (
+          <div className="my-6 inline-block rounded-lg bg-muted px-6 py-3">
+            <p className="text-xs uppercase text-muted-foreground">Application Reference</p>
+            <p className="text-lg font-bold tracking-wider">{invitePrefill.reference}</p>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Button asChild><Link href="/partners/application-status">Check Application Status</Link></Button>
           <Button asChild variant="outline"><Link href="/partners">Back to Partners</Link></Button>

@@ -216,8 +216,7 @@ export async function setAdminCookie() {
  */
 export async function authorizeAdmin(
   page: string,
-  action?: AdminAction,
-  resource?: string
+  action?: AdminAction
 ): Promise<{ session: SessionPayload; denied: null } | { session: null; denied: Response }> {
   const session = await getSession()
   if (!session) {
@@ -226,7 +225,7 @@ export async function authorizeAdmin(
       denied: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     }
   }
-  if (!authorize(session, page, action, resource)) {
+  if (!authorize(session, page, action)) {
     return {
       session: null,
       denied: NextResponse.json({ error: "Forbidden" }, { status: 403 }),

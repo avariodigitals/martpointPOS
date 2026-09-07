@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { requirePartnerSession, authorizePartner } from "@/lib/partner-auth"
 import { listPartnerComplianceDocuments, createSignedComplianceDocUrl } from "@/lib/partner-service"
+import { deriveComplianceScoreAndStatus } from "@/lib/partner-compliance"
 import { PartnerComplianceClient } from "./compliance-client"
 
 export default async function PartnerCompliancePage() {
@@ -20,8 +21,11 @@ export default async function PartnerCompliancePage() {
       uploaded_at: d.uploaded_at as string,
       original_filename: d.original_filename as string,
       signedUrl: d.storage_path ? await createSignedComplianceDocUrl(d.storage_path as string) : null,
+      required: Boolean(d.required),
     }))
   )
 
-  return <PartnerComplianceClient documents={docsWithUrls} />
+  const score = deriveComplianceScoreAndStatus(docsWithUrls.map((d) => ({ verification_status: d.verification_status, required: d.required })))
+
+  return <PartnerComplianceClient documents={docsWithUrls} score={score} />
 }

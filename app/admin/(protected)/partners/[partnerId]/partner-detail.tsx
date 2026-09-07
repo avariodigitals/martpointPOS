@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, ArrowLeft, Users, Shield, FileText, Network, Activity, Settings, Check, X, Target, Wrench, LifeBuoy, Coins, BarChart3 } from "lucide-react"
+import { Loader2, ArrowLeft, Users, Shield, FileText, Network, Activity, Settings, Check, X, Target, Wrench, LifeBuoy, Coins, BarChart3, Download } from "lucide-react"
 import { PARTNER_USER_ROLES, PARTNER_ROLE_LABELS, type PartnerUserRole, ORG_CAPABILITY_LABELS, type PartnerOrgCapability, relevantPartnerTabs } from "@/lib/partner-permissions"
 
 const CAPABILITIES = Object.keys(ORG_CAPABILITY_LABELS) as PartnerOrgCapability[]
@@ -39,6 +39,11 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
   const [d360, setD360] = useState<Record<string, unknown> | null>(null)
   const [loading360, setLoading360] = useState(false)
   const [message, setMessage] = useState("")
+  const [complianceScoreData, setComplianceScoreData] = useState<Record<string, unknown> | null>(null)
+  const [reviewDocId, setReviewDocId] = useState<string | null>(null)
+  const [reviewStatus, setReviewStatus] = useState("VERIFIED")
+  const [reviewNotes, setReviewNotes] = useState("")
+  const [reviewing, setReviewing] = useState(false)
 
   // Forms
   const [invite, setInvite] = useState({ fullName: "", email: "", role: "PARTNER_MANAGER" as PartnerUserRole })
@@ -98,6 +103,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
     const res = await fetch(`/api/admin/partners/${partnerId}/compliance`)
     const data = await res.json()
     setDocuments(data.documents || [])
+    setComplianceScoreData(data.score || null)
   }
 
   async function fetchAssignments() {
@@ -128,6 +134,8 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
       display_name: (partner?.display_name as string) || "",
       public_email: partner?.public_email,
       public_phone: partner?.public_phone,
+      public_address: partner?.public_address,
+      service_areas: partner?.service_areas,
       website: partner?.website,
       city: partner?.city,
       state: partner?.state,
@@ -182,6 +190,29 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
     const data = await res.json()
     setMessage(data.success ? "Document requested." : data.error || "Failed.")
     if (data.success) fetchCompliance()
+  }
+
+  async function reviewComplianceDoc(docId: string) {
+    setReviewing(true)
+    setMessage("")
+    try {
+      const res = await fetch(`/api/admin/partners/${partnerId}/compliance`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId, status: reviewStatus, notes: reviewNotes }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMessage(`Document marked ${reviewStatus.toLowerCase().replace(/_/g, " ")}.`)
+        setReviewDocId(null)
+        setReviewNotes("")
+        fetchCompliance()
+      } else {
+        setMessage(data.error || "Failed.")
+      }
+    } finally {
+      setReviewing(false)
+    }
   }
 
   async function searchBusinesses() {
@@ -246,8 +277,6 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
   function th(label: string, right = false) {
     return <th className={`px-3 py-2 font-medium ${right ? "text-right" : "text-left"}`}>{label}</th>
   }
-
-  const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 
   return (
     <div className="space-y-6">
@@ -348,6 +377,8 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                   { label: "Display Name", key: "display_name" },
                   { label: "Public Email", key: "public_email" },
                   { label: "Public Phone", key: "public_phone" },
+                  { label: "Public Address", key: "public_address" },
+                  { label: "Service Areas (comma-separated)", key: "service_areas" },
                   { label: "Website", key: "website" },
                   { label: "City", key: "city" },
                   { label: "State", key: "state" },
@@ -412,10 +443,10 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
             <CardContent>
               {(users || []).length === 0 ? <p className="text-sm text-muted-foreground">No users.</p> : (
                 <div className="space-y-2">
-                  {users.map((u: any) => (
-                    <div key={u.id} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
-                      <span>{u.fullName} · {u.email} · {u.role}</span>
-                      <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{u.status}</span>
+                  {users.map((u: Record<string, unknown>) => (
+                    <div key={u.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
+                      <span>{u.fullName as string} · {u.email as string} · {u.role as string}</span>
+                      <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{u.status as string}</span>
                     </div>
                   ))}
                 </div>
@@ -426,11 +457,11 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
           <Card>
             <CardHeader><CardTitle className="text-sm font-medium">Invitations</CardTitle></CardHeader>
             <CardContent>
-              {invitations.filter((i: any) => !i.accepted_at && !i.revoked_at).length === 0 ? <p className="text-sm text-muted-foreground">No pending invitations.</p> : (
+              {invitations.filter((i: Record<string, unknown>) => !(i.accepted_at as string) && !(i.revoked_at as string)).length === 0 ? <p className="text-sm text-muted-foreground">No pending invitations.</p> : (
                 <div className="space-y-2">
-                  {invitations.filter((i: any) => !i.accepted_at && !i.revoked_at).map((i: any) => (
-                    <div key={i.id} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
-                      <span>{i.fullName || i.email} · {i.role} · Expires {new Date(i.expires_at).toLocaleDateString()}</span>
+                  {invitations.filter((i: Record<string, unknown>) => !(i.accepted_at as string) && !(i.revoked_at as string)).map((i: Record<string, unknown>) => (
+                    <div key={i.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
+                      <span>{(i.fullName as string) || (i.email as string)} · {i.role as string} · Expires {new Date(i.expires_at as string).toLocaleDateString()}</span>
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" onClick={() => router.refresh()}>Resend</Button>
                         <Button size="sm" variant="outline" onClick={() => router.refresh()}>Revoke</Button>
@@ -470,15 +501,66 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
         <Card>
           <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><FileText className="w-4 h-4" /> Compliance</CardTitle></CardHeader>
           <CardContent className="space-y-4">
+            {complianceScoreData && (
+              <div className="rounded-md border border-border p-4">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="font-medium">{complianceScoreData.label as string}</span>
+                  <span className={`font-semibold ${complianceScoreData.status === "COMPLIANT" ? "text-green-700" : complianceScoreData.status === "ATTENTION" ? "text-red-700" : "text-amber-700"}`}>
+                    {((complianceScoreData.score as number | null) ?? 100)}%
+                  </span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${complianceScoreData.status === "COMPLIANT" ? "bg-green-600" : complianceScoreData.status === "ATTENTION" ? "bg-red-500" : "bg-amber-500"}`}
+                    style={{ width: `${((complianceScoreData.score as number | null) ?? 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">{complianceScoreData.interpretation as string}</p>
+              </div>
+            )}
+
             <div className="flex gap-2">
               <input value={docType} onChange={(e) => setDocType(e.target.value)} placeholder="Document type" className="rounded-md border border-input bg-background px-3 py-2 text-sm" />
               <Button onClick={requestDocument}>Request Document</Button>
             </div>
+
             <div className="space-y-2">
-              {documents.length === 0 ? <p className="text-sm text-muted-foreground">No documents.</p> : documents.map((d: any) => (
-                <div key={d.id} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
-                  <span>{d.document_type} · {d.original_filename || "—"} · {d.verification_status}</span>
-                  {d.signedUrl && <a href={d.signedUrl} target="_blank" rel="noopener noreferrer" className="text-retail hover:underline">View</a>}
+              {documents.length === 0 ? <p className="text-sm text-muted-foreground">No documents.</p> : documents.map((d: Record<string, unknown>) => (
+                <div key={(d.id as string)} className="rounded-md border border-border p-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{(d.document_type as string)}</span>
+                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full font-medium ${(d.verification_status as string) === "VERIFIED" || (d.verification_status as string) === "APPROVED" ? "bg-green-100 text-green-700" : (d.verification_status as string) === "REJECTED" || (d.verification_status as string) === "EXPIRED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
+                      {String((d.verification_status as string)).replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{(d.original_filename as string) || "—"} · {(d.uploaded_at as string) ? new Date((d.uploaded_at as string)).toLocaleString() : "Not submitted"}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(d.signedUrl as string | null) && (
+                      <a href={((d.signedUrl as string | null) || "")} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="outline"><Download className="w-3.5 h-3.5 mr-1" /> View</Button>
+                      </a>
+                    )}
+                    {(d.verification_status as string) !== "VERIFIED" && (d.verification_status as string) !== "APPROVED" && (d.verification_status as string) !== "REQUESTED" && (
+                      <Button size="sm" variant="outline" onClick={() => { setReviewDocId((d.id as string)); setReviewStatus("VERIFIED"); setReviewNotes((d.notes as string | null) || "") }}>Review</Button>
+                    )}
+                  </div>
+                  {reviewDocId === (d.id as string) && (
+                    <div className="rounded-md bg-muted/30 p-3 space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <select className="rounded-md border border-input bg-background px-3 py-2 text-sm" value={reviewStatus} onChange={(e) => setReviewStatus(e.target.value)}>
+                          <option value="VERIFIED">Verified &amp; Approved</option>
+                          <option value="APPROVED">Approved</option>
+                          <option value="REJECTED">Rejected</option>
+                          <option value="UNDER_REVIEW">Under Review</option>
+                        </select>
+                        <input className="sm:col-span-2 rounded-md border border-input bg-background px-3 py-2 text-sm" value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="Review notes" />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => reviewComplianceDoc((d.id as string))} disabled={reviewing}>{reviewing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Save</Button>
+                        <Button size="sm" variant="outline" onClick={() => setReviewDocId(null)}><X className="w-3.5 h-3.5" /> Cancel</Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -640,9 +722,9 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
               </div>
               {businessResults.length > 0 && (
                 <div className="rounded-md border border-border p-2 space-y-1 max-h-40 overflow-auto">
-                  {businessResults.map((b: any) => (
-                    <button key={b.id} type="button" onClick={() => setSelectedBusiness(b)} className={`w-full text-left text-sm p-2 rounded ${selectedBusiness?.id === b.id ? "bg-retail-soft" : "hover:bg-muted"}`}>
-                      {b.business_name} · {b.primary_email}
+                  {businessResults.map((b: Record<string, unknown>) => (
+                    <button key={b.id as string} type="button" onClick={() => setSelectedBusiness(b)} className={`w-full text-left text-sm p-2 rounded ${(selectedBusiness?.id as string) === (b.id as string) ? "bg-retail-soft" : "hover:bg-muted"}`}>
+                      {b.business_name as string} · {b.primary_email as string}
                     </button>
                   ))}
                 </div>
@@ -658,10 +740,10 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
               <Button type="submit" disabled={!selectedBusiness}>Create Assignment</Button>
             </form>
             <div className="space-y-2">
-              {assignments.length === 0 ? <p className="text-sm text-muted-foreground">No assignments.</p> : assignments.map((a: any) => (
-                <div key={a.id} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
-                  <span>{a.businesses?.business_name} · {a.relationship_type} · {a.access_level} · {a.status}</span>
-                  {a.status === "ACTIVE" && <Button size="sm" variant="outline" onClick={() => revokeAssignment(a.id)}>Revoke</Button>}
+              {assignments.length === 0 ? <p className="text-sm text-muted-foreground">No assignments.</p> : assignments.map((a: Record<string, unknown>) => (
+                <div key={a.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
+                  <span>{(a.businesses as Record<string, unknown> | undefined)?.business_name as string} · {a.relationship_type as string} · {a.access_level as string} · {a.status as string}</span>
+                  {a.status === "ACTIVE" && <Button size="sm" variant="outline" onClick={() => revokeAssignment(a.id as string)}>Revoke</Button>}
                 </div>
               ))}
             </div>
@@ -675,10 +757,10 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
           <CardContent>
             {activity.length === 0 ? <p className="text-sm text-muted-foreground">No activity.</p> : (
               <div className="space-y-2">
-                {activity.map((a: any, i: number) => (
+                {activity.map((a: Record<string, unknown>, i: number) => (
                   <div key={i} className="flex items-center justify-between text-sm border-b border-border last:border-0 pb-2">
-                    <span className="font-medium">{a.action}</span>
-                    <span className="text-xs text-muted-foreground">{a.created_at ? new Date(a.created_at).toLocaleString() : "—"}</span>
+                    <span className="font-medium">{a.action as string}</span>
+                    <span className="text-xs text-muted-foreground">{a.created_at ? new Date(a.created_at as string).toLocaleString() : "—"}</span>
                   </div>
                 ))}
               </div>

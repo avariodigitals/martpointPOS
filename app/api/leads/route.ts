@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import crypto from "crypto"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { sendEmail } from "@/lib/email"
+import { renderEmailTemplate } from "@/lib/email-templates"
 
 interface LeadRecord {
   id: string
@@ -47,7 +49,14 @@ export async function POST(request: Request) {
       challenge,
       message,
       source,
+      partnerCode,
     } = body
+
+    // Validate partner attribution format (e.g. MP-NG-00001); ignore anything else
+    const referringPartnerCode =
+      typeof partnerCode === "string" && /^MP-[A-Z]{2,3}-\d{1,6}$/i.test(partnerCode.trim())
+        ? partnerCode.trim().toUpperCase()
+        : null
 
     // Validate required fields
     if (!fullName || !businessName || !email || !phone || !businessType || !productInterest || !branches || !staffSize) {
@@ -90,6 +99,7 @@ export async function POST(request: Request) {
         challenge: lead.challenge,
         message: lead.message,
         source: lead.source,
+        referring_partner_code: referringPartnerCode,
         status: lead.status,
         submitted_at: lead.submittedAt,
         updated_at: lead.updatedAt,
@@ -116,6 +126,7 @@ export async function POST(request: Request) {
       pipeline_id: pipelineId,
       source: source || "website",
       custom: {
+        referring_partner: referringPartnerCode || undefined,
         business_type: businessType,
         product_interest: productInterest,
         branch_count: branches,
@@ -170,31 +181,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Email notification via Resend (requires RESEND_API_KEY)
-    // Contact/sales leads are sent to the sales inbox by default.
-    // NOTIFY_EMAIL overrides this if a different destination is needed.
-    const resendKey = process.env.RESEND_API_KEY
-    const notifyEmail = process.env.NOTIFY_EMAIL || "sales@martpoint.com.ng"
-
-    if (resendKey && notifyEmail) {
-      try {
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: "MartPoint Leads <onboarding@resend.dev>",
-            to: notifyEmail,
-            subject: `New Lead: ${fullName} — ${businessName}`,
-            text: `New lead submitted via ${source || "website"}\n\nName: ${fullName}\nBusiness: ${businessName}\nEmail: ${email}\nPhone: ${phone}\nProduct: ${productInterest}\nBranches: ${branches}\nStaff: ${staffSize}\n\nChallenge: ${challenge || "N/A"}\nMessage: ${message || "N/A"}`,
-          }),
-        })
-      } catch (err) {
-        console.error("Resend email notification failed:", err)
-      }
-    }
+    // 3. Email notification — route is configurable in /admin/settings/email-routes
+    const leadTpl = await renderEmailTemplate("lead_submission", {
+      fullName, businessName, email, phone, productInterest, branches, staffSize,
+      challenge: challenge || "N/A",
+      message: message || "N/A",
+      source: source || "website",
+      referringPartnerBlock: referringPartnerCode ? ` (referred by partner ${referringPartnerCode})` : "",
+    })
+    await sendEmail({ route: "lead_submission", subject: leadTpl.subject, text: leadTpl.text, html: leadTpl.html })
 
     // 4. WhatsApp Business API auto-send (requires Meta credentials)
     const waPhoneId = process.env.WHATSAPP_PHONE_ID

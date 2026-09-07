@@ -224,6 +224,9 @@ export default function HelpCentrePage() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
+                <Link href="/support">Customer Support Portal</Link>
+              </Button>
+              <Button asChild variant="outline" size="lg">
                 <Link href="mailto:hello@martpoint.com.ng">Email Support</Link>
               </Button>
             </div>

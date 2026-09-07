@@ -4,6 +4,7 @@ import {
   listAllPartnerResources,
   createPartnerResource,
   deletePartnerResource,
+  getSignedResourceUrl,
 } from "@/lib/partner-service"
 import type { PartnerOrgCapability } from "@/lib/partner-permissions"
 
@@ -12,7 +13,13 @@ export async function GET() {
   if (denied) return denied
 
   const resources = await listAllPartnerResources()
-  return NextResponse.json({ resources })
+  const resourcesWithUrls = await Promise.all(
+    resources.map(async (r) => ({
+      ...r,
+      signedUrl: await getSignedResourceUrl(r),
+    }))
+  )
+  return NextResponse.json({ resources: resourcesWithUrls })
 }
 
 export async function POST(request: Request) {
@@ -34,6 +41,7 @@ export async function POST(request: Request) {
         allowedCapabilities: body.allowedCapabilities as PartnerOrgCapability[] | undefined,
         active: body.active,
         publishedAt: body.publishedAt,
+        partnerId: body.partnerId,
       },
       session!.userId
     )

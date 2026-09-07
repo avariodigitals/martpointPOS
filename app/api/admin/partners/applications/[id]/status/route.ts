@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { recordStatusHistory, APPLICATION_STATUS_LABELS, type ApplicationStatus } from "@/lib/partners"
+import { recordStatusHistory, APPLICATION_STATUS_LABELS, sendApplicationStatusEmail, type ApplicationStatus } from "@/lib/partners"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 
 const VALID_STATUSES: ApplicationStatus[] = [
-  "UNDER_REVIEW", "MORE_INFORMATION_REQUIRED", "DISCOVERY_CALL", "APPROVED_CONDITIONAL",
+  "UNDER_REVIEW", "MORE_INFORMATION_REQUIRED", "COMPLIANCE_REQUIRED", "DISCOVERY_CALL", "APPROVED_CONDITIONAL",
   "APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE",
   "SUSPENDED", "REJECTED", "INACTIVE",
 ]
@@ -88,41 +88,22 @@ export async function PATCH(
       },
     })
 
-    // If information requested or rejected, notify applicant (best-effort)
-    if (newStatus === "MORE_INFORMATION_REQUIRED" || newStatus === "REJECTED") {
-      await notifyApplicant(
-        current.email,
-        current.full_name,
-        current.reference_number,
-        newStatus,
-        newStatus === "MORE_INFORMATION_REQUIRED" ? body.informationRequestMessage : body.rejectionMessagePublic
-      )
-    }
+    // Notify the applicant of every stage change (best-effort)
+    const stageMessage =
+      newStatus === "MORE_INFORMATION_REQUIRED" ? body.informationRequestMessage
+      : newStatus === "REJECTED" ? body.rejectionMessagePublic
+      : null
+    await sendApplicationStatusEmail(
+      current.email,
+      current.full_name,
+      current.reference_number,
+      newStatus,
+      previousStatus,
+      stageMessage
+    )
 
     return NextResponse.json({ success: true, application: updated, statusLabel: APPLICATION_STATUS_LABELS[newStatus] })
   } catch {
     return NextResponse.json({ error: "Failed to update status" }, { status: 500 })
-  }
-}
-
-async function notifyApplicant(email: string, name: string, reference: string, status: string, message?: string) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey || !message) return
-  const subject = status === "REJECTED"
-    ? `MartPoint Partner Application Update — ${reference}`
-    : `MartPoint Partner Application — More Information Required — ${reference}`
-  try {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: "MartPoint Partners <partners@martpoint.com.ng>",
-        to: email,
-        subject,
-        text: `Hi ${name},\n\n${message}\n\nApplication Reference: ${reference}\n\nMartPoint Partner Team`,
-      }),
-    })
-  } catch (err) {
-    console.error("[partner] applicant notify failed:", err)
   }
 }

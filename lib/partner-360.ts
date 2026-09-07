@@ -104,7 +104,8 @@ export function deriveComplianceStatus(records: { status?: string | null }[]): C
   if (relevant.length === 0) return "NOT_REQUIRED"
   if (relevant.some((r) => r.status === "REJECTED" || r.status === "EXPIRED")) return "ATTENTION"
   if (relevant.some((r) => r.status === "REQUESTED" || r.status === "SUBMITTED" || r.status === "UNDER_REVIEW")) return "PENDING"
-  return "COMPLIANT"
+  if (relevant.every((r) => r.status === "VERIFIED" || r.status === "APPROVED")) return "COMPLIANT"
+  return "PENDING"
 }
 
 export function capabilityFlags(capabilities: PartnerOrgCapability[]) {
@@ -156,9 +157,9 @@ export async function getPartnerPerformanceRows(
         .in("partner_id", ids)
     ),
     supabase
-      .from("compliance_records")
-      .select("partner_id, status")
-      .eq("subject_type", "PARTNER")
+      .from("partner_documents")
+      .select("partner_id, verification_status")
+      .eq("required", true)
       .in("partner_id", ids),
     applySince(
       supabase.from("partner_onboarding_tasks").select("partner_id, status, created_at").in("partner_id", ids)
@@ -255,7 +256,7 @@ export async function getPartnerPerformanceRows(
       commissionPaid: pComm
         .filter((c) => c.status === "PAID")
         .reduce((s, c) => s + (Number(c.commission_amount) || 0), 0),
-      complianceStatus: deriveComplianceStatus(pComp),
+      complianceStatus: deriveComplianceStatus(pComp.map((d) => ({ status: d.verification_status as string }))),
       onboardingCompleted: pTasks.filter((t) => t.status === "COMPLETED" || t.status === "VERIFIED").length,
       onboardingTotal: pTasks.length,
       supportTicketsHandled: pTickets.filter((t) => t.status !== "CANCELLED").length,

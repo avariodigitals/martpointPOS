@@ -86,7 +86,7 @@ const stories = [
   },
   {
     quote: "Our laundry runs on MartPoint. We track pickups, deliveries and payments from one place. No more lost receipts or missed orders.",
-    author: "Tunde A.",
+    author: "Funmi A.",
     role: "Founder, Clean Bubbles Laundry",
     industry: "Services",
     logo: "/trust/cleanbubbles.webp",

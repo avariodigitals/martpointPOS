@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { generatePartnerId, recordStatusHistory, type PartnerType, type PartnerStatus } from "@/lib/partners"
+import { generatePartnerId, recordStatusHistory, sendApplicationStatusEmail, type PartnerType, type PartnerStatus, type ApplicationStatus } from "@/lib/partners"
 import { seedPartnerCapabilities, createPartnerInvitation } from "@/lib/partner-service"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession, type AuditContext } from "@/lib/audit"
 
@@ -38,6 +38,25 @@ export async function POST(
     const allowed = ["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"]
     if (!allowed.includes(app.status)) {
       return NextResponse.json({ error: "Application must be approved before activation" }, { status: 400 })
+    }
+
+    // Compliance gate: a partner cannot be created until every required compliance document is verified or approved.
+    const { data: requiredDocs } = await supabase
+      .from("partner_documents")
+      .select("id, verification_status")
+      .eq("application_id", id)
+      .eq("required", true)
+
+    if (requiredDocs && requiredDocs.length > 0) {
+      const allVerified = (requiredDocs as Record<string, unknown>[]).every(
+        (d) => d.verification_status === "VERIFIED" || d.verification_status === "APPROVED"
+      )
+      if (!allVerified) {
+        return NextResponse.json(
+          { error: "Cannot activate partner until all required compliance documents are verified or approved" },
+          { status: 400 }
+        )
+      }
     }
 
     // Check if a partner already exists for this application
@@ -79,9 +98,20 @@ export async function POST(
         metadata: { partnerId: existing.partner_id, applicationId: id },
       })
       await seedPartnerCapabilities(existing.id, existing.partner_type as PartnerType, session!.userId)
+      await supabase.from("partner_documents").update({ partner_id: existing.id, updated_at: now }).eq("application_id", id)
       // Also mark application ACTIVE
       await supabase.from("partner_applications").update({ status: "ACTIVE", updated_at: now }).eq("id", id)
-      // Auto-invite the original applicant as PARTNER_OWNER (best-effort, non-blocking)
+      // Notify the applicant that the application is now ACTIVE
+    await sendApplicationStatusEmail(
+      app.email as string,
+      (app.full_name as string) || (app.business_name as string),
+      app.reference_number as string,
+      "ACTIVE" as ApplicationStatus,
+      app.status as ApplicationStatus,
+      "Your partnership is now active. You will receive a separate invitation to set up your Partner Portal access."
+    )
+
+    // Auto-invite the original applicant as PARTNER_OWNER (best-effort, non-blocking)
       const inviteResult = await autoInviteApplicant(existing.id, app, session!.userId, ctx)
       return NextResponse.json({ success: true, partner: activated, alreadyExisted: true, invitation: inviteResult })
     }
@@ -130,8 +160,21 @@ export async function POST(
     })
     await seedPartnerCapabilities(partner.id, partner.partner_type as PartnerType, session!.userId)
 
+    // Link all application documents to the new partner so they appear in the partner portal.
+    await supabase.from("partner_documents").update({ partner_id: partner.id, updated_at: now }).eq("application_id", id)
+
     // Mark application ACTIVE
     await supabase.from("partner_applications").update({ status: "ACTIVE", updated_at: now }).eq("id", id)
+
+    // Notify the applicant that the application is now ACTIVE
+    await sendApplicationStatusEmail(
+      app.email as string,
+      (app.full_name as string) || (app.business_name as string),
+      app.reference_number as string,
+      "ACTIVE" as ApplicationStatus,
+      app.status as ApplicationStatus,
+      "Your partnership is now active. You will receive a separate invitation to set up your Partner Portal access."
+    )
 
     // Auto-invite the original applicant as PARTNER_OWNER (best-effort, non-blocking)
     const inviteResult = await autoInviteApplicant(partner.id, app, session!.userId, ctx)

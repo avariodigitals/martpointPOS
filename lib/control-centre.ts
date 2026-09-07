@@ -143,14 +143,16 @@ async function getCurrentState(): Promise<CurrentState> {
       .in("status", ["UPCOMING", "DUE", "OVERDUE"]),
   ])
 
+  const closedLeadStatuses = new Set(["won", "lost"])
   const openOpportunities = (
     (opportunities.data as { status: string }[] | null) || []
-  ).filter((l) => l.status !== "Won" && l.status !== "Lost").length
+  ).filter((l) => !closedLeadStatuses.has(l.status?.toLowerCase() || "")).length
 
+  const closedTicketStatuses = new Set(["resolved", "closed", "cancelled"])
   const openSupportTickets = (
     (supportTickets.data as { status: string }[] | null) || []
   ).filter(
-    (t) => !["RESOLVED", "CLOSED", "CANCELLED"].includes(t.status)
+    (t) => !closedTicketStatuses.has(t.status?.toLowerCase() || "")
   ).length
 
   const outstanding = (
@@ -501,18 +503,26 @@ export async function getCustomerSnapshot(): Promise<CustomerSnapshot> {
   }
   if (!isSupabaseConfigured()) return zero
 
-  const { data, error } = await supabase
-    .from("customer_success_profiles")
-    .select("health, stage")
+  const [businesses, profiles] = await Promise.all([
+    supabase.from("businesses").select("id, status"),
+    supabase.from("customer_success_profiles").select("business_id, health"),
+  ])
 
-  if (error) {
-    if ((error as { code?: string }).code !== "PGRST205") {
-      console.warn("[getCustomerSnapshot]", error.message, error)
+  if (businesses.error) {
+    if ((businesses.error as { code?: string }).code !== "PGRST205") {
+      console.warn("[getCustomerSnapshot]", businesses.error.message, businesses.error)
     }
     return zero
   }
+  if (profiles.error && (profiles.error as { code?: string }).code !== "PGRST205") {
+    console.warn("[getCustomerSnapshot]", profiles.error.message, profiles.error)
+  }
 
-  const rows = (data as { health: string; stage: string }[] | null) || []
+  const businessRows = (businesses.data as { id: string; status: string }[] | null) || []
+  const profileMap = new Map<string, string>()
+  for (const p of (profiles.data as { business_id: string; health: string }[] | null) || []) {
+    profileMap.set(p.business_id, p.health)
+  }
 
   const health: CustomerSnapshot["health"] = {
     HEALTHY: 0,
@@ -520,18 +530,19 @@ export async function getCustomerSnapshot(): Promise<CustomerSnapshot> {
     AT_RISK: 0,
     CRITICAL: 0,
   }
+  let onboarding = 0
+  let churned = 0
 
-  for (const row of rows) {
-    if (row.health in health) {
-      health[row.health as keyof CustomerSnapshot["health"]]++
+  for (const b of businessRows) {
+    if (b.status === "ONBOARDING") onboarding++
+    if (b.status === "CHURNED") churned++
+    const h = profileMap.get(b.id) || "HEALTHY"
+    if (h in health) {
+      health[h as keyof CustomerSnapshot["health"]]++
     }
   }
 
-  return {
-    health,
-    onboarding: rows.filter((r) => r.stage === "ONBOARDING").length,
-    churned: rows.filter((r) => r.stage === "CHURNED").length,
-  }
+  return { health, onboarding, churned }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

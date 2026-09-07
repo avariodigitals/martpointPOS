@@ -136,7 +136,7 @@ export default function BusinessFinancePage() {
         <h2 className="text-2xl font-bold tracking-tight mt-2 flex items-center gap-2">
           <Building2 className="w-5 h-5" /> {businessName}
         </h2>
-        <p className="text-muted-foreground text-sm">Business Finance 360 · {businessId}</p>
+        <p className="text-muted-foreground text-sm">Business Finance 360</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

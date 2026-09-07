@@ -3,6 +3,8 @@ import crypto from "crypto"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { sendEmail } from "@/lib/email"
+import { renderEmailTemplate } from "@/lib/email-templates"
 
 async function guardOnboardingAccess() {
   const session = await getSession()
@@ -65,38 +67,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to record income" }, { status: 500 })
     }
 
-    const resendKey = process.env.RESEND_API_KEY
-    if (resendKey && record.email) {
+    if (record.email) {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ""
       const formLink = `${baseUrl}/onboarding/${recordId}`.replace(/\/$/, "")
-      const defaultText = `Hi ${record.full_name},\n\nThank you for choosing MartPoint. Please find your invoice below:\n\nDescription: ${description}\nAmount: ₦${Math.abs(amount).toLocaleString()}\nTax: ₦${(tax ? Math.abs(tax) : 0).toLocaleString()}\nTotal Due: ₦${total.toLocaleString()}\nDue Date: ${dueDate || "On receipt"}\n\nYou can complete your onboarding here: ${formLink}\n\nBest regards,\nMartPoint Team`
-      const emailText = (message || defaultText) + (formLink ? `\n\nOnboarding form: ${formLink}` : "")
+      const invoiceTpl = await renderEmailTemplate("onboarding_invoice", {
+        fullName: record.full_name,
+        businessName: record.business_name || record.full_name,
+        description,
+        amount: Math.abs(amount).toLocaleString(),
+        tax: (tax ? Math.abs(tax) : 0).toLocaleString(),
+        total: total.toLocaleString(),
+        dueDate: dueDate || "On receipt",
+        formLink,
+      })
+      const emailText = message ? `${message}${formLink ? `\n\nOnboarding form: ${formLink}` : ""}` : invoiceTpl.text
       const emailHtml = `<div style="font-family:sans-serif;max-width:600px">
         <h2 style="color:#0057FF">MartPoint Invoice</h2>
         <p>Hi ${record.full_name},</p>
-        <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${(message || defaultText).replace(/\n/g, "<br>")}</div>
+        <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${emailText.replace(/\n/g, "<br>")}</div>
         ${formLink ? `<p><a href="${formLink}" style="color:#0057FF">Complete Onboarding Form</a></p>` : ""}
         <p>Best regards,<br>MartPoint Team</p>
       </div>`
 
-      try {
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: "MartPoint Billing <billing@martpoint.com.ng>",
-            to: record.email,
-            subject: `Your MartPoint Invoice — ${record.business_name || record.full_name}`,
-            text: emailText,
-            html: emailHtml,
-          }),
-        })
-      } catch (err) {
-        console.error("Invoice email failed:", err)
-      }
+      await sendEmail({
+        to: record.email,
+        subject: invoiceTpl.subject,
+        text: emailText,
+        html: emailHtml,
+      })
     }
 
     return NextResponse.json({ success: true, transaction })

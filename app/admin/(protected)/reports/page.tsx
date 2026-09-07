@@ -3,22 +3,24 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Download, Landmark, Users, Handshake, Ticket, Shield } from "lucide-react"
+import { Loader2, Download, Landmark, Users, Handshake, Ticket, Shield, TrendingUp } from "lucide-react"
 import {
   commercialReport,
   customersReport,
   partnersReport,
   supportReport,
   operationsReport,
+  investorReport,
   type ReportPeriod,
   type CommercialReport,
   type CustomerReport,
   type PartnerReport,
   type SupportReport,
   type OperationsReport,
+  type InvestorReport,
 } from "@/lib/reports"
 
-type ReportTab = "commercial" | "customers" | "partners" | "support" | "operations"
+type ReportTab = "commercial" | "customers" | "partners" | "support" | "operations" | "investor"
 
 type ReportData =
   | CommercialReport
@@ -26,6 +28,7 @@ type ReportData =
   | PartnerReport
   | SupportReport
   | OperationsReport
+  | InvestorReport
 
 const TABS: { key: ReportTab; label: string; icon: React.ElementType }[] = [
   { key: "commercial", label: "Commercial", icon: Landmark },
@@ -33,6 +36,7 @@ const TABS: { key: ReportTab; label: string; icon: React.ElementType }[] = [
   { key: "partners", label: "Partners", icon: Handshake },
   { key: "support", label: "Support", icon: Ticket },
   { key: "operations", label: "Operations", icon: Shield },
+  { key: "investor", label: "Investor", icon: TrendingUp },
 ]
 
 const PERIODS: ReportPeriod[] = ["today", "7d", "30d", "this_month", "quarter", "year"]
@@ -150,6 +154,38 @@ function operationsCsv(d: OperationsReport) {
   return lines.join("\n")
 }
 
+function investorCsv(d: InvestorReport) {
+  const lines = [
+    line(["Metric", "Value"]),
+    line(["MRR", d.mrr]),
+    line(["ARR", d.arr]),
+    line(["ARPU", d.arpu]),
+    line(["Active businesses", d.active_businesses]),
+    line(["Paying businesses", d.paying_businesses]),
+    line(["New businesses (period)", d.new_businesses]),
+    line(["Churned businesses (period)", d.churned_businesses]),
+    line(["New MRR (period)", d.new_mrr]),
+    line(["Churned MRR (period)", d.churned_mrr]),
+    line(["Net new MRR (period)", d.net_new_mrr]),
+    line(["Logo churn rate %", d.logo_churn_rate]),
+    line(["Revenue churn rate %", d.revenue_churn_rate]),
+    line(["Revenue collected (period)", d.revenue_collected]),
+    line(["Billed (period)", d.billed]),
+    line(["Collection rate %", d.collection_rate]),
+    line(["Top-5 concentration %", d.concentration_top5]),
+    "",
+    line(["Month", "Collected", "New MRR", "Churned MRR"]),
+    ...d.monthly.map((r) => line([r.month, r.collected, r.new_mrr, r.churned_mrr])),
+    "",
+    line(["Cohort", "Businesses", "Still active", "Retention %"]),
+    ...d.cohorts.map((r) => line([r.cohort, r.businesses, r.active, r.retention])),
+    "",
+    line(["Industry", "Businesses", "MRR"]),
+    ...d.by_industry.map((r) => line([r.name, r.businesses, r.mrr])),
+  ]
+  return lines.join("\n")
+}
+
 function buildCsv(tab: ReportTab, d: ReportData | undefined) {
   if (!d) return ""
   switch (tab) {
@@ -163,6 +199,8 @@ function buildCsv(tab: ReportTab, d: ReportData | undefined) {
       return supportCsv(d as SupportReport)
     case "operations":
       return operationsCsv(d as OperationsReport)
+    case "investor":
+      return investorCsv(d as InvestorReport)
   }
 }
 
@@ -208,6 +246,9 @@ export default function ReportsPage() {
             break
           case "operations":
             result = await operationsReport(period)
+            break
+          case "investor":
+            result = await investorReport(period)
             break
         }
       } catch (err) {
@@ -312,6 +353,9 @@ export default function ReportsPage() {
           )}
           {activeTab === "operations" && (
             <OperationsContent data={currentData as OperationsReport} />
+          )}
+          {activeTab === "investor" && (
+            <InvestorContent data={currentData as InvestorReport} />
           )}
         </div>
       ) : (
@@ -513,6 +557,152 @@ function OperationsContent({ data }: { data: OperationsReport }) {
         <MetricCard title="Compliance outstanding" value={formatNumber(data.compliance_outstanding)} />
         <MetricCard title="Open incidents" value={formatNumber(data.open_incidents)} />
         <MetricCard title="Critical incidents" value={formatNumber(data.critical_incidents)} />
+      </div>
+    </div>
+  )
+}
+
+function pct(n: number) {
+  return `${n.toFixed(1)}%`
+}
+
+function InvestorContent({ data }: { data: InvestorReport }) {
+  const maxCollected = Math.max(...data.monthly.map((m) => m.collected), 1)
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard title="MRR" value={formatMoney(data.mrr)} />
+        <MetricCard title="ARR" value={formatMoney(data.arr)} />
+        <MetricCard title="ARPU / month" value={formatMoney(data.arpu)} />
+        <MetricCard title="Active businesses" value={formatNumber(data.active_businesses)} />
+        <MetricCard title="Paying businesses" value={formatNumber(data.paying_businesses)} />
+        <MetricCard title="New businesses (period)" value={formatNumber(data.new_businesses)} />
+        <MetricCard title="Net new MRR (period)" value={formatMoney(data.net_new_mrr)} />
+        <MetricCard title="Logo churn (period)" value={pct(data.logo_churn_rate)} />
+        <MetricCard title="Revenue churn (period)" value={pct(data.revenue_churn_rate)} />
+        <MetricCard title="Revenue collected (period)" value={formatMoney(data.revenue_collected)} />
+        <MetricCard title="Collection rate" value={pct(data.collection_rate)} />
+        <MetricCard title="Top-5 concentration" value={pct(data.concentration_top5)} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Revenue collected — last 12 months</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-1 h-40">
+              {data.monthly.map((m) => (
+                <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
+                  <div
+                    className="w-full bg-retail/80 rounded-t"
+                    style={{ height: `${Math.max((m.collected / maxCollected) * 100, 2)}%` }}
+                    title={`${m.month}: ${formatMoney(m.collected)}`}
+                  />
+                  <span className="text-[10px] text-muted-foreground">{m.month.slice(5)}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">MRR movements — last 12 months</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-4 py-2 text-left">Month</th>
+                    <th className="px-4 py-2 text-right">New MRR</th>
+                    <th className="px-4 py-2 text-right">Churned MRR</th>
+                    <th className="px-4 py-2 text-right">Collected</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...data.monthly].reverse().map((m) => (
+                    <tr key={m.month} className="border-t border-border">
+                      <td className="px-4 py-2">{m.month}</td>
+                      <td className="px-4 py-2 text-right">{formatMoney(m.new_mrr)}</td>
+                      <td className="px-4 py-2 text-right">{formatMoney(m.churned_mrr)}</td>
+                      <td className="px-4 py-2 text-right">{formatMoney(m.collected)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Signup cohorts — still active</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.cohorts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No businesses yet.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Cohort</th>
+                      <th className="px-4 py-2 text-right">Signed up</th>
+                      <th className="px-4 py-2 text-right">Still active</th>
+                      <th className="px-4 py-2 text-right">Retention</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.cohorts.map((c) => (
+                      <tr key={c.cohort} className="border-t border-border">
+                        <td className="px-4 py-2">{c.cohort}</td>
+                        <td className="px-4 py-2 text-right">{formatNumber(c.businesses)}</td>
+                        <td className="px-4 py-2 text-right">{formatNumber(c.active)}</td>
+                        <td className="px-4 py-2 text-right">{pct(c.retention)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Industry mix</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.by_industry.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No businesses yet.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Industry</th>
+                      <th className="px-4 py-2 text-right">Businesses</th>
+                      <th className="px-4 py-2 text-right">MRR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.by_industry.map((r) => (
+                      <tr key={r.name} className="border-t border-border">
+                        <td className="px-4 py-2">{r.name}</td>
+                        <td className="px-4 py-2 text-right">{formatNumber(r.businesses)}</td>
+                        <td className="px-4 py-2 text-right">{formatMoney(r.mrr)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

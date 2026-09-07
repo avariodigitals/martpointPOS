@@ -19,7 +19,17 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">{lead.businessName}</h2>
-        <Link href="/partner/leads" className="text-sm text-muted-foreground hover:underline">← Back to leads</Link>
+        <div className="flex items-center gap-3">
+          {editable && (
+            <Link
+              href={`/partner/leads/${params.id}/edit`}
+              className="inline-flex items-center rounded-md bg-retail px-4 py-2 text-sm font-medium text-white hover:bg-retail/90"
+            >
+              Edit Lead
+            </Link>
+          )}
+          <Link href="/partner/leads" className="text-sm text-muted-foreground hover:underline">← Back to leads</Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

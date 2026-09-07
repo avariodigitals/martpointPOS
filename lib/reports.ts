@@ -62,6 +62,28 @@ export type OperationsReport = {
   critical_incidents: number
 }
 
+export type InvestorReport = {
+  mrr: number
+  arr: number
+  arpu: number
+  active_businesses: number
+  paying_businesses: number
+  new_businesses: number
+  churned_businesses: number
+  new_mrr: number
+  churned_mrr: number
+  net_new_mrr: number
+  logo_churn_rate: number
+  revenue_churn_rate: number
+  revenue_collected: number
+  billed: number
+  collection_rate: number
+  concentration_top5: number
+  monthly: { month: string; collected: number; new_mrr: number; churned_mrr: number }[]
+  cohorts: { cohort: string; businesses: number; active: number; retention: number }[]
+  by_industry: { name: string; businesses: number; mrr: number }[]
+}
+
 type PeriodBounds = {
   start: string
   end: string
@@ -538,6 +560,246 @@ export async function operationsReport(period: ReportPeriod): Promise<Operations
     }
   } catch (err: any) {
     console.error("operations report error:", err?.message)
+    return empty
+  }
+}
+
+/* ───────────────────────────────  Investor metrics  ─────────────────────────────── */
+
+const MONTHLY_INTERVAL_FACTOR: Record<string, number> = {
+  MONTHLY: 1,
+  QUARTERLY: 1 / 3,
+  ANNUAL: 1 / 12,
+  NONE: 0,
+}
+
+interface InvestorSubAddonRow {
+  status: string
+  unit_price_at_activation: number | string | null
+  quantity: number | string | null
+}
+
+interface InvestorSubRow {
+  business_id: string
+  status: string
+  billing_interval: string | null
+  price_at_activation: number | string | null
+  quantity: number | string | null
+  created_at: string
+  updated_at: string
+  subscription_addons?: InvestorSubAddonRow[] | null
+}
+
+interface InvestorBusinessRow {
+  id: string
+  status: string
+  industry: string | null
+  created_at: string
+}
+
+interface InvestorPaymentRow {
+  amount: number | string | null
+  business_id: string
+  paid_at: string | null
+}
+
+interface InvestorInvoiceRow {
+  total_amount: number | string | null
+  issue_date: string | null
+  status: string
+}
+
+function monthlyValue(sub: InvestorSubRow): number {
+  const factor = MONTHLY_INTERVAL_FACTOR[String(sub.billing_interval || "NONE")] ?? 0
+  const base = numeric(sub.price_at_activation) * numeric(sub.quantity ?? 1)
+  const addons = (sub.subscription_addons || [])
+    .filter((a) => a.status === "ACTIVE")
+    .reduce((sum, a) => sum + numeric(a.unit_price_at_activation) * numeric(a.quantity ?? 1), 0)
+  return (base + addons) * factor
+}
+
+function monthKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
+export async function investorReport(period: ReportPeriod): Promise<InvestorReport> {
+  const empty: InvestorReport = {
+    mrr: 0,
+    arr: 0,
+    arpu: 0,
+    active_businesses: 0,
+    paying_businesses: 0,
+    new_businesses: 0,
+    churned_businesses: 0,
+    new_mrr: 0,
+    churned_mrr: 0,
+    net_new_mrr: 0,
+    logo_churn_rate: 0,
+    revenue_churn_rate: 0,
+    revenue_collected: 0,
+    billed: 0,
+    collection_rate: 0,
+    concentration_top5: 0,
+    monthly: [],
+    cohorts: [],
+    by_industry: [],
+  }
+
+  if (!isSupabaseConfigured()) return empty
+
+  const { start, end } = getPeriodBounds(period)
+  const now = new Date()
+
+  try {
+    const [subsRes, bizRes, payRes, invRes] = await Promise.all([
+      supabase
+        .from("subscriptions")
+        .select(
+          "id, business_id, status, billing_interval, price_at_activation, quantity, created_at, updated_at, subscription_addons(status, unit_price_at_activation, quantity)"
+        ),
+      supabase.from("businesses").select("id, status, industry, state, created_at"),
+      supabase
+        .from("payments")
+        .select("amount, business_id, paid_at")
+        .eq("status", "CONFIRMED")
+        .not("paid_at", "is", null),
+      supabase
+        .from("invoices")
+        .select("total_amount, amount_paid, issue_date, status")
+        .not("status", "in", '("DRAFT","VOID","CANCELLED")'),
+    ])
+
+    for (const [name, res] of Object.entries({ subs: subsRes, biz: bizRes, pay: payRes, inv: invRes })) {
+      if (res.error) console.error(`investor report ${name} error:`, res.error.message)
+    }
+
+    const subs = (subsRes.data as InvestorSubRow[] | null) || []
+    const businesses = (bizRes.data as InvestorBusinessRow[] | null) || []
+    const payments = (payRes.data as InvestorPaymentRow[] | null) || []
+    const invoices = (invRes.data as InvestorInvoiceRow[] | null) || []
+
+    const inPeriod = (ts: string | null | undefined) => !!ts && ts >= start && ts <= end
+
+    // ── MRR / ARR / ARPU ──
+    const mrrStatuses = new Set(["ACTIVE", "PAST_DUE"])
+    const activeSubs = subs.filter((s) => mrrStatuses.has(s.status))
+    const mrr = activeSubs.reduce((sum, s) => sum + monthlyValue(s), 0)
+    const payingBusinesses = new Set(activeSubs.map((s) => s.business_id)).size
+    const activeBusinesses = businesses.filter((b) => b.status === "ACTIVE").length
+
+    // ── MRR movements in period ──
+    const newMrr = subs
+      .filter((s) => inPeriod(s.created_at) && s.status !== "PENDING")
+      .reduce((sum, s) => sum + monthlyValue(s), 0)
+    const churnedMrr = subs
+      .filter((s) => ["CANCELLED", "EXPIRED"].includes(s.status) && inPeriod(s.updated_at))
+      .reduce((sum, s) => sum + monthlyValue(s), 0)
+
+    // ── Logo churn in period ──
+    const churnedBusinessIds = new Set(
+      subs
+        .filter((s) => ["CANCELLED", "EXPIRED"].includes(s.status) && inPeriod(s.updated_at))
+        .map((s) => s.business_id)
+    )
+    const churnedBusinesses = churnedBusinessIds.size
+    const openingBase = activeBusinesses + churnedBusinesses
+    const logoChurn = openingBase > 0 ? (churnedBusinesses / openingBase) * 100 : 0
+
+    // ── Collected vs billed in period ──
+    const collected = payments.filter((p) => inPeriod(p.paid_at)).reduce((sum, p) => sum + numeric(p.amount), 0)
+    const billed = invoices
+      .filter((i) => !!i.issue_date && `${i.issue_date}T00:00:00` >= start && `${i.issue_date}T23:59:59` <= end)
+      .reduce((sum, i) => sum + numeric(i.total_amount), 0)
+
+    // ── 12-month trend ──
+    const monthly: InvestorReport["monthly"] = []
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const next = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+      const inMonth = (ts: string | null | undefined) => {
+        if (!ts) return false
+        const t = new Date(ts)
+        return t >= d && t < next
+      }
+      monthly.push({
+        month: monthKey(d),
+        collected: payments.filter((p) => inMonth(p.paid_at)).reduce((sum, p) => sum + numeric(p.amount), 0),
+        new_mrr: subs
+          .filter((s) => inMonth(s.created_at) && s.status !== "PENDING")
+          .reduce((sum, s) => sum + monthlyValue(s), 0),
+        churned_mrr: subs
+          .filter((s) => ["CANCELLED", "EXPIRED"].includes(s.status) && inMonth(s.updated_at))
+          .reduce((sum, s) => sum + monthlyValue(s), 0),
+      })
+    }
+
+    // ── Signup cohorts (last 6 months) ──
+    const cohorts: InvestorReport["cohorts"] = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const next = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+      const cohortBiz = businesses.filter((b) => {
+        const t = new Date(b.created_at)
+        return t >= d && t < next
+      })
+      const active = cohortBiz.filter((b) => b.status === "ACTIVE").length
+      cohorts.push({
+        cohort: monthKey(d),
+        businesses: cohortBiz.length,
+        active,
+        retention: cohortBiz.length > 0 ? (active / cohortBiz.length) * 100 : 0,
+      })
+    }
+
+    // ── Industry mix ──
+    const mrrByBusiness: Record<string, number> = {}
+    for (const s of activeSubs) {
+      mrrByBusiness[s.business_id] = (mrrByBusiness[s.business_id] || 0) + monthlyValue(s)
+    }
+    const industryMap: Record<string, { businesses: number; mrr: number }> = {}
+    for (const b of businesses) {
+      const name = b.industry || "Unspecified"
+      if (!industryMap[name]) industryMap[name] = { businesses: 0, mrr: 0 }
+      industryMap[name].businesses += 1
+      industryMap[name].mrr += mrrByBusiness[b.id] || 0
+    }
+    const byIndustry = Object.entries(industryMap)
+      .map(([name, v]) => ({ name, businesses: v.businesses, mrr: v.mrr }))
+      .sort((a, b) => b.mrr - a.mrr || b.businesses - a.businesses)
+
+    // ── Revenue concentration (top 5 by collected revenue in period) ──
+    const collectedByBusiness: Record<string, number> = {}
+    for (const p of payments.filter((p) => inPeriod(p.paid_at))) {
+      collectedByBusiness[p.business_id] = (collectedByBusiness[p.business_id] || 0) + numeric(p.amount)
+    }
+    const top5 = Object.values(collectedByBusiness)
+      .sort((a, b) => b - a)
+      .slice(0, 5)
+      .reduce((sum, v) => sum + v, 0)
+
+    return {
+      mrr,
+      arr: mrr * 12,
+      arpu: payingBusinesses > 0 ? mrr / payingBusinesses : 0,
+      active_businesses: activeBusinesses,
+      paying_businesses: payingBusinesses,
+      new_businesses: businesses.filter((b) => inPeriod(b.created_at)).length,
+      churned_businesses: churnedBusinesses,
+      new_mrr: newMrr,
+      churned_mrr: churnedMrr,
+      net_new_mrr: newMrr - churnedMrr,
+      logo_churn_rate: logoChurn,
+      revenue_churn_rate: mrr + churnedMrr > 0 ? (churnedMrr / (mrr + churnedMrr)) * 100 : 0,
+      revenue_collected: collected,
+      billed,
+      collection_rate: billed > 0 ? (collected / billed) * 100 : 0,
+      concentration_top5: collected > 0 ? (top5 / collected) * 100 : 0,
+      monthly,
+      cohorts,
+      by_industry: byIndustry,
+    }
+  } catch (err) {
+    console.error("investor report error:", err instanceof Error ? err.message : String(err))
     return empty
   }
 }

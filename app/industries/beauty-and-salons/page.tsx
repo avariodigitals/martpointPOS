@@ -272,7 +272,7 @@ export default function BeautyAndSalonsPage() {
               <div className="mt-8 flex items-center justify-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-retail/10 flex items-center justify-center text-retail font-bold text-base">TA</div>
                 <div className="text-left">
-                  <div className="text-sm font-semibold text-foreground">Tunde A.</div>
+                  <div className="text-sm font-semibold text-foreground">Funmi A.</div>
                   <div className="text-xs text-muted-foreground">Founder, Clean Bubbles Beauty</div>
                 </div>
               </div>

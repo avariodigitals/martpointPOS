@@ -101,7 +101,7 @@ export type Quote = {
 export type QuoteItem = {
   id: string
   quote_id: string
-  item_type: "PLAN" | "ADDON" | "SERVICE" | "CUSTOM"
+  item_type: "PRODUCT" | "PLAN" | "ADDON" | "SERVICE" | "CUSTOM"
   reference_id?: string | null
   description: string
   quantity: number
@@ -303,7 +303,7 @@ export type FinanceOverview = {
 
 export type FinanceAuditAction =
   | "QUOTE_CREATED" | "QUOTE_SENT" | "QUOTE_ACCEPTED" | "QUOTE_CONVERTED"
-  | "INVOICE_CREATED" | "INVOICE_ISSUED" | "INVOICE_VOIDED"
+  | "INVOICE_CREATED" | "INVOICE_UPDATED" | "INVOICE_ISSUED" | "INVOICE_VOIDED" | "INVOICE_DELETED"
   | "PAYMENT_RECORDED" | "PAYMENT_CONFIRMED" | "PAYMENT_REVERSED" | "PAYMENT_REFUNDED"
   | "RECEIPT_ISSUED"
   | "SUBSCRIPTION_CREATED" | "SUBSCRIPTION_ACTIVATED" | "SUBSCRIPTION_SUSPENDED" | "SUBSCRIPTION_RENEWED" | "SUBSCRIPTION_CANCELLED"
@@ -365,8 +365,6 @@ function lineTotalKobo(quantity: number, unitPriceKobo: number, discountKobo = 0
   const base = Math.round((unitPriceKobo * qtyHundred) / 100)
   return Math.max(0, base - discountKobo + taxKobo)
 }
-
-function fmtInvoiceNumber(n: string): string { return n }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    DOCUMENT NUMBER GENERATION
@@ -870,7 +868,6 @@ export async function getFinanceOverview(): Promise<FinanceOverview> {
     }
   }
 
-  const now = new Date().toISOString()
   const in30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
   const in7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 

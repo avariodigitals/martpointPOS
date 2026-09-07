@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Loader2, Check, ArrowRight, ArrowLeft, Upload, X, CheckCircle2 } from "lucide-react"
+import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
 
 type PartnerType = "REFERRAL" | "CHANNEL" | "IMPLEMENTATION" | "CHANNEL_IMPLEMENTATION" | "TECHNOLOGY" | "PAYMENT"
 
@@ -61,11 +62,65 @@ export function PartnerApplicationForm() {
     declaration: false,
   })
 
+  const [inviteToken, setInviteToken] = useState<string | null>(null)
+
+  // Hydration guard: don't render state-dependent helper text until mounted.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
+  // Prefill from a partner-lead invite link (?invite=<token>)
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("invite")
+    if (!token) return
+    fetch(`/api/partners/invite?token=${encodeURIComponent(token)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.prefill) return
+        setInviteToken(token)
+        setForm((p) => ({
+          ...p,
+          fullName: data.prefill.fullName || p.fullName,
+          businessName: data.prefill.businessName || p.businessName,
+          email: data.prefill.email || p.email,
+          phone: data.prefill.phone || p.phone,
+          country: data.prefill.country || p.country,
+          state: data.prefill.state || p.state,
+          city: data.prefill.city || p.city,
+        }))
+      })
+      .catch(() => {})
+  }, [])
+
+  const countries = useMemo(() => COUNTRIES.map((c) => c.name), [])
+  const states = useMemo(() => getStatesForCountry(form.country), [form.country])
+  const cities = useMemo(() => getCitiesForState(form.country, form.state), [form.country, form.state])
+  const stateIsSelect = states.length > 0
+  const cityIsSelect = cities.length > 0
+
   const [docs, setDocs] = useState<DocFile[]>([])
   const [industryInput, setIndustryInput] = useState("")
   const [geoInput, setGeoInput] = useState("")
 
-  const set = (k: keyof typeof form, v: unknown) => setForm((p) => ({ ...p, [k]: v }))
+  const isIndividual = form.applicantType === "INDIVIDUAL"
+  const isReferral = form.requestedPartnerType === "REFERRAL"
+  const requiresCompanyDetails = form.applicantType === "COMPANY" && !isReferral
+
+  const set = (k: keyof typeof form, v: unknown) => {
+    setForm((p) => {
+      const next = { ...p, [k]: v }
+      if (k === "applicantType" && v === "INDIVIDUAL") {
+        // Reset company-only fields and force referral when switching to individual.
+        ;(next as Record<string, unknown>).businessName = ""
+        ;(next as Record<string, unknown>).businessAddress = ""
+        ;(next as Record<string, unknown>).registrationNumber = ""
+        ;(next as Record<string, unknown>).yearEstablished = ""
+        ;(next as Record<string, unknown>).teamSize = ""
+        ;(next as Record<string, unknown>).estimatedCustomerBase = ""
+        ;(next as Record<string, unknown>).requestedPartnerType = "REFERRAL"
+      }
+      return next as typeof form
+    })
+  }
 
   const addIndustry = () => {
     const v = industryInput.trim()
@@ -94,6 +149,14 @@ export function PartnerApplicationForm() {
       if (!form.email.trim()) return "Email is required"
       if (!form.phone.trim()) return "Phone is required"
       if (!form.country.trim()) return "Country is required"
+      if (form.applicantType === "COMPANY" && !form.businessName.trim()) {
+        return "Business name is required for company applications"
+      }
+    }
+    if (step === 2 && form.applicantType === "COMPANY" && !isReferral) {
+      if (!form.registrationNumber.trim()) {
+        return "A business registration number is required for this partnership type"
+      }
     }
     if (step === 3 && form.reasonForApplying.trim().length < 10) return "Please tell us why you want to partner with MartPoint (min 10 characters)"
     if (step === 5 && !form.declaration) return "You must confirm the declaration to submit"
@@ -115,7 +178,7 @@ export function PartnerApplicationForm() {
     setError("")
     try {
       const fd = new FormData()
-      fd.append("data", JSON.stringify(form))
+      fd.append("data", JSON.stringify({ ...form, inviteToken: inviteToken || undefined }))
       const docTypes: Record<string, string> = {}
       for (const d of docs) docTypes[d.file.name] = d.type
       fd.append("documentTypes", JSON.stringify(docTypes))
@@ -177,6 +240,12 @@ export function PartnerApplicationForm() {
         </div>
       </div>
 
+      {inviteToken && (
+        <p className="text-sm rounded-md bg-retail/10 text-retail px-3 py-2 mb-4">
+          You've been invited to apply — we've pre-filled some of your details.
+        </p>
+      )}
+
       {error && <p className="text-sm text-red-500 mb-4">{error}</p>}
 
       {/* Step 0: Applicant */}
@@ -192,18 +261,85 @@ export function PartnerApplicationForm() {
                 </button>
               ))}
             </div>
+            {mounted && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {form.applicantType === "INDIVIDUAL"
+                  ? "Individuals can apply to be Referral Partners. To apply for other partnership types, select Company."
+                  : "Companies can apply for any partnership type. Non-referral partnerships require a registered business."}
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className={labelCls}>Full name *</label><input className={inputCls} value={form.fullName} onChange={(e) => set("fullName", e.target.value)} /></div>
-            <div><label className={labelCls}>Business name</label><input className={inputCls} value={form.businessName} onChange={(e) => set("businessName", e.target.value)} /></div>
+            {form.applicantType === "COMPANY" && (
+              <div><label className={labelCls}>Business name *</label><input className={inputCls} value={form.businessName} onChange={(e) => set("businessName", e.target.value)} /></div>
+            )}
             <div><label className={labelCls}>Email *</label><input type="email" className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} /></div>
             <div><label className={labelCls}>Phone *</label><input className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} /></div>
             <div><label className={labelCls}>WhatsApp</label><input className={inputCls} value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} /></div>
-            <div><label className={labelCls}>Country *</label><input className={inputCls} value={form.country} onChange={(e) => set("country", e.target.value)} /></div>
-            <div><label className={labelCls}>State</label><input className={inputCls} value={form.state} onChange={(e) => set("state", e.target.value)} /></div>
-            <div><label className={labelCls}>City</label><input className={inputCls} value={form.city} onChange={(e) => set("city", e.target.value)} /></div>
+
+            {/* Country select */}
+            <div>
+              <label className={labelCls}>Country *</label>
+              <select
+                className={inputCls}
+                value={form.country}
+                onChange={(e) => set("country", e.target.value)}
+                required
+              >
+                <option value="">Select a country</option>
+                {countries.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* State: dropdown if curated, otherwise free text */}
+            <div>
+              <label className={labelCls}>State</label>
+              {stateIsSelect ? (
+                <select
+                  className={inputCls}
+                  value={form.state}
+                  onChange={(e) => set("state", e.target.value)}
+                >
+                  <option value="">Select a state</option>
+                  {states.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className={inputCls}
+                  value={form.state}
+                  onChange={(e) => set("state", e.target.value)}
+                  placeholder="Type your state"
+                />
+              )}
+            </div>
+
+            {/* City: dropdown with datalist so users can type or select */}
+            <div>
+              <label className={labelCls}>City</label>
+              <input
+                className={inputCls}
+                list={cityIsSelect ? "city-list" : undefined}
+                value={form.city}
+                onChange={(e) => set("city", e.target.value)}
+                placeholder={cityIsSelect ? "Select or type your city" : "Type your city"}
+              />
+              {cityIsSelect && (
+                <datalist id="city-list">
+                  {cities.map((city) => (
+                    <option key={city} value={city} />
+                  ))}
+                </datalist>
+              )}
+            </div>
           </div>
-          <div><label className={labelCls}>Business address</label><input className={inputCls} value={form.businessAddress} onChange={(e) => set("businessAddress", e.target.value)} /></div>
+          {form.applicantType === "COMPANY" && (
+            <div><label className={labelCls}>Business address</label><input className={inputCls} value={form.businessAddress} onChange={(e) => set("businessAddress", e.target.value)} /></div>
+          )}
         </div>
       )}
 
@@ -211,25 +347,71 @@ export function PartnerApplicationForm() {
       {step === 1 && (
         <div className="space-y-3">
           <label className={labelCls}>Choose your partnership type</label>
-          {PARTNER_OPTIONS.map((opt) => (
-            <button key={opt.value} type="button" onClick={() => set("requestedPartnerType", opt.value)}
-              className={`w-full text-left rounded-lg border p-4 transition-colors ${form.requestedPartnerType === opt.value ? "border-retail bg-retail/10" : "border-input hover:bg-muted/40"}`}>
-              <p className="text-sm font-semibold">{opt.label}</p>
-              <p className="text-xs text-muted-foreground">{opt.desc}</p>
-            </button>
-          ))}
+          {form.applicantType === "INDIVIDUAL" && (
+            <p className="text-xs text-muted-foreground">
+              As an individual applicant, only Referral Partner is available. To apply for other partnership types, please apply as a registered company.
+            </p>
+          )}
+          {PARTNER_OPTIONS.map((opt) => {
+            const disabled = form.applicantType === "INDIVIDUAL" && opt.value !== "REFERRAL"
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={disabled}
+                onClick={() => !disabled && set("requestedPartnerType", opt.value)}
+                className={`w-full text-left rounded-lg border p-4 transition-colors text-left ${
+                  disabled
+                    ? "border-border bg-muted/50 text-muted-foreground cursor-not-allowed opacity-60"
+                    : form.requestedPartnerType === opt.value
+                      ? "border-retail bg-retail/10"
+                      : "border-input hover:bg-muted/40"
+                }`}
+              >
+                <p className="text-sm font-semibold">{opt.label}</p>
+                <p className="text-xs text-muted-foreground">{opt.desc}</p>
+              </button>
+            )
+          })}
         </div>
       )}
 
       {/* Step 2: Capability */}
       {step === 2 && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className={labelCls}>Registration number</label><input className={inputCls} value={form.registrationNumber} onChange={(e) => set("registrationNumber", e.target.value)} /></div>
-            <div><label className={labelCls}>Year established</label><input className={inputCls} value={form.yearEstablished} onChange={(e) => set("yearEstablished", e.target.value)} /></div>
-            <div><label className={labelCls}>Team size</label><input className={inputCls} value={form.teamSize} onChange={(e) => set("teamSize", e.target.value)} /></div>
-            <div><label className={labelCls}>Approx. customer base</label><input className={inputCls} value={form.estimatedCustomerBase} onChange={(e) => set("estimatedCustomerBase", e.target.value)} /></div>
-          </div>
+          {form.applicantType === "INDIVIDUAL" ? (
+            <p className="text-sm text-muted-foreground">
+              Tell us more about your background and the area you can refer businesses from.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {form.requestedPartnerType === "REFERRAL"
+                ? "Tell us about your company background. Registration details are optional for referral partners."
+                : "Provide your company registration details. Non-referral partnerships require a registered business."}
+            </p>
+          )}
+
+          {form.applicantType === "COMPANY" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>
+                  Registration number {form.requestedPartnerType !== "REFERRAL" && "*"}
+                </label>
+                <input className={inputCls} value={form.registrationNumber} onChange={(e) => set("registrationNumber", e.target.value)} />
+              </div>
+              <div><label className={labelCls}>Year established</label><input className={inputCls} value={form.yearEstablished} onChange={(e) => set("yearEstablished", e.target.value)} /></div>
+              <div><label className={labelCls}>Team size</label><input className={inputCls} value={form.teamSize} onChange={(e) => set("teamSize", e.target.value)} /></div>
+              <div><label className={labelCls}>Approx. customer base</label><input className={inputCls} value={form.estimatedCustomerBase} onChange={(e) => set("estimatedCustomerBase", e.target.value)} /></div>
+            </div>
+          )}
+
+          {form.applicantType === "INDIVIDUAL" && (
+            <div>
+              <label className={labelCls}>Relevant experience / background</label>
+              <textarea className={inputCls} rows={3} value={form.relevantExperience} onChange={(e) => set("relevantExperience", e.target.value)} />
+            </div>
+          )}
+
           <div>
             <label className={labelCls}>Industries served</label>
             <div className="flex gap-2">
@@ -262,7 +444,9 @@ export function PartnerApplicationForm() {
               </div>
             )}
           </div>
-          <div><label className={labelCls}>Current products / services</label><textarea className={inputCls} rows={3} value={form.currentProductsServices} onChange={(e) => set("currentProductsServices", e.target.value)} /></div>
+          {form.applicantType === "COMPANY" && (
+            <div><label className={labelCls}>Current products / services</label><textarea className={inputCls} rows={3} value={form.currentProductsServices} onChange={(e) => set("currentProductsServices", e.target.value)} /></div>
+          )}
         </div>
       )}
 
@@ -270,7 +454,9 @@ export function PartnerApplicationForm() {
       {step === 3 && (
         <div className="space-y-4">
           <div><label className={labelCls}>Why do you want to partner with MartPoint? *</label><textarea className={inputCls} rows={4} value={form.reasonForApplying} onChange={(e) => set("reasonForApplying", e.target.value)} /></div>
-          <div><label className={labelCls}>Relevant experience</label><textarea className={inputCls} rows={4} value={form.relevantExperience} onChange={(e) => set("relevantExperience", e.target.value)} /></div>
+          {form.applicantType === "COMPANY" && (
+            <div><label className={labelCls}>Relevant experience</label><textarea className={inputCls} rows={4} value={form.relevantExperience} onChange={(e) => set("relevantExperience", e.target.value)} /></div>
+          )}
           <div><label className={labelCls}>Expected monthly opportunities</label><input className={inputCls} value={form.expectedMonthlyOpportunities} onChange={(e) => set("expectedMonthlyOpportunities", e.target.value)} placeholder="e.g. 5-10 introductions per month" /></div>
         </div>
       )}
@@ -314,10 +500,18 @@ export function PartnerApplicationForm() {
           <h3 className="font-semibold">Review your application</h3>
           <div className="rounded-lg border border-border bg-muted/10 p-4 space-y-2 text-sm">
             <Row label="Applicant" value={`${form.fullName}${form.businessName ? ` — ${form.businessName}` : ""}`} />
+            <Row label="Type" value={form.applicantType === "INDIVIDUAL" ? "Individual" : "Company"} />
             <Row label="Email" value={form.email} />
             <Row label="Phone" value={form.phone} />
             <Row label="Location" value={[form.city, form.state, form.country].filter(Boolean).join(", ")} />
             <Row label="Partnership type" value={PARTNER_OPTIONS.find((p) => p.value === form.requestedPartnerType)?.label || form.requestedPartnerType} />
+            {form.applicantType === "COMPANY" && (
+              <>
+                <Row label="Registration" value={form.registrationNumber || "—"} />
+                <Row label="Year established" value={form.yearEstablished || "—"} />
+                <Row label="Team size" value={form.teamSize || "—"} />
+              </>
+            )}
             <Row label="Industries" value={form.industriesServed.join(", ") || "—"} />
             <Row label="Coverage" value={form.geographicCoverage.join(", ") || "—"} />
             <Row label="Documents" value={`${docs.length} file(s)`} />

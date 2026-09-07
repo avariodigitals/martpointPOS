@@ -1,10 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/admin-auth"
 import { hasFinanceAction, type FinanceAction } from "@/lib/finance-permissions"
-import {
-  supabase,
-  isSupabaseConfigured,
-} from "@/lib/supabase"
+import type { UserRole } from "@/lib/admin-types"
+import { supabase } from "@/lib/supabase"
 import {
   logFinanceAudit,
   nextInvoiceNumber,
@@ -20,8 +20,6 @@ import {
   evaluateCommissionsForPayment,
   createCommissionPayout,
   refreshRenewalStatus,
-  toKobo,
-  fromKobo,
   money,
 } from "@/lib/finance-commercial"
 
@@ -48,7 +46,7 @@ function requireActionPerm(resource: string, action: Action, role: string | unde
   if (!map) return false
   const permission = map[action]
   if (permission === null || permission === undefined) return false
-  return hasFinanceAction(role as any, permission)
+  return hasFinanceAction(role as UserRole, permission)
 }
 
 function ok<T>(data: T) {
@@ -341,6 +339,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
     if (resource === "invoices") {
       if (action === "create") {
         const { items, business_id, due_date, ...fields } = data
+        if (!business_id) return err("Business is required for every invoice")
         const invoiceNumber = await nextInvoiceNumber()
         const today = new Date().toISOString().split("T")[0]
         const { data: inv, error } = await supabase.from("invoices").insert({
@@ -396,6 +395,24 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         if (error) return err(error.message, 500)
         return ok(inv)
       }
+      if (action === "update") {
+        const { id, ...updates } = data
+        if (!id) return err("Invoice ID required")
+        const { data: inv, error } = await supabase.from("invoices").update({ ...updates, updated_at: now() }).eq("id", id).select().single()
+        if (error) return err(error.message, 500)
+        await logFinanceAudit("ADMIN", actor.id, "INVOICE_UPDATED", "INVOICE", id)
+        return ok(inv)
+      }
+      if (action === "delete") {
+        const { id } = data
+        await supabase.from("invoice_items").delete().eq("invoice_id", id)
+        await supabase.from("payment_allocations").delete().eq("invoice_id", id)
+        await supabase.from("payments").update({ invoice_id: null, updated_at: now() }).eq("invoice_id", id)
+        const { data: inv, error } = await supabase.from("invoices").delete().eq("id", id).select().single()
+        if (error) return err(error.message, 500)
+        await logFinanceAudit("ADMIN", actor.id, "INVOICE_DELETED", "INVOICE", id)
+        return ok(inv)
+      }
     }
 
     if (resource === "payments") {
@@ -427,7 +444,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
 
     if (resource === "subscriptions") {
       if (action === "create") {
-        const { business_id, plan_id, billing_interval, quantity, start_date, current_period_end, renewal_date, ...fields } = data
+        const { business_id, plan_id, billing_interval, quantity, start_date, current_period_end, renewal_date } = data
         const { data: plan } = await supabase.from("plans").select("*").eq("id", plan_id).single()
         if (!plan) return err("Plan not found", 404)
         const today = start_date || new Date().toISOString().split("T")[0]
@@ -603,6 +620,8 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { id, bank_reference } = data
         const { data: p, error } = await supabase.from("commission_payouts").update({ status: "PAID", bank_reference, paid_by: actor.id, paid_at: now(), updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
+        // Reflect the payment on any linked partner payout request
+        await supabase.from("partner_payout_requests").update({ status: "PAID", updated_at: now() }).eq("payout_id", id)
         await logFinanceAudit("ADMIN", actor.id, "COMMISSION_PAYOUT_PAID", "COMMISSION_PAYOUT", id)
         return ok(p)
       }

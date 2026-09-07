@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Download } from "lucide-react"
+import { PayoutRequestPanel } from "./payout-request-panel"
 
 function fmtMoney(amount: number, currency = "NGN") {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency }).format(amount || 0)
@@ -55,6 +56,7 @@ export default async function PartnerCommissionsPage() {
   if (!auth.authorized) redirect("/partner")
 
   let rows: any[] = []
+  let payoutRequests: any[] = []
   if (isSupabaseConfigured()) {
     const { data, error } = await supabase
       .from("partner_commissions")
@@ -64,6 +66,23 @@ export default async function PartnerCommissionsPage() {
       .eq("partner_id", session.partnerId)
       .order("created_at", { ascending: false })
     if (!error) rows = data || []
+
+    const { data: reqs } = await supabase
+      .from("partner_payout_requests")
+      .select("id, amount, currency, status, notes, review_notes, created_at, reviewed_at")
+      .eq("partner_id", session.partnerId)
+      .order("created_at", { ascending: false })
+    payoutRequests = reqs || []
+  }
+
+  const sumBy = (statuses: string[]) =>
+    rows.filter((r) => statuses.includes(r.status)).reduce((s, r) => s + (Number(r.commission_amount) || 0), 0)
+
+  const totals = {
+    earned: sumBy(["ELIGIBLE", "APPROVED", "SCHEDULED", "PAID"]),
+    available: sumBy(["APPROVED"]),
+    inPayout: sumBy(["SCHEDULED"]),
+    paid: sumBy(["PAID"]),
   }
 
   const counts = {
@@ -83,8 +102,8 @@ export default async function PartnerCommissionsPage() {
           <Link href="/partner" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4 mr-1" /> Back
           </Link>
-          <h2 className="text-2xl font-bold tracking-tight mt-2">Commission Portal</h2>
-          <p className="text-muted-foreground text-sm">Your commission earnings</p>
+          <h2 className="text-2xl font-bold tracking-tight mt-2">Earnings</h2>
+          <p className="text-muted-foreground text-sm">Your commission earnings and payouts</p>
         </div>
         <Button asChild variant="outline" size="sm">
           <a href={csvDataUrl} download="commissions.csv">
@@ -96,29 +115,31 @@ export default async function PartnerCommissionsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
-            <p className="text-2xl font-bold">{counts.ELIGIBLE}</p>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Eligible</p>
+            <p className="text-2xl font-bold">{fmtMoney(totals.earned)}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Earned</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-2xl font-bold">{counts.APPROVED}</p>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Approved</p>
+            <p className="text-2xl font-bold text-emerald-600">{fmtMoney(totals.available)}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Available to Withdraw</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-2xl font-bold">{counts.SCHEDULED}</p>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Scheduled</p>
+            <p className="text-2xl font-bold text-blue-600">{fmtMoney(totals.inPayout)}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">In Payout</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-2xl font-bold">{counts.PAID}</p>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Paid</p>
+            <p className="text-2xl font-bold">{fmtMoney(totals.paid)}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Paid Out</p>
           </CardContent>
         </Card>
       </div>
+
+      <PayoutRequestPanel available={totals.available} requests={payoutRequests} />
 
       <Card>
         <CardHeader>

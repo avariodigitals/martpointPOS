@@ -35,8 +35,8 @@ export interface PartnerLeadInput {
 
 export interface PartnerLeadRecord {
   id: string
-  partnerId: string
-  submittedByPartnerUserId: string
+  partnerId: string | null
+  submittedByPartnerUserId: string | null
   businessName: string
   contactName: string
   phone: string | null
@@ -56,6 +56,7 @@ export interface PartnerLeadRecord {
   protectionExpiresAt: string | null
   matchedLeadId: string | null
   matchedBusinessId: string | null
+  invitedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -166,8 +167,8 @@ export async function getProtectionDays(): Promise<number> {
 
 export async function createPartnerLead(
   input: PartnerLeadInput,
-  partnerId: string,
-  submittedBy: string,
+  partnerId: string | null,
+  submittedBy: string | null,
   ctx: AuditContext
 ): Promise<{ ok: true; lead: PartnerLeadRecord; warning: string | null } | { ok: false; error: string }> {
   if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
@@ -535,8 +536,8 @@ export async function listAllPartnerLeads(
 function mapLead(row: Record<string, unknown>): PartnerLeadRecord {
   return {
     id: row.id as string,
-    partnerId: row.partner_id as string,
-    submittedByPartnerUserId: row.submitted_by_partner_user_id as string,
+    partnerId: (row.partner_id as string | null) ?? null,
+    submittedByPartnerUserId: (row.submitted_by_partner_user_id as string | null) ?? null,
     businessName: row.business_name as string,
     contactName: row.contact_name as string,
     phone: (row.phone as string | null) ?? null,
@@ -556,6 +557,7 @@ function mapLead(row: Record<string, unknown>): PartnerLeadRecord {
     protectionExpiresAt: (row.protection_expires_at as string | null) ?? null,
     matchedLeadId: (row.matched_lead_id as string | null) ?? null,
     matchedBusinessId: (row.matched_business_id as string | null) ?? null,
+    invitedAt: (row.invited_at as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }
@@ -563,4 +565,52 @@ function mapLead(row: Record<string, unknown>): PartnerLeadRecord {
 
 function getFutureDate(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+}
+
+/* ───────────────────────────  Partner application invites  ───────────────────────────
+ * Admin invites a lead to complete the public partner application form.
+ * The invite token prefills the form and links the submitted application
+ * back to the lead (partner_applications.partner_lead_id).
+ */
+
+export async function createLeadInvite(
+  leadId: string,
+  ctx: AuditContext
+): Promise<{ ok: true; token: string; lead: PartnerLeadRecord } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
+
+  const lead = await getPartnerLeadById(leadId)
+  if (!lead) return { ok: false, error: "Lead not found" }
+  if (!lead.email) return { ok: false, error: "Lead has no email address" }
+
+  const token = crypto.randomBytes(24).toString("hex")
+
+  const { data, error } = await supabase
+    .from("partner_leads")
+    .update({ invite_token: token, invited_at: now(), updated_at: now() })
+    .eq("id", leadId)
+    .select()
+    .single()
+
+  if (error || !data) return { ok: false, error: "Failed to create invite" }
+
+  await recordAudit(ctx, {
+    action: AUDIT_ACTIONS.PARTNER_LEAD_UPDATED,
+    entityType: AUDIT_ENTITIES.PARTNER_LEAD,
+    entityId: leadId,
+    metadata: { invite: "partner_application", email: lead.email },
+  })
+
+  return { ok: true, token, lead: mapLead(data) }
+}
+
+export async function getLeadByInviteToken(token: string): Promise<PartnerLeadRecord | null> {
+  if (!isSupabaseConfigured() || !token) return null
+  const { data, error } = await supabase
+    .from("partner_leads")
+    .select("*")
+    .eq("invite_token", token)
+    .maybeSingle()
+  if (error || !data) return null
+  return mapLead(data)
 }

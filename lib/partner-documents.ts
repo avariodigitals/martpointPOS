@@ -10,6 +10,7 @@ import { supabase, isSupabaseConfigured } from "./supabase"
  */
 
 export const PARTNER_DOCUMENTS_BUCKET = "partner-documents"
+export const PARTNER_RESOURCES_BUCKET = "partner-resources"
 
 export const ALLOWED_PARTNER_MIME_TYPES = [
   "application/pdf",
@@ -57,33 +58,26 @@ export function validatePartnerFile(file: { type: string; size: number }): strin
  * `fileBytes` is the raw file content (Buffer/ArrayBuffer). `applicationId` scopes
  * the storage path per application.
  */
-export async function uploadPartnerDocument(
-  applicationId: string,
+export async function uploadPrivateFile(
+  bucket: string,
+  storagePath: string,
   filename: string,
   mimeType: string,
   fileBytes: Buffer | ArrayBuffer
 ): Promise<UploadResult> {
-  if (!isSupabaseConfigured()) {
-    return { ok: false, error: "Storage not configured" }
-  }
-  const validation = validatePartnerFile({ type: mimeType, size: fileBytes.byteLength })
-  if (validation) {
-    return { ok: false, error: validation }
-  }
-  const safeName = sanitizeFilename(filename)
-  const storagePath = `${applicationId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`
+  if (!isSupabaseConfigured()) return { ok: false, error: "Storage not configured" }
 
-  const { error } = await supabase
-    .storage
-    .from(PARTNER_DOCUMENTS_BUCKET)
-    .upload(storagePath, fileBytes, {
-      contentType: mimeType,
-      upsert: false,
-    })
+  const validation = validatePartnerFile({ type: mimeType, size: fileBytes.byteLength })
+  if (validation) return { ok: false, error: validation }
+
+  const { error } = await supabase.storage.from(bucket).upload(storagePath, fileBytes, {
+    contentType: mimeType,
+    upsert: false,
+  })
 
   if (error) {
-    console.error("[partner-docs] upload failed:", error.message)
-    return { ok: false, error: "Failed to upload document" }
+    console.error(`[${bucket}] upload failed:`, error.message)
+    return { ok: false, error: "Failed to upload file" }
   }
 
   return {
@@ -97,24 +91,47 @@ export async function uploadPartnerDocument(
   }
 }
 
+export async function uploadPartnerDocument(
+  applicationId: string,
+  filename: string,
+  mimeType: string,
+  fileBytes: Buffer | ArrayBuffer
+): Promise<UploadResult> {
+  const safeName = sanitizeFilename(filename)
+  const storagePath = `${applicationId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`
+  return uploadPrivateFile(PARTNER_DOCUMENTS_BUCKET, storagePath, filename, mimeType, fileBytes)
+}
+
 /**
  * Generate a short-lived signed URL for an admin to view a partner document.
  * Never expose the service role key or public URLs.
  */
-export async function createSignedDocUrl(
+export async function createSignedUrl(
+  bucket: string,
   storagePath: string,
   expiresInSeconds = 60
 ): Promise<string | null> {
   if (!isSupabaseConfigured()) return null
-  const { data, error } = await supabase
-    .storage
-    .from(PARTNER_DOCUMENTS_BUCKET)
-    .createSignedUrl(storagePath, expiresInSeconds)
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(storagePath, expiresInSeconds)
   if (error || !data?.signedUrl) {
-    console.error("[partner-docs] signed url failed:", error?.message)
+    console.error(`[${bucket}] signed url failed:`, error?.message)
     return null
   }
   return data.signedUrl
+}
+
+export async function createSignedDocUrl(
+  storagePath: string,
+  expiresInSeconds = 60
+): Promise<string | null> {
+  return createSignedUrl(PARTNER_DOCUMENTS_BUCKET, storagePath, expiresInSeconds)
+}
+
+export async function createSignedResourceUrl(
+  storagePath: string,
+  expiresInSeconds = 300
+): Promise<string | null> {
+  return createSignedUrl(PARTNER_RESOURCES_BUCKET, storagePath, expiresInSeconds)
 }
 
 /** Delete a partner document from private storage. */

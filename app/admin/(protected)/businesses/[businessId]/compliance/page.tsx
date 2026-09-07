@@ -78,7 +78,7 @@ export default function BusinessCompliancePage() {
         </Link>
         <h2 className="text-2xl font-bold tracking-tight mt-2 flex items-center gap-2">
           <ShieldCheck className="w-5 h-5" />
-          Compliance · {businessId}
+          Compliance
         </h2>
       </div>
 

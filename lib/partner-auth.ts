@@ -54,6 +54,8 @@ export interface PartnerRecord {
   city: string
   publicEmail: string | null
   publicPhone: string | null
+  publicAddress: string | null
+  serviceAreas: string
   website: string | null
   logoUrl: string | null
   publicProfileEnabled: boolean
@@ -206,6 +208,8 @@ function mapPartner(row: Record<string, unknown>): PartnerRecord {
     city: (row.city as string) || "",
     publicEmail: (row.public_email as string | null) ?? null,
     publicPhone: (row.public_phone as string | null) ?? null,
+    publicAddress: (row.public_address as string | null) ?? null,
+    serviceAreas: (row.service_areas as string) || "",
     website: (row.website as string | null) ?? null,
     logoUrl: (row.logo_url as string | null) ?? null,
     publicProfileEnabled: (row.public_profile_enabled as boolean) ?? false,
@@ -385,6 +389,21 @@ export async function canPartnerAccessBusiness(
     !(await partnerHasCapability(partnerId, options.orgCapability))
   ) {
     return { allowed: false, reason: "missing_organisation_capability" }
+  }
+
+  const { data: business, error: businessError } = await supabase
+    .from("businesses")
+    .select("status")
+    .eq("id", businessId)
+    .maybeSingle()
+
+  if (businessError || !business) {
+    return { allowed: false, reason: "business_not_found" }
+  }
+
+  const blockedStatuses = ["SUSPENDED", "INACTIVE", "CHURNED"]
+  if (blockedStatuses.includes(business.status as string)) {
+    return { allowed: false, reason: "business_inactive_or_suspended" }
   }
 
   const { data: assignment, error } = await supabase

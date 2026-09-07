@@ -22,6 +22,15 @@ import {
   Shield,
   ClipboardList,
   Command,
+  Mail,
+  Route,
+  Receipt,
+  Wallet,
+  TrendingUp,
+  Tag,
+  Package,
+  Palette,
+  UserPlus,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -43,6 +52,7 @@ const navItems: NavItem[] = [
 
   // SALES
   { href: "/admin/leads", label: "Leads", icon: Funnel, page: "leads", section: "Sales" },
+  { href: "/admin/quotations", label: "Quotations", icon: FileText, page: "quotations", section: "Sales" },
 
   // CUSTOMERS
   { href: "/admin/customers", label: "Customers", icon: Users, page: "customers", section: "Customers" },
@@ -55,10 +65,18 @@ const navItems: NavItem[] = [
   { href: "/admin/partners", label: "Partners", icon: Handshake, page: "partners", section: "Partners" },
   { href: "/admin/partners/applications", label: "Applications", icon: FileText, page: "partners", section: "Partners" },
   { href: "/admin/partners/leads", label: "Partner Leads", icon: Funnel, page: "partners", section: "Partners" },
+  { href: "/admin/partners/prospects", label: "Partner Prospects", icon: UserPlus, page: "partners", section: "Partners" },
+  { href: "/admin/partners/payout-requests", label: "Payout Requests", icon: Wallet, page: "finance", section: "Partners" },
+  { href: "/admin/partners/branding-requests", label: "Branding Requests", icon: Palette, page: "partners", section: "Partners" },
   { href: "/admin/compliance", label: "Compliance", icon: Shield, page: "compliance", section: "Partners" },
 
   // FINANCE
   { href: "/admin/finance", label: "Finance", icon: Landmark, page: "finance", section: "Finance" },
+  { href: "/admin/finance/invoices", label: "Invoices", icon: Receipt, page: "finance", section: "Finance" },
+  { href: "/admin/finance/catalog", label: "Catalog", icon: Package, page: "finance", section: "Finance" },
+  { href: "/admin/finance/transactions?type=expense", label: "Expenses", icon: Wallet, page: "finance", section: "Finance" },
+  { href: "/admin/finance/transactions?type=income", label: "Income", icon: TrendingUp, page: "finance", section: "Finance" },
+  { href: "/admin/finance/categories", label: "Categories", icon: Tag, page: "finance", section: "Finance" },
 
   // OPERATIONS
   { href: "/admin/incidents", label: "Incidents", icon: Shield, page: "support", section: "Operations" },
@@ -73,6 +91,10 @@ const navItems: NavItem[] = [
 
   // ADMINISTRATION
   { href: "/admin/settings", label: "Settings", icon: Settings, page: "settings", section: "Administration" },
+  { href: "/admin/settings/email", label: "Email Settings", icon: Mail, page: "settings", section: "Administration" },
+  { href: "/admin/settings/email-routes", label: "Email Routes", icon: Route, page: "settings", section: "Administration" },
+  { href: "/admin/settings/email-templates", label: "Email Templates", icon: Mail, page: "settings", section: "Administration" },
+  { href: "/admin/email-logs", label: "Email Logs", icon: FileText, page: "settings", section: "Administration" },
   { href: "/admin/users", label: "Team Members", icon: Users, page: "users", section: "Administration" },
 ]
 

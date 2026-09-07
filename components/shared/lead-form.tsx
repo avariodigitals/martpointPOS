@@ -26,6 +26,8 @@ type LeadFormData = z.infer<typeof leadSchema>
 interface LeadFormProps {
   pageType: "demo" | "quote" | "contact"
   productDefault?: "retail" | "erp" | "not-sure"
+  /** Set when the visitor arrived via a verified partner (e.g. MP-NG-00001). */
+  partnerCode?: string
 }
 
 const businessTypes = [
@@ -42,7 +44,7 @@ const productOptions = [
 const branchOptions = ["1", "2-3", "4-6", "7-10", "10+"]
 const staffOptions = ["1-5", "6-15", "16-30", "31-50", "50+"]
 
-export function LeadForm({ pageType, productDefault = "not-sure" }: LeadFormProps) {
+export function LeadForm({ pageType, productDefault = "not-sure", partnerCode }: LeadFormProps) {
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
@@ -87,7 +89,8 @@ export function LeadForm({ pageType, productDefault = "not-sure" }: LeadFormProp
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          source: pageType,
+          source: partnerCode ? `partner:${partnerCode}` : pageType,
+          partnerCode: partnerCode || undefined,
           submittedAt: new Date().toISOString(),
         }),
       })

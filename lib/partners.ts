@@ -1,6 +1,9 @@
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
+import type { PartnerOrgCapability } from "./partner-permissions"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
+import { sendEmail, getEmailSettings, getEmailRoute } from "./email"
+import { renderEmailTemplate } from "./email-templates"
 
 /* ───────────────────────────  Partner types & helpers  ─────────────────────────── */
 
@@ -9,8 +12,8 @@ export type PartnerType =
   | "REFERRAL" | "CHANNEL" | "IMPLEMENTATION" | "CHANNEL_IMPLEMENTATION" | "TECHNOLOGY" | "PAYMENT"
 
 export type ApplicationStatus =
-  | "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "MORE_INFORMATION_REQUIRED" | "DISCOVERY_CALL"
-  | "APPROVED_CONDITIONAL" | "APPROVED" | "AGREEMENT_PENDING" | "TRAINING"
+  | "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "MORE_INFORMATION_REQUIRED" | "COMPLIANCE_REQUIRED"
+  | "DISCOVERY_CALL" | "APPROVED_CONDITIONAL" | "APPROVED" | "AGREEMENT_PENDING" | "TRAINING"
   | "CERTIFICATION_PENDING" | "ACTIVE" | "SUSPENDED" | "REJECTED" | "INACTIVE"
 
 export type PartnerStatus = "PENDING_ACTIVATION" | "ACTIVE" | "SUSPENDED" | "INACTIVE" | "TERMINATED"
@@ -29,6 +32,7 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   SUBMITTED: "Application Received",
   UNDER_REVIEW: "Under Review",
   MORE_INFORMATION_REQUIRED: "More Information Required",
+  COMPLIANCE_REQUIRED: "Compliance Documents Required",
   DISCOVERY_CALL: "Discovery Call",
   APPROVED_CONDITIONAL: "Conditional Approval",
   APPROVED: "Approved",
@@ -40,6 +44,8 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   REJECTED: "Rejected",
   INACTIVE: "Inactive",
 }
+
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng"
 
 /* ───────────────────────────  Reference number generation  ───────────────────────────
  * Format: MPA-YYYY-XXXXX  e.g. MPA-2026-00001
@@ -213,6 +219,69 @@ export async function submitPartnerApplication(
   return { ok: true, reference }
 }
 
+/* ───────────────────────────  Applicant email notifications  ─────────────────────────── */
+
+export async function sendApplicationSubmittedEmail(email: string, fullName: string, reference: string): Promise<boolean> {
+  const statusUrl = `${baseUrl}/partners/application-status`
+
+  const applicant = await renderEmailTemplate("partner_application_received", {
+    fullName, reference, statusUrl,
+  })
+  const applicantSent = await sendEmail({ to: email, subject: applicant.subject, text: applicant.text, html: applicant.html })
+
+  const admin = await renderEmailTemplate("partner_application_admin", {
+    fullName, reference, email,
+  })
+
+  const routeRecipients = await getEmailRoute("partner_application")
+  if (routeRecipients.length > 0) {
+    await sendEmail({
+      to: routeRecipients,
+      subject: admin.subject,
+      text: admin.text,
+      html: admin.html,
+    })
+  } else {
+    const { notifyEmail } = await getEmailSettings()
+    if (notifyEmail && notifyEmail.toLowerCase() !== email.toLowerCase()) {
+      await sendEmail({
+        to: notifyEmail,
+        subject: admin.subject,
+        text: admin.text,
+        html: admin.html,
+      })
+    }
+  }
+
+  return applicantSent
+}
+
+export async function sendApplicationStatusEmail(
+  email: string,
+  fullName: string,
+  reference: string,
+  newStatus: ApplicationStatus,
+  previousStatus?: string | null,
+  message?: string | null
+): Promise<boolean> {
+  const statusLabel = APPLICATION_STATUS_LABELS[newStatus] || newStatus.replace(/_/g, " ")
+  const previousLabel = previousStatus ? (APPLICATION_STATUS_LABELS[previousStatus as ApplicationStatus] || previousStatus.replace(/_/g, " ")) : ""
+  const statusUrl = `${baseUrl}/partners/application-status`
+
+  const tpl = await renderEmailTemplate("application_status_change", {
+    fullName,
+    reference,
+    statusLabel,
+    previousLabel,
+    previousLabelBlock: previousLabel ? `\nPrevious status: ${previousLabel}` : "",
+    message: message || "",
+    messageBlock: message ? `\n\nMessage from MartPoint:\n${message}` : "",
+    statusUrl,
+  })
+
+  return sendEmail({ to: email, subject: tpl.subject, text: tpl.text, html: tpl.html })
+}
+
 /* ───────────────────────────  Public directory / verify  ─────────────────────────── */
 
 export interface PublicPartner {
@@ -226,6 +295,12 @@ export interface PublicPartner {
   city: string
   website: string | null
   logoUrl: string | null
+  publicEmail: string | null
+  publicPhone: string | null
+  publicAddress: string | null
+  serviceAreas: string
+  /** Human-readable authorised services (Sales, Training, Implementation…). */
+  services: string[]
   partnerSince: string | null
 }
 
@@ -241,8 +316,46 @@ function mapPublicPartner(row: Record<string, unknown>): PublicPartner {
     city: (row.city as string) || "",
     website: (row.website as string) ?? null,
     logoUrl: (row.logo_url as string) ?? null,
+    publicEmail: (row.public_email as string) ?? null,
+    publicPhone: (row.public_phone as string) ?? null,
+    publicAddress: (row.public_address as string) ?? null,
+    serviceAreas: (row.service_areas as string) || "",
+    services: [],
     partnerSince: (row.partner_since as string) ?? null,
   }
+}
+
+/* Public-safe labels for granted capabilities. Capabilities like FIRST_LINE_SUPPORT
+ * and PAYMENT are internal-facing and intentionally re-labelled. */
+const PUBLIC_SERVICE_LABELS: Partial<Record<PartnerOrgCapability, string>> = {
+  REFERRALS: "Product referrals",
+  SALES: "Sales",
+  IMPLEMENTATION: "Implementation",
+  CUSTOMER_ONBOARDING: "Customer onboarding",
+  TRAINING: "Training",
+  TECHNOLOGY: "Technology integration",
+  FIRST_LINE_SUPPORT: "Customer support",
+}
+
+/** Batch-load enabled capabilities → public service labels keyed by partner id. */
+async function loadPublicServices(partnerIds: string[]): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>()
+  if (!partnerIds.length) return map
+  const nowIso = new Date().toISOString()
+  const { data } = await supabase
+    .from("partner_capabilities")
+    .select("partner_id, capability")
+    .in("partner_id", partnerIds)
+    .eq("enabled", true)
+    .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+  for (const row of data || []) {
+    const label = PUBLIC_SERVICE_LABELS[row.capability as PartnerOrgCapability]
+    if (!label) continue
+    const list = map.get(row.partner_id as string) ?? []
+    if (!list.includes(label)) list.push(label)
+    map.set(row.partner_id as string, list)
+  }
+  return map
 }
 
 /** Only ACTIVE + public_profile_enabled partners (enforced also by RLS). */
@@ -256,7 +369,7 @@ export async function listPublicPartners(filters?: {
   if (!isSupabaseConfigured()) return []
   let q = supabase
     .from("partners")
-    .select("id, partner_id, business_name, display_name, partner_type, country, state, city, website, logo_url, partner_since")
+    .select("id, partner_id, business_name, display_name, partner_type, country, state, city, website, logo_url, public_email, public_phone, public_address, service_areas, partner_since")
     .eq("status", "ACTIVE")
     .eq("public_profile_enabled", true)
 
@@ -268,12 +381,15 @@ export async function listPublicPartners(filters?: {
     q = q.or(`partner_id.ilike.%${filters.query}%,business_name.ilike.%${filters.query}%,display_name.ilike.%${filters.query}%`)
   }
   const { data } = await q.order("partner_since", { ascending: false })
-  return (data || []).map(mapPublicPartner)
+  const partners = (data || []).map(mapPublicPartner)
+  const services = await loadPublicServices(partners.map((p) => p.id))
+  return partners.map((p) => ({ ...p, services: services.get(p.id) ?? [] }))
 }
 
 /** Public verify: by partner ID. Returns public info regardless of public_profile_enabled,
  * but the caller must adjust messaging based on status. */
 export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
+  id: string
   partnerId: string
   businessName: string
   displayName: string
@@ -283,6 +399,11 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
   state: string
   city: string
   website: string | null
+  publicEmail: string | null
+  publicPhone: string | null
+  publicAddress: string | null
+  serviceAreas: string
+  services: string[]
   partnerSince: string | null
   publicProfileEnabled: boolean
 } | null> {
@@ -291,11 +412,13 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
   // the "not currently listed" message, so we rely on service role (server-side).
   const { data } = await supabase
     .from("partners")
-    .select("partner_id, business_name, display_name, partner_type, status, country, state, city, website, partner_since, public_profile_enabled")
+    .select("id, partner_id, business_name, display_name, partner_type, status, country, state, city, website, public_email, public_phone, public_address, service_areas, partner_since, public_profile_enabled")
     .eq("partner_id", partnerId)
     .maybeSingle()
   if (!data) return null
+  const services = await loadPublicServices([data.id as string])
   return {
+    id: data.id,
     partnerId: data.partner_id,
     businessName: data.business_name,
     displayName: data.display_name || data.business_name,
@@ -305,7 +428,58 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
     state: data.state || "",
     city: data.city || "",
     website: data.website ?? null,
+    publicEmail: data.public_email ?? null,
+    publicPhone: data.public_phone ?? null,
+    publicAddress: data.public_address ?? null,
+    serviceAreas: (data.service_areas as string) || "",
+    services: services.get(data.id as string) ?? [],
     partnerSince: data.partner_since ?? null,
     publicProfileEnabled: data.public_profile_enabled ?? false,
   }
+}
+
+/* ───────────────────────────  Public engagement tracking  ───────────────────────────
+ * Anonymous events from the public directory / verification pages.
+ * No IPs, no cookies — just counts per partner & event type.
+ */
+
+export type PartnerEventType =
+  | "directory_click"
+  | "profile_view"
+  | "verify_lookup"
+  | "website_click"
+  | "phone_click"
+  | "email_click"
+  | "sales_cta_click"
+
+export const PARTNER_EVENT_TYPES: PartnerEventType[] = [
+  "directory_click",
+  "profile_view",
+  "verify_lookup",
+  "website_click",
+  "phone_click",
+  "email_click",
+  "sales_cta_click",
+]
+
+/** Record a public engagement event for a partner (identified by partner_code like MP-NG-00001). */
+export async function recordPartnerEvent(
+  partnerCode: string,
+  eventType: PartnerEventType,
+  metadata?: Record<string, unknown>
+): Promise<void> {
+  if (!isSupabaseConfigured()) return
+  const code = partnerCode.toUpperCase().trim()
+  if (!/^MP-[A-Z]{2,3}-\d{1,6}$/.test(code)) return
+  const { data: partner } = await supabase
+    .from("partners")
+    .select("id")
+    .eq("partner_id", code)
+    .maybeSingle()
+  await supabase.from("partner_profile_events").insert({
+    partner_id: (partner?.id as string) ?? null,
+    partner_code: code,
+    event_type: eventType,
+    metadata: metadata ?? {},
+  })
 }

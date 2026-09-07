@@ -3,7 +3,8 @@
 import Link from "next/link"
 import Image from "next/image"
 import { useState, useRef, useCallback } from "react"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { MobileNav } from "./mobile-nav"
 import { mainNav, ctaNav, partnerLoginNav } from "@/lib/navigation"
 import { ChevronDown } from "lucide-react"
@@ -159,15 +160,21 @@ export function HeaderClient({ logo }: HeaderClientProps) {
             {partnerLoginNav.label}
           </Link>
           {ctaNav.href.startsWith("http") ? (
-            <Button asChild variant="default" size="sm" className="bg-retail hover:bg-retail/90 text-white">
-              <a href={ctaNav.href} target="_blank" rel="noopener noreferrer">
-                {ctaNav.label}
-              </a>
-            </Button>
+            <a
+              href={ctaNav.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonVariants({ variant: "default", size: "sm" }), "bg-retail hover:bg-retail/90 text-white")}
+            >
+              {ctaNav.label}
+            </a>
           ) : (
-            <Button asChild variant="default" size="sm" className="bg-retail hover:bg-retail/90 text-white">
-              <Link href={ctaNav.href}>{ctaNav.label}</Link>
-            </Button>
+            <Link
+              href={ctaNav.href}
+              className={cn(buttonVariants({ variant: "default", size: "sm" }), "bg-retail hover:bg-retail/90 text-white")}
+            >
+              {ctaNav.label}
+            </Link>
           )}
         </div>
 

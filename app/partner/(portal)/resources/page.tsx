@@ -17,7 +17,7 @@ export default async function PartnerResourcesPage() {
   if (!partner) redirect("/partner")
 
   const capabilities = await getPartnerCapabilities(session.partnerId)
-  const resources = await listPartnerResourcesForPartner(partner.partnerType, capabilities)
+  const resources = await listPartnerResourcesForPartner(partner.id, partner.partnerType, capabilities)
   const resourcesWithUrls = await Promise.all(
     resources.map(async (r) => ({
       id: r.id as string,

@@ -37,7 +37,10 @@ export async function listPartnerCustomers(partnerId: string): Promise<PartnerCu
     .or(`starts_at.is.null,starts_at.lte.${now}`)
     .order("created_at", { ascending: false })
   if (error || !data) return []
-  return (data as Record<string, unknown>[]).map(mapAssignment)
+  const blockedStatuses = new Set(["SUSPENDED", "INACTIVE", "CHURNED"])
+  return (data as Record<string, unknown>[])
+    .map(mapAssignment)
+    .filter((a) => !blockedStatuses.has(a.business.status))
 }
 
 export async function getPartnerCustomerDetail(
@@ -189,6 +192,15 @@ function mapBusiness(row: Record<string, unknown>): Business {
     status: row.status as Business["status"],
     source: row.source as Business["source"],
     sourceLeadId: (row.source_lead_id as string) ?? null,
+    onboardingStages: (row.onboarding_stages as Business["onboardingStages"]) ?? {},
+    onboardingOwner: (row.onboarding_owner as string) ?? null,
+    onboardingHealth: (row.onboarding_health as Business["onboardingHealth"]) ?? "On Track",
+    onboardingWaitingOn: (row.onboarding_waiting_on as Business["onboardingWaitingOn"]) ?? "None",
+    blockerReason: (row.blocker_reason as string) ?? null,
+    blockerSince: (row.blocker_since as string) ?? null,
+    targetGoLive: (row.target_go_live as string | null) ? String(row.target_go_live) : null,
+    onboardingStartedAt: (row.onboarding_started_at as string) ?? null,
+    onboardingProgress: Number(row.onboarding_progress ?? 0),
     createdBy: (row.created_by as string) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,

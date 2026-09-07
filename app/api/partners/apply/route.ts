@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { submitPartnerApplication, type PartnerType, type ApplicantType } from "@/lib/partners"
+import { submitPartnerApplication, sendApplicationSubmittedEmail, type PartnerType, type ApplicantType } from "@/lib/partners"
 import { uploadPartnerDocument, validatePartnerFile, MAX_PARTNER_FILE_BYTES } from "@/lib/partner-documents"
+import { getLeadByInviteToken } from "@/lib/partner-leads"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 const PARTNER_TYPES = ["REFERRAL", "CHANNEL", "IMPLEMENTATION", "CHANNEL_IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"] as const
@@ -35,6 +36,34 @@ const applicationSchema = z.object({
   expectedMonthlyOpportunities: z.string().max(80).optional().default(""),
   additionalAnswers: z.record(z.string(), z.string().max(2000)).optional().default({}),
   declaration: z.literal(true),
+  inviteToken: z.string().max(100).optional(),
+}).superRefine((data, ctx) => {
+  // Individuals may only apply as referral partners.
+  if (data.applicantType === "INDIVIDUAL" && data.requestedPartnerType !== "REFERRAL") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["requestedPartnerType"],
+      message: "Individuals can only apply to be Referral Partners. Companies may apply for other partnership types.",
+    })
+  }
+
+  // Non-referral partners must be registered businesses.
+  if (data.applicantType === "COMPANY" && data.requestedPartnerType !== "REFERRAL") {
+    if (!data.businessName || data.businessName.trim().length < 2) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["businessName"],
+        message: "Business name is required for non-referral partnership applications",
+      })
+    }
+    if (!data.registrationNumber || data.registrationNumber.trim().length < 2) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["registrationNumber"],
+        message: "A valid business registration number is required for non-referral partnership applications",
+      })
+    }
+  }
 })
 
 const MAX_DOCUMENTS = 6
@@ -99,8 +128,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.error || "Failed to submit" }, { status: 500 })
   }
 
-  // Upload documents + link them to the application
-  if (files.length > 0 && isSupabaseConfigured()) {
+  // Upload documents + link them to the application; also resolve invite links
+  const inviteToken = validation.data.inviteToken
+  if ((files.length > 0 || inviteToken) && isSupabaseConfigured()) {
     const { data: appRow } = await supabase
       .from("partner_applications")
       .select("id")
@@ -108,7 +138,21 @@ export async function POST(request: Request) {
       .single()
     const applicationId = appRow?.id as string | undefined
 
-    if (applicationId) {
+    if (applicationId && inviteToken) {
+      const lead = await getLeadByInviteToken(inviteToken)
+      if (lead) {
+        await supabase
+          .from("partner_applications")
+          .update({ partner_lead_id: lead.id })
+          .eq("id", applicationId)
+        await supabase
+          .from("partner_leads")
+          .update({ status: "UNDER_REVIEW", updated_at: new Date().toISOString() })
+          .eq("id", lead.id)
+      }
+    }
+
+    if (applicationId && files.length > 0) {
       for (const file of files) {
         const buffer = Buffer.from(await file.arrayBuffer())
         const upload = await uploadPartnerDocument(applicationId, file.name, file.type, buffer)
@@ -120,65 +164,21 @@ export async function POST(request: Request) {
             original_filename: upload.doc.originalFilename,
             mime_type: upload.doc.mimeType,
             file_size: upload.doc.fileSize,
+            verification_status: "SUBMITTED",
+            uploaded_at: new Date().toISOString(),
+            required: false,
           })
         }
       }
     }
   }
 
-  // Acknowledgement email + admin notification (best-effort)
-  await sendAcknowledgementEmail(validation.data.email, validation.data.fullName, result.reference)
+  // Acknowledgement + admin notification (best-effort, non-blocking so the UI doesn't hang)
+  sendApplicationSubmittedEmail(validation.data.email, validation.data.fullName, result.reference).catch((err) =>
+    console.error("[partner] submitted email failed:", err)
+  )
 
   return NextResponse.json({ success: true, reference: result.reference })
-}
-
-async function sendAcknowledgementEmail(email: string, fullName: string, reference: string) {
-  const resendKey = process.env.RESEND_API_KEY
-  const notifyEmail = process.env.NOTIFY_EMAIL
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng"
-  if (!resendKey) return
-
-  const statusLink = `${baseUrl}/partners/application-status`
-  const text = `Hi ${fullName},\n\nThank you for applying to become a MartPoint partner. Your application has been received.\n\nApplication Reference: ${reference}\n\nYou can check your application status anytime at:\n${statusLink}\n\nYou will need your application reference and the email used to apply.\n\nBest regards,\nMartPoint Partner Team`
-  const html = `<div style="font-family:sans-serif;max-width:600px">
-    <h2 style="color:#0057FF">MartPoint Partner Application Received</h2>
-    <p>Hi ${fullName},</p>
-    <p>Thank you for applying to become a MartPoint partner. Your application has been received.</p>
-    <p><strong>Application Reference:</strong> ${reference}</p>
-    <p>You can check your application status anytime:</p>
-    <p><a href="${statusLink}">${statusLink}</a></p>
-    <p>You will need your application reference and the email used to apply.</p>
-    <p>Best regards,<br>MartPoint Partner Team</p>
-  </div>`
-
-  try {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: "MartPoint Partners <partners@martpoint.com.ng>",
-        to: email,
-        subject: `MartPoint Partner Application Received — ${reference}`,
-        text,
-        html,
-      }),
-    })
-    if (notifyEmail && notifyEmail !== email) {
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: "MartPoint Partners <partners@martpoint.com.ng>",
-          to: notifyEmail,
-          subject: `New Partner Application — ${reference}`,
-          text: `A new partner application was submitted.\n\nReference: ${reference}\nApplicant: ${fullName}\nEmail: ${email}\n\nReview it in the Control Centre.`,
-          html: `<p>A new partner application was submitted.</p><p>Reference: ${reference}<br>Applicant: ${fullName}<br>Email: ${email}</p>`,
-        }),
-      })
-    }
-  } catch (err) {
-    console.error("[partner] acknowledgement email failed:", err)
-  }
 }
 
 export const runtime = "nodejs"

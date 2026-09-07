@@ -11,7 +11,7 @@ export async function GET() {
 
   const partner = auth.partner!
   const capabilities = await getPartnerCapabilities(partner.id)
-  const resources = await listPartnerResourcesForPartner(partner.partnerType, capabilities)
+  const resources = await listPartnerResourcesForPartner(partner.id, partner.partnerType, capabilities)
   const resourcesWithUrls = await Promise.all(
     resources.map(async (r) => {
       const url = await getSignedResourceUrl(r)

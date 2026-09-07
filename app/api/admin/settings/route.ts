@@ -46,6 +46,21 @@ function getDefaultSettings() {
       contactEmail: "hello@martpoint.com.ng",
       whatsappNumber: "+2348036028069",
       companyName: "MartPoint",
+      accountNumber: "",
+    },
+    email: {
+      resendApiKey: "",
+      fromEmail: "MartPoint Partners <hello@martpoint.com.ng>",
+      notifyEmail: "",
+      routes: {
+        lead_submission: "sales@martpoint.com.ng",
+        career_application: "careers@martpoint.com.ng",
+        partner_application: "",
+        onboarding_welcome: "",
+        onboarding_invoice: "",
+        support_ticket: "support@martpoint.com.ng",
+        quotation: "",
+      },
     },
     social: {
       facebook: "",

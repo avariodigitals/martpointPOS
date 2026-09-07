@@ -90,6 +90,11 @@ function validateCategory(value: string): boolean {
   return categories.includes(value)
 }
 
+function validateSource(value: string): boolean {
+  const sources = ["PORTAL", "PARTNER", "ADMIN", "EMAIL", "WHATSAPP", "PHONE", "SYSTEM", "OTHER", "DIRECT"]
+  return sources.includes(value)
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    GET — list / single by resource
    ───────────────────────────────────────────────────────────────────────────── */
@@ -257,12 +262,13 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           return err("Forbidden", 403)
         }
 
+        const source = data.source && validateSource(data.source) ? data.source : "ADMIN"
         const ticket = await createTicket({
           business_id: data.business_id,
           partner_id: data.partner_id || null,
           created_by_type: "ADMIN",
           created_by_id: actor.id,
-          source: "ADMIN",
+          source,
           category: data.category,
           priority: data.priority,
           subject: data.subject,

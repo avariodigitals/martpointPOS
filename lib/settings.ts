@@ -31,3 +31,34 @@ const fetchSettings = unstable_cache(
 export const readSettings = cache(async function readSettings(): Promise<Record<string, unknown> | null> {
   return fetchSettings()
 })
+
+export interface PublicSiteSettings {
+  companyName: string
+  contactEmail: string
+  whatsappNumber: string
+  accountNumber: string
+}
+
+export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
+  const defaults: PublicSiteSettings = {
+    companyName: "MartPoint",
+    contactEmail: "hello@martpoint.com.ng",
+    whatsappNumber: "+2348036028069",
+    accountNumber: "",
+  }
+
+  try {
+    const settings = await readSettings()
+    if (!settings) return defaults
+    const general = (settings.general as Record<string, unknown> | undefined) || {}
+    return {
+      companyName: String(general.companyName || defaults.companyName),
+      contactEmail: String(general.contactEmail || defaults.contactEmail),
+      whatsappNumber: String(general.whatsappNumber || defaults.whatsappNumber),
+      accountNumber: String(general.accountNumber || ""),
+    }
+  } catch (err) {
+    console.error("[settings] getPublicSiteSettings", err)
+    return defaults
+  }
+}

@@ -4,6 +4,8 @@ import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { generateSetupQuestions } from "@/lib/onboarding"
+import { sendEmail } from "@/lib/email"
+import { renderEmailTemplate } from "@/lib/email-templates"
 
 /* ─── Types ─── */
 interface OnboardingRecord {
@@ -137,14 +139,18 @@ export async function POST(request: Request) {
     }
 
     // Send email with setup questions
-    const resendKey = process.env.RESEND_API_KEY
-    const notifyEmail = process.env.NOTIFY_EMAIL || email
     const setupQuestions = generateSetupQuestions(productInterest || "retail")
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ""
     const formLink = `${baseUrl}/onboarding/${recordId}`.replace(/\/$/, "")
 
-    const defaultEmailText = `Hi ${fullName},\n\nWelcome to MartPoint! To get your system up and running, we need a few critical details.\n\n${setupQuestions}\n\nBest regards,\nMartPoint Team`
-    const emailText = (message || defaultEmailText) + `\n\nComplete your onboarding form:\n${formLink}`
+    const welcomeTpl = await renderEmailTemplate("onboarding_welcome", {
+      fullName,
+      setupQuestions,
+      formLink,
+    })
+    const emailText = message
+      ? `${message}\n\nComplete your onboarding form:\n${formLink}`
+      : welcomeTpl.text
     const emailHtml = `<div style="font-family:sans-serif;max-width:600px">
       <h2 style="color:#0057FF">Welcome to MartPoint</h2>
       <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${emailText.replace(/\n/g, "<br>")}</div>
@@ -152,26 +158,12 @@ export async function POST(request: Request) {
       <p>Best regards,<br>MartPoint Team</p>
     </div>`
 
-    if (resendKey && notifyEmail) {
-      try {
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: "MartPoint Onboarding <onboarding@martpoint.com.ng>",
-            to: email,
-            subject: `Welcome to MartPoint — Action Required: Setup Your Account`,
-            text: emailText,
-            html: emailHtml,
-          }),
-        })
-      } catch (err) {
-        console.error("Onboarding email failed:", err)
-      }
-    }
+    await sendEmail({
+      to: email,
+      subject: welcomeTpl.subject,
+      text: emailText,
+      html: emailHtml,
+    })
 
     // WhatsApp notification (if configured)
     const waPhoneId = process.env.WHATSAPP_PHONE_ID

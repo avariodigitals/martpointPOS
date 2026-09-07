@@ -42,10 +42,10 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
-  Admin: ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "users", "leads", "customers", "finance", "onboarding", "partners", "businesses", "support", "customer_success", "compliance", "tasks"],
-  Finance: ["dashboard", "finance", "tracker", "analytics", "leads", "customers", "onboarding", "businesses", "compliance"],
-  "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "customers", "onboarding", "businesses"],
-  Sales: ["tracker", "analytics", "leads", "customers", "finance", "onboarding", "businesses", "partners", "customer_success"],
+  Admin: ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "users", "leads", "quotations", "customers", "finance", "onboarding", "partners", "businesses", "support", "customer_success", "compliance", "tasks"],
+  Finance: ["dashboard", "finance", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "compliance"],
+  "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses"],
+  Sales: ["tracker", "analytics", "leads", "quotations", "customers", "finance", "onboarding", "businesses", "partners", "customer_success"],
   Tech: ["settings", "seo", "blog", "faqs", "customers", "businesses", "support", "customer_success", "compliance", "tasks"],
   Editor: ["blog", "faqs"],
 }
@@ -82,11 +82,18 @@ export interface AuthorizeResult {
 export function authorize(
   session: SessionPayload | null,
   page: string,
-  _action?: AdminAction,
-  _resource?: string
+  action?: AdminAction
 ): boolean {
   if (!session) return false
   // Admin role bypasses granular checks for now.
   if (session.role === "Admin") return true
+
+  // Business CRUD: view is page-level; create/update/delete limited to
+  // Admin, Finance, and Sales roles only.
+  if (page === "businesses" && action) {
+    if (action === "view") return hasPermission(session.role, "businesses")
+    return ["Finance", "Sales"].includes(session.role)
+  }
+
   return hasPermission(session.role, page)
 }

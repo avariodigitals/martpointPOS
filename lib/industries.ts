@@ -408,7 +408,7 @@ export const beautyAndSalons: IndustryData = {
   ],
   testimonial: {
     quote: "We used to write appointments in a book and lose track of product stock separately. Now everything is in one place. My stylists know their commissions automatically and I finally know which services make us the most money.",
-    author: "Tunde A.",
+    author: "Funmi A.",
     role: "Founder, Clean Bubbles Beauty",
     initials: "TA",
   },

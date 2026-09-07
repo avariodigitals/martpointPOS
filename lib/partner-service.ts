@@ -2,9 +2,11 @@ import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { hashPassword, hashToken } from "./crypto"
 import { sendEmail } from "./email"
+import { renderEmailTemplate } from "./email-templates"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import {
   createSignedDocUrl,
+  createSignedResourceUrl,
   validatePartnerFile,
   PARTNER_DOCUMENTS_BUCKET,
 } from "./partner-documents"
@@ -62,6 +64,8 @@ function mapPartner(row: Record<string, unknown>): PartnerRecord {
     city: (row.city as string) || "",
     publicEmail: (row.public_email as string | null) ?? null,
     publicPhone: (row.public_phone as string | null) ?? null,
+    publicAddress: (row.public_address as string | null) ?? null,
+    serviceAreas: (row.service_areas as string) || "",
     website: (row.website as string | null) ?? null,
     logoUrl: (row.logo_url as string | null) ?? null,
     publicProfileEnabled: (row.public_profile_enabled as boolean) ?? false,
@@ -151,20 +155,12 @@ export async function createPartnerInvitation(
   }
 
   const link = `${baseUrl()}/partner/invite/${token}`
-  await sendEmail({
-    to: normalizedEmail,
-    subject: "Invitation to join the MartPoint Partner Portal",
-    text: `Hi ${input.fullName.trim()},
-
-You have been invited to join the MartPoint Partner Portal for ${partner.businessName}.
-
-Click the link below to accept your invitation and set your password. This link expires in 7 days and can only be used once.
-
-${link}
-
-Welcome,
-MartPoint Partner Team`,
+  const tpl = await renderEmailTemplate("partner_user_invite", {
+    fullName: input.fullName.trim(),
+    businessName: partner.businessName,
+    link,
   })
+  await sendEmail({ to: normalizedEmail, subject: tpl.subject, text: tpl.text, html: tpl.html })
 
   const ctx: AuditContext = {
     actorType: input.actorType,
@@ -286,19 +282,12 @@ export async function resendPartnerInvitation(
   const user = (invitation as Record<string, unknown>).partner_users as Record<string, unknown>
 
   const link = `${baseUrl()}/partner/invite/${token}`
-  await sendEmail({
-    to: user.email as string,
-    subject: "Your MartPoint Partner Portal invitation",
-    text: `Hi ${user.full_name as string},
-
-Here is your new invitation link to join the MartPoint Partner Portal for ${partner.business_name as string}.
-
-${link}
-
-This link expires in 7 days and can only be used once.
-
-MartPoint Partner Team`,
+  const tpl = await renderEmailTemplate("partner_user_invite_resent", {
+    fullName: user.full_name as string,
+    businessName: partner.business_name as string,
+    link,
   })
+  await sendEmail({ to: user.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html })
 
   const ctx: AuditContext = { actorType, actorId: invitedBy }
   await recordAudit(ctx, {
@@ -381,21 +370,11 @@ export async function createPartnerPasswordReset(
   })
 
   const link = `${baseUrl()}/partner/reset-password/${token}`
-  await sendEmail({
-    to: normalizedEmail,
-    subject: "Reset your MartPoint Partner Portal password",
-    text: `Hi ${user.full_name as string},
-
-You requested a password reset for your MartPoint Partner Portal account.
-
-Click the link below to set a new password. This link expires in 1 hour and can only be used once.
-
-${link}
-
-If you did not request this, please ignore this email.
-
-MartPoint Partner Team`,
+  const tpl = await renderEmailTemplate("partner_password_reset", {
+    fullName: user.full_name,
+    link,
   })
+  await sendEmail({ to: normalizedEmail, subject: tpl.subject, text: tpl.text, html: tpl.html })
 
   return { ok: true, token }
 }
@@ -518,6 +497,8 @@ export async function updatePartnerProfile(
     displayName: string
     publicEmail: string
     publicPhone: string
+    publicAddress: string
+    serviceAreas: string
     website: string
     logoUrl: string
     city: string
@@ -533,6 +514,8 @@ export async function updatePartnerProfile(
   if (updates.displayName !== undefined) updateData.display_name = updates.displayName
   if (updates.publicEmail !== undefined) updateData.public_email = updates.publicEmail
   if (updates.publicPhone !== undefined) updateData.public_phone = updates.publicPhone
+  if (updates.publicAddress !== undefined) updateData.public_address = updates.publicAddress
+  if (updates.serviceAreas !== undefined) updateData.service_areas = updates.serviceAreas
   if (updates.website !== undefined) updateData.website = updates.website
   if (updates.logoUrl !== undefined) updateData.logo_url = updates.logoUrl
   if (updates.city !== undefined) updateData.city = updates.city
@@ -706,6 +689,8 @@ export async function approvePartnerProfileUpdateRequest(
   const fieldMap: Record<string, string> = {
     publicEmail: "public_email",
     publicPhone: "public_phone",
+    publicAddress: "public_address",
+    serviceAreas: "service_areas",
     website: "website",
     logoUrl: "logo_url",
     city: "city",
@@ -757,7 +742,7 @@ export async function listPartnerComplianceDocuments(
   if (!isSupabaseConfigured()) return []
   const { data, error } = await supabase
     .from("partner_documents")
-    .select("id, document_type, verification_status, uploaded_at, storage_path, original_filename, mime_type, file_size, notes")
+    .select("id, document_type, verification_status, uploaded_at, storage_path, original_filename, mime_type, file_size, notes, required")
     .eq("partner_id", partnerId)
     .order("uploaded_at", { ascending: false })
   if (error || !data) return []
@@ -867,11 +852,12 @@ export interface ResourceInput {
   fileUrl?: string
   storagePath?: string
   externalUrl?: string
-  visibility: "ALL" | "TYPES" | "CAPABILITIES"
+  visibility: "ALL" | "TYPES" | "CAPABILITIES" | "PARTNER"
   allowedPartnerTypes?: PartnerType[]
   allowedCapabilities?: PartnerOrgCapability[]
   active?: boolean
   publishedAt?: string | null
+  partnerId?: string | null
 }
 
 export async function listAllPartnerResources(): Promise<Record<string, unknown>[]> {
@@ -885,6 +871,7 @@ export async function listAllPartnerResources(): Promise<Record<string, unknown>
 }
 
 export async function listPartnerResourcesForPartner(
+  partnerId: string,
   partnerType: PartnerType,
   capabilities: PartnerOrgCapability[]
 ): Promise<Record<string, unknown>[]> {
@@ -900,6 +887,9 @@ export async function listPartnerResourcesForPartner(
   if (error || !data) return []
 
   return (data as Record<string, unknown>[]).filter((r) => {
+    const resourcePartnerId = r.partner_id as string | null
+    if (resourcePartnerId) return resourcePartnerId === partnerId
+
     const visibility = r.visibility as string
     if (visibility === "ALL") return true
     if (visibility === "TYPES") {
@@ -934,6 +924,7 @@ export async function createPartnerResource(
       allowed_capabilities: input.allowedCapabilities ?? [],
       active: input.active ?? true,
       published_at: input.publishedAt ?? null,
+      partner_id: input.partnerId ?? null,
       created_by: createdBy,
       created_at: now(),
       updated_at: now(),
@@ -973,6 +964,7 @@ export async function updatePartnerResource(
   if (input.allowedCapabilities !== undefined) updateData.allowed_capabilities = input.allowedCapabilities
   if (input.active !== undefined) updateData.active = input.active
   if (input.publishedAt !== undefined) updateData.published_at = input.publishedAt
+  if (input.partnerId !== undefined) updateData.partner_id = input.partnerId ?? null
 
   const { error } = await supabase.from("partner_resources").update(updateData).eq("id", id)
   if (error) return { ok: false, error: "Failed to update resource" }
@@ -1011,11 +1003,89 @@ export async function getSignedResourceUrl(
   resource: Record<string, unknown>
 ): Promise<string | null> {
   if (resource.storage_path && typeof resource.storage_path === "string") {
-    return createSignedDocUrl(resource.storage_path, 300)
+    return createSignedResourceUrl(resource.storage_path, 300)
   }
   if (resource.file_url && typeof resource.file_url === "string") return resource.file_url
   if (resource.external_url && typeof resource.external_url === "string") return resource.external_url
   return null
+}
+
+/* ───────────────────────────  Branding / asset requests  ─────────────────────────── */
+
+export async function listPartnerBrandingRequests(partnerId: string): Promise<Record<string, unknown>[]> {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase
+    .from("partner_branding_requests")
+    .select("*")
+    .eq("partner_id", partnerId)
+    .order("created_at", { ascending: false })
+  if (error || !data) return []
+  return data as Record<string, unknown>[]
+}
+
+export async function createPartnerBrandingRequest(
+  partnerId: string,
+  title: string,
+  description: string,
+  createdBy: string
+): Promise<{ ok: boolean; error?: string; request?: Record<string, unknown> }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
+
+  const { data, error } = await supabase
+    .from("partner_branding_requests")
+    .insert({
+      partner_id: partnerId,
+      title,
+      description,
+      status: "PENDING",
+      created_by: createdBy,
+      created_at: now(),
+      updated_at: now(),
+    })
+    .select()
+    .single()
+
+  if (error || !data) return { ok: false, error: "Failed to create request" }
+  return { ok: true, request: data }
+}
+
+export async function fulfillPartnerBrandingRequest(
+  requestId: string,
+  resourceId: string,
+  adminId: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
+
+  const { error } = await supabase
+    .from("partner_branding_requests")
+    .update({
+      status: "FULFILLED",
+      resource_id: resourceId,
+      updated_at: now(),
+    })
+    .eq("id", requestId)
+
+  if (error) return { ok: false, error: "Failed to fulfill request" }
+
+  const ctx: AuditContext = { actorType: "ADMIN", actorId: adminId }
+  await recordAudit(ctx, {
+    action: AUDIT_ACTIONS.PARTNER_BRANDING_REQUEST_FULFILLED,
+    entityType: AUDIT_ENTITIES.PARTNER_BRANDING_REQUEST,
+    entityId: requestId,
+    metadata: { resourceId },
+  })
+
+  return { ok: true }
+}
+
+export async function listAllBrandingRequests(): Promise<Record<string, unknown>[]> {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase
+    .from("partner_branding_requests")
+    .select("*, partners ( id, business_name, display_name )")
+    .order("created_at", { ascending: false })
+  if (error || !data) return []
+  return data as Record<string, unknown>[]
 }
 
 /* ───────────────────────────  Customer assignments  ─────────────────────────── */

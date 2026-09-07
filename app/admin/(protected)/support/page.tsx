@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, LifeBuoy, ArrowRight } from "lucide-react"
+import { Loader2, LifeBuoy, ArrowRight, Plus, X } from "lucide-react"
 
 interface BusinessInfo {
   business_name?: string | null
@@ -33,6 +33,7 @@ interface Ticket {
 const STATUSES = ["", "NEW", "ASSIGNED", "IN_PROGRESS", "WAITING_CUSTOMER", "WAITING_PARTNER", "ESCALATED", "RESOLVED", "CLOSED", "CANCELLED"]
 const PRIORITIES = ["", "LOW", "NORMAL", "HIGH", "URGENT"]
 const CATEGORIES = ["", "SOFTWARE", "LOGIN_ACCOUNT", "POS", "INVENTORY", "PRODUCTS", "REPORTS", "ONLINE_STORE", "CONFIGURATION", "TRAINING", "BILLING", "LICENSING", "SECURITY", "PRIVACY_DATA", "HARDWARE_GUIDANCE", "FEATURE_REQUEST", "PARTNER_COMPLAINT", "OTHER"]
+const SOURCES = ["WHATSAPP", "EMAIL", "DIRECT", "PHONE", "PORTAL", "ADMIN", "OTHER"]
 
 const STATUS_COLORS: Record<string, string> = {
   NEW: "bg-slate-100 text-slate-700",
@@ -70,6 +71,17 @@ export default function AdminSupportPage() {
   const [search, setSearch] = useState("")
 
   const [params, setParams] = useState<URLSearchParams>(new URLSearchParams())
+
+  const [showCreate, setShowCreate] = useState(false)
+  const [businessQuery, setBusinessQuery] = useState("")
+  const [businessResults, setBusinessResults] = useState<Array<{ id: string; business_name: string }>>([])
+  const [selectedBusinessId, setSelectedBusinessId] = useState("")
+  const [source, setSource] = useState("DIRECT")
+  const [createCategory, setCreateCategory] = useState("SOFTWARE")
+  const [createPriority, setCreatePriority] = useState("NORMAL")
+  const [createSubject, setCreateSubject] = useState("")
+  const [createDescription, setCreateDescription] = useState("")
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     fetchTickets(params)
@@ -114,6 +126,65 @@ export default function AdminSupportPage() {
     }
   }, [tickets])
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!businessQuery.trim()) {
+        setBusinessResults([])
+        return
+      }
+      fetch(`/api/admin/businesses?search=${encodeURIComponent(businessQuery)}`)
+        .then((r) => r.json())
+        .then((data) => {
+          setBusinessResults(Array.isArray(data.businesses) ? data.businesses.map((b: any) => ({ id: b.id, business_name: b.businessName })) : [])
+        })
+        .catch(() => setBusinessResults([]))
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [businessQuery])
+
+  async function createTicketFromAdmin(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selectedBusinessId || !createSubject.trim()) return
+    setCreating(true)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/support/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          data: {
+            business_id: selectedBusinessId,
+            source,
+            category: createCategory,
+            priority: createPriority,
+            subject: createSubject.trim(),
+            description: createDescription.trim() || null,
+          },
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        setShowCreate(false)
+        setBusinessQuery("")
+        setBusinessResults([])
+        setSelectedBusinessId("")
+        setSource("DIRECT")
+        setCreateCategory("SOFTWARE")
+        setCreatePriority("NORMAL")
+        setCreateSubject("")
+        setCreateDescription("")
+        fetchTickets(params)
+      } else {
+        setMessage(json.error || "Failed to create ticket")
+      }
+    } catch {
+      setMessage("Failed to create ticket")
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -124,10 +195,104 @@ export default function AdminSupportPage() {
           </h2>
           <p className="text-muted-foreground">Manage support tickets, assignments and SLA.</p>
         </div>
+        <Button size="sm" onClick={() => setShowCreate(!showCreate)}>
+          {showCreate ? <X className="w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+          {showCreate ? "Close" : "New ticket"}
+        </Button>
       </div>
 
       {message && (
-        <p className={`text-sm ${message.includes("load") ? "text-red-500" : "text-green-600"}`}>{message}</p>
+        <p className={`text-sm ${message.includes("load") || message.includes("Failed") || message.includes("failed") ? "text-red-500" : "text-green-600"}`}>{message}</p>
+      )}
+
+      {showCreate && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Create ticket</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={createTicketFromAdmin} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="relative">
+                  <label className="block text-xs font-medium mb-1">Business</label>
+                  <input
+                    type="text"
+                    value={businessQuery}
+                    onChange={(e) => {
+                      setBusinessQuery(e.target.value)
+                      setSelectedBusinessId("")
+                    }}
+                    placeholder="Search business name or email"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                  {businessResults.length > 0 && !selectedBusinessId && (
+                    <div className="absolute z-10 w-full mt-1 max-h-40 overflow-auto rounded-md border border-border bg-background shadow-sm">
+                      {businessResults.map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => {
+                            setBusinessQuery(b.business_name)
+                            setSelectedBusinessId(b.id)
+                            setBusinessResults([])
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                        >
+                          {b.business_name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Source</label>
+                  <select value={source} onChange={(e) => setSource(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    {SOURCES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Category</label>
+                  <select value={createCategory} onChange={(e) => setCreateCategory(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    {CATEGORIES.filter((c) => c).map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Priority</label>
+                  <select value={createPriority} onChange={(e) => setCreatePriority(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    {PRIORITIES.filter((p) => p).map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Subject</label>
+                <input
+                  type="text"
+                  value={createSubject}
+                  onChange={(e) => setCreateSubject(e.target.value)}
+                  required
+                  placeholder="Ticket subject"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Description</label>
+                <textarea
+                  value={createDescription}
+                  onChange={(e) => setCreateDescription(e.target.value)}
+                  rows={3}
+                  placeholder="Initial description"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <Button type="submit" size="sm" disabled={creating || !selectedBusinessId || !createSubject.trim()}>
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                <span className="ml-1">Create ticket</span>
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

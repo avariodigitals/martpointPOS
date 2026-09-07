@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -102,21 +103,39 @@ export default function FinanceTransactionsPage() {
     frequency: "one-time" as string,
   })
 
-  const [filterType, setFilterType] = useState<string>("all")
+  const searchParams = useSearchParams()
+  const initialType = searchParams.get("type") || "all"
+  const validType = initialType === "income" || initialType === "expense" ? initialType : "all"
+
+  const [filterType, setFilterType] = useState<string>(validType)
   const [searchQuery, setSearchQuery] = useState("")
+  const [categoryList, setCategoryList] = useState<Array<{ id: string; type: string; name: string; active: boolean }>>([])
 
   useEffect(() => {
-    fetch("/api/admin/finance")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.transactions) setTransactions(data.transactions)
+    Promise.all([
+      fetch("/api/admin/finance").then((res) => res.json()),
+      fetch("/api/admin/finance/categories").then((res) => res.json()),
+    ])
+      .then(([financeData, catData]) => {
+        if (financeData.transactions) setTransactions(financeData.transactions)
+        if (catData.categories) setCategoryList(catData.categories)
       })
-      .catch(() => setMessage("Failed to load transactions"))
+      .catch(() => setMessage("Failed to load data"))
       .finally(() => setLoading(false))
   }, [])
 
-  const categories = addForm.type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES
-  const editCategories = editForm.type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES
+  const activeCategories = useMemo(() => {
+    const fromDb = categoryList.filter((c) => c.type === addForm.type && c.active).map((c) => c.name)
+    return fromDb.length > 0 ? fromDb : (addForm.type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES)
+  }, [categoryList, addForm.type])
+
+  const editActiveCategories = useMemo(() => {
+    const fromDb = categoryList.filter((c) => c.type === editForm.type && c.active).map((c) => c.name)
+    return fromDb.length > 0 ? fromDb : (editForm.type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES)
+  }, [categoryList, editForm.type])
+
+  const categories = activeCategories
+  const editCategories = editActiveCategories
 
   const filteredTransactions = useMemo(() => {
     let list = transactions

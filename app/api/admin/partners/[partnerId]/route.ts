@@ -74,6 +74,8 @@ export async function PATCH(
       "business_name",
       "public_email",
       "public_phone",
+      "public_address",
+      "service_areas",
       "website",
       "logo_url",
       "public_profile_enabled",

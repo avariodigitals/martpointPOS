@@ -77,7 +77,7 @@ export default function BusinessCustomerSuccessPage() {
         </Link>
         <h2 className="text-2xl font-bold tracking-tight mt-2 flex items-center gap-2">
           <HeartHandshake className="w-5 h-5" />
-          Customer Success · {businessId}
+          Customer Success
         </h2>
       </div>
 

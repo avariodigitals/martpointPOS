@@ -17,7 +17,7 @@ export function VerifyPartnerClient() {
     if (!/^MP-[A-Z]{2,3}-\d{1,6}$/i.test(id)) { setError("Partner ID format: MP-NG-00001"); return }
     setError("")
     setLoading(true)
-    router.push(`/partners/${id}`)
+    router.push(`/partners/${id}?src=verify`)
   }
 
   return (

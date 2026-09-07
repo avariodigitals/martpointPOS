@@ -9,6 +9,7 @@ interface GeneralSettings {
   contactEmail: string
   whatsappNumber: string
   companyName: string
+  accountNumber: string
 }
 
 interface OpenAISettings {
@@ -80,6 +81,7 @@ export default function AdminSettingsPage() {
     contactEmail: "",
     whatsappNumber: "",
     companyName: "",
+    accountNumber: "",
   })
   const [social, setSocial] = useState<SocialSettings>({
     facebook: "",
@@ -192,6 +194,7 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState<Record<string, boolean>>({})
   const [uploading, setUploading] = useState<{ header: boolean; footer: boolean }>({ header: false, footer: false })
   const [message, setMessage] = useState<Record<string, string>>({})
+  const [activeTab, setActiveTab] = useState<"configuration" | "content">("configuration")
 
   useEffect(() => {
     fetch("/api/admin/settings", { cache: "no-store" })
@@ -349,13 +352,40 @@ export default function AdminSettingsPage() {
         <p className="text-muted-foreground">Update contact details and site identity.</p>
       </div>
 
+      {!loading && (
+        <div className="flex gap-2 border-b border-border">
+          <button
+            type="button"
+            onClick={() => setActiveTab("configuration")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "configuration"
+                ? "border-retail text-retail"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Configuration
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("content")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "content"
+                ? "border-retail text-retail"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Content Edit
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
         <form onSubmit={handleSubmit} noValidate className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
+          <Card className={activeTab === "content" ? "hidden" : ""}>
             <CardHeader>
               <CardTitle>Contact Information</CardTitle>
               <CardDescription>Used across forms and CTAs on the site.</CardDescription>
@@ -391,6 +421,16 @@ export default function AdminSettingsPage() {
                   placeholder="+2348036028069"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Wire / Bank Account Number</label>
+                <input
+                  type="text"
+                  value={settings.accountNumber}
+                  onChange={(e) => setSettings({ ...settings, accountNumber: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="0123456789 (shown on quotations and invoices)"
+                />
+              </div>
             </CardContent>
             <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
               {message.general && (
@@ -405,7 +445,7 @@ export default function AdminSettingsPage() {
             </CardFooter>
           </Card>
 
-          <Card>
+          <Card className={activeTab === "content" ? "hidden" : ""}>
             <CardHeader>
               <CardTitle>Social Media Links</CardTitle>
               <CardDescription>Links to your social media profiles displayed in the footer.</CardDescription>
@@ -465,7 +505,7 @@ export default function AdminSettingsPage() {
             </CardFooter>
           </Card>
 
-          <Card>
+          <Card className={activeTab === "content" ? "hidden" : ""}>
             <CardHeader>
               <CardTitle>Search Console</CardTitle>
               <CardDescription>Google Search Console site verification code.</CardDescription>
@@ -511,7 +551,7 @@ export default function AdminSettingsPage() {
             </CardFooter>
           </Card>
 
-          <Card>
+          <Card className={activeTab === "content" ? "hidden" : ""}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-retail" />
@@ -547,7 +587,7 @@ export default function AdminSettingsPage() {
             </CardFooter>
           </Card>
 
-          <Card className="lg:col-span-2">
+          <Card className={activeTab === "configuration" ? "hidden" : "lg:col-span-2"}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MousePointerClick className="w-5 h-5 text-retail" />
@@ -672,7 +712,7 @@ export default function AdminSettingsPage() {
             </CardFooter>
           </Card>
 
-          <Card>
+          <Card className={activeTab === "configuration" ? "hidden" : ""}>
             <CardHeader>
               <CardTitle>Header Branding</CardTitle>
               <CardDescription>Logo and top navigation call-to-action buttons.</CardDescription>
@@ -802,7 +842,7 @@ export default function AdminSettingsPage() {
             </CardFooter>
           </Card>
 
-          <Card>
+          <Card className={activeTab === "configuration" ? "hidden" : ""}>
             <CardHeader>
               <CardTitle>Footer Branding</CardTitle>
               <CardDescription>Logo, description, and bottom bar text shown in the site footer.</CardDescription>
@@ -886,7 +926,7 @@ export default function AdminSettingsPage() {
             </CardFooter>
           </Card>
 
-          <Card className="lg:col-span-2">
+          <Card className={activeTab === "configuration" ? "hidden" : "lg:col-span-2"}>
             <CardHeader>
               <CardTitle>Pricing Plans</CardTitle>
               <CardDescription>Edit Retail Cloud, Retail Offline, and ERP plan details shown across the site.</CardDescription>

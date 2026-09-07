@@ -17,6 +17,7 @@ import {
   Download,
   Users,
   HeartHandshake,
+  ShieldCheck,
   Briefcase,
   Mail,
   Truck,
@@ -103,7 +104,8 @@ export const mainNav: NavItem[] = [
       { label: "About MartPoint", href: "/about", icon: Users },
       { label: "Why MartPoint", href: "/why-martpoint", icon: HeartHandshake },
       { label: "Partners", href: "/partners", icon: HeartHandshake },
-      { label: "Careers", href: "/careers", icon: Briefcase },
+      { label: "Partner Directory", href: "/partners/directory", icon: Users },
+      { label: "Verify a Partner", href: "/partners/verify", icon: ShieldCheck },
       { label: "Contact", href: "/contact", icon: Mail },
     ],
   },
@@ -111,7 +113,7 @@ export const mainNav: NavItem[] = [
 
 export const ctaNav = {
   label: "Book a Demo",
-  href: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F",
+  href: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20I%20see%20a%20demo%3F",
 }
 
 export const partnerLoginNav = {
@@ -159,6 +161,8 @@ export const footerColumns = {
       { label: "About MartPoint", href: "/about" },
       { label: "Why MartPoint", href: "/why-martpoint" },
       { label: "Partners", href: "/partners" },
+      { label: "Partner Directory", href: "/partners/directory" },
+      { label: "Verify a Partner", href: "/partners/verify" },
       { label: "Careers", href: "/careers" },
       { label: "Contact", href: "/contact" },
       { label: "Partner Login", href: "/partner/login" },

@@ -1,12 +1,26 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
+
+const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+const labelCls = "block text-sm font-medium mb-1"
 
 export default function NewLeadPage() {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [country, setCountry] = useState("")
+  const [state, setState] = useState("")
+  const [city, setCity] = useState("")
+
+  const countries = useMemo(() => COUNTRIES.map((c) => c.name), [])
+  const states = useMemo(() => getStatesForCountry(country), [country])
+  const cities = useMemo(() => getCitiesForState(country, state), [country, state])
+  const stateIsSelect = states.length > 0
+  const cityIsSelect = cities.length > 0
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -47,31 +61,135 @@ export default function NewLeadPage() {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Register Lead</h2>
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
       <form onSubmit={handleSubmit} className="space-y-4 max-w-2xl">
-        <input required name="businessName" placeholder="Business name" className="w-full rounded border px-3 py-2" />
-        <input required name="contactName" placeholder="Contact name" className="w-full rounded border px-3 py-2" />
-        <div className="grid grid-cols-2 gap-4">
-          <input required name="phone" placeholder="Phone" className="w-full rounded border px-3 py-2" />
-          <input required name="email" type="email" placeholder="Email" className="w-full rounded border px-3 py-2" />
+        <div>
+          <label className={labelCls}>Business name *</label>
+          <input required name="businessName" className={inputCls} />
         </div>
-        <div className="grid grid-cols-3 gap-4">
-          <input required name="country" placeholder="Country" className="w-full rounded border px-3 py-2" />
-          <input required name="state" placeholder="State" className="w-full rounded border px-3 py-2" />
-          <input required name="city" placeholder="City" className="w-full rounded border px-3 py-2" />
+        <div>
+          <label className={labelCls}>Contact name *</label>
+          <input required name="contactName" className={inputCls} />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <input required name="industry" placeholder="Industry" className="w-full rounded border px-3 py-2" />
-          <input required name="businessType" placeholder="Business type" className="w-full rounded border px-3 py-2" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Phone *</label>
+            <input required name="phone" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Email *</label>
+            <input required name="email" type="email" className={inputCls} />
+          </div>
         </div>
-        <input required name="interestedProduct" placeholder="Interested product" className="w-full rounded border px-3 py-2" />
-        <div className="grid grid-cols-3 gap-4">
-          <input name="estimatedBranches" type="number" placeholder="Estimated branches" className="w-full rounded border px-3 py-2" />
-          <input name="estimatedUsers" type="number" placeholder="Estimated users" className="w-full rounded border px-3 py-2" />
-          <input name="estimatedDealValue" type="number" placeholder="Estimated deal value" className="w-full rounded border px-3 py-2" />
+
+        {/* Country / State / City */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className={labelCls}>Country *</label>
+            <select
+              required
+              name="country"
+              className={inputCls}
+              value={country}
+              onChange={(e) => {
+                setCountry(e.target.value)
+                setState("")
+                setCity("")
+              }}
+            >
+              <option value="">Select country</option>
+              {countries.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>State *</label>
+            {stateIsSelect ? (
+              <select
+                required
+                name="state"
+                className={inputCls}
+                value={state}
+                onChange={(e) => {
+                  setState(e.target.value)
+                  setCity("")
+                }}
+              >
+                <option value="">Select state</option>
+                {states.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                required
+                name="state"
+                className={inputCls}
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+                placeholder="Type state"
+              />
+            )}
+          </div>
+          <div>
+            <label className={labelCls}>City *</label>
+            <input
+              required
+              name="city"
+              className={inputCls}
+              list={cityIsSelect ? "city-list" : undefined}
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder={cityIsSelect ? "Select or type city" : "Type city"}
+            />
+            {cityIsSelect && (
+              <datalist id="city-list">
+                {cities.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            )}
+          </div>
         </div>
-        <textarea name="notes" placeholder="Notes" className="w-full rounded border px-3 py-2" />
-        <button type="submit" disabled={saving} className="rounded-md bg-retail px-4 py-2 text-white disabled:opacity-50">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Industry *</label>
+            <input required name="industry" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Business type *</label>
+            <input required name="businessType" className={inputCls} />
+          </div>
+        </div>
+        <div>
+          <label className={labelCls}>Interested product *</label>
+          <input required name="interestedProduct" className={inputCls} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className={labelCls}>Estimated branches</label>
+            <input name="estimatedBranches" type="number" min={1} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Estimated users</label>
+            <input name="estimatedUsers" type="number" min={1} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Estimated deal value</label>
+            <input name="estimatedDealValue" type="number" min={0} step="0.01" className={inputCls} />
+          </div>
+        </div>
+        <div>
+          <label className={labelCls}>Notes</label>
+          <textarea name="notes" rows={3} className={inputCls} />
+        </div>
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-md bg-retail px-4 py-2 text-white text-sm font-medium disabled:opacity-50"
+        >
           {saving ? "Registering..." : "Register Lead"}
         </button>
       </form>

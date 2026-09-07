@@ -20,6 +20,10 @@ interface LeadRecord {
   status: "New" | "Contacted" | "Qualified" | "Proposal" | "Won" | "Lost"
   assignedTo?: string
   notes?: string
+  questionnaireToken?: string | null
+  questionnaireStatus?: string
+  questionnaireSentAt?: string | null
+  questionnaireSubmittedAt?: string | null
   submittedAt: string
   updatedAt: string
 }
@@ -67,6 +71,10 @@ export async function GET() {
     status: row.status,
     assignedTo: row.assigned_to,
     notes: row.notes,
+    questionnaireToken: row.questionnaire_token,
+    questionnaireStatus: row.questionnaire_status,
+    questionnaireSentAt: row.questionnaire_sent_at,
+    questionnaireSubmittedAt: row.questionnaire_submitted_at,
     submittedAt: row.submitted_at,
     updatedAt: row.updated_at,
   }))
@@ -148,6 +156,10 @@ export async function PUT(request: Request) {
       status: data.status,
       assignedTo: data.assigned_to,
       notes: data.notes,
+      questionnaireToken: data.questionnaire_token,
+      questionnaireStatus: data.questionnaire_status,
+      questionnaireSentAt: data.questionnaire_sent_at,
+      questionnaireSubmittedAt: data.questionnaire_submitted_at,
       submittedAt: data.submitted_at,
       updatedAt: data.updated_at,
     }
@@ -205,6 +217,7 @@ export async function POST(request: Request) {
       status: status || "New",
       assignedTo: assignedTo || "",
       notes: notes || "",
+      questionnaireStatus: "Not Sent",
       submittedAt: now,
       updatedAt: now,
     }

@@ -21,7 +21,18 @@ import {
   X,
   Rocket,
   Pencil,
+  FileText,
 } from "lucide-react"
+
+interface QuestionnaireField {
+  name: string
+  label: string
+  type: string
+  options?: string[]
+  required?: boolean
+  default?: string | number | boolean
+  selected?: boolean
+}
 
 interface Lead {
   id: string
@@ -39,6 +50,10 @@ interface Lead {
   status: "New" | "Contacted" | "Qualified" | "Proposal" | "Won" | "Lost"
   assignedTo?: string
   notes?: string
+  questionnaireToken?: string | null
+  questionnaireStatus?: string
+  questionnaireSentAt?: string | null
+  questionnaireSubmittedAt?: string | null
   submittedAt: string
   updatedAt: string
 }
@@ -61,6 +76,18 @@ const STAGE_BG: Record<string, string> = {
   Proposal: "bg-violet-50 border-violet-200",
   Won: "bg-emerald-50 border-emerald-200",
   Lost: "bg-red-50 border-red-200",
+}
+
+function QuestionnaireStatusBadge({ status }: { status?: string | null }) {
+  const label = status || "Not Sent"
+  const colors: Record<string, string> = {
+    "Not Sent": "bg-gray-100 text-gray-700",
+    Sent: "bg-blue-50 text-blue-700",
+    "In Progress": "bg-amber-50 text-amber-700",
+    Submitted: "bg-green-50 text-green-700",
+    Reviewed: "bg-purple-50 text-purple-700",
+  }
+  return <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${colors[label] || colors["Not Sent"]}`}>{label}</span>
 }
 
 export default function AdminLeadsPage() {
@@ -119,6 +146,14 @@ export default function AdminLeadsPage() {
     status: "New" as Lead["status"],
     notes: "",
   })
+
+  // Questionnaire
+  const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false)
+  const [questionnaireLead, setQuestionnaireLead] = useState<Lead | null>(null)
+  const [questionnaireFields, setQuestionnaireFields] = useState<QuestionnaireField[]>([])
+  const [questionnaireUrl, setQuestionnaireUrl] = useState<string | null>(null)
+  const [sendingQuestionnaire, setSendingQuestionnaire] = useState(false)
+  const [questionnaireLinkCopied, setQuestionnaireLinkCopied] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -350,6 +385,96 @@ export default function AdminLeadsPage() {
       setMessage("Failed to update lead")
     } finally {
       setEditing(false)
+    }
+  }
+
+  const defaultQuestionnaireFieldSelection = (): QuestionnaireField[] => [
+    { name: "businessName", label: "Business name", type: "text", required: true },
+    { name: "businessType", label: "Business type", type: "select", options: ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"], required: true },
+    { name: "country", label: "Country", type: "text" },
+    { name: "state", label: "State / Region", type: "text" },
+    { name: "city", label: "City", type: "text" },
+    { name: "branches", label: "Number of branches", type: "number", default: 1, required: true },
+    { name: "staffSize", label: "Number of staff / users", type: "number", default: 1, required: true },
+    { name: "productOrService", label: "Do you sell products, services or both?", type: "select", options: ["Product", "Service", "Both"] },
+    { name: "existingPosSoftware", label: "Existing POS / software", type: "text" },
+    { name: "onlineStoreRequired", label: "Do you need an online store?", type: "select", options: ["Yes", "No", "Maybe"] },
+    { name: "hardwareAvailable", label: "Do you have hardware available?", type: "select", options: ["Yes", "No", "Partially"] },
+    { name: "receiptPrinterScannerRequired", label: "Do you need receipt printer / barcode scanner?", type: "select", options: ["Yes", "No", "Maybe"] },
+    { name: "dataMigrationNeeded", label: "Do you need existing data migrated?", type: "select", options: ["Yes", "No", "Unsure"] },
+    { name: "trainingPreference", label: "Training preference", type: "select", options: ["Remote", "Onsite", "Both"] },
+    { name: "contactPerson", label: "Primary contact person", type: "text", required: true },
+    { name: "desiredGoLiveDate", label: "Desired go-live date", type: "date" },
+    { name: "specialWorkflowRequirements", label: "Special workflow / requirements", type: "textarea" },
+  ]
+
+  const openQuestionnaire = async (lead: Lead) => {
+    setQuestionnaireLead(lead)
+    setQuestionnaireUrl(null)
+    setQuestionnaireLinkCopied(false)
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/questionnaire`)
+      const data = await res.json()
+      const baseFields: QuestionnaireField[] = data.fields && data.fields.length > 0 ? data.fields : defaultQuestionnaireFieldSelection()
+      setQuestionnaireFields(baseFields.map((f: QuestionnaireField) => ({ ...f, selected: true })))
+      if (data.token) setQuestionnaireUrl(`/questionnaire/${data.token}`)
+    } catch {
+      setQuestionnaireFields(defaultQuestionnaireFieldSelection().map((f) => ({ ...f, selected: true })))
+    }
+    setShowQuestionnaireModal(true)
+  }
+
+  const toggleQuestionnaireField = (name: string) => {
+    setQuestionnaireFields((prev) => prev.map((f) => (f.name === name ? { ...f, selected: !f.selected } : f)))
+  }
+
+  const sendQuestionnaire = async () => {
+    if (!questionnaireLead) return
+    setSendingQuestionnaire(true)
+    setMessage("")
+    try {
+      const fields = questionnaireFields.filter((f) => f.selected)
+      const res = await fetch(`/api/admin/leads/${questionnaireLead.id}/questionnaire`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ send: true, fields }),
+      })
+      const data = await res.json()
+      if (data.token && data.url) {
+        setQuestionnaireUrl(data.url)
+        setLeads((prev) => prev.map((l) => (l.id === questionnaireLead.id ? { ...l, questionnaireToken: data.token, questionnaireStatus: "Sent" } : l)))
+        setMessage("Questionnaire link generated.")
+      } else {
+        setMessage(data.error || "Failed to generate questionnaire")
+      }
+    } catch {
+      setMessage("Failed to generate questionnaire")
+    } finally {
+      setSendingQuestionnaire(false)
+    }
+  }
+
+  const copyQuestionnaireLink = () => {
+    if (!questionnaireUrl) return
+    const full = typeof window !== "undefined" ? `${window.location.origin}${questionnaireUrl}` : questionnaireUrl
+    navigator.clipboard.writeText(full).then(() => {
+      setQuestionnaireLinkCopied(true)
+      setTimeout(() => setQuestionnaireLinkCopied(false), 2000)
+    })
+  }
+
+  const markQuestionnaireReviewed = async (lead: Lead) => {
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/questionnaire/review`, { method: "POST" })
+      const data = await res.json()
+      if (data.success) {
+        setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, questionnaireStatus: "Reviewed" } : l)))
+        setMessage("Questionnaire marked reviewed.")
+      } else {
+        setMessage(data.error || "Failed to review questionnaire")
+      }
+    } catch {
+      setMessage("Failed to review questionnaire")
     }
   }
 
@@ -700,6 +825,7 @@ export default function AdminLeadsPage() {
                   <th className="px-4 py-3 font-medium">Phone</th>
                   <th className="px-4 py-3 font-medium">Product</th>
                   <th className="px-4 py-3 font-medium">Source</th>
+                  <th className="px-4 py-3 font-medium">Questionnaire</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Date</th>
                   <th className="px-4 py-3 font-medium w-10"></th>
@@ -726,6 +852,9 @@ export default function AdminLeadsPage() {
                       <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
                         {lead.source}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <QuestionnaireStatusBadge status={lead.questionnaireStatus} />
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white ${STAGE_COLORS[lead.status]}`}>
@@ -763,7 +892,7 @@ export default function AdminLeadsPage() {
                 ))}
                 {filteredLeads.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                       No leads match your filters.
                     </td>
                   </tr>
@@ -778,18 +907,74 @@ export default function AdminLeadsPage() {
             if (!lead) return null
             return (
               <div className="border-t border-border px-4 py-4 bg-muted/20 space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold">{lead.fullName} — Details</p>
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
+                    <p className="font-semibold">{lead.fullName} — Details</p>
+                    <QuestionnaireStatusBadge status={lead.questionnaireStatus} />
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
                     {lead.status === "Won" && (
                       <Button
                         size="sm"
                         variant="retail"
                         className="h-7 text-xs px-2"
-                        onClick={() => window.location.href = `/admin/onboarding?initiate=${lead.id}`}
+                        onClick={async () => {
+                          const res = await fetch("/api/admin/businesses", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ leadId: lead.id }),
+                          })
+                          const data = await res.json()
+                          if (data.success && data.business) {
+                            window.location.href = `/admin/businesses/${data.business.id}`
+                          } else {
+                            setMessage(data.error || "Failed to convert lead")
+                          }
+                        }}
                       >
                         <Rocket className="w-3.5 h-3.5 mr-1" />
-                        Initiate Onboarding
+                        Convert to Business
+                      </Button>
+                    )}
+                    {lead.questionnaireStatus === "Submitted" || lead.questionnaireStatus === "Reviewed" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => window.location.href = `/admin/quotations?leadId=${lead.id}`}
+                      >
+                        <FileText className="w-3.5 h-3.5 mr-1" />
+                        Create Quote
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => openQuestionnaire(lead)}
+                      >
+                        <FileText className="w-3.5 h-3.5 mr-1" />
+                        Questionnaire required
+                      </Button>
+                    )}
+                    {lead.questionnaireStatus !== "Reviewed" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => openQuestionnaire(lead)}
+                      >
+                        Send Questionnaire
+                      </Button>
+                    )}
+                    {lead.questionnaireStatus === "Submitted" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        onClick={() => markQuestionnaireReviewed(lead)}
+                      >
+                        Mark Reviewed
                       </Button>
                     )}
                     <Button
@@ -1325,6 +1510,62 @@ export default function AdminLeadsPage() {
               <p className="text-muted-foreground">No leads match your filters.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Questionnaire Modal */}
+      {showQuestionnaireModal && questionnaireLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Requirements Questionnaire — {questionnaireLead.businessName}</h3>
+              <button
+                onClick={() => setShowQuestionnaireModal(false)}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">Select the fields to include in the client questionnaire. A unique link will be generated.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[40vh] overflow-y-auto border border-border rounded-lg p-3">
+              {questionnaireFields.map((field) => (
+                <label key={field.name} className="flex items-center gap-2 text-sm p-2 rounded-md hover:bg-muted/50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!field.selected}
+                    onChange={() => toggleQuestionnaireField(field.name)}
+                    className="rounded border-input"
+                  />
+                  <span>{field.label}</span>
+                  {field.required && <span className="text-red-500 text-xs">*</span>}
+                </label>
+              ))}
+            </div>
+            {questionnaireUrl && (
+              <div className="p-3 rounded-md bg-muted/30 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Questionnaire link</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={`${typeof window !== "undefined" ? window.location.origin : ""}${questionnaireUrl}`}
+                    className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-xs"
+                  />
+                  <Button size="sm" variant="outline" onClick={copyQuestionnaireLink}>
+                    {questionnaireLinkCopied ? "Copied" : "Copy"}
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowQuestionnaireModal(false)} disabled={sendingQuestionnaire}>
+                Close
+              </Button>
+              <Button size="sm" onClick={sendQuestionnaire} disabled={sendingQuestionnaire || questionnaireFields.filter((f) => f.selected).length === 0}>
+                {sendingQuestionnaire ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                {questionnaireUrl ? "Resend Questionnaire" : "Generate & Send Link"}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

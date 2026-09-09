@@ -94,6 +94,137 @@ Once submitted, this link will become invalid. If you need to submit a revised d
 
 Best regards,
 MartPoint Partner Team`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Submit your {{docType}}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f6f7; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
+          <tr>
+            <td style="padding:48px 40px 32px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              <div style="color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.5px;">MartPoint</div>
+              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:6px;">Partner Programme</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Thank you for your interest in partnering with MartPoint. Before we can proceed, please submit the following compliance document.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Document requested</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{docType}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:12px 0 4px;">Application reference</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{reference}}</p>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 32px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{uploadUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Upload {{docType}}</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0 0 24px; color:#6b7280; word-break:break-all;">
+                Or copy and paste this one-time link into your browser (expires in 7 days):<br />
+                <a href="{{uploadUrl}}" style="color:#0057FF; text-decoration:underline;">{{uploadUrl}}</a>
+              </p>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280;">
+                Once submitted, this link will become invalid. If you need to submit a revised document, the MartPoint team will send you a new link.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
+              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>MartPoint Partner Team</strong></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  },
+  {
+    key: "compliance_docs_request",
+    label: "Compliance Documents Request",
+    description: "One branded email with all upload links when admin requests compliance documents.",
+    variables: ["fullName", "reference", "documentsTextBlock", "documentsBlock"],
+    subject: "Action required: submit your compliance documents for MartPoint partner application {{reference}}",
+    text: `Hi {{fullName}},
+
+Thank you for your interest in partnering with MartPoint. Before we can proceed, please submit the following compliance documents:
+
+{{documentsTextBlock}}
+
+Application reference: {{reference}}
+
+Each link is one-time and expires in 7 days. Once a document is submitted, that link will become invalid.
+
+Best regards,
+MartPoint Partner Team`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Submit your compliance documents</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f6f7; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
+          <tr>
+            <td style="padding:48px 40px 32px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              <div style="color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.5px;">MartPoint</div>
+              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:6px;">Partner Programme</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Thank you for your interest in partnering with MartPoint. Before we can proceed, please submit the following compliance documents.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Application reference</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{reference}}</p>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                {{documentsBlock}}
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280;">
+                Each button above is a one-time link and expires in 7 days. Once a document is submitted, that link becomes invalid.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
+              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>MartPoint Partner Team</strong></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
   },
   {
     key: "compliance_doc_reminder",
@@ -111,6 +242,64 @@ Upload link (expires in 7 days):
 
 Best regards,
 MartPoint Partner Team`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reminder: submit your {{docType}}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f6f7; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
+          <tr>
+            <td style="padding:48px 40px 32px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              <div style="color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.5px;">MartPoint</div>
+              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:6px;">Partner Programme</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Please submit the following document using this one-time upload link.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Document</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{docType}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:12px 0 4px;">Application reference</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{reference}}</p>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 32px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{uploadUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Upload {{docType}}</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280; word-break:break-all;">
+                Or copy and paste this link (expires in 7 days):<br />
+                <a href="{{uploadUrl}}" style="color:#0057FF; text-decoration:underline;">{{uploadUrl}}</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
+              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>MartPoint Partner Team</strong></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
   },
   {
     key: "partner_user_invite",

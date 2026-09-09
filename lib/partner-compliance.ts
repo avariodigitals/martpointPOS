@@ -6,7 +6,7 @@ import { renderEmailTemplate } from "./email-templates"
 import { recordStatusHistory, sendApplicationStatusEmail } from "./partners"
 import { uploadPartnerDocument, createSignedDocUrl } from "./partner-documents"
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng"
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
 
 export interface ComplianceDocWithToken {
   id: string
@@ -38,7 +38,7 @@ function tokenExpiry() {
 }
 
 function generateToken() {
-  const token = crypto.randomBytes(32).toString("hex")
+  const token = crypto.randomBytes(16).toString("hex")
   return { token, hash: hashToken(token) }
 }
 
@@ -113,6 +113,7 @@ export async function requestApplicationComplianceDocuments(
 
   const existingSet = new Set((app.required_compliance_documents as string[]) || [])
   const requested: ComplianceDocWithToken[] = []
+  const documentLinks: { docType: string; uploadUrl: string }[] = []
 
   for (const docType of documentTypes) {
     existingSet.add(docType)
@@ -157,19 +158,22 @@ export async function requestApplicationComplianceDocuments(
     }
 
     const { token, hash } = generateToken()
+    const expiresAt = tokenExpiry()
     const { data: tokenRow, error: tokenErr } = await supabase
       .from("partner_document_upload_tokens")
       .insert({
         partner_document_id: docId,
         token_hash: hash,
         email: (app.email as string).toLowerCase(),
-        expires_at: tokenExpiry(),
+        expires_at: expiresAt,
         created_by: adminUserId,
       })
       .select()
       .single()
 
     if (tokenErr || !tokenRow) continue
+
+    const uploadUrl = `${baseUrl}/partners/upload-compliance?token=${token}`
 
     requested.push({
       id: docId,
@@ -185,16 +189,30 @@ export async function requestApplicationComplianceDocuments(
       verified_by: null,
       notes: null,
       signedUrl: null,
-      latestToken: { hash, expiresAt: tokenExpiry(), usedAt: null },
+      latestToken: { hash, expiresAt, usedAt: null },
     })
 
-    // Send one email per document type with a one-time upload link.
-    const uploadUrl = `${baseUrl}/partners/upload-compliance?token=${token}`
-    const tpl = await renderEmailTemplate("compliance_doc_request", {
-      fullName: (app.full_name as string) || (app.business_name as string) || "there",
-      reference: app.reference_number,
-      docType,
-      uploadUrl,
+    documentLinks.push({ docType, uploadUrl })
+  }
+
+  // Send one branded email with all upload links, regardless of how many documents were requested.
+  if (documentLinks.length > 0) {
+    const fullName = (app.full_name as string) || (app.business_name as string) || "there"
+    const reference = app.reference_number as string
+
+    const documentsTextBlock = documentLinks
+      .map(({ docType, uploadUrl }) => `- ${docType}: ${uploadUrl}`)
+      .join("\n")
+
+    const documentsBlock = documentLinks
+      .map(({ docType, uploadUrl }) => `<tr><td style="padding:0 0 16px;"><p style="font-size:15px; line-height:1.5; margin:0 0 8px; color:#374151;"><strong>${docType}</strong></p><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius:8px; background-color:#0057FF; text-align:center;"><a href="${uploadUrl}" target="_blank" style="display:inline-block; padding:12px 24px; font-size:14px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Upload ${docType}</a></td></tr></table></td></tr>`)
+      .join("")
+
+    const tpl = await renderEmailTemplate("compliance_docs_request", {
+      fullName,
+      reference,
+      documentsTextBlock,
+      documentsBlock,
     })
     await sendEmail({ to: app.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html })
   }

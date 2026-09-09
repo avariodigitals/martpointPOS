@@ -72,6 +72,7 @@ export default function QuotationsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
   const [taxRates, setTaxRates] = useState<TaxRate[]>([])
+  const [logoUrl, setLogoUrl] = useState("")
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [search, setSearch] = useState("")
@@ -129,6 +130,7 @@ export default function QuotationsPage() {
         if (qData.quotations) setQuotations(qData.quotations)
         if (lData.leads) setLeads(lData.leads)
         if (sData.general?.accountNumber) setAccountNumber(sData.general.accountNumber)
+      if (sData.header?.logo) setLogoUrl(sData.header.logo)
 
         const taxRatesIn = (qData.taxRates || []) as Record<string, unknown>[]
         setTaxRates(
@@ -321,7 +323,7 @@ export default function QuotationsPage() {
 
   const downloadPdf = async (qt: Quotation) => {
     if (!qt.lead) return
-    await generateQuotationPdf(qt, qt.lead, accountNumber)
+    await generateQuotationPdf(qt, qt.lead, accountNumber, logoUrl)
   }
 
   const convertQuote = async (qt: Quotation) => {
@@ -722,10 +724,16 @@ export default function QuotationsPage() {
                         {catalogItems.length > 0 && (
                           <select
                             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm mb-2"
-                            value={catalogItems.find((c) => c.name === item.description)?.id || ""}
+                            value={catalogItems.find((c) => item.description?.split("\n")[0] === c.name)?.id || ""}
                             onChange={(e) => {
                               const picked = catalogItems.find((c) => c.id === e.target.value)
-                              if (picked) updateItem(idx, { description: picked.name, unitPrice: picked.price })
+                              if (picked) {
+                                const desc = picked.description?.trim()
+                                updateItem(idx, {
+                                  description: desc ? `${picked.name}\n${desc}` : picked.name,
+                                  unitPrice: picked.price,
+                                })
+                              }
                             }}
                           >
                             <option value="">Pick from catalog...</option>
@@ -738,7 +746,7 @@ export default function QuotationsPage() {
                         )}
                         <textarea
                           rows={2}
-                          placeholder="Item description"
+                          placeholder="Item name / description"
                           value={item.description}
                           onChange={(e) => updateItem(idx, { description: e.target.value })}
                           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[44px]"
@@ -960,7 +968,7 @@ export default function QuotationsPage() {
                 <tbody className="divide-y">
                   {(showView.items || []).map((item) => (
                     <tr key={item.id}>
-                      <td className="px-4 py-2">{item.description}</td>
+                      <td className="px-4 py-2 whitespace-pre-line">{item.description}</td>
                       <td className="px-4 py-2 text-right">{item.quantity}</td>
                       <td className="px-4 py-2 text-right">{formatNgnFull(item.unit_price)}</td>
                       <td className="px-4 py-2 text-right">{formatNgnFull(item.discount)}</td>

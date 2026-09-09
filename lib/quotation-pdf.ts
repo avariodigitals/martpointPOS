@@ -4,16 +4,14 @@ import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
 import type { Quotation, QuotationItem, LeadSummary } from "./quotations"
 
-const PDF_LOGO_PATH = "/logo.webp"
-
 function formatPdfNgn(n: number): string {
   return `NGN ${n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-async function getLogoDataUrl(): Promise<string | null> {
+async function getLogoDataUrl(logoPath: string): Promise<string | null> {
   if (typeof window === "undefined" || typeof document === "undefined") return null
   try {
-    const res = await fetch(PDF_LOGO_PATH)
+    const res = await fetch(logoPath)
     if (!res.ok) return null
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
@@ -40,7 +38,7 @@ async function getLogoDataUrl(): Promise<string | null> {
   }
 }
 
-export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, accountNumber: string = "") {
+export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, accountNumber: string = "", logoUrl: string = "/logo.webp") {
   const doc = new jsPDF({ unit: "pt", format: "a4" })
   const margin = 40
   const pageW = doc.internal.pageSize.getWidth()
@@ -48,7 +46,7 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
   let y = 40
 
   // Header: logo on the left, company details on the right.
-  const logoDataUrl = await getLogoDataUrl()
+  const logoDataUrl = await getLogoDataUrl(logoUrl)
   if (logoDataUrl) {
     const logoW = 90
     const logoH = 36
@@ -139,7 +137,7 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
     margin: { left: margin, right: margin },
     head: [["Description", "Qty", "Unit", "Disc.", "Tax", "Total"]],
     body: rows,
-    styles: { fontSize: 9, cellPadding: 6 },
+    styles: { fontSize: 9, cellPadding: 6, overflow: "linebreak", valign: "middle" },
     headStyles: { fillColor: [0, 87, 255], textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [248, 249, 250] },
     columnStyles: {

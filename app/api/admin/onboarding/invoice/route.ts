@@ -5,6 +5,7 @@ import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
+import { getPublicSiteSettings } from "@/lib/settings"
 
 async function guardOnboardingAccess() {
   const session = await getSession()
@@ -70,6 +71,8 @@ export async function POST(request: Request) {
     if (record.email) {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ""
       const formLink = `${baseUrl}/onboarding/${recordId}`.replace(/\/$/, "")
+      const siteSettings = await getPublicSiteSettings()
+      const logoUrl = siteSettings.logo || "/logo.webp"
       const invoiceTpl = await renderEmailTemplate("onboarding_invoice", {
         fullName: record.full_name,
         businessName: record.business_name || record.full_name,
@@ -82,7 +85,7 @@ export async function POST(request: Request) {
       })
       const emailText = message ? `${message}${formLink ? `\n\nOnboarding form: ${formLink}` : ""}` : invoiceTpl.text
       const emailHtml = `<div style="font-family:sans-serif;max-width:600px">
-        <h2 style="color:#0057FF">MartPoint Invoice</h2>
+        <img src="${logoUrl}" alt="MartPoint" style="max-height:48px;margin-bottom:16px;" />
         <p>Hi ${record.full_name},</p>
         <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${emailText.replace(/\n/g, "<br>")}</div>
         ${formLink ? `<p><a href="${formLink}" style="color:#0057FF">Complete Onboarding Form</a></p>` : ""}

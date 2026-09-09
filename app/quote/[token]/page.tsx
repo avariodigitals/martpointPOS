@@ -15,6 +15,7 @@ export default function PublicQuotePage() {
   const [quote, setQuote] = useState<Quotation | null>(null)
   const [lead, setLead] = useState<LeadSummary | null>(null)
   const [accountNumber, setAccountNumber] = useState("")
+  const [logoUrl, setLogoUrl] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -40,6 +41,7 @@ export default function PublicQuotePage() {
         if (data.quotation) {
           setQuote(data.quotation)
           setAccountNumber(data.settings?.accountNumber || "")
+          setLogoUrl(data.settings?.logo || "/logo.webp")
           const leadRaw = data.quotation.lead || {}
           setLead({
             id: data.quotation.lead_id,
@@ -134,7 +136,7 @@ export default function PublicQuotePage() {
 
   const downloadPdf = async () => {
     if (!quote || !lead) return
-    await generateQuotationPdf(quote, lead, accountNumber)
+    await generateQuotationPdf(quote, lead, accountNumber, logoUrl)
   }
 
   const shareWhatsApp = () => {
@@ -267,7 +269,7 @@ export default function PublicQuotePage() {
               <tbody className="divide-y">
                 {(quote.items || []).map((item) => (
                   <tr key={item.id}>
-                    <td className="px-4 py-3">{item.description}</td>
+                    <td className="px-4 py-3 whitespace-pre-line">{item.description}</td>
                     <td className="px-4 py-3 text-right">{item.quantity}</td>
                     <td className="px-4 py-3 text-right">{formatNgnFull(item.unit_price)}</td>
                     <td className="px-4 py-3 text-right font-medium">{formatNgnFull(item.line_total)}</td>

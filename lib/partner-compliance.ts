@@ -53,8 +53,24 @@ export async function listApplicationComplianceDocuments(applicationId: string):
 
   if (error || !docs) return []
 
+  // Keep only the latest row per document type so duplicate requests do not inflate the count.
+  const deduped = new Map<string, Record<string, unknown>>()
+  for (const d of docs as Record<string, unknown>[]) {
+    const docType = d.document_type as string
+    const existing = deduped.get(docType)
+    if (!existing) {
+      deduped.set(docType, d)
+      continue
+    }
+    const newTime = (d.uploaded_at as string) || ""
+    const oldTime = (existing.uploaded_at as string) || ""
+    if (newTime > oldTime) {
+      deduped.set(docType, d)
+    }
+  }
+
   const rows = await Promise.all(
-    (docs as Record<string, unknown>[]).map(async (d) => {
+    Array.from(deduped.values()).map(async (d) => {
       const { data: tokens } = await supabase
         .from("partner_document_upload_tokens")
         .select("token_hash, expires_at, used_at")
@@ -474,7 +490,10 @@ export async function submitComplianceDocumentByToken(
     })
     .eq("id", doc.id as string)
 
-  if (updateErr) return { ok: false, error: "Failed to save document" }
+  if (updateErr) {
+    console.error("[compliance] partner_documents update failed:", { docId: doc.id, error: updateErr })
+    return { ok: false, error: "Failed to save document" }
+  }
 
   await supabase
     .from("partner_document_upload_tokens")

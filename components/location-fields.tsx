@@ -26,22 +26,24 @@ export function LocationFields({
   const stateOptions = useMemo(() => getStatesForCountry(country), [country])
   const cityOptions = useMemo(() => getCitiesForState(country, state), [country, state])
 
+  const hasCountry = Boolean(country) && COUNTRIES.some((c) => c.name === country)
+
   // Reset state when the selected country no longer supports the current state.
   useEffect(() => {
     if (state && !stateOptions.includes(state)) {
-      onChange({ state: stateOptions[0] || "", city: "" })
+      onChange({ state: "", city: "" })
     }
   }, [country, stateOptions, state, onChange])
 
   // Reset city when the selected state no longer supports the current city.
   useEffect(() => {
     if (city && !cityOptions.includes(city)) {
-      onChange({ city: cityOptions[0] || "" })
+      onChange({ city: "" })
     }
   }, [state, cityOptions, city, onChange])
 
-  const showOtherState = stateOptions.length === 0
-  const showOtherCity = cityOptions.length === 0
+  const showOtherState = hasCountry && stateOptions.length === 0
+  const showOtherCity = hasCountry && state !== "" && cityOptions.length === 0
 
   const countryNames = useMemo(() => COUNTRIES.map((c) => c.name), [])
 
@@ -55,6 +57,7 @@ export function LocationFields({
           value={country}
           onChange={(e) => onChange({ country: e.target.value, state: "", city: "" })}
         >
+          <option value="">Select country</option>
           {countryNames.map((c) => (
             <option key={c} value={c}>
               {c}
@@ -65,7 +68,11 @@ export function LocationFields({
 
       <div>
         <label className="block text-xs font-medium mb-1">State</label>
-        {showOtherState ? (
+        {!hasCountry ? (
+          <select disabled className={inputClassName} value="">
+            <option value="">Select country first</option>
+          </select>
+        ) : showOtherState ? (
           <input
             disabled={disabled}
             className={inputClassName}
@@ -80,6 +87,7 @@ export function LocationFields({
             value={state}
             onChange={(e) => onChange({ state: e.target.value, city: "" })}
           >
+            <option value="">Select state</option>
             {stateOptions.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -91,7 +99,11 @@ export function LocationFields({
 
       <div>
         <label className="block text-xs font-medium mb-1">City</label>
-        {showOtherCity ? (
+        {!hasCountry || state === "" ? (
+          <select disabled className={inputClassName} value="">
+            <option value="">{!hasCountry ? "Select country first" : "Select state first"}</option>
+          </select>
+        ) : showOtherCity ? (
           <input
             disabled={disabled}
             className={inputClassName}
@@ -106,6 +118,7 @@ export function LocationFields({
             value={city}
             onChange={(e) => onChange({ city: e.target.value })}
           >
+            <option value="">Select city</option>
             {cityOptions.map((c) => (
               <option key={c} value={c}>
                 {c}

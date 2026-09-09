@@ -36,7 +36,17 @@ export async function GET(request: Request) {
     if (error) throw error
 
     const quotations = (data || []).map((row: Record<string, unknown>) => mapQuotation(row))
-    return NextResponse.json({ quotations })
+
+    const [{ data: products }, { data: services }] = await Promise.all([
+      supabase.from("commercial_products").select("id, name, description, default_price, currency").eq("status", "ACTIVE").order("name"),
+      supabase.from("services").select("id, name, description, default_price, currency").eq("active", true).order("name"),
+    ])
+
+    return NextResponse.json({
+      quotations,
+      products: products || [],
+      services: services || [],
+    })
   } catch (e) {
     console.error("[admin/quotations] GET", e)
     return NextResponse.json({ error: String(e) }, { status: 500 })

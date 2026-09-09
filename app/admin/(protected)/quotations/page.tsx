@@ -47,12 +47,22 @@ interface QuoteForm {
 
 const initialItem: QuotationItemInput = { description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 0 }
 
+interface CatalogItem {
+  id: string
+  name: string
+  description: string | null
+  defaultPrice: number
+  currency: string
+  type: "Product" | "Service"
+}
+
 export default function QuotationsPage() {
   const searchParams = useSearchParams()
   const preselectedLeadId = searchParams.get("leadId") || ""
 
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [search, setSearch] = useState("")
@@ -108,6 +118,28 @@ export default function QuotationsPage() {
         if (qData.quotations) setQuotations(qData.quotations)
         if (lData.leads) setLeads(lData.leads)
         if (sData.general?.accountNumber) setAccountNumber(sData.general.accountNumber)
+
+        const products = (qData.products || []) as Record<string, unknown>[]
+        const services = (qData.services || []) as Record<string, unknown>[]
+        const catalog: CatalogItem[] = [
+          ...products.map((p) => ({
+            id: p.id as string,
+            name: p.name as string,
+            description: (p.description as string) || null,
+            defaultPrice: Number(p.default_price) || 0,
+            currency: (p.currency as string) || "NGN",
+            type: "Product" as const,
+          })),
+          ...services.map((s) => ({
+            id: s.id as string,
+            name: s.name as string,
+            description: (s.description as string) || null,
+            defaultPrice: Number(s.default_price) || 0,
+            currency: (s.currency as string) || "NGN",
+            type: "Service" as const,
+          })),
+        ].sort((a, b) => a.name.localeCompare(b.name))
+        setCatalogItems(catalog)
       } catch (e) {
         console.error(e)
         setMessage("Failed to load data")
@@ -606,6 +638,23 @@ export default function QuotationsPage() {
                   {form.items.map((item, idx) => (
                     <div key={idx} className="grid grid-cols-12 gap-2 items-start p-3 rounded-lg border border-border bg-muted/20">
                       <div className="col-span-12 sm:col-span-5">
+                        {catalogItems.length > 0 && (
+                          <select
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm mb-2"
+                            value={catalogItems.find((c) => c.name === item.description)?.id || ""}
+                            onChange={(e) => {
+                              const picked = catalogItems.find((c) => c.id === e.target.value)
+                              if (picked) updateItem(idx, { description: picked.name, unitPrice: picked.defaultPrice })
+                            }}
+                          >
+                            <option value="">Pick from catalog...</option>
+                            {catalogItems.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} ({c.type})
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         <input
                           type="text"
                           placeholder="Description"

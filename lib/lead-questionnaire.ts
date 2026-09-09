@@ -39,7 +39,7 @@ export const DEFAULT_QUESTIONNAIRE_FIELDS: QuestionnaireField[] = [
 ]
 
 export function buildQuestionnairePublicUrl(token: string): string {
-  const base = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
+  const base = (process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
   return `${base}/questionnaire/${token}`
 }
 
@@ -118,11 +118,12 @@ export async function generateQuestionnaire(
   if (input.send !== false) {
     const mapped = mapQuestionnaireLead(lead)
     const email = input.email || mapped.email
+    const { subject, html } = await buildQuestionnaireEmail(mapped, url)
     const sent = await sendEmail({
       to: email,
-      subject: "MartPoint Requirements Questionnaire",
+      subject,
       text: "",
-      html: await buildQuestionnaireEmailHtml(mapped, url),
+      html,
     })
     if (!sent) return { ok: true, token, url, error: "Email delivery failed (link generated)" }
   }
@@ -137,22 +138,66 @@ export async function generateQuestionnaire(
   return { ok: true, token, url }
 }
 
-async function buildQuestionnaireEmailHtml(lead: QuestionnaireLead, url: string): Promise<string> {
-  const tpl = await renderEmailTemplate("lead_questionnaire", {
+async function buildQuestionnaireEmail(lead: QuestionnaireLead, url: string): Promise<{ subject: string; html: string }> {
+  const { subject } = await renderEmailTemplate("lead_questionnaire", {
     fullName: lead.fullName,
     businessName: lead.businessName,
     questionnaireLink: url,
   })
 
-  const body = escapeHtml(tpl.text || `Hi ${lead.fullName},\n\nTo prepare an accurate quote for ${lead.businessName}, please complete this short requirements questionnaire:\n\n${url}\n\nBest regards,\nMartPoint Sales Team`)
-    .replace(/\n/g, "<br/>")
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f6f7; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
+          <tr>
+            <td style="padding:48px 40px 32px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              <div style="color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.5px;">MartPoint</div>
+              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:6px;">Partner Programme</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi ${escapeHtml(lead.fullName)},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                To prepare an accurate quote for <strong>${escapeHtml(lead.businessName)}</strong>, please complete this short requirements questionnaire.
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                It only takes a few minutes and the details you provide will help us tailor the right MartPoint package for your business.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 32px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="${url}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Complete Questionnaire</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280; word-break:break-all;">
+                Or copy and paste this single link:<br />
+                <a href="${url}" style="color:#0057FF; text-decoration:underline;">${url}</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
+              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>MartPoint Sales Team</strong></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
 
-  return `<!DOCTYPE html>
-<html><body style="font-family:system-ui,sans-serif;line-height:1.5;color:#111;">
-  <p>${body}</p>
-  <p><a href="${url}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;border-radius:6px;text-decoration:none;">Complete Questionnaire</a></p>
-  <p style="font-size:13px;color:#666;">${url}</p>
-</body></html>`
+  return { subject, html }
 }
 
 function escapeHtml(s: string): string {

@@ -129,6 +129,13 @@ export function PartnerApplicationForm() {
         ;(next as Record<string, unknown>).estimatedCustomerBase = ""
         ;(next as Record<string, unknown>).requestedPartnerType = "REFERRAL"
       }
+      if (k === "country") {
+        ;(next as Record<string, unknown>).state = ""
+        ;(next as Record<string, unknown>).city = ""
+      }
+      if (k === "state") {
+        ;(next as Record<string, unknown>).city = ""
+      }
       return next as typeof form
     })
   }

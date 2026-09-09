@@ -6,6 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Building2, Plus, ArrowRight, X, Search, CheckCircle2, Ban, PauseCircle, Trash2, Save } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
+import { allIndustries } from "@/lib/industries"
+
+const BUSINESS_TYPE_OPTIONS = ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"]
+const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
 
 interface Business {
   id: string
@@ -488,22 +492,29 @@ export default function AdminBusinessesPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Business type</label>
-                <input
-                  type="text"
+                <select
                   value={createForm.businessType}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, businessType: e.target.value }))}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="e.g. Retail, ERP"
-                />
+                >
+                  <option value="">Select business type</option>
+                  {BUSINESS_TYPE_OPTIONS.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Industry</label>
-                <input
-                  type="text"
+                <select
                   value={createForm.industry}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, industry: e.target.value }))}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
+                >
+                  <option value="">Select industry</option>
+                  {INDUSTRY_OPTIONS.map((i) => (
+                    <option key={i} value={i}>{i}</option>
+                  ))}
+                </select>
               </div>
               <LocationFields
                 country={createForm.country}

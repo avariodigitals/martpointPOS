@@ -3,6 +3,7 @@
 import { useState, useRef, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Mail, Upload, Check, Loader2, AlertCircle } from "lucide-react"
+import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 
 interface FormData {
   fullName: string
@@ -32,6 +33,8 @@ export function CareersApplicationForm() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState("")
+  const [captcha, setCaptcha] = useState<CaptchaState>({ configured: false, token: null })
+  const captchaRef = useRef<CaptchaFieldHandle>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState("")
 
@@ -89,10 +92,17 @@ export function CareersApplicationForm() {
     e.preventDefault()
     setSubmitError("")
     if (!validate()) return
-
     setSubmitting(true)
+    const captchaToken = (await captchaRef.current?.execute()) ?? null
+    if (captcha.configured && !captchaToken) {
+      setSubmitting(false)
+      setSubmitError("Please complete the security check before submitting.")
+      return
+    }
+
     try {
       const payload = new FormData()
+      if (captchaToken) payload.append("captchaToken", captchaToken)
       payload.append("fullName", form.fullName)
       payload.append("email", form.email)
       payload.append("phone", form.phone)
@@ -217,6 +227,8 @@ export function CareersApplicationForm() {
         </button>
         {errors.cvFile && <p className="text-xs text-red-500 mt-1">{errors.cvFile}</p>}
       </div>
+
+      <CaptchaField ref={captchaRef} onChange={setCaptcha} className="flex justify-center" />
 
       <Button
         type="submit"

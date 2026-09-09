@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Loader2, AlertCircle, Check, X, Download, MessageCircle, FileText } from "lucide-react"
+import { Loader2, AlertCircle, Check, X, Download, MessageCircle, FileText, Clock } from "lucide-react"
 import { formatNgnFull, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/quotations"
 import { generateQuotationPdf } from "@/lib/quotation-pdf"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
@@ -18,7 +18,19 @@ export default function PublicQuotePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [response, setResponse] = useState<"" | "accepted" | "declined">("")
+  const [response, setResponse] = useState<"" | "accepted" | "declined" | "change_requested">("")
+
+  const [changeRequest, setChangeRequest] = useState<{
+    status: "pending" | "approved" | "declined"
+    request_type: "scope" | "counter_offer"
+  } | null>(null)
+
+  const [showChangeForm, setShowChangeForm] = useState(false)
+  const [changeMode, setChangeMode] = useState<"scope" | "counter_offer">("scope")
+  const [scopeItems, setScopeItems] = useState<Array<{ item_id: string; description: string; quantity: number; unit_price: number }>>([])
+  const [proposedBudget, setProposedBudget] = useState("")
+  const [proposedTotal, setProposedTotal] = useState("")
+  const [changeNote, setChangeNote] = useState("")
 
   useEffect(() => {
     if (!token) return
@@ -37,6 +49,21 @@ export default function PublicQuotePage() {
             phone: leadRaw.phone || "",
             productInterest: leadRaw.product_interest || "",
           })
+          if (data.changeRequest) {
+            setChangeRequest({
+              status: data.changeRequest.status,
+              request_type: data.changeRequest.request_type,
+            })
+          }
+          // Pre-fill scope form with the original items.
+          setScopeItems(
+            (data.quotation.items || []).map((it: { id: string; description: string; quantity: number; unit_price: number }) => ({
+              item_id: it.id,
+              description: it.description,
+              quantity: it.quantity,
+              unit_price: it.unit_price,
+            }))
+          )
         } else {
           setError(data.error || "Quotation not found")
         }
@@ -62,6 +89,44 @@ export default function PublicQuotePage() {
       }
     } catch {
       setError("Failed to respond")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const submitChange = async () => {
+    if (!quote) return
+    setSubmitting(true)
+    setError("")
+    try {
+      const body: Record<string, unknown> = {
+        action: changeMode === "counter_offer" ? "counter_offer" : "request_changes",
+        note: changeNote,
+      }
+      if (changeMode === "scope") {
+        body.items = scopeItems
+          .filter((it) => it.quantity > 0)
+          .map((it) => ({ item_id: it.item_id, description: it.description, quantity: it.quantity }))
+        if (proposedBudget) body.proposedBudget = Number(proposedBudget)
+      } else {
+        body.proposedTotal = Number(proposedTotal)
+      }
+      const res = await fetch(`/api/quotations?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setResponse("change_requested")
+        setQuote((prev) => (prev ? { ...prev, status: data.status } : prev))
+        setChangeRequest({ status: "pending", request_type: changeMode })
+        setShowChangeForm(false)
+      } else {
+        setError(data.error || "Failed to submit")
+      }
+    } catch {
+      setError("Failed to submit change request")
     } finally {
       setSubmitting(false)
     }
@@ -107,7 +172,10 @@ export default function PublicQuotePage() {
   if (!quote || !lead) return null
 
   const isExpired = quote.status === "EXPIRED" || (quote.valid_until && new Date(quote.valid_until) < new Date())
-  const alreadyResponded = response || ["ACCEPTED", "DECLINED", "CONVERTED"].includes(quote.status)
+  const alreadyResponded = response === "accepted" || response === "declined" || ["ACCEPTED", "DECLINED", "CONVERTED"].includes(quote.status)
+  const changeSubmitted = response === "change_requested" || changeRequest?.status === "pending" || ["CHANGE_REQUESTED", "COUNTER_OFFERED"].includes(quote.status)
+  const canRequestChanges = quote.allow_changes && !alreadyResponded && !changeSubmitted && !isExpired
+  const allowCounterOffer = quote.allow_counter_offer && canRequestChanges
 
   return (
     <div className="min-h-screen bg-muted py-8 px-4">
@@ -145,6 +213,16 @@ export default function PublicQuotePage() {
             <h3 className="font-semibold text-red-800">Quotation Declined</h3>
             <p className="text-sm text-red-700 mt-1">We are sorry this was not a fit. Our team may follow up.</p>
           </div>
+        ) : changeSubmitted ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
+            <Clock className="w-8 h-8 text-amber-600 mx-auto mb-2" />
+            <h3 className="font-semibold text-amber-800">
+              {changeRequest?.request_type === "counter_offer" ? "Counter-offer Submitted" : "Change Request Submitted"}
+            </h3>
+            <p className="text-sm text-amber-700 mt-1">
+              Thank you. Our team is reviewing your request and will revert with a revised quotation shortly. You will receive an email when it is ready.
+            </p>
+          </div>
         ) : null}
 
         <div className="rounded-xl border border-border bg-card p-6 md:p-8 space-y-6">
@@ -156,9 +234,11 @@ export default function PublicQuotePage() {
                 quote.status === "DECLINED" ? "bg-red-50 text-red-700" :
                 quote.status === "CONVERTED" ? "bg-blue-50 text-blue-700" :
                 quote.status === "SENT" ? "bg-blue-50 text-blue-700" :
+                quote.status === "REVISED" ? "bg-purple-50 text-purple-700" :
+                quote.status === "CHANGE_REQUESTED" || quote.status === "COUNTER_OFFERED" ? "bg-amber-50 text-amber-700" :
                 isExpired ? "bg-gray-100 text-gray-700" : "bg-amber-50 text-amber-700"
               }`}>
-                {isExpired && quote.status !== "ACCEPTED" && quote.status !== "DECLINED" && quote.status !== "CONVERTED" ? "Expired" : quote.status}
+                {isExpired && quote.status !== "ACCEPTED" && quote.status !== "DECLINED" && quote.status !== "CONVERTED" && quote.status !== "CHANGE_REQUESTED" && quote.status !== "COUNTER_OFFERED" && quote.status !== "REVISED" ? "Expired" : quote.status}
               </span>
             </div>
             <div className="text-left sm:text-right">
@@ -248,7 +328,7 @@ export default function PublicQuotePage() {
             </Button>
           </div>
 
-          {!alreadyResponded && !isExpired && (
+          {!alreadyResponded && !isExpired && !changeSubmitted && (
             <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border">
               <Button
                 variant="default"
@@ -267,6 +347,124 @@ export default function PublicQuotePage() {
               >
                 <X className="w-4 h-4 mr-2" />
                 Decline
+              </Button>
+            </div>
+          )}
+
+          {canRequestChanges && !showChangeForm && (
+            <div className="pt-2 border-t border-border">
+              <button
+                onClick={() => setShowChangeForm(true)}
+                className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4"
+              >
+                Request changes to this quotation
+              </button>
+            </div>
+          )}
+
+          {showChangeForm && canRequestChanges && (
+            <div className="pt-4 border-t border-border space-y-4">
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-semibold">Request Changes</h4>
+                {allowCounterOffer && (
+                  <div className="flex rounded-md border border-border overflow-hidden text-xs">
+                    <button
+                      onClick={() => setChangeMode("scope")}
+                      className={`px-3 py-1 ${changeMode === "scope" ? "bg-retail text-white" : "bg-background"}`}
+                    >
+                      Adjust scope
+                    </button>
+                    <button
+                      onClick={() => setChangeMode("counter_offer")}
+                      className={`px-3 py-1 ${changeMode === "counter_offer" ? "bg-retail text-white" : "bg-background"}`}
+                    >
+                      Counter-offer
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowChangeForm(false)}
+                  className="ml-auto p-1 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {changeMode === "scope" ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Adjust quantities or remove items you don't need. We will review and send a revised quotation with final pricing.
+                  </p>
+                  <div className="space-y-2">
+                    {scopeItems.map((it, idx) => (
+                      <div key={it.item_id} className="flex items-center gap-2 text-sm">
+                        <span className="flex-1">{it.description}</span>
+                        <span className="text-muted-foreground text-xs w-24 text-right">{formatNgnFull(it.unit_price)}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={it.quantity}
+                          onChange={(e) => setScopeItems((prev) => prev.map((x, i) => (i === idx ? { ...x, quantity: Number(e.target.value) } : x)))}
+                          className="w-20 rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
+                          placeholder="Qty"
+                        />
+                        {it.quantity > 0 ? (
+                          <span className="text-xs text-muted-foreground w-24 text-right">{formatNgnFull(it.unit_price * it.quantity)}</span>
+                        ) : (
+                          <span className="text-xs text-red-600 w-24 text-right">Removed</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Your budget (optional)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={proposedBudget}
+                      onChange={(e) => setProposedBudget(e.target.value)}
+                      placeholder="e.g. 250000"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Propose a total you are willing to pay. We will decide whether we can meet it.
+                  </p>
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Proposed total (₦)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={proposedTotal}
+                      onChange={(e) => setProposedTotal(e.target.value)}
+                      placeholder="e.g. 250000"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Current total: {formatNgnFull(quote.total_amount)}</p>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium mb-1">Note to MartPoint (optional)</label>
+                <textarea
+                  value={changeNote}
+                  onChange={(e) => setChangeNote(e.target.value)}
+                  rows={3}
+                  placeholder="Tell us what you'd like changed"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+                />
+              </div>
+
+              <Button onClick={submitChange} disabled={submitting} className="w-full">
+                {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Submit Request
               </Button>
             </div>
           )}

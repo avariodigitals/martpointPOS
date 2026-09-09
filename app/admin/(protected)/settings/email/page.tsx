@@ -7,14 +7,18 @@ import { Button } from "@/components/ui/button"
 import { Loader2, Save, Mail, ArrowLeft } from "lucide-react"
 
 interface EmailSettingsForm {
+  provider: "resend" | "brevo"
   resendApiKey: string
+  brevoApiKey: string
   fromEmail: string
   notifyEmail: string
 }
 
 export default function EmailSettingsPage() {
   const [settings, setSettings] = useState<EmailSettingsForm>({
+    provider: "resend",
     resendApiKey: "",
+    brevoApiKey: "",
     fromEmail: "",
     notifyEmail: "",
   })
@@ -27,8 +31,11 @@ export default function EmailSettingsPage() {
       .then((res) => res.json())
       .then((data) => {
         if (data.email) {
+          const provider = data.email.provider === "brevo" ? "brevo" : "resend"
           setSettings({
+            provider,
             resendApiKey: data.email.resendApiKey || "",
+            brevoApiKey: data.email.brevoApiKey || "",
             fromEmail: data.email.fromEmail || "",
             notifyEmail: data.email.notifyEmail || "",
           })
@@ -82,26 +89,84 @@ export default function EmailSettingsPage() {
         <form onSubmit={handleSave}>
           <Card>
             <CardHeader>
-              <CardTitle>Resend Configuration</CardTitle>
+              <CardTitle>Mail Provider</CardTitle>
+              <CardDescription>
+                Choose which transactional email provider sends outbound mail. Switch any time — both keys can be stored and the active one is used.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Active Provider</label>
+                <div className="flex gap-3">
+                  <label className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm cursor-pointer has-[:checked]:border-retail has-[:checked]:bg-retail/10">
+                    <input
+                      type="radio"
+                      name="provider"
+                      value="resend"
+                      checked={settings.provider === "resend"}
+                      onChange={() => setSettings({ ...settings, provider: "resend" })}
+                      className="accent-retail"
+                    />
+                    Resend
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm cursor-pointer has-[:checked]:border-retail has-[:checked]:bg-retail/10">
+                    <input
+                      type="radio"
+                      name="provider"
+                      value="brevo"
+                      checked={settings.provider === "brevo"}
+                      onChange={() => setSettings({ ...settings, provider: "brevo" })}
+                      className="accent-retail"
+                    />
+                    Brevo
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Brevo is recommended when sending to custom/personal email addresses that Resend blocks.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>{settings.provider === "brevo" ? "Brevo Configuration" : "Resend Configuration"}</CardTitle>
               <CardDescription>
                 These settings are stored in the database and override environment variables when present.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Resend API Key</label>
-                <input
-                  type="password"
-                  value={settings.resendApiKey}
-                  onChange={(e) => setSettings({ ...settings, resendApiKey: e.target.value })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Get your key from <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-retail hover:underline">resend.com/api-keys</a>.
-                  Falls back to the <code className="text-xs bg-muted px-1 py-0.5 rounded">RESEND_API_KEY</code> env variable if empty.
-                </p>
-              </div>
+              {settings.provider === "brevo" ? (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Brevo API Key</label>
+                  <input
+                    type="password"
+                    value={settings.brevoApiKey}
+                    onChange={(e) => setSettings({ ...settings, brevoApiKey: e.target.value })}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="xkeysib-xxxxxxxxxxxxxxxxxxxxxxxx"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Get your key from <a href="https://app.brevo.com/settings/keys/api" target="_blank" rel="noopener noreferrer" className="text-retail hover:underline">app.brevo.com/settings/keys/api</a>.
+                    Falls back to the <code className="text-xs bg-muted px-1 py-0.5 rounded">BREVO_API_KEY</code> env variable if empty.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Resend API Key</label>
+                  <input
+                    type="password"
+                    value={settings.resendApiKey}
+                    onChange={(e) => setSettings({ ...settings, resendApiKey: e.target.value })}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Get your key from <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-retail hover:underline">resend.com/api-keys</a>.
+                    Falls back to the <code className="text-xs bg-muted px-1 py-0.5 rounded">RESEND_API_KEY</code> env variable if empty.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium mb-1">From Email</label>
@@ -113,7 +178,10 @@ export default function EmailSettingsPage() {
                   placeholder="MartPoint Partners <hello@martpoint.com.ng>"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Format: <code className="text-xs bg-muted px-1 py-0.5 rounded">Display Name &lt;email@domain.com&gt;</code>. The domain must be verified in Resend.
+                  Format: <code className="text-xs bg-muted px-1 py-0.5 rounded">Display Name &lt;email@domain.com&gt;</code>.
+                  {settings.provider === "brevo"
+                    ? " The sender domain must be verified in Brevo."
+                    : " The domain must be verified in Resend."}
                 </p>
               </div>
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, Settings, Wand2, MousePointerClick } from "lucide-react"
+import { Loader2, Save, Settings, Wand2, MousePointerClick, ShieldCheck } from "lucide-react"
 
 interface GeneralSettings {
   contactEmail: string
@@ -14,6 +14,14 @@ interface GeneralSettings {
 
 interface OpenAISettings {
   apiKey: string
+}
+
+interface SecuritySettings {
+  captchaProvider: "turnstile" | "recaptcha"
+  turnstileSiteKey: string
+  turnstileSecretKey: string
+  recaptchaSiteKey: string
+  recaptchaSecretKey: string
 }
 
 interface SocialSettings {
@@ -95,6 +103,13 @@ export default function AdminSettingsPage() {
   const [openai, setOpenai] = useState<OpenAISettings>({
     apiKey: "",
   })
+  const [security, setSecurity] = useState<SecuritySettings>({
+    captchaProvider: "recaptcha",
+    turnstileSiteKey: "",
+    turnstileSecretKey: "",
+    recaptchaSiteKey: "",
+    recaptchaSecretKey: "",
+  })
   const [popup, setPopup] = useState<PopupSettings>({
     enabled: true,
     trigger: "mouseleave",
@@ -137,13 +152,13 @@ export default function AdminSettingsPage() {
     offline: {
       name: "MartPoint Retail Offline",
       price: "₦250,000",
-      period: "One-Time Payment",
-      badge: "One-Time",
-      description: "Full software with offline capability installed locally. Maintenance and License Renewal. Works without internet.",
-      features: "POS Sales & Checkout\nInventory & Stock Control\nReceipt Printing\nBarcode & SKU Management\nCustomer & Supplier Records\nStaff Attendance (Face Capture)\nDaily Sales Report\nMulti-Branch (LAN Connected)\nOffline-First Sync\nLocal Installation\nStaff Setup & Training\nNo Recurring Fees",
+      period: "",
+      badge: "Offline",
+      description: "Full software with offline capability installed locally. Annual maintenance and license renewal applicable. Works without internet.",
+      features: "POS Sales & Checkout\nInventory & Stock Control\nReceipt Printing\nBarcode & SKU Management\nCustomer & Supplier Records\nStaff Attendance (Face Capture)\nDaily Sales Report\nMulti-Branch (LAN Connected)\nOffline-First Sync\nLocal Installation\nStaff Setup & Training",
       branchesIncluded: 1,
       usersIncluded: 5,
-      branchAddonPrice: "₦100,000 One-Time",
+      branchAddonPrice: "₦100,000",
       supportRenewal: "₦50,000 / Year",
       ctaText: "Request Offline Setup",
       ctaLink: "https://wa.me/+2348036028069",
@@ -204,6 +219,7 @@ export default function AdminSettingsPage() {
         if (data.social) setSocial(data.social)
         if (data.searchConsole) setSearchConsole(data.searchConsole)
         if (data.openai) setOpenai(data.openai)
+        if (data.security) setSecurity((prev) => ({ ...prev, ...data.security }))
         if (data.popup) setPopup(data.popup)
         if (data.header) setHeader(data.header)
         if (data.footer) setFooter(data.footer)
@@ -298,6 +314,7 @@ export default function AdminSettingsPage() {
       social,
       searchConsole,
       openai,
+      security,
       popup,
       header,
       footer,
@@ -583,6 +600,107 @@ export default function AdminSettingsPage() {
               <Button type="button" onClick={() => doSave("openai", { openai })} disabled={saving["openai"]}>
                 {saving["openai"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save OpenAI
+              </Button>
+            </CardFooter>
+          </Card>
+
+          <Card className={activeTab === "content" ? "hidden" : ""}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-retail" />
+                Security — Bot Protection (Captcha)
+              </CardTitle>
+              <CardDescription>
+                Protects all public forms (contact, demo, quote, brochure, careers, estimate, partner application) from spam and bots.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Captcha Provider</label>
+                <select
+                  value={security.captchaProvider}
+                  onChange={(e) => setSecurity({ ...security, captchaProvider: e.target.value as SecuritySettings["captchaProvider"] })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="recaptcha">Google reCAPTCHA v2 Invisible (recommended)</option>
+                  <option value="turnstile">Cloudflare Turnstile</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  reCAPTCHA works on all domains including .com.ng. Environment variables (NEXT_PUBLIC_RECAPTCHA_SITE_KEY / RECAPTCHA_SECRET_KEY or NEXT_PUBLIC_TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY) take precedence when set.
+                </p>
+              </div>
+
+              {security.captchaProvider === "recaptcha" ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">reCAPTCHA Site Key</label>
+                    <input
+                      type="text"
+                      value={security.recaptchaSiteKey}
+                      onChange={(e) => setSecurity({ ...security, recaptchaSiteKey: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="6Lc..."
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Public key rendered by the invisible widget. Register a <strong>reCAPTCHA v2 → Invisible reCAPTCHA badge</strong> site.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">reCAPTCHA Secret Key</label>
+                    <input
+                      type="password"
+                      value={security.recaptchaSecretKey}
+                      onChange={(e) => setSecurity({ ...security, recaptchaSecretKey: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="6Lc..."
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Server-side verification key. Get both keys from the{" "}
+                      <a href="https://www.google.com/recaptcha/admin/create" target="_blank" rel="noopener noreferrer" className="text-retail underline">Google reCAPTCHA admin console</a>.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Turnstile Site Key</label>
+                    <input
+                      type="text"
+                      value={security.turnstileSiteKey}
+                      onChange={(e) => setSecurity({ ...security, turnstileSiteKey: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="0x4AAAAAAA..."
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Public key rendered in the form widget. Note: Turnstile may not accept some regional domains (e.g. .com.ng).
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Turnstile Secret Key</label>
+                    <input
+                      type="password"
+                      value={security.turnstileSecretKey}
+                      onChange={(e) => setSecurity({ ...security, turnstileSecretKey: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="0x4AAAAAAA..."
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Server-side verification key. Get both keys from the{" "}
+                      <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" rel="noopener noreferrer" className="text-retail underline">Cloudflare dashboard → Turnstile</a>.
+                    </p>
+                  </div>
+                </>
+              )}
+            </CardContent>
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.security && (
+                <span className={`text-sm px-2 py-1 rounded ${message.security.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.security}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSave("security", { security })} disabled={saving["security"]}>
+                {saving["security"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Security
               </Button>
             </CardFooter>
           </Card>

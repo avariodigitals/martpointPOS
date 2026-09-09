@@ -4,7 +4,7 @@ import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
-import { Check, ArrowRight, HelpCircle } from "lucide-react"
+import { Check, HelpCircle, Calculator } from "lucide-react"
 import { readSettings } from "@/lib/settings"
 
 export const metadata: Metadata = {
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     "POS software price Nigeria", "affordable POS system",
     "retail software pricing", "ERP software cost Nigeria",
     "MartPoint pricing", "cheap POS system Africa",
-    "POS software subscription", "one-time POS purchase",
+    "POS software subscription", "offline POS software",
   ],
   alternates: {
     canonical: "/pricing",
@@ -106,7 +106,7 @@ function PricingCard({
             <p className={`text-base font-bold ${accentText} mt-1`}>Additional Branch: {plan.branchAddonPrice}</p>
           )}
           {plan.supportRenewal && (
-            <p className="text-xs text-muted-foreground mt-1">Maintenance and License Renewal: {plan.supportRenewal}</p>
+            <p className="text-xs text-muted-foreground mt-1">Annual Maintenance and License Renewal Applicable.</p>
           )}
         </div>
       )}
@@ -159,19 +159,19 @@ export default async function PricingPage() {
     {
       name: offline.name || "MartPoint Retail Offline",
       price: offline.price || "₦250,000",
-      period: offline.period || "One-Time Payment",
-      badge: offline.badge || "One-Time",
-      description: offline.description || "Full software with offline capability installed locally. Maintenance and License Renewal. Works without internet.",
+      period: offline.period || "",
+      badge: offline.badge || "Offline",
+      description: offline.description || "Full software with offline capability installed locally. Annual maintenance and license renewal applicable. Works without internet.",
       features: offline.features || [
         "POS Sales & Checkout", "Inventory & Stock Control", "Receipt Printing",
         "Barcode & SKU Management", "Customer & Supplier Records",
         "Staff Attendance (Face Capture)", "Daily Sales Report",
         "Multi-Branch (LAN Connected)", "Offline-First Sync",
-        "Local Installation", "Staff Setup & Training", "No Recurring Fees",
+        "Local Installation", "Staff Setup & Training",
       ],
       branchesIncluded: offline.branchesIncluded ?? 1,
       usersIncluded: offline.usersIncluded ?? 3,
-      branchAddonPrice: offline.branchAddonPrice || "₦100,000 One-Time",
+      branchAddonPrice: offline.branchAddonPrice || "₦100,000",
       supportRenewal: offline.supportRenewal || "₦50,000 / Year",
       ctaText: offline.ctaText || "Request Offline Setup",
       ctaLink: offline.ctaLink || "https://wa.me/+2348036028069",
@@ -275,9 +275,9 @@ export default async function PricingPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg">
-                  <a href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
-                    Book a Demo
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                  <a href="/estimate">
+                    <Calculator className="mr-2 h-4 w-4" />
+                    Estimate My Cost
                   </a>
                 </Button>
                 <Button asChild variant="outline" size="lg">

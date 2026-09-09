@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Loader2 } from "lucide-react"
 import { allIndustries } from "@/lib/industries"
+import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 
 const leadSchema = z.object({
   fullName: z.string().min(2, "Full name is required"),
@@ -48,6 +49,8 @@ export function LeadForm({ pageType, productDefault = "not-sure", partnerCode }:
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
+  const [captcha, setCaptcha] = useState<CaptchaState>({ configured: false, token: null })
+  const captchaRef = useRef<CaptchaFieldHandle>(null)
 
   const {
     register,
@@ -82,6 +85,12 @@ export function LeadForm({ pageType, productDefault = "not-sure", partnerCode }:
   const onSubmit = async (data: LeadFormData) => {
     setSubmitting(true)
     setError("")
+    const captchaToken = (await captchaRef.current?.execute()) ?? null
+    if (captcha.configured && !captchaToken) {
+      setSubmitting(false)
+      setError("Please complete the security check before submitting.")
+      return
+    }
 
     try {
       const response = await fetch("/api/leads", {
@@ -89,6 +98,7 @@ export function LeadForm({ pageType, productDefault = "not-sure", partnerCode }:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
+          captchaToken: captchaToken || undefined,
           source: partnerCode ? `partner:${partnerCode}` : pageType,
           partnerCode: partnerCode || undefined,
           submittedAt: new Date().toISOString(),
@@ -175,7 +185,7 @@ export function LeadForm({ pageType, productDefault = "not-sure", partnerCode }:
       </div>
 
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={(e) => void handleSubmit(onSubmit)(e)}
         className="space-y-6"
         noValidate
       >
@@ -371,6 +381,8 @@ export function LeadForm({ pageType, productDefault = "not-sure", partnerCode }:
             {error}
           </div>
         )}
+
+        <CaptchaField ref={captchaRef} onChange={setCaptcha} className="flex justify-center" />
 
         <Button
           type="submit"

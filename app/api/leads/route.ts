@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import crypto from "crypto"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { verifyCaptchaToken } from "@/lib/captcha"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
@@ -36,6 +37,11 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
+
+    const turnstile = await verifyCaptchaToken(body.captchaToken, request)
+    if (!turnstile.success) {
+      return NextResponse.json({ error: turnstile.error }, { status: 403 })
+    }
 
     const {
       fullName,

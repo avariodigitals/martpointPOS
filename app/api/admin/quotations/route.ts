@@ -59,6 +59,8 @@ export async function POST(request: Request) {
       paymentTerms,
       items,
       sendEmail: shouldSend,
+      allowChanges,
+      allowCounterOffer,
     } = body as {
       leadId: string
       title?: string
@@ -68,6 +70,8 @@ export async function POST(request: Request) {
       paymentTerms?: string
       items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number }>
       sendEmail?: boolean
+      allowChanges?: boolean
+      allowCounterOffer?: boolean
     }
 
     if (!leadId || !items || !Array.isArray(items) || items.length === 0) {
@@ -125,6 +129,8 @@ export async function POST(request: Request) {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         sent_at: shouldSend ? new Date().toISOString() : null,
+        allow_changes: Boolean(allowChanges),
+        allow_counter_offer: Boolean(allowChanges) && Boolean(allowCounterOffer),
       })
       .select("*")
       .single()
@@ -235,6 +241,8 @@ function mapQuotation(row: Record<string, unknown>): Quotation {
     created_by: (row.created_by as string | null) || null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
+    allow_changes: Boolean(row.allow_changes),
+    allow_counter_offer: Boolean(row.allow_counter_offer),
     lead: leadRaw
       ? {
           id: row.lead_id as string,

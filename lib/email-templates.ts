@@ -262,6 +262,44 @@ Challenge: {{challenge}}
 Message: {{message}}`,
   },
   {
+    key: "estimate_submission",
+    label: "Cost Estimator Submission (internal)",
+    description: "Internal notification when a visitor completes the cost estimator. Recipient is controlled by the estimate_submission email route.",
+    variables: ["fullName", "businessName", "email", "phone", "businessType", "country", "branches", "staffSize", "productCount", "productOrService", "onlineStore", "hardwareAvailable", "receiptHardware", "dataMigration", "offlineOperation", "erpModules", "trainingPreference", "retailPlan", "retailRange", "retailTier", "erpPlan", "erpRange", "erpTier", "notes"],
+    subject: "New Estimate Request: {{fullName}} — {{businessName}}",
+    text: `New estimate request from the Cost Estimator.
+
+CONTACT
+Name: {{fullName}}
+Business: {{businessName}}
+Email: {{email}}
+Phone: {{phone}}
+
+BUSINESS PROFILE
+Type: {{businessType}}
+Country: {{country}}
+Branches: {{branches}}
+Staff: {{staffSize}}
+Products/Services: {{productCount}} ({{productOrService}})
+
+REQUIREMENTS
+Online store: {{onlineStore}}
+Hardware available: {{hardwareAvailable}}
+Receipt printer/scanner: {{receiptHardware}}
+Data migration: {{dataMigration}}
+Offline operation: {{offlineOperation}}
+ERP modules: {{erpModules}}
+Training: {{trainingPreference}}
+
+RECOMMENDED PLANS
+Retail: {{retailPlan}} ({{retailTier}}) — {{retailRange}}
+ERP: {{erpPlan}} ({{erpTier}}) — {{erpRange}}
+
+Notes: {{notes}}
+
+Review and follow up via the Leads dashboard.`,
+  },
+  {
     key: "career_application",
     label: "Career Application (internal)",
     description: "Notification for a new job application. The CV is attached to the email. Recipient is controlled by the career_application email route.",
@@ -377,6 +415,50 @@ If you did not request this link, you can ignore this email.`,
     variables: ["quoteNumber", "titleBlock"],
     subject: "Quotation {{quoteNumber}}{{titleBlock}} from MartPoint",
     text: "",
+  },
+  {
+    key: "quotation_revised_subject",
+    label: "Revised Quotation Email — Subject",
+    description: "Subject line for the email sent to a lead when their change request is approved and a revised quote is issued.",
+    variables: ["quoteNumber", "titleBlock"],
+    subject: "Revised Quotation {{quoteNumber}}{{titleBlock}} from MartPoint",
+    text: "",
+  },
+  {
+    key: "quotation_revised",
+    label: "Revised Quotation (client)",
+    description: "Sent to a lead when admin approves their change request and issues a revised quotation.",
+    variables: ["fullName", "quoteNumber", "publicUrl"],
+    subject: "Your MartPoint quotation has been revised",
+    text: `Hi {{fullName}},
+
+Your requested changes to quotation {{quoteNumber}} have been reviewed and a revised quotation is ready for you.
+
+View your revised quotation here:
+{{publicUrl}}
+
+If you have any questions, reply to this email.
+
+Best regards,
+MartPoint Sales Team`,
+  },
+  {
+    key: "quote_change_request_received",
+    label: "Quote Change Request (internal)",
+    description: "Internal notification when a lead submits a change request or counter-offer on a quotation. Recipient is controlled by the quote_change_request email route.",
+    variables: ["quoteNumber", "leadName", "businessName", "requestType", "clientNote", "adminUrl"],
+    subject: "Quote change request — {{quoteNumber}} ({{requestType}})",
+    text: `A lead has submitted a change request on a quotation.
+
+Quote: {{quoteNumber}}
+Lead: {{leadName}} — {{businessName}}
+Request type: {{requestType}}
+
+Client note:
+{{clientNote}}
+
+Review and resolve it in the Control Centre:
+{{adminUrl}}`,
   },
   {
     key: "lead_questionnaire",

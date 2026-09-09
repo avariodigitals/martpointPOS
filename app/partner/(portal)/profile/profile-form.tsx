@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Save, Building2, Globe, Phone, Mail, MapPin, Loader2 } from "lucide-react"
+import { LocationFields } from "@/components/location-fields"
 
 interface PartnerProfileFormProps {
   partner: {
@@ -90,9 +91,6 @@ export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileF
               { label: "Public Email", key: "publicEmail", type: "email" },
               { label: "Public Phone", key: "publicPhone" },
               { label: "Website", key: "website" },
-              { label: "City", key: "city" },
-              { label: "State", key: "state" },
-              { label: "Country", key: "country" },
               { label: "Logo URL", key: "logoUrl" },
             ].map((field) => (
               <div key={field.key}>
@@ -105,6 +103,13 @@ export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileF
                 />
               </div>
             ))}
+            <LocationFields
+              country={form.country}
+              state={form.state}
+              city={form.city}
+              onChange={(values) => setForm((p) => ({ ...p, ...values }))}
+              inputClassName="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
           </div>
           <Button onClick={submitUpdate} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}

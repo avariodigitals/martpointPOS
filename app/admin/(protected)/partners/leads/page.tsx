@@ -21,6 +21,12 @@ import {
   MapPin,
   Calendar,
 } from "lucide-react"
+import { LocationFields } from "@/components/location-fields"
+import { allIndustries } from "@/lib/industries"
+
+const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
+const BUSINESS_TYPE_OPTIONS = ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"]
+const PRODUCT_OPTIONS = ["MartPoint Retail", "MartPoint ERP", "Not Sure — Need Guidance"]
 
 type LeadStatus =
   | "REGISTERED" | "UNDER_REVIEW" | "QUALIFIED" | "DEMO" | "PROPOSAL"
@@ -868,34 +874,44 @@ export default function AdminPartnerLeadsPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className={labelCls}>Country *</label>
-                <input required className={inputCls} value={addForm.country} onChange={setField("country")} />
-              </div>
-              <div>
-                <label className={labelCls}>State *</label>
-                <input required className={inputCls} value={addForm.state} onChange={setField("state")} />
-              </div>
-              <div>
-                <label className={labelCls}>City *</label>
-                <input required className={inputCls} value={addForm.city} onChange={setField("city")} />
-              </div>
+              <LocationFields
+                country={addForm.country}
+                state={addForm.state}
+                city={addForm.city}
+                onChange={(vals) => setAddForm((f) => ({ ...f, ...vals }))}
+                inputClassName={inputCls}
+              />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Industry *</label>
-                <input required className={inputCls} value={addForm.industry} onChange={setField("industry")} />
+                <select required className={inputCls} value={addForm.industry} onChange={setField("industry")}>
+                  <option value="" disabled>Select industry</option>
+                  {INDUSTRY_OPTIONS.map((i) => (
+                    <option key={i} value={i}>{i}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className={labelCls}>Business type *</label>
-                <input required className={inputCls} value={addForm.businessType} onChange={setField("businessType")} />
+                <select required className={inputCls} value={addForm.businessType} onChange={setField("businessType")}>
+                  <option value="" disabled>Select business type</option>
+                  {BUSINESS_TYPE_OPTIONS.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
             <div>
               <label className={labelCls}>Interested product *</label>
-              <input required className={inputCls} value={addForm.interestedProduct} onChange={setField("interestedProduct")} />
+              <select required className={inputCls} value={addForm.interestedProduct} onChange={setField("interestedProduct")}>
+                <option value="" disabled>Select product</option>
+                {PRODUCT_OPTIONS.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

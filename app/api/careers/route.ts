@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server"
 import { sendEmail } from "@/lib/email"
+import { verifyCaptchaToken } from "@/lib/captcha"
 import { renderEmailTemplate } from "@/lib/email-templates"
 
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
+
+    const turnstile = await verifyCaptchaToken(
+      formData.get("captchaToken") as string | null,
+      request
+    )
+    if (!turnstile.success) {
+      return NextResponse.json({ error: turnstile.error }, { status: 403 })
+    }
 
     const fullName = formData.get("fullName") as string
     const email = formData.get("email") as string

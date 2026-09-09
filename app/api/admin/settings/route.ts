@@ -49,7 +49,9 @@ function getDefaultSettings() {
       accountNumber: "",
     },
     email: {
+      provider: "resend",
       resendApiKey: "",
+      brevoApiKey: "",
       fromEmail: "MartPoint Partners <hello@martpoint.com.ng>",
       notifyEmail: "",
       routes: {
@@ -73,6 +75,13 @@ function getDefaultSettings() {
     },
     openai: {
       apiKey: "",
+    },
+    security: {
+      captchaProvider: "recaptcha",
+      turnstileSiteKey: "",
+      turnstileSecretKey: "",
+      recaptchaSiteKey: "",
+      recaptchaSecretKey: "",
     },
     popup: {
       enabled: true,
@@ -133,9 +142,9 @@ function getDefaultSettings() {
       offline: {
         name: "MartPoint Retail Offline",
         price: "₦250,000",
-        period: "One-Time Payment",
-        badge: "One-Time",
-        description: "Full software with offline capability installed locally. Maintenance and License Renewal. Works without internet.",
+        period: "",
+        badge: "Offline",
+        description: "Full software with offline capability installed locally. Annual maintenance and license renewal applicable. Works without internet.",
         features: [
           "POS Sales & Checkout",
           "Inventory & Stock Control",
@@ -148,9 +157,8 @@ function getDefaultSettings() {
           "Offline-First Sync",
           "Local Installation",
           "Staff Setup & Training",
-          "No Recurring Fees",
         ],
-        branchAddonPrice: "₦100,000 One-Time",
+        branchAddonPrice: "₦100,000",
         supportRenewal: "₦50,000 / Year",
         ctaText: "Request Offline Setup",
         ctaLink: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20setup.%20Can%20we%20talk%3F",

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession } from "@/lib/audit"
-import { listPartnerProspects, createPartnerProspect, updatePartnerProspect, createProspectInvite, deletePartnerProspect } from "@/lib/partner-prospects"
+import { listPartnerProspects, createPartnerProspect, updatePartnerProspect, createProspectInvite, resendProspectInvite, deletePartnerProspect } from "@/lib/partner-prospects"
 import { sendEmail } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { z } from "zod"
@@ -53,6 +53,23 @@ export async function POST(request: Request) {
       const id = body.id as string
       if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
       const result = await createProspectInvite(id, ctx)
+      if (!result.ok || !result.prospect) return NextResponse.json({ error: result.error }, { status: 400 })
+      const inviteLink = `${baseUrl}/partners/apply?invite=${result.token}`
+      const tpl = await renderEmailTemplate("partner_lead_invite", {
+        contactName: result.prospect.fullName,
+        businessName: result.prospect.businessName ?? "",
+        inviteLink,
+      })
+      if (result.prospect.email) {
+        await sendEmail({ to: result.prospect.email, subject: tpl.subject, text: tpl.text, html: tpl.html })
+      }
+      return NextResponse.json({ prospect: result.prospect, inviteLink })
+    }
+
+    if (body.action === "resend") {
+      const id = body.id as string
+      if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
+      const result = await resendProspectInvite(id, ctx)
       if (!result.ok || !result.prospect) return NextResponse.json({ error: result.error }, { status: 400 })
       const inviteLink = `${baseUrl}/partners/apply?invite=${result.token}`
       const tpl = await renderEmailTemplate("partner_lead_invite", {

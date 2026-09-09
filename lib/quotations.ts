@@ -28,12 +28,23 @@ export interface QuotationItem {
   line_total: number
 }
 
+export type QuotationStatus =
+  | "DRAFT"
+  | "SENT"
+  | "ACCEPTED"
+  | "DECLINED"
+  | "EXPIRED"
+  | "CONVERTED"
+  | "CHANGE_REQUESTED"
+  | "COUNTER_OFFERED"
+  | "REVISED"
+
 export interface Quotation {
   id: string
   lead_id: string
   quote_number: string
   title: string
-  status: "DRAFT" | "SENT" | "ACCEPTED" | "DECLINED" | "EXPIRED" | "CONVERTED"
+  status: QuotationStatus
   currency: string
   subtotal: number
   discount_amount: number
@@ -52,8 +63,34 @@ export interface Quotation {
   created_by: string | null
   created_at: string
   updated_at: string
+  allow_changes: boolean
+  allow_counter_offer: boolean
   lead?: LeadSummary
   items?: QuotationItem[]
+}
+
+export type ChangeRequestType = "scope" | "counter_offer"
+export type ChangeRequestStatus = "pending" | "approved" | "declined"
+
+export interface QuoteChangeRequest {
+  id: string
+  quotation_id: string
+  request_type: ChangeRequestType
+  payload: {
+    /** scope: items the lead wants to keep, with adjusted quantities. */
+    items?: Array<{ item_id: string | null; description: string; quantity: number }>
+    /** scope: optional budget the lead is signalling. */
+    proposed_budget?: number | null
+    /** counter_offer: the total the lead is proposing. */
+    proposed_total?: number | null
+  }
+  client_note: string | null
+  status: ChangeRequestStatus
+  admin_note: string | null
+  resolved_by: string | null
+  resolved_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export function formatNgn(n: number): string {

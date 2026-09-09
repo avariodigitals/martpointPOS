@@ -3,9 +3,14 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
+import { allIndustries } from "@/lib/industries"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-sm font-medium mb-1"
+
+const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
+const BUSINESS_TYPE_OPTIONS = ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"]
+const PRODUCT_OPTIONS = ["MartPoint Retail", "MartPoint ERP", "Not Sure — Need Guidance"]
 
 export default function NewLeadPage() {
   const router = useRouter()
@@ -134,21 +139,28 @@ export default function NewLeadPage() {
           </div>
           <div>
             <label className={labelCls}>City *</label>
-            <input
-              required
-              name="city"
-              className={inputCls}
-              list={cityIsSelect ? "city-list" : undefined}
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder={cityIsSelect ? "Select or type city" : "Type city"}
-            />
-            {cityIsSelect && (
-              <datalist id="city-list">
+            {cityIsSelect ? (
+              <select
+                required
+                name="city"
+                className={inputCls}
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+              >
+                <option value="">Select city</option>
                 {cities.map((c) => (
-                  <option key={c} value={c} />
+                  <option key={c} value={c}>{c}</option>
                 ))}
-              </datalist>
+              </select>
+            ) : (
+              <input
+                required
+                name="city"
+                className={inputCls}
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Type city"
+              />
             )}
           </div>
         </div>
@@ -156,16 +168,31 @@ export default function NewLeadPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Industry *</label>
-            <input required name="industry" className={inputCls} />
+            <select required name="industry" className={inputCls} defaultValue="">
+              <option value="" disabled>Select industry</option>
+              {INDUSTRY_OPTIONS.map((i) => (
+                <option key={i} value={i}>{i}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className={labelCls}>Business type *</label>
-            <input required name="businessType" className={inputCls} />
+            <select required name="businessType" className={inputCls} defaultValue="">
+              <option value="" disabled>Select business type</option>
+              {BUSINESS_TYPE_OPTIONS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
           </div>
         </div>
         <div>
           <label className={labelCls}>Interested product *</label>
-          <input required name="interestedProduct" className={inputCls} />
+          <select required name="interestedProduct" className={inputCls} defaultValue="">
+            <option value="" disabled>Select product</option>
+            {PRODUCT_OPTIONS.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>

@@ -268,7 +268,7 @@ export default async function MartPointRetailPage() {
           },
           {
             question: "How much does MartPoint Retail cost?",
-            answer: "MartPoint Retail Cloud costs ₦99,999 per year and includes 1 branch, 5 users and a Standard Online Store. The offline version costs ₦250,000 as a one-time purchase. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
+            answer: "MartPoint Retail Cloud costs ₦99,999 per year and includes 1 branch, 5 users and a Standard Online Store. The offline version costs ₦250,000 for licence and setup, with annual maintenance and license renewal applicable. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
           },
           {
             question: "Does MartPoint upload my products for me?",
@@ -625,7 +625,7 @@ export default async function MartPointRetailPage() {
               <div className="relative rounded-2xl border border-border bg-card p-8 shadow-sm">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="inline-block rounded-full bg-foreground px-4 py-1 text-xs font-bold uppercase tracking-wider text-white">
-                    {offline.badge || "One-Time"}
+                    {offline.badge || "Offline"}
                   </span>
                 </div>
                 <h3 className="text-xl font-bold text-foreground mt-2">{offline.name || "MartPoint Retail Offline"}</h3>
@@ -633,9 +633,9 @@ export default async function MartPointRetailPage() {
                 <div className="mt-1 flex items-baseline gap-1">
                   <span className="text-4xl sm:text-5xl font-extrabold text-foreground">{offline.price || "₦250,000"}</span>
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground">{offline.period || "One-Time Payment"}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{offline.period || ""}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {offline.description || "Full software installed locally. No recurring subscription. Works without internet."}
+                  {offline.description || "Full software installed locally. Annual maintenance and license renewal applicable. Works without internet."}
                 </p>
                 <ul className="mt-6 space-y-3">
                   {((offline.features as string[]) || [
@@ -650,7 +650,6 @@ export default async function MartPointRetailPage() {
                     "Offline-First Sync",
                     "Local Installation",
                     "Staff Setup & Training",
-                    "No Recurring Fees",
                   ]).map((item: string) => (
                     <li key={item} className="flex items-center gap-2 text-sm text-foreground">
                       <Check className="w-4 h-4 text-retail shrink-0" />
@@ -659,9 +658,9 @@ export default async function MartPointRetailPage() {
                   ))}
                 </ul>
                 <div className="mt-6 rounded-lg bg-muted p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Additional Branch: {offline.branchAddonPrice || "₦100,000 One-Time"}</p>
+                  <p className="text-sm font-semibold text-foreground">Additional Branch: {offline.branchAddonPrice || "₦100,000"}</p>
                   {offline.supportRenewal && (
-                    <p className="text-xs text-muted-foreground mt-1">Optional Support Renewal: {offline.supportRenewal}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Annual Maintenance and License Renewal Applicable.</p>
                   )}
                 </div>
                 <div className="mt-6">

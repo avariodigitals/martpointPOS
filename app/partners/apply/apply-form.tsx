@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Loader2, Check, ArrowRight, ArrowLeft, Upload, X, CheckCircle2 } from "lucide-react"
 import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
+import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 
 type PartnerType = "REFERRAL" | "CHANNEL" | "IMPLEMENTATION" | "CHANNEL_IMPLEMENTATION" | "TECHNOLOGY" | "PAYMENT"
 
@@ -32,6 +33,8 @@ export function PartnerApplicationForm() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState<{ reference: string } | null>(null)
+  const [captcha, setCaptcha] = useState<CaptchaState>({ configured: false, token: null })
+  const captchaRef = useRef<CaptchaFieldHandle>(null)
 
   const [form, setForm] = useState({
     applicantType: "COMPANY" as "INDIVIDUAL" | "COMPANY",
@@ -184,8 +187,15 @@ export function PartnerApplicationForm() {
     if (err) { setError(err); return }
     setSubmitting(true)
     setError("")
+    const captchaToken = (await captchaRef.current?.execute()) ?? null
+    if (captcha.configured && !captchaToken) {
+      setSubmitting(false)
+      setError("Please complete the security check before submitting.")
+      return
+    }
     try {
       const fd = new FormData()
+      if (captchaToken) fd.append("captchaToken", captchaToken)
       fd.append("data", JSON.stringify({ ...form, inviteToken: inviteToken || undefined }))
       const docTypes: Record<string, string> = {}
       for (const d of docs) docTypes[d.file.name] = d.type
@@ -346,22 +356,27 @@ export function PartnerApplicationForm() {
               )}
             </div>
 
-            {/* City: dropdown with datalist so users can type or select */}
+            {/* City: dropdown if curated, otherwise free text */}
             <div>
               <label className={labelCls}>City</label>
-              <input
-                className={inputCls}
-                list={cityIsSelect ? "city-list" : undefined}
-                value={form.city}
-                onChange={(e) => set("city", e.target.value)}
-                placeholder={cityIsSelect ? "Select or type your city" : "Type your city"}
-              />
-              {cityIsSelect && (
-                <datalist id="city-list">
+              {cityIsSelect ? (
+                <select
+                  className={inputCls}
+                  value={form.city}
+                  onChange={(e) => set("city", e.target.value)}
+                >
+                  <option value="">Select a city</option>
                   {cities.map((city) => (
-                    <option key={city} value={city} />
+                    <option key={city} value={city}>{city}</option>
                   ))}
-                </datalist>
+                </select>
+              ) : (
+                <input
+                  className={inputCls}
+                  value={form.city}
+                  onChange={(e) => set("city", e.target.value)}
+                  placeholder="Type your city"
+                />
               )}
             </div>
           </div>
@@ -548,6 +563,7 @@ export function PartnerApplicationForm() {
             <input type="checkbox" checked={form.declaration} onChange={(e) => set("declaration", e.target.checked)} className="w-4 h-4 rounded border-border mt-0.5" />
             <span className="text-sm text-muted-foreground">I confirm that the information provided is accurate and complete. I understand that submitting this application does not make me an authorised MartPoint partner.</span>
           </label>
+          <CaptchaField ref={captchaRef} onChange={setCaptcha} className="flex justify-center" />
         </div>
       )}
 

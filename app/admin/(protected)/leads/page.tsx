@@ -11,18 +11,20 @@ import {
   Phone,
   Mail,
   TrendingUp,
-  CheckCircle2,
   AlertCircle,
-  Calendar,
   Search,
   ChevronDown,
   ChevronUp,
   Plus,
   X,
-  Rocket,
   Pencil,
-  FileText,
 } from "lucide-react"
+import { LeadDetailModal } from "@/components/admin/lead-detail-modal"
+import { COUNTRIES, STATES, CITIES } from "@/lib/locations"
+
+const COUNTRY_OPTIONS = COUNTRIES.map((c) => c.name)
+const STATE_OPTIONS = [...new Set(Object.values(STATES).flat())].sort()
+const CITY_OPTIONS = [...new Set(Object.values(CITIES).flatMap((c) => Object.values(c).flat()))].sort()
 
 interface QuestionnaireField {
   name: string
@@ -104,9 +106,8 @@ export default function AdminLeadsPage() {
   const [dateFilter, setDateFilter] = useState<string>("all")
   const [showFilters, setShowFilters] = useState(false)
 
-  // Expanded lead
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [noteDraft, setNoteDraft] = useState("")
+  // Selected lead (opens detail modal)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
   // Add Lead modal
   const [showAddModal, setShowAddModal] = useState(false)
@@ -126,26 +127,6 @@ export default function AdminLeadsPage() {
     notes: "",
   })
   const [adding, setAdding] = useState(false)
-
-  // Edit Lead modal
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editing, setEditing] = useState(false)
-  const [editForm, setEditForm] = useState({
-    fullName: "",
-    businessName: "",
-    email: "",
-    phone: "",
-    businessType: "",
-    productInterest: "retail",
-    branches: "1",
-    staffSize: "1-5",
-    challenge: "",
-    message: "",
-    source: "manual",
-    status: "New" as Lead["status"],
-    notes: "",
-  })
 
   // Questionnaire
   const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false)
@@ -267,24 +248,6 @@ export default function AdminLeadsPage() {
     }
   }
 
-  const saveNotes = async (id: string) => {
-    try {
-      const res = await fetch("/api/admin/leads", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, notes: noteDraft }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, notes: noteDraft } : l)))
-        setMessage("Notes saved.")
-        setTimeout(() => setMessage(""), 2000)
-      }
-    } catch {
-      setMessage("Failed to save notes")
-    }
-  }
-
   const deleteLead = async (id: string) => {
     if (!confirm("Delete this lead permanently?")) return
     try {
@@ -341,59 +304,109 @@ export default function AdminLeadsPage() {
     }
   }
 
-  const openEdit = (lead: Lead) => {
-    setEditingId(lead.id)
-    setEditForm({
-      fullName: lead.fullName,
-      businessName: lead.businessName,
-      email: lead.email,
-      phone: lead.phone,
-      businessType: lead.businessType,
-      productInterest: lead.productInterest,
-      branches: lead.branches,
-      staffSize: lead.staffSize,
-      challenge: lead.challenge || "",
-      message: lead.message || "",
-      source: lead.source,
-      status: lead.status,
-      notes: lead.notes || "",
-    })
-    setShowEditModal(true)
-  }
-
-  const updateLead = async () => {
-    if (!editingId) return
-    setEditing(true)
+  const updateLeadFromModal = async (id: string, data: Record<string, unknown>): Promise<Lead | null> => {
     setMessage("")
     try {
       const res = await fetch("/api/admin/leads", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editingId, ...editForm }),
+        body: JSON.stringify({ id, ...data }),
       })
-      const data = await res.json()
-      if (data.success && data.lead) {
-        setLeads((prev) => prev.map((l) => (l.id === editingId ? data.lead : l)))
-        setShowEditModal(false)
-        setEditingId(null)
+      const resData = await res.json()
+      if (resData.success && resData.lead) {
+        setLeads((prev) => prev.map((l) => (l.id === id ? resData.lead : l)))
+        setSelectedLead(resData.lead)
         setMessage("Lead updated.")
         setTimeout(() => setMessage(""), 3000)
+        return resData.lead
       } else {
-        setMessage(data.error || "Failed to update lead")
+        setMessage(resData.error || "Failed to update lead")
+        return null
       }
     } catch {
       setMessage("Failed to update lead")
-    } finally {
-      setEditing(false)
+      return null
+    }
+  }
+
+  const convertToBusiness = async (lead: Lead) => {
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/businesses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.id }),
+      })
+      const data = await res.json()
+      if (data.success && data.business) {
+        window.location.href = `/admin/businesses/${data.business.id}`
+      } else {
+        setMessage(data.error || "Failed to convert lead")
+      }
+    } catch {
+      setMessage("Failed to convert lead")
+    }
+  }
+
+  const createQuote = (lead: Lead) => {
+    window.location.href = `/admin/quotations?leadId=${lead.id}`
+  }
+
+  const saveNotesFromModal = async (id: string, notes: string) => {
+    try {
+      const res = await fetch("/api/admin/leads", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, notes }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, notes } : l)))
+        setSelectedLead((prev) => (prev && prev.id === id ? { ...prev, notes } : prev))
+        setMessage("Notes saved.")
+        setTimeout(() => setMessage(""), 2000)
+      }
+    } catch {
+      setMessage("Failed to save notes")
+    }
+  }
+
+  const deleteLeadFromModal = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/leads?id=${id}`, { method: "DELETE" })
+      const data = await res.json()
+      if (data.success) {
+        setLeads((prev) => prev.filter((l) => l.id !== id))
+        setSelectedLead(null)
+      }
+    } catch {
+      setMessage("Failed to delete lead")
+    }
+  }
+
+  const updateStatusFromModal = async (id: string, status: Lead["status"]) => {
+    try {
+      const res = await fetch("/api/admin/leads", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)))
+        setSelectedLead((prev) => (prev && prev.id === id ? { ...prev, status } : prev))
+      }
+    } catch {
+      setMessage("Failed to update status")
     }
   }
 
   const defaultQuestionnaireFieldSelection = (): QuestionnaireField[] => [
     { name: "businessName", label: "Business name", type: "text", required: true },
     { name: "businessType", label: "Business type", type: "select", options: ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"], required: true },
-    { name: "country", label: "Country", type: "text" },
-    { name: "state", label: "State / Region", type: "text" },
-    { name: "city", label: "City", type: "text" },
+    { name: "country", label: "Country", type: "select", options: COUNTRY_OPTIONS },
+    { name: "state", label: "State / Region", type: "select", options: STATE_OPTIONS },
+    { name: "city", label: "City", type: "select", options: CITY_OPTIONS },
     { name: "branches", label: "Number of branches", type: "number", default: 1, required: true },
     { name: "staffSize", label: "Number of staff / users", type: "number", default: 1, required: true },
     { name: "productOrService", label: "Do you sell products, services or both?", type: "select", options: ["Product", "Service", "Both"] },
@@ -776,10 +789,7 @@ export default function AdminLeadsPage() {
                       <div
                         key={lead.id}
                         className="rounded-md bg-card border border-border p-3 cursor-pointer hover:shadow-sm transition-shadow"
-                        onClick={() => {
-                          setExpandedId(lead.id)
-                          setNoteDraft(lead.notes || "")
-                        }}
+                        onClick={() => setSelectedLead(lead)}
                       >
                         <p className="text-sm font-semibold truncate" title={lead.fullName}>{lead.fullName}</p>
                         <p className="text-xs text-muted-foreground truncate" title={lead.businessName}>{lead.businessName}</p>
@@ -836,10 +846,7 @@ export default function AdminLeadsPage() {
                   <tr
                     key={lead.id}
                     className="border-b border-border/50 last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
-                    onClick={() => {
-                      setExpandedId(expandedId === lead.id ? null : lead.id)
-                      setNoteDraft(lead.notes || "")
-                    }}
+                    onClick={() => setSelectedLead(lead)}
                   >
                     <td className="px-4 py-3 font-medium whitespace-nowrap">{lead.fullName}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{lead.businessName}</td>
@@ -869,7 +876,7 @@ export default function AdminLeadsPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            openEdit(lead)
+                            setSelectedLead(lead)
                           }}
                           className="p-1 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
                           title="Edit lead"
@@ -901,122 +908,6 @@ export default function AdminLeadsPage() {
             </table>
           </div>
 
-          {/* Expanded detail row below table */}
-          {expandedId && (() => {
-            const lead = filteredLeads.find((l) => l.id === expandedId)
-            if (!lead) return null
-            return (
-              <div className="border-t border-border px-4 py-4 bg-muted/20 space-y-4">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold">{lead.fullName} — Details</p>
-                    <QuestionnaireStatusBadge status={lead.questionnaireStatus} />
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {lead.status === "Won" && (
-                      <Button
-                        size="sm"
-                        variant="retail"
-                        className="h-7 text-xs px-2"
-                        onClick={async () => {
-                          const res = await fetch("/api/admin/businesses", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ leadId: lead.id }),
-                          })
-                          const data = await res.json()
-                          if (data.success && data.business) {
-                            window.location.href = `/admin/businesses/${data.business.id}`
-                          } else {
-                            setMessage(data.error || "Failed to convert lead")
-                          }
-                        }}
-                      >
-                        <Rocket className="w-3.5 h-3.5 mr-1" />
-                        Convert to Business
-                      </Button>
-                    )}
-                    {lead.questionnaireStatus === "Submitted" || lead.questionnaireStatus === "Reviewed" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        onClick={() => window.location.href = `/admin/quotations?leadId=${lead.id}`}
-                      >
-                        <FileText className="w-3.5 h-3.5 mr-1" />
-                        Create Quote
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        onClick={() => openQuestionnaire(lead)}
-                      >
-                        <FileText className="w-3.5 h-3.5 mr-1" />
-                        Questionnaire required
-                      </Button>
-                    )}
-                    {lead.questionnaireStatus !== "Reviewed" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        onClick={() => openQuestionnaire(lead)}
-                      >
-                        Send Questionnaire
-                      </Button>
-                    )}
-                    {lead.questionnaireStatus === "Submitted" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        onClick={() => markQuestionnaireReviewed(lead)}
-                      >
-                        Mark Reviewed
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs px-2"
-                      onClick={() => openEdit(lead)}
-                    >
-                      <Pencil className="w-3.5 h-3.5 mr-1" />
-                      Edit
-                    </Button>
-                    <select
-                      value={lead.status}
-                      onChange={(e) => updateStatus(lead.id, e.target.value as Lead["status"])}
-                      className="rounded-md border border-input bg-background px-2 py-1 text-xs"
-                    >
-                      {PIPELINE_STAGES.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div><p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Business Type</p><p className="font-medium">{lead.businessType}</p></div>
-                  <div><p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Branches</p><p className="font-medium">{lead.branches}</p></div>
-                  <div><p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Staff Size</p><p className="font-medium">{lead.staffSize}</p></div>
-                  <div><p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Submitted</p><p className="font-medium">{new Date(lead.submittedAt).toLocaleDateString()}</p></div>
-                </div>
-                {lead.challenge && <div><p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Challenge</p><p className="text-sm">{lead.challenge}</p></div>}
-                {lead.message && <div><p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Message</p><p className="text-sm">{lead.message}</p></div>}
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Notes</p>
-                  <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} rows={2} placeholder="Add internal notes..." className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none" />
-                  <div className="mt-2 flex justify-end">
-                    <Button size="sm" onClick={() => saveNotes(lead.id)}>
-                      <CheckCircle2 className="mr-2 h-3.5 w-3.5" /> Save Notes
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
         </Card>
       )}
 
@@ -1201,180 +1092,6 @@ export default function AdminLeadsPage() {
         </div>
       )}
 
-      {/* Edit Lead Modal */}
-      {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Edit Lead</h3>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  value={editForm.fullName}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, fullName: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Business Name *</label>
-                <input
-                  type="text"
-                  value={editForm.businessName}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, businessName: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, email: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Phone *</label>
-                <input
-                  type="tel"
-                  value={editForm.phone}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Business Type *</label>
-                <select
-                  value={editForm.businessType}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, businessType: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Select...</option>
-                  <option value="Supermarket">Supermarket</option>
-                  <option value="Mini Mart">Mini Mart</option>
-                  <option value="Restaurant">Restaurant</option>
-                  <option value="Pharmacy">Pharmacy</option>
-                  <option value="Electronics Store">Electronics Store</option>
-                  <option value="Fashion Retailer">Fashion Retailer</option>
-                  <option value="Distributor">Distributor</option>
-                  <option value="Wholesaler">Wholesaler</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Product Interest *</label>
-                <select
-                  value={editForm.productInterest}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, productInterest: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="retail">MartPoint Retail</option>
-                  <option value="erp">MartPoint ERP</option>
-                  <option value="not-sure">Not Sure — Need Guidance</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Branches *</label>
-                <select
-                  value={editForm.branches}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, branches: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="1">1</option>
-                  <option value="2-3">2-3</option>
-                  <option value="4-6">4-6</option>
-                  <option value="7-10">7-10</option>
-                  <option value="10+">10+</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Staff Size *</label>
-                <select
-                  value={editForm.staffSize}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, staffSize: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="1-5">1-5</option>
-                  <option value="6-15">6-15</option>
-                  <option value="16-30">16-30</option>
-                  <option value="31-50">31-50</option>
-                  <option value="50+">50+</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Source *</label>
-                <select
-                  value={editForm.source}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, source: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="manual">Manual Entry</option>
-                  <option value="website">Website</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="referral">Referral</option>
-                  <option value="social-media">Social Media</option>
-                  <option value="cold-call">Cold Call</option>
-                  <option value="email">Email</option>
-                  <option value="event">Event</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Status</label>
-                <select
-                  value={editForm.status}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value as Lead["status"] }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  {PIPELINE_STAGES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium mb-1">Challenge / Pain Point</label>
-              <input
-                type="text"
-                value={editForm.challenge}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, challenge: e.target.value }))}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium mb-1">Message / Notes</label>
-              <textarea
-                value={editForm.message}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, message: e.target.value }))}
-                rows={2}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setShowEditModal(false)} disabled={editing}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={updateLead} disabled={editing}>
-                {editing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {viewMode === "list" && (
         <div className="space-y-3">
@@ -1382,10 +1099,7 @@ export default function AdminLeadsPage() {
             <Card key={lead.id} className="overflow-hidden">
               <div
                 className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
-                onClick={() => {
-                  setExpandedId(expandedId === lead.id ? null : lead.id)
-                  setNoteDraft(lead.notes || "")
-                }}
+                onClick={() => setSelectedLead(lead)}
               >
                 <div className="flex items-start gap-3">
                   <div className={`w-2 h-12 rounded-full shrink-0 ${STAGE_COLORS[lead.status]}`} />
@@ -1414,7 +1128,7 @@ export default function AdminLeadsPage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      openEdit(lead)
+                      setSelectedLead(lead)
                     }}
                     className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
                     title="Edit lead"
@@ -1431,77 +1145,8 @@ export default function AdminLeadsPage() {
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                  {expandedId === lead.id ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                 </div>
               </div>
-
-              {expandedId === lead.id && (
-                <div className="border-t border-border px-4 py-4 bg-muted/20 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Product Interest</p>
-                      <p className="font-medium">
-                        {lead.productInterest === "retail" ? "MartPoint Retail" : lead.productInterest === "erp" ? "MartPoint ERP" : "Not Sure"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Branches</p>
-                      <p className="font-medium">{lead.branches}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Staff Size</p>
-                      <p className="font-medium">{lead.staffSize}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Source</p>
-                      <p className="font-medium capitalize">{lead.source}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Submitted</p>
-                      <p className="font-medium flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(lead.submittedAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Status</p>
-                      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full text-white ${STAGE_COLORS[lead.status]}`}>
-                        {lead.status}
-                      </span>
-                    </div>
-                  </div>
-
-                  {lead.challenge && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Challenge</p>
-                      <p className="text-sm">{lead.challenge}</p>
-                    </div>
-                  )}
-                  {lead.message && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Message</p>
-                      <p className="text-sm">{lead.message}</p>
-                    </div>
-                  )}
-
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Notes</p>
-                    <textarea
-                      value={noteDraft}
-                      onChange={(e) => setNoteDraft(e.target.value)}
-                      rows={3}
-                      placeholder="Add internal notes about this lead..."
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
-                    />
-                    <div className="mt-2 flex justify-end">
-                      <Button size="sm" onClick={() => saveNotes(lead.id)}>
-                        <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
-                        Save Notes
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </Card>
           ))}
           {filteredLeads.length === 0 && (
@@ -1567,6 +1212,22 @@ export default function AdminLeadsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Lead Detail Modal */}
+      {selectedLead && (
+        <LeadDetailModal
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onUpdateStatus={updateStatusFromModal}
+          onSaveNotes={saveNotesFromModal}
+          onDelete={deleteLeadFromModal}
+          onUpdateLead={updateLeadFromModal}
+          onConvertToBusiness={convertToBusiness}
+          onCreateQuote={createQuote}
+          onOpenQuestionnaire={openQuestionnaire}
+          onMarkQuestionnaireReviewed={markQuestionnaireReviewed}
+        />
       )}
     </div>
   )

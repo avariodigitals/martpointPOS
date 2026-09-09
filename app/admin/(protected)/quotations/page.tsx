@@ -17,6 +17,7 @@ import {
   Search,
   CheckCircle2,
   ArrowRightLeft,
+  MessageSquare,
 } from "lucide-react"
 import { formatNgnFull, recalculateQuote, buildWhatsAppLink, buildQuoteWhatsAppMessage, buildQuotePublicUrl } from "@/lib/quotations"
 import { generateQuotationPdf } from "@/lib/quotation-pdf"
@@ -40,6 +41,8 @@ interface QuoteForm {
   paymentTerms: string
   items: QuotationItemInput[]
   sendEmail: boolean
+  allowChanges: boolean
+  allowCounterOffer: boolean
 }
 
 const initialItem: QuotationItemInput = { description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 0 }
@@ -66,6 +69,8 @@ export default function QuotationsPage() {
     paymentTerms: "",
     items: [{ ...initialItem }],
     sendEmail: false,
+    allowChanges: false,
+    allowCounterOffer: false,
   })
 
   const [showShare, setShowShare] = useState<Quotation | null>(null)
@@ -74,6 +79,20 @@ export default function QuotationsPage() {
   const [convertDueDate, setConvertDueDate] = useState("")
   const [convertPaymentTerms, setConvertPaymentTerms] = useState("")
   const [convertingId, setConvertingId] = useState<string | null>(null)
+
+  const [showReview, setShowReview] = useState<Quotation | null>(null)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewChangeReq, setReviewChangeReq] = useState<{
+    id: string
+    request_type: "scope" | "counter_offer"
+    payload: Record<string, unknown>
+    client_note: string | null
+  } | null>(null)
+  const [revisedItems, setRevisedItems] = useState<QuotationItemInput[]>([])
+  const [revisedNotes, setRevisedNotes] = useState("")
+  const [revisedValidUntil, setRevisedValidUntil] = useState("")
+  const [reviewAdminNote, setReviewAdminNote] = useState("")
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -150,6 +169,8 @@ export default function QuotationsPage() {
           paymentTerms: form.paymentTerms,
           items: form.items,
           sendEmail: form.sendEmail,
+          allowChanges: form.allowChanges,
+          allowCounterOffer: form.allowCounterOffer,
         }),
       })
       const data = await res.json()
@@ -165,6 +186,8 @@ export default function QuotationsPage() {
           paymentTerms: "",
           items: [{ ...initialItem }],
           sendEmail: false,
+          allowChanges: false,
+          allowCounterOffer: false,
         })
         setMessage("Quotation created.")
       } else {
@@ -244,6 +267,110 @@ export default function QuotationsPage() {
     }
   }
 
+  const openReview = async (qt: Quotation) => {
+    setShowReview(qt)
+    setReviewLoading(true)
+    setReviewChangeReq(null)
+    setRevisedItems([])
+    setRevisedNotes(qt.notes_public || "")
+    setRevisedValidUntil(qt.valid_until ? new Date(qt.valid_until).toISOString().split("T")[0] : "")
+    setReviewAdminNote("")
+    try {
+      const res = await fetch(`/api/admin/quotations/${qt.id}/change-requests`)
+      const data = await res.json()
+      const pending = (data.changeRequests || []).find((r: { status: string }) => r.status === "pending")
+      if (pending) {
+        setReviewChangeReq({
+          id: pending.id,
+          request_type: pending.request_type,
+          payload: pending.payload,
+          client_note: pending.client_note,
+        })
+        // Pre-fill revised items from the original quote items (admin sets final prices).
+        const baseItems: QuotationItemInput[] = (qt.items || []).map((it) => ({
+          id: it.id,
+          description: it.description,
+          quantity: it.quantity,
+          unitPrice: it.unit_price,
+          discount: it.discount,
+          tax: it.tax,
+        }))
+        // If scope request, apply the client's requested quantities/descriptions.
+        if (pending.request_type === "scope" && Array.isArray(pending.payload?.items)) {
+          const requested = pending.payload.items as Array<{ item_id: string | null; description: string; quantity: number }>
+          const byId = new Map<string | null, { item_id: string | null; description: string; quantity: number }>(requested.map((r) => [r.item_id, r]))
+          const kept: QuotationItemInput[] = []
+          for (const it of baseItems) {
+            const key = it.id || null
+            const match = byId.get(key) || byId.get(null)
+            if (match) {
+              kept.push({ ...it, description: match.description || it.description, quantity: match.quantity })
+              byId.delete(key)
+              byId.delete(null)
+            }
+          }
+          setRevisedItems(kept.length > 0 ? kept : baseItems)
+        } else {
+          setRevisedItems(baseItems)
+        }
+      } else {
+        setMessage("No pending change request found for this quotation.")
+      }
+    } catch {
+      setMessage("Failed to load change request")
+    } finally {
+      setReviewLoading(false)
+    }
+  }
+
+  const addRevisedItem = () => setRevisedItems((prev) => [...prev, { ...initialItem }])
+
+  const updateRevisedItem = (index: number, patch: Partial<QuotationItemInput>) => {
+    setRevisedItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)))
+  }
+
+  const removeRevisedItem = (index: number) => {
+    setRevisedItems((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const resolveReview = async (action: "approve" | "decline") => {
+    if (!showReview || !reviewChangeReq) return
+    if (action === "approve" && revisedItems.some((it) => !it.description.trim())) {
+      setMessage("Each revised item needs a description")
+      return
+    }
+    setResolvingId(showReview.id)
+    setMessage("")
+    try {
+      const res = await fetch(`/api/admin/quotations/${showReview.id}/change-requests/${reviewChangeReq.id}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          adminNote: reviewAdminNote || undefined,
+          items: action === "approve" ? revisedItems : undefined,
+          notesPublic: action === "approve" ? revisedNotes : undefined,
+          validUntil: action === "approve" ? revisedValidUntil || undefined : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMessage(action === "approve" ? "Revised quote issued and emailed to client." : "Change request declined. Quote restored to SENT.")
+        setShowReview(null)
+        // Reload quotations to reflect new totals/status.
+        const qRes = await fetch("/api/admin/quotations")
+        const qData = await qRes.json()
+        if (qData.quotations) setQuotations(qData.quotations)
+      } else {
+        setMessage(data.error || "Failed to resolve")
+      }
+    } catch {
+      setMessage("Failed to resolve change request")
+    } finally {
+      setResolvingId(null)
+    }
+  }
+
   const selectedLead = leads.find((l) => l.id === form.leadId)
 
   const statusClass = (status: string) => {
@@ -258,6 +385,11 @@ export default function QuotationsPage() {
         return "bg-gray-100 text-gray-700"
       case "CONVERTED":
         return "bg-blue-50 text-blue-700"
+      case "CHANGE_REQUESTED":
+      case "COUNTER_OFFERED":
+        return "bg-amber-50 text-amber-700"
+      case "REVISED":
+        return "bg-purple-50 text-purple-700"
       default:
         return "bg-amber-50 text-amber-700"
     }
@@ -370,6 +502,15 @@ export default function QuotationsPage() {
                               title="Convert to Invoice"
                             >
                               <ArrowRightLeft className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {(qt.status === "CHANGE_REQUESTED" || qt.status === "COUNTER_OFFERED") && (
+                            <button
+                              onClick={() => openReview(qt)}
+                              className="p-1 rounded-md text-amber-600 hover:bg-amber-50 transition-colors"
+                              title="Review change request"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
                             </button>
                           )}
                           <button
@@ -572,6 +713,40 @@ export default function QuotationsPage() {
                 <label htmlFor="sendEmail" className="text-sm font-medium">Send quotation by email immediately</label>
               </div>
 
+              <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="allowChanges"
+                    type="checkbox"
+                    checked={form.allowChanges}
+                    onChange={(e) => setForm((prev) => ({ ...prev, allowChanges: e.target.checked, allowCounterOffer: e.target.checked ? prev.allowCounterOffer : false }))}
+                    className="rounded border-input"
+                  />
+                  <label htmlFor="allowChanges" className="text-sm font-medium">Allow client to request changes</label>
+                </div>
+                {form.allowChanges && (
+                  <p className="text-xs text-muted-foreground pl-6">
+                    Client can adjust quantities, remove items, and add a budget + note. You review and reissue a revised quote.
+                  </p>
+                )}
+                <div className={`flex items-center gap-2 pl-6 ${form.allowChanges ? "" : "opacity-50"}`}>
+                  <input
+                    id="allowCounterOffer"
+                    type="checkbox"
+                    checked={form.allowCounterOffer}
+                    disabled={!form.allowChanges}
+                    onChange={(e) => setForm((prev) => ({ ...prev, allowCounterOffer: e.target.checked }))}
+                    className="rounded border-input"
+                  />
+                  <label htmlFor="allowCounterOffer" className="text-sm font-medium">Also allow counter-offer (client proposes a total)</label>
+                </div>
+                {form.allowChanges && form.allowCounterOffer && (
+                  <p className="text-xs text-muted-foreground pl-6">
+                    Client can propose their own total amount. You decide whether to meet it. Use only where negotiation is welcome.
+                  </p>
+                )}
+              </div>
+
               <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal</span>
@@ -715,6 +890,187 @@ export default function QuotationsPage() {
                 Convert to Invoice
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Review Change Request — {showReview.quote_number}</h3>
+              <button onClick={() => setShowReview(null)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {reviewLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : !reviewChangeReq ? (
+              <p className="text-sm text-muted-foreground">No pending change request found for this quotation.</p>
+            ) : (
+              <>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800">
+                      {reviewChangeReq.request_type === "counter_offer" ? "Counter-offer" : "Scope change"}
+                    </span>
+                    <span className="text-muted-foreground">from {showReview.lead?.fullName} — {showReview.lead?.businessName}</span>
+                  </div>
+
+                  {reviewChangeReq.request_type === "scope" && Array.isArray(reviewChangeReq.payload?.items) && (
+                    <div className="mt-2">
+                      <p className="text-xs font-medium text-amber-800 mb-1">Client requested items:</p>
+                      <ul className="text-xs text-amber-900 space-y-0.5 list-disc list-inside">
+                        {(reviewChangeReq.payload.items as Array<{ description: string; quantity: number }>).map((it, i) => (
+                          <li key={i}>{it.description} — qty {it.quantity}</li>
+                        ))}
+                      </ul>
+                      {reviewChangeReq.payload.proposed_budget != null && (
+                        <p className="text-xs text-amber-900 mt-1">Proposed budget: {formatNgnFull(Number(reviewChangeReq.payload.proposed_budget))}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {reviewChangeReq.request_type === "counter_offer" && reviewChangeReq.payload?.proposed_total != null && (
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Client proposed total:</span>{" "}
+                      <span className="font-semibold">{formatNgnFull(Number(reviewChangeReq.payload.proposed_total))}</span>
+                      <span className="text-muted-foreground ml-2">(original: {formatNgnFull(showReview.total_amount)})</span>
+                    </p>
+                  )}
+
+                  {reviewChangeReq.client_note && (
+                    <div className="mt-2">
+                      <p className="text-xs font-medium text-amber-800 mb-1">Client note:</p>
+                      <p className="text-sm text-amber-900 whitespace-pre-line">{reviewChangeReq.client_note}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium">Revised line items (you set the final prices)</label>
+                    <Button size="sm" variant="outline" onClick={addRevisedItem}>
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Add Item
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {revisedItems.map((item, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2 items-start p-3 rounded-lg border border-border bg-muted/20">
+                        <div className="col-span-12 sm:col-span-5">
+                          <input
+                            type="text"
+                            placeholder="Description"
+                            value={item.description}
+                            onChange={(e) => updateRevisedItem(idx, { description: e.target.value })}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-4 sm:col-span-2">
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="Qty"
+                            value={item.quantity}
+                            onChange={(e) => updateRevisedItem(idx, { quantity: Number(e.target.value) })}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-4 sm:col-span-2">
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="Unit price"
+                            value={item.unitPrice}
+                            onChange={(e) => updateRevisedItem(idx, { unitPrice: Number(e.target.value) })}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-2 sm:col-span-2">
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="Disc"
+                            value={item.discount}
+                            onChange={(e) => updateRevisedItem(idx, { discount: Number(e.target.value) })}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-2 sm:col-span-1 flex justify-end">
+                          <button onClick={() => removeRevisedItem(idx)} className="p-1 text-muted-foreground hover:text-red-600">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm">
+                    <div className="flex justify-between font-semibold border-t border-border pt-2">
+                      <span>Revised Total</span>
+                      <span>{formatNgnFull(recalculateQuote(revisedItems).total)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Revised Valid Until</label>
+                    <input
+                      type="date"
+                      value={revisedValidUntil}
+                      onChange={(e) => setRevisedValidUntil(e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Revised Public Notes</label>
+                    <input
+                      type="text"
+                      value={revisedNotes}
+                      onChange={(e) => setRevisedNotes(e.target.value)}
+                      placeholder="Shown to client on the revised quote"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Admin note (internal, not shown to client)</label>
+                  <textarea
+                    value={reviewAdminNote}
+                    onChange={(e) => setReviewAdminNote(e.target.value)}
+                    rows={2}
+                    placeholder="Why you approved/declined"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                  <Button
+                    variant="outline"
+                    onClick={() => resolveReview("decline")}
+                    disabled={resolvingId === showReview.id}
+                  >
+                    {resolvingId === showReview.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />}
+                    Decline Request
+                  </Button>
+                  <Button
+                    onClick={() => resolveReview("approve")}
+                    disabled={resolvingId === showReview.id}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {resolvingId === showReview.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                    Issue Revised Quote
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

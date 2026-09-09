@@ -18,10 +18,10 @@ import {
   Users,
   HeartHandshake,
   ShieldCheck,
-  Briefcase,
   Mail,
   Truck,
   Warehouse,
+  Calculator,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -66,6 +66,12 @@ export const mainNav: NavItem[] = [
         href: "/pricing",
         description: "See which MartPoint edition fits your business.",
         icon: Tag,
+      },
+      {
+        label: "Estimate Cost",
+        href: "/estimate",
+        description: "Answer a few questions and get an instant estimated cost range.",
+        icon: Calculator,
       },
     ],
   },
@@ -129,6 +135,7 @@ export const footerColumns = {
       { label: "MartPoint Enterprise", href: "/martpoint-erp" },
       { label: "MartPoint Intelligence", href: "/martpoint-intelligence" },
       { label: "Pricing", href: "/pricing" },
+      { label: "Cost Estimator", href: "/estimate" },
     ],
   },
   industries: {

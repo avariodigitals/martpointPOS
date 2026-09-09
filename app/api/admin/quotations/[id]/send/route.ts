@@ -16,7 +16,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
   }
 
+  // Optional body: admin can toggle change-request flags at send time.
+  let allowChanges: boolean | undefined
+  let allowCounterOffer: boolean | undefined
   try {
+    const body = await request.json()
+    if (typeof body.allowChanges === "boolean") allowChanges = body.allowChanges
+    if (typeof body.allowCounterOffer === "boolean") allowCounterOffer = body.allowCounterOffer
+  } catch {
+    // No JSON body (e.g. called without a body) — keep existing flags.
+  }
+
+  try {
+    if (allowChanges !== undefined) {
+      const patch: Record<string, unknown> = {
+        allow_changes: allowChanges,
+        updated_at: new Date().toISOString(),
+      }
+      if (!allowChanges) patch.allow_counter_offer = false
+      else if (allowCounterOffer !== undefined) patch.allow_counter_offer = allowCounterOffer
+      await supabase.from("lead_quotations").update(patch).eq("id", id)
+    }
+
     const { data: quote, error } = await supabase
       .from("lead_quotations")
       .select("*, lead:leads (full_name, business_name, email, phone, product_interest)")

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { verifyCaptchaToken } from "@/lib/captcha"
 import { submitPartnerApplication, sendApplicationSubmittedEmail, type PartnerType, type ApplicantType } from "@/lib/partners"
 import { uploadPartnerDocument, validatePartnerFile, MAX_PARTNER_FILE_BYTES } from "@/lib/partner-documents"
 import { getLeadByInviteToken } from "@/lib/partner-leads"
@@ -84,6 +85,14 @@ export async function POST(request: Request) {
     form = await request.formData()
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+  }
+
+  const turnstile = await verifyCaptchaToken(
+    form.get("captchaToken") as string | null,
+    request
+  )
+  if (!turnstile.success) {
+    return NextResponse.json({ error: turnstile.error }, { status: 403 })
   }
 
   const dataRaw = form.get("data")

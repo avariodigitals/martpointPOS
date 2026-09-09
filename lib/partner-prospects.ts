@@ -210,6 +210,34 @@ export async function createProspectInvite(id: string, actor: AuditContext): Pro
   return { ok: true, prospect: mapRow(data), token }
 }
 
+export async function resendProspectInvite(id: string, actor: AuditContext): Promise<{ ok: boolean; prospect?: PartnerProspect; token?: string; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
+  const existing = await getPartnerProspectById(id)
+  if (!existing) return { ok: false, error: "Prospect not found" }
+  if (!existing.email) return { ok: false, error: "No email on file" }
+  if (existing.status === "APPLICATION_SUBMITTED" || existing.status === "CONVERTED") {
+    return { ok: false, error: "An application has already been submitted for this prospect" }
+  }
+  const now = new Date().toISOString()
+  const token = existing.inviteToken || crypto.randomUUID()
+  const updates: Record<string, unknown> = { invite_token: token, invited_at: now, updated_at: now }
+  if (!existing.inviteToken && existing.status !== "INVITED_TO_APPLY") {
+    updates.status = "INVITED_TO_APPLY"
+  }
+  const { data, error } = await supabase.from("partner_prospects").update(updates).eq("id", id).select().single()
+  if (error || !data) {
+    console.error("[resendProspectInvite]", error)
+    return { ok: false, error: "Failed to resend invite" }
+  }
+  await recordAudit(actor, {
+    action: AUDIT_ACTIONS.PARTNER_PROSPECT_INVITED,
+    entityType: AUDIT_ENTITIES.PARTNER,
+    entityId: id,
+    metadata: { token, resend: true },
+  })
+  return { ok: true, prospect: mapRow(data), token }
+}
+
 export async function deletePartnerProspect(id: string, actor: AuditContext): Promise<boolean> {
   if (!isSupabaseConfigured()) return false
   const { error } = await supabase.from("partner_prospects").delete().eq("id", id)

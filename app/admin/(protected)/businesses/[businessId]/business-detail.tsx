@@ -725,9 +725,13 @@ export function BusinessDetail({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Field label="Branch name *"><input className={inputCls} value={branchForm.name} onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })} /></Field>
                   <Field label="Phone"><input className={inputCls} value={branchForm.phone} onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })} /></Field>
-                  <Field label="City"><input className={inputCls} value={branchForm.city} onChange={(e) => setBranchForm({ ...branchForm, city: e.target.value })} /></Field>
-                  <Field label="State"><input className={inputCls} value={branchForm.state} onChange={(e) => setBranchForm({ ...branchForm, state: e.target.value })} /></Field>
-                  <Field label="Country"><input className={inputCls} value={branchForm.country} onChange={(e) => setBranchForm({ ...branchForm, country: e.target.value })} /></Field>
+                  <LocationFields
+                    country={branchForm.country}
+                    state={branchForm.state}
+                    city={branchForm.city}
+                    onChange={(vals) => setBranchForm((prev) => ({ ...prev, ...vals }))}
+                    inputClassName={inputCls}
+                  />
                   <Field label="Address"><input className={inputCls} value={branchForm.address} onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })} /></Field>
                 </div>
                 <label className="flex items-center gap-2 text-sm">

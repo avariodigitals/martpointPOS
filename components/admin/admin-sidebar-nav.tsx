@@ -31,6 +31,7 @@ import {
   Package,
   Palette,
   UserPlus,
+  Download,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -88,6 +89,7 @@ const navItems: NavItem[] = [
   { href: "/admin/tracker", label: "Tracker", icon: MousePointerClick, page: "tracker", section: "Content" },
   { href: "/admin/tracker/referrers", label: "Traffic Sources", icon: Globe, page: "tracker", section: "Content" },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, page: "analytics", section: "Content" },
+  { href: "/admin/brochure", label: "Brochure", icon: Download, page: "partners", section: "Content" },
 
   // ADMINISTRATION
   { href: "/admin/settings", label: "Settings", icon: Settings, page: "settings", section: "Administration" },

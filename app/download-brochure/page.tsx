@@ -1,6 +1,8 @@
-export const revalidate = 86400
 import type { Metadata } from "next"
-import { PlaceholderPage } from "@/components/shared/placeholder-page"
+import { getActiveBrochure } from "@/lib/brochure"
+import { BrochureDownloadForm } from "@/components/shared/brochure-download-form"
+
+export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
   title: "Download Brochure - MartPoint",
@@ -10,13 +12,14 @@ export const metadata: Metadata = {
   },
 }
 
-export default function DownloadBrochurePage() {
+export default async function DownloadBrochurePage() {
+  const brochure = await getActiveBrochure()
+
   return (
-    <PlaceholderPage
-      title="Download Brochure"
-      headline="Download Brochure"
-      description="Download the MartPoint product brochure."
-      subtext="Our brochure is being updated with the latest features. Contact our sales team for a personalised walkthrough."
-    />
+    <main className="min-h-screen py-16 px-4 sm:px-6 lg:px-8 bg-background">
+      <div className="max-w-7xl mx-auto">
+        <BrochureDownloadForm brochure={brochure} />
+      </div>
+    </main>
   )
 }

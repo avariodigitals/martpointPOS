@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Users, Shield, FileText, Network, Activity, Settings, Check, X, Target, Wrench, LifeBuoy, Coins, BarChart3, Download } from "lucide-react"
 import { PARTNER_USER_ROLES, PARTNER_ROLE_LABELS, type PartnerUserRole, ORG_CAPABILITY_LABELS, type PartnerOrgCapability, relevantPartnerTabs } from "@/lib/partner-permissions"
+import { LocationFields } from "@/components/location-fields"
 
 const CAPABILITIES = Object.keys(ORG_CAPABILITY_LABELS) as PartnerOrgCapability[]
 
@@ -380,9 +381,6 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                   { label: "Public Address", key: "public_address" },
                   { label: "Service Areas (comma-separated)", key: "service_areas" },
                   { label: "Website", key: "website" },
-                  { label: "City", key: "city" },
-                  { label: "State", key: "state" },
-                  { label: "Country", key: "country" },
                 ].map((f) => (
                   <div key={f.key}>
                     <label className="block text-xs font-medium mb-1">{f.label}</label>
@@ -393,6 +391,13 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                     />
                   </div>
                 ))}
+                <LocationFields
+                  country={(partner.country as string) || ""}
+                  state={(partner.state as string) || ""}
+                  city={(partner.city as string) || ""}
+                  onChange={(vals) => setPartner((prev) => ({ ...prev, ...vals }))}
+                  inputClassName="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
                 <div className="sm:col-span-2 flex gap-2">
                   <Button type="submit"><Settings className="w-4 h-4 mr-2" /> Update Partner</Button>
                 </div>

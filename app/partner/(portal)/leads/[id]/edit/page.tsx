@@ -4,9 +4,14 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
 import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
+import { allIndustries } from "@/lib/industries"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-sm font-medium mb-1"
+
+const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
+const BUSINESS_TYPE_OPTIONS = ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"]
+const PRODUCT_OPTIONS = ["MartPoint Retail", "MartPoint ERP", "Not Sure — Need Guidance"]
 
 interface Lead {
   id: string
@@ -225,6 +230,7 @@ export default function EditLeadPage() {
                 }}
               >
                 <option value="">Select state</option>
+                {state && !states.includes(state) && <option value={state}>{state}</option>}
                 {states.map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}
@@ -243,22 +249,31 @@ export default function EditLeadPage() {
           </div>
           <div>
             <label className={labelCls}>City *</label>
-            <input
-              required
-              name="city"
-              className={inputCls}
-              list={cityIsSelect ? "city-list" : undefined}
-              value={city}
-              disabled={!editable}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder={cityIsSelect ? "Select or type city" : "Type city"}
-            />
-            {cityIsSelect && (
-              <datalist id="city-list">
+            {cityIsSelect ? (
+              <select
+                required
+                name="city"
+                className={inputCls}
+                value={city}
+                disabled={!editable}
+                onChange={(e) => setCity(e.target.value)}
+              >
+                <option value="">Select city</option>
+                {city && !cities.includes(city) && <option value={city}>{city}</option>}
                 {cities.map((c) => (
-                  <option key={c} value={c} />
+                  <option key={c} value={c}>{c}</option>
                 ))}
-              </datalist>
+              </select>
+            ) : (
+              <input
+                required
+                name="city"
+                className={inputCls}
+                value={city}
+                disabled={!editable}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Type city"
+              />
             )}
           </div>
         </div>
@@ -266,34 +281,58 @@ export default function EditLeadPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Industry *</label>
-            <input
+            <select
               required
               name="industry"
               defaultValue={lead.industry}
               className={inputCls}
               disabled={!editable}
-            />
+            >
+              <option value="" disabled>Select industry</option>
+              {lead.industry && !INDUSTRY_OPTIONS.includes(lead.industry) && (
+                <option value={lead.industry}>{lead.industry}</option>
+              )}
+              {INDUSTRY_OPTIONS.map((i) => (
+                <option key={i} value={i}>{i}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className={labelCls}>Business type *</label>
-            <input
+            <select
               required
               name="businessType"
               defaultValue={lead.businessType}
               className={inputCls}
               disabled={!editable}
-            />
+            >
+              <option value="" disabled>Select business type</option>
+              {lead.businessType && !BUSINESS_TYPE_OPTIONS.includes(lead.businessType) && (
+                <option value={lead.businessType}>{lead.businessType}</option>
+              )}
+              {BUSINESS_TYPE_OPTIONS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
           </div>
         </div>
         <div>
           <label className={labelCls}>Interested product *</label>
-          <input
+          <select
             required
             name="interestedProduct"
             defaultValue={lead.interestedProduct}
             className={inputCls}
             disabled={!editable}
-          />
+          >
+            <option value="" disabled>Select product</option>
+            {lead.interestedProduct && !PRODUCT_OPTIONS.includes(lead.interestedProduct) && (
+              <option value={lead.interestedProduct}>{lead.interestedProduct}</option>
+            )}
+            {PRODUCT_OPTIONS.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>

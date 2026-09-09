@@ -170,6 +170,21 @@ export default function PartnerProspectsPage() {
     }
   }
 
+  const resendInvite = async (prospect: Prospect) => {
+    const res = await fetch("/api/admin/partner-prospects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: prospect.id, action: "resend" }),
+    })
+    const data = await res.json()
+    if (res.ok && data.prospect) {
+      setProspects((prev) => prev.map((p) => (p.id === prospect.id ? data.prospect : p)))
+      setMessage(`Invite resent: ${data.inviteLink}`)
+    } else {
+      setMessage(data.error || "Resend failed")
+    }
+  }
+
   const remove = async (prospect: Prospect) => {
     if (!confirm(`Delete ${prospect.fullName}?`)) return
     const res = await fetch("/api/admin/partner-prospects", {
@@ -302,8 +317,11 @@ export default function PartnerProspectsPage() {
                             <option value="DISQUALIFIED">Disqualified</option>
                           </select>
                         )}
-                        {p.email && !p.inviteToken && p.status !== "CONVERTED" && (
+                        {p.email && !p.inviteToken && p.status !== "CONVERTED" && p.status !== "APPLICATION_SUBMITTED" && (
                           <Button size="sm" className="h-6 text-[10px] px-2" onClick={() => invite(p)}><Send className="w-3 h-3" /></Button>
+                        )}
+                        {p.email && p.inviteToken && p.status !== "CONVERTED" && p.status !== "APPLICATION_SUBMITTED" && (
+                          <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => resendInvite(p)}><Send className="w-3 h-3" /></Button>
                         )}
                       </div>
                     </div>
@@ -364,8 +382,13 @@ export default function PartnerProspectsPage() {
                           <button onClick={() => openEdit(p)} title="Edit" className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          {p.email && !p.inviteToken && p.status !== "CONVERTED" && (
+                          {p.email && !p.inviteToken && p.status !== "CONVERTED" && p.status !== "APPLICATION_SUBMITTED" && (
                             <button onClick={() => invite(p)} title="Send application invite" className="p-1.5 rounded-md text-muted-foreground hover:text-violet-600 hover:bg-violet-50">
+                              <Send className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {p.email && p.inviteToken && p.status !== "CONVERTED" && p.status !== "APPLICATION_SUBMITTED" && (
+                            <button onClick={() => resendInvite(p)} title="Resend application invite" className="p-1.5 rounded-md text-muted-foreground hover:text-violet-600 hover:bg-violet-50">
                               <Send className="w-3.5 h-3.5" />
                             </button>
                           )}

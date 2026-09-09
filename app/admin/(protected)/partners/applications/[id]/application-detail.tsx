@@ -9,6 +9,7 @@ import {
   AlertTriangle, ShieldCheck, RefreshCw, Send, CheckCircle, XCircle,
   Clock, AlertCircle, Pencil, type LucideIcon,
 } from "lucide-react"
+import { LocationFields } from "@/components/location-fields"
 
 const TYPE_LABELS: Record<string, string> = {
   REFERRAL: "Referral Partner", CHANNEL: "Channel Partner", IMPLEMENTATION: "Implementation Partner",
@@ -493,7 +494,21 @@ export function ApplicationDetail({ id }: { id: string }) {
               <CardHeader><CardTitle className="text-sm font-medium">Edit Application Details</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {EDITABLE_FIELDS.map((f) => (
+                  {EDITABLE_FIELDS.map((f) => {
+                    if (f.key === "country") {
+                      return (
+                        <LocationFields
+                          key={f.key}
+                          country={editForm.country || ""}
+                          state={editForm.state || ""}
+                          city={editForm.city || ""}
+                          onChange={(vals) => setEditForm((prev) => ({ ...prev, ...vals }))}
+                          inputClassName="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      )
+                    }
+                    if (f.key === "state" || f.key === "city") return null
+                    return (
                     <div key={f.key} className={f.textarea ? "sm:col-span-2" : ""}>
                       <label className="block text-xs font-medium mb-1">{f.label}</label>
                       {f.textarea ? (
@@ -511,7 +526,8 @@ export function ApplicationDetail({ id }: { id: string }) {
                         />
                       )}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>

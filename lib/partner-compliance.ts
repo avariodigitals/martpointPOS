@@ -38,7 +38,7 @@ function tokenExpiry() {
 }
 
 function generateToken() {
-  const token = crypto.randomBytes(16).toString("hex")
+  const token = crypto.randomBytes(8).toString("hex")
   return { token, hash: hashToken(token) }
 }
 
@@ -114,28 +114,32 @@ export async function requestApplicationComplianceDocuments(
   const existingSet = new Set((app.required_compliance_documents as string[]) || [])
   const requested: ComplianceDocWithToken[] = []
   const documentLinks: { docType: string; uploadUrl: string }[] = []
+  let lastTokenError: string | null = null
 
   for (const docType of documentTypes) {
-    existingSet.add(docType)
-
-    // Reuse a rejected/requested doc for the same type if one exists, otherwise create new.
+    // Reuse the latest doc of this type if it is still open for re-request, otherwise skip.
     const { data: existing } = await supabase
       .from("partner_documents")
-      .select("id")
+      .select("id, verification_status")
       .eq("application_id", applicationId)
       .eq("document_type", docType)
-      .in("verification_status", ["REQUESTED", "REJECTED"])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
 
     let docId: string
+    let isNewDoc = false
+    let isAlreadyRequested = false
     if (existing) {
+      const status = existing.verification_status as string
+      if (status !== "REQUESTED" && status !== "REJECTED") {
+        // Already submitted/under review/verified — do not create another request.
+        continue
+      }
+      if (status === "REQUESTED") {
+        isAlreadyRequested = true
+      }
       docId = existing.id as string
-      await supabase
-        .from("partner_documents")
-        .update({ verification_status: "REQUESTED", updated_at: now() })
-        .eq("id", docId)
     } else {
       const { data: created, error: insertErr } = await supabase
         .from("partner_documents")
@@ -155,6 +159,12 @@ export async function requestApplicationComplianceDocuments(
         .single()
       if (insertErr || !created) continue
       docId = created.id as string
+      isNewDoc = true
+    }
+
+    if (isAlreadyRequested) {
+      // Already active with a pending link; admin should use Resend for a fresh token.
+      continue
     }
 
     const { token, hash } = generateToken()
@@ -171,7 +181,21 @@ export async function requestApplicationComplianceDocuments(
       .select()
       .single()
 
-    if (tokenErr || !tokenRow) continue
+    if (tokenErr || !tokenRow) {
+      lastTokenError = tokenErr?.message || `Failed to create upload token for ${docType}`
+      console.error("[compliance] upload token insert failed:", { docType, error: tokenErr })
+      if (isNewDoc) {
+        await supabase.from("partner_documents").delete().eq("id", docId)
+      }
+      continue
+    }
+
+    if (existing && existing.verification_status === "REJECTED") {
+      await supabase
+        .from("partner_documents")
+        .update({ verification_status: "REQUESTED", updated_at: now() })
+        .eq("id", docId)
+    }
 
     const uploadUrl = `${baseUrl}/partners/upload-compliance?token=${token}`
 
@@ -193,29 +217,32 @@ export async function requestApplicationComplianceDocuments(
     })
 
     documentLinks.push({ docType, uploadUrl })
+    existingSet.add(docType)
   }
 
   // Send one branded email with all upload links, regardless of how many documents were requested.
-  if (documentLinks.length > 0) {
-    const fullName = (app.full_name as string) || (app.business_name as string) || "there"
-    const reference = app.reference_number as string
-
-    const documentsTextBlock = documentLinks
-      .map(({ docType, uploadUrl }) => `- ${docType}: ${uploadUrl}`)
-      .join("\n")
-
-    const documentsBlock = documentLinks
-      .map(({ docType, uploadUrl }) => `<tr><td style="padding:0 0 16px;"><p style="font-size:15px; line-height:1.5; margin:0 0 8px; color:#374151;"><strong>${docType}</strong></p><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius:8px; background-color:#0057FF; text-align:center;"><a href="${uploadUrl}" target="_blank" style="display:inline-block; padding:12px 24px; font-size:14px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Upload ${docType}</a></td></tr></table></td></tr>`)
-      .join("")
-
-    const tpl = await renderEmailTemplate("compliance_docs_request", {
-      fullName,
-      reference,
-      documentsTextBlock,
-      documentsBlock,
-    })
-    await sendEmail({ to: app.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html })
+  if (documentLinks.length === 0) {
+    return { ok: false, error: lastTokenError || "Selected documents are already requested or have already been submitted/verified" }
   }
+
+  const fullName = (app.full_name as string) || (app.business_name as string) || "there"
+  const reference = app.reference_number as string
+
+  const documentsTextBlock = documentLinks
+    .map(({ docType, uploadUrl }) => `- ${docType}: ${uploadUrl}`)
+    .join("\n")
+
+  const documentsBlock = documentLinks
+    .map(({ docType, uploadUrl }) => `<tr><td style="padding:0 0 16px;"><p style="font-size:15px; line-height:1.5; margin:0 0 8px; color:#374151;"><strong>${docType}</strong></p><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius:8px; background-color:#0057FF; text-align:center;"><a href="${uploadUrl}" target="_blank" style="display:inline-block; padding:12px 24px; font-size:14px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Upload ${docType}</a></td></tr></table></td></tr>`)
+    .join("")
+
+  const tpl = await renderEmailTemplate("compliance_docs_request", {
+    fullName,
+    reference,
+    documentsTextBlock,
+    documentsBlock,
+  })
+  await sendEmail({ to: app.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html })
 
   // Requesting compliance documents moves the application to COMPLIANCE_REQUIRED
   // so the status always reflects that we are waiting on the applicant.
@@ -229,13 +256,15 @@ export async function requestApplicationComplianceDocuments(
     })
     .eq("id", applicationId)
 
+  const requestedDocTypes = documentLinks.map(({ docType }) => docType)
+
   if (previousStatus && previousStatus !== "COMPLIANCE_REQUIRED") {
     await recordStatusHistory(
       applicationId,
       null,
       previousStatus,
       "COMPLIANCE_REQUIRED",
-      `Compliance documents requested: ${documentTypes.join(", ")}`,
+      `Compliance documents requested: ${requestedDocTypes.join(", ")}`,
       adminUserId
     )
     await sendApplicationStatusEmail(
@@ -244,7 +273,7 @@ export async function requestApplicationComplianceDocuments(
       app.reference_number as string,
       "COMPLIANCE_REQUIRED",
       previousStatus,
-      `Please submit: ${documentTypes.join(", ")}`
+      `Please submit: ${requestedDocTypes.join(", ")}`
     )
   }
 
@@ -331,13 +360,18 @@ export async function getComplianceDocumentByToken(token: string): Promise<{
   if (!isSupabaseConfigured()) return { ok: false, error: "System not configured" }
 
   const hash = hashToken(token)
+  console.warn("[compliance] getComplianceDocumentByToken:", { tokenLength: token.length, hash })
+
   const { data: tokenRow, error } = await supabase
     .from("partner_document_upload_tokens")
     .select("*, partner_documents(*, partner_applications!application_id ( reference_number, full_name, business_name ))")
     .eq("token_hash", hash)
     .single()
 
-  if (error || !tokenRow) return { ok: false, error: "Invalid or expired upload link" }
+  if (error || !tokenRow) {
+    console.warn("[compliance] token lookup failed:", { tokenLength: token.length, hash, dbError: error?.message })
+    return { ok: false, error: "Invalid or expired upload link" }
+  }
 
   if (tokenRow.used_at) return { ok: false, error: "This upload link has already been used" }
   if (tokenRow.expires_at && tokenRow.expires_at < now()) return { ok: false, error: "This upload link has expired" }
@@ -368,6 +402,7 @@ export async function submitComplianceDocumentByToken(
   if (!isSupabaseConfigured()) return { ok: false, error: "System not configured" }
 
   const hash = hashToken(token)
+  console.warn("[compliance] submitComplianceDocumentByToken:", { tokenLength: token.length, hash })
 
   const { data: tokenRow, error } = await supabase
     .from("partner_document_upload_tokens")
@@ -375,7 +410,10 @@ export async function submitComplianceDocumentByToken(
     .eq("token_hash", hash)
     .single()
 
-  if (error || !tokenRow) return { ok: false, error: "Invalid or expired upload link" }
+  if (error || !tokenRow) {
+    console.warn("[compliance] submit token lookup failed:", { tokenLength: token.length, hash, dbError: error?.message })
+    return { ok: false, error: "Invalid or expired upload link" }
+  }
   if (tokenRow.used_at) return { ok: false, error: "This upload link has already been used" }
   if (tokenRow.expires_at && tokenRow.expires_at < now()) return { ok: false, error: "This upload link has expired" }
 

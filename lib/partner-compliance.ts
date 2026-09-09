@@ -288,7 +288,7 @@ export async function resendComplianceUploadToken(
 
   const { data: doc, error } = await supabase
     .from("partner_documents")
-    .select("id, application_id, document_type, verification_status, partner_applications!application_id ( reference_number, full_name, business_name, email )")
+    .select("id, application_id, document_type, verification_status")
     .eq("id", docId)
     .single()
 
@@ -297,8 +297,15 @@ export async function resendComplianceUploadToken(
     return { ok: false, error: "Document is already verified" }
   }
 
-  const app = doc.application_id as Record<string, unknown> | undefined
-  const email = (app?.email as string) || ""
+  const { data: app, error: appErr } = await supabase
+    .from("partner_applications")
+    .select("reference_number, full_name, business_name, email")
+    .eq("id", doc.application_id as string)
+    .single()
+
+  if (appErr || !app) return { ok: false, error: "Applicant not found" }
+
+  const email = (app.email as string) || ""
   if (!email) return { ok: false, error: "Applicant email not found" }
 
   const { token, hash } = generateToken()
@@ -314,8 +321,8 @@ export async function resendComplianceUploadToken(
 
   const uploadUrl = `${baseUrl}/partners/upload-compliance?token=${token}`
   const tpl = await renderEmailTemplate("compliance_doc_reminder", {
-    fullName: (app?.full_name as string) || (app?.business_name as string) || "there",
-    reference: (app?.reference_number as string) || "",
+    fullName: (app.full_name as string) || (app.business_name as string) || "there",
+    reference: (app.reference_number as string) || "",
     docType: doc.document_type as string,
     uploadUrl,
   })
@@ -360,11 +367,10 @@ export async function getComplianceDocumentByToken(token: string): Promise<{
   if (!isSupabaseConfigured()) return { ok: false, error: "System not configured" }
 
   const hash = hashToken(token)
-  console.warn("[compliance] getComplianceDocumentByToken:", { tokenLength: token.length, hash })
 
   const { data: tokenRow, error } = await supabase
     .from("partner_document_upload_tokens")
-    .select("*, partner_documents(*, partner_applications!application_id ( reference_number, full_name, business_name ))")
+    .select("*")
     .eq("token_hash", hash)
     .single()
 
@@ -376,11 +382,31 @@ export async function getComplianceDocumentByToken(token: string): Promise<{
   if (tokenRow.used_at) return { ok: false, error: "This upload link has already been used" }
   if (tokenRow.expires_at && tokenRow.expires_at < now()) return { ok: false, error: "This upload link has expired" }
 
-  const doc = tokenRow.partner_documents as Record<string, unknown>
-  const app = doc.partner_applications as Record<string, unknown> | undefined
+  const { data: doc, error: docErr } = await supabase
+    .from("partner_documents")
+    .select("*")
+    .eq("id", tokenRow.partner_document_id as string)
+    .single()
+
+  if (docErr || !doc) {
+    console.warn("[compliance] document lookup failed:", { tokenLength: token.length, hash, dbError: docErr?.message })
+    return { ok: false, error: "Invalid or expired upload link" }
+  }
 
   if (doc.verification_status === "VERIFIED" || doc.verification_status === "APPROVED") {
     return { ok: false, error: "This document has already been verified" }
+  }
+
+  const applicationId = doc.application_id as string
+  const { data: app, error: appErr } = await supabase
+    .from("partner_applications")
+    .select("reference_number, full_name, business_name")
+    .eq("id", applicationId)
+    .single()
+
+  if (appErr || !app) {
+    console.warn("[compliance] application lookup failed:", { tokenLength: token.length, hash, dbError: appErr?.message })
+    return { ok: false, error: "Invalid or expired upload link" }
   }
 
   return {
@@ -389,8 +415,8 @@ export async function getComplianceDocumentByToken(token: string): Promise<{
       id: doc.id as string,
       document_type: doc.document_type as string,
       status: doc.verification_status as string,
-      reference: (app?.reference_number as string) || "",
-      applicantName: (app?.full_name as string) || (app?.business_name as string) || "",
+      reference: (app.reference_number as string) || "",
+      applicantName: (app.full_name as string) || (app.business_name as string) || "",
     },
   }
 }
@@ -402,11 +428,10 @@ export async function submitComplianceDocumentByToken(
   if (!isSupabaseConfigured()) return { ok: false, error: "System not configured" }
 
   const hash = hashToken(token)
-  console.warn("[compliance] submitComplianceDocumentByToken:", { tokenLength: token.length, hash })
 
   const { data: tokenRow, error } = await supabase
     .from("partner_document_upload_tokens")
-    .select("*, partner_documents(*, partner_applications!application_id ( reference_number ))")
+    .select("*")
     .eq("token_hash", hash)
     .single()
 
@@ -417,7 +442,17 @@ export async function submitComplianceDocumentByToken(
   if (tokenRow.used_at) return { ok: false, error: "This upload link has already been used" }
   if (tokenRow.expires_at && tokenRow.expires_at < now()) return { ok: false, error: "This upload link has expired" }
 
-  const doc = tokenRow.partner_documents as Record<string, unknown>
+  const { data: doc, error: docErr } = await supabase
+    .from("partner_documents")
+    .select("*")
+    .eq("id", tokenRow.partner_document_id as string)
+    .single()
+
+  if (docErr || !doc) {
+    console.warn("[compliance] submit document lookup failed:", { tokenLength: token.length, hash, dbError: docErr?.message })
+    return { ok: false, error: "Invalid or expired upload link" }
+  }
+
   const applicationId = doc.application_id as string
 
   const fileBytes = Buffer.from(await file.arrayBuffer())

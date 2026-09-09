@@ -37,15 +37,19 @@ export async function GET(request: Request) {
 
     const quotations = (data || []).map((row: Record<string, unknown>) => mapQuotation(row))
 
-    const [{ data: products }, { data: services }] = await Promise.all([
+    const [{ data: products }, { data: services }, { data: plans }, taxRatesRes] = await Promise.all([
       supabase.from("commercial_products").select("id, name, description, default_price, currency").eq("status", "ACTIVE").order("name"),
       supabase.from("services").select("id, name, description, default_price, currency").eq("active", true).order("name"),
+      supabase.from("plans").select("id, name, description, base_price, currency, billing_type, billing_interval").eq("active", true).order("name"),
+      supabase.from("tax_rates").select("id, name, rate").eq("is_active", true).order("name").then((res) => res, () => ({ data: [] })),
     ])
 
     return NextResponse.json({
       quotations,
       products: products || [],
       services: services || [],
+      plans: plans || [],
+      taxRates: (taxRatesRes.data as Record<string, unknown>[] | null) || [],
     })
   } catch (e) {
     console.error("[admin/quotations] GET", e)
@@ -78,7 +82,7 @@ export async function POST(request: Request) {
       notesPublic?: string
       notesInternal?: string
       paymentTerms?: string
-      items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number }>
+      items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number; taxRate?: number }>
       sendEmail?: boolean
       allowChanges?: boolean
       allowCounterOffer?: boolean
@@ -107,6 +111,7 @@ export async function POST(request: Request) {
       quantity: Number(it.quantity) || 1,
       unitPrice: Number(it.unitPrice) || 0,
       discount: Number(it.discount) || 0,
+      taxRate: Number(it.taxRate) || 0,
       tax: Number(it.tax) || 0,
     })))
 
@@ -156,6 +161,7 @@ export async function POST(request: Request) {
       quantity: it.quantity,
       unit_price: it.unitPrice,
       discount: it.discount,
+      tax_rate: it.taxRate || null,
       tax: it.tax,
       line_total: it.lineTotal,
     }))
@@ -271,6 +277,7 @@ function mapQuotation(row: Record<string, unknown>): Quotation {
       unit_price: Number(it.unit_price) || 0,
       discount: Number(it.discount) || 0,
       tax: Number(it.tax) || 0,
+      tax_rate: it.tax_rate != null ? Number(it.tax_rate) : null,
       line_total: Number(it.line_total) || 0,
     })) as QuotationItem[],
   }

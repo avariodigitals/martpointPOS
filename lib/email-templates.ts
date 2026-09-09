@@ -769,6 +769,129 @@ Review and resolve it in the Control Centre:
 {{adminUrl}}`,
   },
   {
+    key: "quote_declined_client",
+    label: "Quote Declined (client)",
+    description: "Sent to the lead when they decline a quotation.",
+    variables: ["fullName", "quoteNumber", "title", "total", "publicUrl"],
+    subject: "Quotation {{quoteNumber}} declined",
+    text: `Hi {{fullName}},
+
+We have received your response and noted that you have declined quotation {{quoteNumber}} ({{total}}).
+
+Title: {{title}}
+
+If anything changes or you would like to discuss alternative options, reply to this email or contact us.
+
+Best regards,
+MartPoint Sales Team`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quotation declined</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f6f7; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
+          <tr>
+            <td style="padding:48px 40px 32px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              <div style="color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.5px;">MartPoint</div>
+              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:6px;">Sales</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                We have received your response and noted that you have declined quotation <strong>{{quoteNumber}}</strong> ({{total}}).
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Title: {{title}}
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                If anything changes or you would like to discuss alternative options, reply to this email or contact us.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
+              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>MartPoint Sales Team</strong></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  },
+  {
+    key: "quote_declined_team",
+    label: "Quote Declined (internal)",
+    description: "Internal notification when a lead declines a quotation. Recipient is controlled by the quote_declined email route.",
+    variables: ["quoteNumber", "title", "fullName", "businessName", "email", "adminUrl"],
+    subject: "Quotation {{quoteNumber}} was declined",
+    text: `A lead has declined a quotation.
+
+Quote: {{quoteNumber}}
+Title: {{title}}
+Lead: {{fullName}} — {{businessName}}
+Email: {{email}}
+
+Review the quotation in the Control Centre:
+{{adminUrl}}`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quotation declined</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f6f7; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
+          <tr>
+            <td style="padding:48px 40px 32px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              <div style="color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.5px;">MartPoint</div>
+              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:6px;">Partner Programme</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <p style="font-size:18px; font-weight:600; margin:0 0 16px;">Quotation declined</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                A lead has declined quotation <strong>{{quoteNumber}}</strong>.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Title</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{title}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:12px 0 4px;">Lead</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{fullName}} — {{businessName}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:12px 0 4px;">Email</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{email}}</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                <a href="{{adminUrl}}" style="color:#0057FF; text-decoration:underline;">Review the quotation in the Control Centre</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  },
+  {
     key: "lead_questionnaire",
     label: "Lead Requirements Questionnaire",
     description: "Sent to a lead before a quotation is issued. Contains a unique per-client questionnaire link.",

@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { getPublicSiteSettings } from "@/lib/settings"
 import { sendEmail } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
+import { formatNgnFull } from "@/lib/quotations"
 
 /* ─── GET: public quotation by secret token ─── */
 export async function GET(request: Request) {
@@ -86,6 +87,7 @@ export async function GET(request: Request) {
         unit_price: Number(it.unit_price) || 0,
         discount: Number(it.discount) || 0,
         tax: Number(it.tax) || 0,
+        tax_rate: it.tax_rate != null ? Number(it.tax_rate) : null,
         line_total: Number(it.line_total) || 0,
       })),
     }
@@ -125,7 +127,7 @@ export async function POST(request: Request) {
 
     const { data: quote, error } = await supabase
       .from("lead_quotations")
-      .select("id, status, quote_number, token_expires_at, allow_changes, allow_counter_offer, lead:leads (full_name, business_name)")
+      .select("id, status, quote_number, title, total_amount, public_token, token_expires_at, allow_changes, allow_counter_offer, lead:leads (full_name, business_name, email)")
       .eq("public_token", token)
       .single()
 
@@ -152,6 +154,49 @@ export async function POST(request: Request) {
         console.error("[quotations] POST update", updateError)
         return NextResponse.json({ error: "Failed to update quotation" }, { status: 500 })
       }
+
+      // Notify on decline.
+      if (action === "decline") {
+        try {
+          const leadRawMaybe = quote.lead as unknown as Record<string, unknown> | Record<string, unknown>[] | undefined
+          const leadRaw = Array.isArray(leadRawMaybe) ? leadRawMaybe[0] : leadRawMaybe
+          const fullName = (leadRaw?.full_name as string) || ""
+          const businessName = (leadRaw?.business_name as string) || ""
+          const email = (leadRaw?.email as string) || ""
+
+          const clientTpl = await renderEmailTemplate("quote_declined_client", {
+            fullName: fullName || businessName || "there",
+            quoteNumber: quote.quote_number as string,
+            title: (quote.title as string) || "",
+            total: formatNgnFull(Number(quote.total_amount) || 0),
+            publicUrl: `${process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"}/quote/${quote.public_token}`,
+          })
+
+          if (email) {
+            await sendEmail({ to: email, subject: clientTpl.subject, text: clientTpl.text, html: clientTpl.html })
+          }
+
+          const teamTpl = await renderEmailTemplate("quote_declined_team", {
+            quoteNumber: quote.quote_number as string,
+            title: (quote.title as string) || "",
+            fullName,
+            businessName,
+            email: email || "—",
+            adminUrl: `${process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"}/admin/quotations`,
+          })
+
+          await sendEmail({
+            to: "",
+            route: "quote_declined",
+            subject: teamTpl.subject,
+            text: teamTpl.text,
+            html: teamTpl.html,
+          })
+        } catch (notifyErr) {
+          console.error("[quotations] decline notify", notifyErr)
+        }
+      }
+
       return NextResponse.json({ success: true, status: newStatus })
     }
 

@@ -18,6 +18,8 @@ import {
   CheckCircle2,
   ArrowRightLeft,
   MessageSquare,
+  Eye,
+  Pencil,
 } from "lucide-react"
 import { formatNgnFull, recalculateQuote, buildWhatsAppLink, buildQuoteWhatsAppMessage, buildQuotePublicUrl } from "@/lib/quotations"
 import { generateQuotationPdf } from "@/lib/quotation-pdf"
@@ -45,15 +47,21 @@ interface QuoteForm {
   allowCounterOffer: boolean
 }
 
-const initialItem: QuotationItemInput = { description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 0 }
+const initialItem: QuotationItemInput = { description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 0, taxRate: 0 }
 
 interface CatalogItem {
   id: string
   name: string
   description: string | null
-  defaultPrice: number
+  price: number
   currency: string
-  type: "Product" | "Service"
+  type: "Product" | "Plan" | "Service"
+}
+
+interface TaxRate {
+  id: string
+  name: string
+  rate: number
 }
 
 export default function QuotationsPage() {
@@ -63,12 +71,14 @@ export default function QuotationsPage() {
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
+  const [taxRates, setTaxRates] = useState<TaxRate[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [search, setSearch] = useState("")
   const [accountNumber, setAccountNumber] = useState("")
 
   const [showCreate, setShowCreate] = useState(Boolean(preselectedLeadId))
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState<QuoteForm>({
     leadId: preselectedLeadId,
@@ -90,6 +100,7 @@ export default function QuotationsPage() {
   const [convertPaymentTerms, setConvertPaymentTerms] = useState("")
   const [convertingId, setConvertingId] = useState<string | null>(null)
 
+  const [showView, setShowView] = useState<Quotation | null>(null)
   const [showReview, setShowReview] = useState<Quotation | null>(null)
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewChangeReq, setReviewChangeReq] = useState<{
@@ -119,22 +130,40 @@ export default function QuotationsPage() {
         if (lData.leads) setLeads(lData.leads)
         if (sData.general?.accountNumber) setAccountNumber(sData.general.accountNumber)
 
+        const taxRatesIn = (qData.taxRates || []) as Record<string, unknown>[]
+        setTaxRates(
+          taxRatesIn.map((t) => ({
+            id: t.id as string,
+            name: t.name as string,
+            rate: Number(t.rate) || 0,
+          }))
+        )
+
         const products = (qData.products || []) as Record<string, unknown>[]
+        const plans = (qData.plans || []) as Record<string, unknown>[]
         const services = (qData.services || []) as Record<string, unknown>[]
         const catalog: CatalogItem[] = [
           ...products.map((p) => ({
             id: p.id as string,
             name: p.name as string,
             description: (p.description as string) || null,
-            defaultPrice: Number(p.default_price) || 0,
+            price: Number(p.default_price) || 0,
             currency: (p.currency as string) || "NGN",
             type: "Product" as const,
+          })),
+          ...plans.map((p) => ({
+            id: p.id as string,
+            name: p.name as string,
+            description: (p.description as string) || null,
+            price: Number(p.base_price) || 0,
+            currency: (p.currency as string) || "NGN",
+            type: "Plan" as const,
           })),
           ...services.map((s) => ({
             id: s.id as string,
             name: s.name as string,
             description: (s.description as string) || null,
-            defaultPrice: Number(s.default_price) || 0,
+            price: Number(s.default_price) || 0,
             currency: (s.currency as string) || "NGN",
             type: "Service" as const,
           })),
@@ -176,8 +205,48 @@ export default function QuotationsPage() {
     setForm((prev) => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }))
   }
 
-  const create = async () => {
-    if (!form.leadId) {
+  const resetForm = () => {
+    setEditingId(null)
+    setForm({
+      leadId: "",
+      title: "",
+      validUntil: "",
+      notesPublic: "",
+      notesInternal: "",
+      paymentTerms: "",
+      items: [{ ...initialItem }],
+      sendEmail: false,
+      allowChanges: false,
+      allowCounterOffer: false,
+    })
+  }
+
+  const openEdit = (qt: Quotation) => {
+    setEditingId(qt.id)
+    setForm({
+      leadId: qt.lead_id,
+      title: qt.title,
+      validUntil: qt.valid_until ? new Date(qt.valid_until).toISOString().split("T")[0] : "",
+      notesPublic: qt.notes_public || "",
+      notesInternal: qt.notes_internal || "",
+      paymentTerms: qt.payment_terms || "",
+      items: (qt.items || []).map((it) => ({
+        description: it.description,
+        quantity: it.quantity,
+        unitPrice: it.unit_price,
+        discount: it.discount,
+        tax: it.tax,
+        taxRate: it.tax_rate || 0,
+      })),
+      sendEmail: false,
+      allowChanges: false,
+      allowCounterOffer: false,
+    })
+    setShowCreate(true)
+  }
+
+  const submit = async () => {
+    if (!editingId && !form.leadId) {
       setMessage("Select a lead")
       return
     }
@@ -189,44 +258,41 @@ export default function QuotationsPage() {
     setCreating(true)
     setMessage("")
     try {
-      const res = await fetch("/api/admin/quotations", {
-        method: "POST",
+      const url = editingId ? `/api/admin/quotations/${editingId}` : "/api/admin/quotations"
+      const method = editingId ? "PUT" : "POST"
+      const body: Record<string, unknown> = {
+        title: form.title,
+        validUntil: form.validUntil || undefined,
+        notesPublic: form.notesPublic,
+        notesInternal: form.notesInternal,
+        paymentTerms: form.paymentTerms,
+        items: form.items,
+      }
+      if (!editingId) {
+        body.leadId = form.leadId
+        body.sendEmail = form.sendEmail
+        body.allowChanges = form.allowChanges
+        body.allowCounterOffer = form.allowCounterOffer
+      }
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          leadId: form.leadId,
-          title: form.title,
-          validUntil: form.validUntil || undefined,
-          notesPublic: form.notesPublic,
-          notesInternal: form.notesInternal,
-          paymentTerms: form.paymentTerms,
-          items: form.items,
-          sendEmail: form.sendEmail,
-          allowChanges: form.allowChanges,
-          allowCounterOffer: form.allowCounterOffer,
-        }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (data.success && data.quotation) {
-        setQuotations((prev) => [data.quotation, ...prev])
+        setQuotations((prev) =>
+          editingId ? prev.map((q) => (q.id === editingId ? data.quotation : q)) : [data.quotation, ...prev]
+        )
         setShowCreate(false)
-        setForm({
-          leadId: "",
-          title: "",
-          validUntil: "",
-          notesPublic: "",
-          notesInternal: "",
-          paymentTerms: "",
-          items: [{ ...initialItem }],
-          sendEmail: false,
-          allowChanges: false,
-          allowCounterOffer: false,
-        })
-        setMessage("Quotation created.")
+        resetForm()
+        setMessage(editingId ? "Quotation updated." : "Quotation created.")
       } else {
-        setMessage(data.error || "Failed to create quotation")
+        setMessage(data.error || `Failed to ${editingId ? "update" : "create"} quotation`)
       }
     } catch {
-      setMessage("Failed to create quotation")
+      setMessage(`Failed to ${editingId ? "update" : "create"} quotation`)
     } finally {
       setCreating(false)
     }
@@ -253,9 +319,9 @@ export default function QuotationsPage() {
     }
   }
 
-  const downloadPdf = (qt: Quotation) => {
+  const downloadPdf = async (qt: Quotation) => {
     if (!qt.lead) return
-    generateQuotationPdf(qt, qt.lead, accountNumber)
+    await generateQuotationPdf(qt, qt.lead, accountNumber)
   }
 
   const convertQuote = async (qt: Quotation) => {
@@ -437,7 +503,7 @@ export default function QuotationsPage() {
           </h2>
           <p className="text-muted-foreground">Create and share quotations with leads.</p>
         </div>
-        <Button size="sm" onClick={() => setShowCreate(true)}>
+        <Button size="sm" onClick={() => { resetForm(); setShowCreate(true) }}>
           <Plus className="w-4 h-4 mr-1" />
           New Quotation
         </Button>
@@ -510,6 +576,20 @@ export default function QuotationsPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <button
+                            onClick={() => setShowView(qt)}
+                            className="p-1 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="View"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => openEdit(qt)}
+                            className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                            title="Edit"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
                             onClick={() => setShowShare(qt)}
                             className="p-1 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
                             title="Share / send"
@@ -565,10 +645,10 @@ export default function QuotationsPage() {
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">New Quotation</h3>
-              <button onClick={() => setShowCreate(false)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              <h3 className="text-lg font-semibold">{editingId ? "Edit Quotation" : "New Quotation"}</h3>
+              <button onClick={() => { setShowCreate(false); resetForm() }} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -577,6 +657,7 @@ export default function QuotationsPage() {
               <div>
                 <label className="block text-sm font-medium mb-1">Lead</label>
                 <select
+                  disabled={!!editingId}
                   value={form.leadId}
                   onChange={(e) => setForm((prev) => ({ ...prev, leadId: e.target.value }))}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -627,15 +708,15 @@ export default function QuotationsPage() {
 
                 <div className="hidden sm:grid grid-cols-12 gap-2 px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
                   <div className="col-span-5">Description</div>
-                  <div className="col-span-2 text-center">Qty</div>
+                  <div className="col-span-1 text-center">Qty</div>
                   <div className="col-span-2 text-center">Unit Price</div>
                   <div className="col-span-1 text-center">Disc</div>
-                  <div className="col-span-1 text-center">Tax</div>
+                  <div className="col-span-2 text-center">Tax %</div>
                   <div className="col-span-1"></div>
                 </div>
 
                 <div className="space-y-2">
-                  {form.items.map((item, idx) => (
+                  {totals.items.map((item, idx) => (
                     <div key={idx} className="grid grid-cols-12 gap-2 items-start p-3 rounded-lg border border-border bg-muted/20">
                       <div className="col-span-12 sm:col-span-5">
                         {catalogItems.length > 0 && (
@@ -644,7 +725,7 @@ export default function QuotationsPage() {
                             value={catalogItems.find((c) => c.name === item.description)?.id || ""}
                             onChange={(e) => {
                               const picked = catalogItems.find((c) => c.id === e.target.value)
-                              if (picked) updateItem(idx, { description: picked.name, unitPrice: picked.defaultPrice })
+                              if (picked) updateItem(idx, { description: picked.name, unitPrice: picked.price })
                             }}
                           >
                             <option value="">Pick from catalog...</option>
@@ -655,15 +736,15 @@ export default function QuotationsPage() {
                             ))}
                           </select>
                         )}
-                        <input
-                          type="text"
-                          placeholder="Description"
+                        <textarea
+                          rows={2}
+                          placeholder="Item description"
                           value={item.description}
                           onChange={(e) => updateItem(idx, { description: e.target.value })}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[44px]"
                         />
                       </div>
-                      <div className="col-span-4 sm:col-span-2">
+                      <div className="col-span-4 sm:col-span-1">
                         <input
                           type="number"
                           min="0"
@@ -696,16 +777,22 @@ export default function QuotationsPage() {
                           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         />
                       </div>
-                      <div className="col-span-2 sm:col-span-1">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          placeholder="Tax"
-                          value={item.tax}
-                          onChange={(e) => updateItem(idx, { tax: Number(e.target.value) })}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        />
+                      <div className="col-span-6 sm:col-span-2">
+                        <select
+                          value={item.taxRate ?? 0}
+                          onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })}
+                          className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
+                        >
+                          <option value={0}>No tax</option>
+                          {taxRates.map((t) => (
+                            <option key={t.id} value={t.rate}>
+                              {t.name} ({t.rate}%)
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-muted-foreground text-right mt-1">
+                          Tax: {formatNgnFull(item.tax || 0)}
+                        </p>
                       </div>
                       <div className="col-span-12 sm:col-span-1 flex justify-end">
                         <button onClick={() => removeItem(idx)} className="p-1 text-muted-foreground hover:text-red-600">
@@ -817,12 +904,123 @@ export default function QuotationsPage() {
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setShowCreate(false)} disabled={creating}>
+              <Button variant="outline" onClick={() => { setShowCreate(false); resetForm() }} disabled={creating}>
                 Cancel
               </Button>
-              <Button onClick={create} disabled={creating}>
+              <Button onClick={submit} disabled={creating}>
                 {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                Create Quotation
+                {editingId ? "Save Quotation" : "Create Quotation"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Quotation {showView.quote_number}</h3>
+              <button onClick={() => setShowView(null)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Prepared for</p>
+                <p className="font-medium">{showView.lead?.fullName}</p>
+                <p className="text-muted-foreground">{showView.lead?.businessName}</p>
+                <p className="text-muted-foreground">{showView.lead?.email}</p>
+                <p className="text-muted-foreground">{showView.lead?.phone}</p>
+              </div>
+              <div className="sm:text-right">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Quote details</p>
+                <p className="font-medium">{showView.title || "—"}</p>
+                <p className="text-muted-foreground">Status: {showView.status}</p>
+                <p className="text-muted-foreground">
+                  Valid until: {showView.valid_until ? new Date(showView.valid_until).toLocaleDateString() : "Not specified"}
+                </p>
+                <p className="text-muted-foreground">Created: {new Date(showView.created_at).toLocaleDateString()}</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium">Description</th>
+                    <th className="text-right px-4 py-2 font-medium">Qty</th>
+                    <th className="text-right px-4 py-2 font-medium">Unit</th>
+                    <th className="text-right px-4 py-2 font-medium">Disc.</th>
+                    <th className="text-right px-4 py-2 font-medium">Tax</th>
+                    <th className="text-right px-4 py-2 font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {(showView.items || []).map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-4 py-2">{item.description}</td>
+                      <td className="px-4 py-2 text-right">{item.quantity}</td>
+                      <td className="px-4 py-2 text-right">{formatNgnFull(item.unit_price)}</td>
+                      <td className="px-4 py-2 text-right">{formatNgnFull(item.discount)}</td>
+                      <td className="px-4 py-2 text-right">{formatNgnFull(item.tax)}</td>
+                      <td className="px-4 py-2 text-right font-medium">{formatNgnFull(item.line_total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:justify-end">
+              <div className="space-y-1 text-sm sm:w-64">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>{formatNgnFull(showView.subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Discount</span>
+                  <span>{formatNgnFull(showView.discount_amount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tax</span>
+                  <span>{formatNgnFull(showView.tax_amount)}</span>
+                </div>
+                <div className="flex justify-between text-base font-semibold border-t border-border pt-2">
+                  <span>Total</span>
+                  <span>{formatNgnFull(showView.total_amount)}</span>
+                </div>
+              </div>
+            </div>
+
+            {showView.payment_terms && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Payment Terms</p>
+                <p className="text-sm whitespace-pre-line">{showView.payment_terms}</p>
+              </div>
+            )}
+
+            {showView.notes_public && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Public Notes</p>
+                <p className="text-sm whitespace-pre-line">{showView.notes_public}</p>
+              </div>
+            )}
+
+            {showView.notes_internal && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Internal Notes</p>
+                <p className="text-sm whitespace-pre-line">{showView.notes_internal}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowView(null)}>
+                Close
+              </Button>
+              <Button onClick={() => { setShowView(null); openEdit(showView) }}>
+                <Pencil className="w-4 h-4 mr-2" />
+                Edit
               </Button>
             </div>
           </div>

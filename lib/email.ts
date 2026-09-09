@@ -58,6 +58,7 @@ const DEFAULT_ROUTES: Record<string, string> = {
   lead_submission: "sales@martpoint.com.ng",
   estimate_submission: "sales@martpoint.com.ng",
   quote_change_request: "sales@martpoint.com.ng",
+  quote_declined: "sales@martpoint.com.ng",
   career_application: "careers@martpoint.com.ng",
   partner_application: "",
   onboarding_welcome: "",

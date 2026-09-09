@@ -132,9 +132,9 @@ export default function PublicQuotePage() {
     }
   }
 
-  const downloadPdf = () => {
+  const downloadPdf = async () => {
     if (!quote || !lead) return
-    generateQuotationPdf(quote, lead, accountNumber)
+    await generateQuotationPdf(quote, lead, accountNumber)
   }
 
   const shareWhatsApp = () => {

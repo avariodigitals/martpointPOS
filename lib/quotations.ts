@@ -14,6 +14,7 @@ export interface QuotationItemInput {
   unitPrice: number
   discount?: number
   tax?: number
+  taxRate?: number
   lineTotal?: number
 }
 
@@ -25,6 +26,7 @@ export interface QuotationItem {
   unit_price: number
   discount: number
   tax: number
+  tax_rate: number | null
   line_total: number
 }
 
@@ -120,14 +122,17 @@ export function recalculateQuote(items: QuotationItemInput[]): QuoteTotals {
     const qty = Math.max(0, Number(it.quantity) || 0)
     const unit = Math.max(0, Number(it.unitPrice) || 0)
     const disc = Math.max(0, Number(it.discount) || 0)
-    const tax = Math.max(0, Number(it.tax) || 0)
+    const rate = Math.max(0, Number(it.taxRate) || 0)
     const lineSubtotal = qty * unit
-    const lineTotal = Math.max(0, lineSubtotal - disc + tax)
+    const taxableAmount = Math.max(0, lineSubtotal - disc)
+    const tax = rate > 0 ? Math.max(0, taxableAmount * rate / 100) : Math.max(0, Number(it.tax) || 0)
+    const lineTotal = Math.max(0, taxableAmount + tax)
     return {
       ...it,
       quantity: qty,
       unitPrice: unit,
       discount: disc,
+      taxRate: rate,
       tax: tax,
       lineTotal,
     }

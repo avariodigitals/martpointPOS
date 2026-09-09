@@ -21,7 +21,7 @@ export const ALLOWED_PARTNER_MIME_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]
 
-export const MAX_PARTNER_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
+export const MAX_PARTNER_FILE_BYTES = 4 * 1024 * 1024 // 4 MB — Vercel serverless function payload limit
 
 export interface UploadedDoc {
   storagePath: string

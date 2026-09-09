@@ -48,6 +48,10 @@ function UploadComplianceContent() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!token || !selectedFile) return
+    if (selectedFile.size > 4 * 1024 * 1024) {
+      setError("File is too large. Maximum size is 4 MB.")
+      return
+    }
     setUploading(true)
     setError("")
 
@@ -107,7 +111,7 @@ function UploadComplianceContent() {
                   onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                   className="w-full text-sm"
                 />
-                <p className="text-xs text-muted-foreground mt-1">PDF, image, Word. Max 10 MB.</p>
+                <p className="text-xs text-muted-foreground mt-1">PDF, image, Word. Max 4 MB.</p>
               </div>
               <Button type="submit" disabled={uploading || !selectedFile} className="w-full">
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}

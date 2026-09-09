@@ -353,7 +353,23 @@ export async function verifyApplicationComplianceDocument(
   notes: string,
   adminUserId: string
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
+  if (!isSupabaseConfigured()) return { ok: false, error: "This service is temporarily unavailable. Please try again later." }
+
+  const { data: doc, error: docErr } = await supabase
+    .from("partner_documents")
+    .select("id, application_id, document_type, verification_status")
+    .eq("id", docId)
+    .single()
+
+  if (docErr || !doc) return { ok: false, error: "Document not found" }
+
+  const { data: app, error: appErr } = await supabase
+    .from("partner_applications")
+    .select("reference_number, full_name, business_name, email")
+    .eq("id", doc.application_id as string)
+    .single()
+
+  if (appErr || !app) return { ok: false, error: "Application not found" }
 
   const updates: Record<string, unknown> = {
     verification_status: status,
@@ -365,6 +381,38 @@ export async function verifyApplicationComplianceDocument(
 
   const { error } = await supabase.from("partner_documents").update(updates).eq("id", docId)
   if (error) return { ok: false, error: "Failed to update document" }
+
+  const email = (app.email as string) || ""
+  if (email) {
+    const statusLabel =
+      status === "VERIFIED"
+        ? "Verified"
+        : status === "APPROVED"
+          ? "Approved"
+          : status === "REJECTED"
+            ? "Rejected — please submit a revised document"
+            : "Under review"
+
+    const notesTextBlock = notes ? `\n\nNotes: ${notes}` : ""
+    const notesHtmlBlock = notes
+      ? `<p style="font-size:14px; color:#6b7280; margin:12px 0 0;">Notes: ${notes}</p>`
+      : ""
+
+    const fullName = (app.full_name as string) || (app.business_name as string) || "there"
+    try {
+      const tpl = await renderEmailTemplate("compliance_doc_status_update", {
+        fullName,
+        reference: (app.reference_number as string) || "",
+        docType: doc.document_type as string,
+        statusLabel,
+        notesTextBlock,
+        notesHtmlBlock,
+      })
+      await sendEmail({ to: email, subject: tpl.subject, text: tpl.text, html: tpl.html })
+    } catch (err) {
+      console.error("[compliance] failed to send status update email:", err)
+    }
+  }
 
   return { ok: true }
 }
@@ -380,7 +428,7 @@ export async function getComplianceDocumentByToken(token: string): Promise<{
     applicantName: string
   }
 }> {
-  if (!isSupabaseConfigured()) return { ok: false, error: "System not configured" }
+  if (!isSupabaseConfigured()) return { ok: false, error: "This service is temporarily unavailable. Please try again later." }
 
   const hash = hashToken(token)
 
@@ -392,11 +440,11 @@ export async function getComplianceDocumentByToken(token: string): Promise<{
 
   if (error || !tokenRow) {
     console.warn("[compliance] token lookup failed:", { tokenLength: token.length, hash, dbError: error?.message })
-    return { ok: false, error: "Invalid or expired upload link" }
+    return { ok: false, error: "This upload link is invalid or has expired. Please request a new one." }
   }
 
-  if (tokenRow.used_at) return { ok: false, error: "This upload link has already been used" }
-  if (tokenRow.expires_at && tokenRow.expires_at < now()) return { ok: false, error: "This upload link has expired" }
+  if (tokenRow.used_at) return { ok: false, error: "This upload link has already been used. Please request a new one." }
+  if (tokenRow.expires_at && tokenRow.expires_at < now()) return { ok: false, error: "This upload link has expired. Please request a new one." }
 
   const { data: doc, error: docErr } = await supabase
     .from("partner_documents")
@@ -406,11 +454,11 @@ export async function getComplianceDocumentByToken(token: string): Promise<{
 
   if (docErr || !doc) {
     console.warn("[compliance] document lookup failed:", { tokenLength: token.length, hash, dbError: docErr?.message })
-    return { ok: false, error: "Invalid or expired upload link" }
+    return { ok: false, error: "This upload link is invalid or has expired. Please request a new one." }
   }
 
   if (doc.verification_status === "VERIFIED" || doc.verification_status === "APPROVED") {
-    return { ok: false, error: "This document has already been verified" }
+    return { ok: false, error: "This document has already been submitted and verified." }
   }
 
   const applicationId = doc.application_id as string
@@ -441,7 +489,7 @@ export async function submitComplianceDocumentByToken(
   token: string,
   file: { name: string; type: string; size: number; arrayBuffer: () => Promise<ArrayBuffer> }
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!isSupabaseConfigured()) return { ok: false, error: "System not configured" }
+  if (!isSupabaseConfigured()) return { ok: false, error: "This service is temporarily unavailable. Please try again later." }
 
   const hash = hashToken(token)
 
@@ -453,10 +501,10 @@ export async function submitComplianceDocumentByToken(
 
   if (error || !tokenRow) {
     console.warn("[compliance] submit token lookup failed:", { tokenLength: token.length, hash, dbError: error?.message })
-    return { ok: false, error: "Invalid or expired upload link" }
+    return { ok: false, error: "This upload link is invalid or has expired. Please request a new one." }
   }
-  if (tokenRow.used_at) return { ok: false, error: "This upload link has already been used" }
-  if (tokenRow.expires_at && tokenRow.expires_at < now()) return { ok: false, error: "This upload link has expired" }
+  if (tokenRow.used_at) return { ok: false, error: "This upload link has already been used. Please request a new one." }
+  if (tokenRow.expires_at && tokenRow.expires_at < now()) return { ok: false, error: "This upload link has expired. Please request a new one." }
 
   const { data: doc, error: docErr } = await supabase
     .from("partner_documents")
@@ -466,7 +514,7 @@ export async function submitComplianceDocumentByToken(
 
   if (docErr || !doc) {
     console.warn("[compliance] submit document lookup failed:", { tokenLength: token.length, hash, dbError: docErr?.message })
-    return { ok: false, error: "Invalid or expired upload link" }
+    return { ok: false, error: "This upload link is invalid or has expired. Please request a new one." }
   }
 
   const applicationId = doc.application_id as string
@@ -474,7 +522,7 @@ export async function submitComplianceDocumentByToken(
   const fileBytes = Buffer.from(await file.arrayBuffer())
   const upload = await uploadPartnerDocument(applicationId, file.name, file.type, fileBytes)
   if (!upload.ok || !upload.doc) {
-    return { ok: false, error: upload.error || "Failed to upload document" }
+    return { ok: false, error: upload.error || "Upload failed. Please try again or contact support." }
   }
 
   const { error: updateErr } = await supabase
@@ -492,13 +540,34 @@ export async function submitComplianceDocumentByToken(
 
   if (updateErr) {
     console.error("[compliance] partner_documents update failed:", { docId: doc.id, error: updateErr })
-    return { ok: false, error: "Failed to save document" }
+    return { ok: false, error: "We couldn't save your document. Please try again or contact support." }
   }
 
   await supabase
     .from("partner_document_upload_tokens")
     .update({ used_at: now(), updated_at: now() })
     .eq("id", tokenRow.id as string)
+
+  // Notify the applicant that the document was received.
+  const { data: app } = await supabase
+    .from("partner_applications")
+    .select("reference_number, full_name, business_name, email")
+    .eq("id", applicationId)
+    .single()
+
+  if (app?.email) {
+    const fullName = (app.full_name as string) || (app.business_name as string) || "there"
+    try {
+      const tpl = await renderEmailTemplate("compliance_doc_submitted", {
+        fullName,
+        reference: (app.reference_number as string) || "",
+        docType: doc.document_type as string,
+      })
+      await sendEmail({ to: app.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html })
+    } catch (err) {
+      console.error("[compliance] failed to send submission confirmation email:", err)
+    }
+  }
 
   return { ok: true }
 }

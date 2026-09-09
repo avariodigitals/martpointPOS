@@ -302,6 +302,125 @@ MartPoint Partner Team`,
 </html>`,
   },
   {
+    key: "compliance_doc_submitted",
+    label: "Compliance Document Submitted",
+    description: "Sent to the applicant after they successfully submit a compliance document.",
+    variables: ["fullName", "reference", "docType"],
+    subject: "MartPoint received your {{docType}} for application {{reference}}",
+    text: `Hi {{fullName}},
+
+We have received your {{docType}} for application {{reference}}.
+
+Our team will review it and get back to you if anything else is needed.
+
+Best regards,
+MartPoint Partner Team`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document received</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f6f7; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
+          <tr>
+            <td style="padding:48px 40px 32px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              <div style="color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.5px;">MartPoint</div>
+              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:6px;">Partner Programme</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                We have received your <strong>{{docType}}</strong> for application <strong>{{reference}}</strong>.
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                Our team will review it and contact you if anything else is needed.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
+              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>MartPoint Partner Team</strong></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  },
+  {
+    key: "compliance_doc_status_update",
+    label: "Compliance Document Status Update",
+    description: "Sent to the applicant when an admin reviews a compliance document.",
+    variables: ["fullName", "reference", "docType", "statusLabel", "notesTextBlock", "notesHtmlBlock"],
+    subject: "Update on your {{docType}} for MartPoint partner application {{reference}}",
+    text: `Hi {{fullName}},
+
+Your {{docType}} for application {{reference}} has been updated.
+
+Status: {{statusLabel}}{{notesTextBlock}}
+
+Best regards,
+MartPoint Partner Team`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document status update</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f6f7; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
+          <tr>
+            <td style="padding:48px 40px 32px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              <div style="color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.5px;">MartPoint</div>
+              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:6px;">Partner Programme</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Your <strong>{{docType}}</strong> for application <strong>{{reference}}</strong> has been reviewed.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Status</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{statusLabel}}</p>
+                    {{notesHtmlBlock}}
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                We will contact you if anything else is needed.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
+              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>MartPoint Partner Team</strong></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  },
+  {
     key: "partner_user_invite",
     label: "Partner Portal Invitation",
     description: "Sent when a partner user is invited to the partner portal.",

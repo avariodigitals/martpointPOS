@@ -39,6 +39,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true })
   } catch {
-    return NextResponse.json({ error: "Failed to upload document" }, { status: 500 })
+    return NextResponse.json({ error: "Upload failed. Please try again or contact support." }, { status: 500 })
   }
 }

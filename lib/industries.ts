@@ -11,6 +11,7 @@ import {
   Gem, Paintbrush, Wrench, Carrot, Tractor, Car, Printer, BookOpen,
   EyeOff, Puzzle, Gauge, PackageOpen, HandCoins, TrendingUp, WifiOff,
   Cloud, Lock, ClipboardCheck, History, HeadphonesIcon,
+  Snowflake, Flame, Fish,
 } from "lucide-react"
 
 export interface IndustryData {
@@ -2572,11 +2573,123 @@ export const manufacturers: IndustryData = {
   ],
 }
 
+export const frozenFoods: IndustryData = {
+  name: "Frozen Foods",
+  slug: "frozen-foods",
+  category: "Food & Grocery",
+  product: "retail",
+  navVisible: true,
+  description: "Track frozen stock by batch, monitor expiry, manage cold-store inventory and sell beef, pork, chicken, fish and seafood without spoilage losses.",
+  seo: {
+    title: "Frozen Food POS & Inventory Software — MartPoint Retail",
+    description: "Manage frozen stock, batch tracking and expiry dates for cow, pig, chicken and fish. MartPoint Retail keeps your cold store organised and profitable.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Stop Cold-Store Losses Before They Melt",
+    paragraph: "Frozen foods need tight stock control. Every power cut, thawed batch or missed expiry eats into already thin margins. MartPoint Retail tracks your beef, pork, chicken, fish and seafood by batch and expiry so you sell more and waste less.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I sell frozen foods (cow, pig, chicken, fish) and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: Snowflake, title: "Cold-Chain Breaks Cost Money", desc: "When temperature logs are missing, you only notice spoilage after it is too late to recover the stock." },
+    { icon: AlertTriangle, title: "Expired Stock Hidden in Freezers", desc: "Without expiry tracking, old batches sit behind new ones and expire before they are sold." },
+    { icon: Package, title: "Mixed Cuts and Weights", desc: "Beef, pork, chicken and fish are sold by weight, cut or tray. Manual tracking creates pricing and inventory errors." },
+    { icon: BarChart3, title: "No Margin by Product", desc: "You do not know which proteins or cuts are making money and which are tying up freezer cash." },
+    { icon: Receipt, title: "Slow Manual Checkout", desc: "Weighing, pricing and writing receipts by hand holds up customers at peak hours." },
+    { icon: Building2, title: "Multi-Location Freezer Confusion", desc: "Stock split across shops or cold rooms is hard to see. One location runs out while another has excess." },
+  ],
+  solutions: [
+    { icon: Snowflake, title: "Batch & Expiry Tracking", desc: "Every batch has a received date, expiry date and storage location. FIFO selling reduces spoilage automatically." },
+    { icon: Fish, title: "Weight and Cut Management", desc: "Sell by kilo, gram, tray or piece. MartPoint handles the pricing and stock deduction in one scan or tap." },
+    { icon: BarChart3, title: "Profit by Protein", desc: "See margins for beef, pork, chicken, fish and seafood so you know what to stock and what to drop." },
+    { icon: Receipt, title: "Fast Barcode Checkout", desc: "Pre-printed barcode labels and quick keys speed up the counter even during rush hours." },
+    { icon: Building2, title: "Cold-Store Visibility", desc: "Track stock across shops, display freezers and back-room cold stores from one dashboard." },
+    { icon: AlertTriangle, title: "Expiry Alerts", desc: "Get notified before batches expire. Promote or move stock before it becomes a loss." },
+  ],
+  capabilities: [
+    { icon: Snowflake, title: "Batch Tracking", desc: "Record supplier batch, received date and expiry for every frozen item." },
+    { icon: Fish, title: "Weighted Sales", desc: "Price and sell by weight or fixed pack with automatic stock deduction." },
+    { icon: BarChart3, title: "Margin Reports", desc: "Know profit per protein, cut or supplier to make better buying decisions." },
+    { icon: Receipt, title: "Fast Checkout", desc: "Barcode labels and quick keys keep the counter moving." },
+    { icon: Building2, title: "Multi-Branch Stock", desc: "See frozen stock across every location and transfer between shops." },
+    { icon: AlertTriangle, title: "Expiry Management", desc: "FIFO selling and expiry alerts cut waste before it happens." },
+  ],
+  whyMartPoint: [
+    "Built for Nigerian frozen food sellers: weight sales, batch tracking and cold-store management included.",
+    "Works offline, so power cuts do not stop sales or stock updates.",
+    "Local support that understands frozen food margins and wastage.",
+    "Scales from one freezer to multiple cold stores and branches.",
+  ],
+  faqs: [
+    { q: "Can MartPoint track frozen food by batch and expiry?", a: "Yes. Record supplier batch, received date and expiry. Sell on a first-in-first-out basis and get alerts before items expire." },
+    { q: "Can I sell by weight for beef, chicken or fish?", a: "Absolutely. Price per kilo, gram or fixed tray. The system deducts stock and prints the correct price on the receipt." },
+    { q: "Does it work during power cuts?", a: "Yes. MartPoint Retail runs offline and syncs when the connection returns, so your cold store keeps selling." },
+    { q: "Can I see stock across multiple shops or cold rooms?", a: "Yes. Track stock across every freezer, display cabinet and branch from one dashboard." },
+  ],
+}
+
+export const bukkaMamaPut: IndustryData = {
+  name: "Bukka / Mama Put",
+  slug: "bukka-mama-put",
+  category: "Restaurants & Food",
+  product: "retail",
+  navVisible: true,
+  description: "Manage daily menus, ingredient usage, sales and cash flow for local food vendors, bukkas and mama-put kitchens.",
+  seo: {
+    title: "Bukka & Mama Put POS Software — MartPoint Retail",
+    description: "Run your local food kitchen with menu tracking, ingredient costs and fast checkout. MartPoint Retail is built for bukkas and mama put across Nigeria.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Run Your Local Kitchen Like a Real Business",
+    paragraph: "Bukka and mama put kitchens move fast. Customers want quick service, prices must be clear and every naira of ingredient cost matters. MartPoint Retail helps you track your menu, control portions and understand your daily profit without slowing down the queue.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a bukka / mama put kitchen and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: Clock, title: "Slow Cashier Math", desc: "Mental arithmetic and change mistakes hold up the queue and eat into daily cash." },
+    { icon: UtensilsCrossed, title: "Portion Sizes Vary", desc: "Without standard portions, cost per plate changes with every server and profit becomes unpredictable." },
+    { icon: AlertTriangle, title: "Ingredients Run Out Mid-Service", desc: "Rice, meat, stew and soup finish without warning, turning customers away at peak hours." },
+    { icon: BarChart3, title: "No Daily Profit Picture", desc: "You sell out, but cannot tell whether the day was profitable after ingredient and fuel costs." },
+    { icon: Receipt, title: "Lost Sales Records", desc: "Handwritten tickets and loose cash make it impossible to track what was sold and when." },
+    { icon: Users, title: "Staff Mistakes", desc: "Untracked orders and unauthorised discounts create confusion between shifts." },
+  ],
+  solutions: [
+    { icon: ChefHat, title: "Daily Menu Setup", desc: "Set today\u2019s soups, proteins and sides quickly. Prices update instantly at the counter." },
+    { icon: Flame, title: "Recipe & Portion Control", desc: "Link every plate to standard ingredient amounts so cost and portion stay consistent." },
+    { icon: Package, title: "Ingredient Alerts", desc: "Get low-stock warnings for rice, meat, oil and stew before you run out during service." },
+    { icon: BarChart3, title: "Daily P&L", desc: "See sales, cost of food and estimated profit for the day before you close." },
+    { icon: Receipt, title: "Fast Checkout", desc: "Pre-set meals and quick keys mean one-tap billing and accurate change." },
+    { icon: Users, title: "Shift Accountability", desc: "Every order, void and discount is tied to a user, so staff activity is clear." },
+  ],
+  capabilities: [
+    { icon: ChefHat, title: "Menu of the Day", desc: "Set soups, proteins and sides with one-touch daily updates." },
+    { icon: Flame, title: "Portion Control", desc: "Standard ingredient quantities keep plate cost and quality consistent." },
+    { icon: Package, title: "Stock Alerts", desc: "Low-stock warnings for rice, oil, meat and spices." },
+    { icon: BarChart3, title: "Profit Dashboard", desc: "Daily sales, cost of food and profit at a glance." },
+    { icon: Receipt, title: "Quick Billing", desc: "One-tap meal buttons and fast cash handling." },
+    { icon: Users, title: "Staff Tracking", desc: "User logins and per-shift sales tracking." },
+  ],
+  whyMartPoint: [
+    "Built for fast local kitchens: one-tap menu, portion tracking and daily profit view.",
+    "No need for a dedicated IT person. Set up and train staff the same day.",
+    "Works offline so a bad network does not stop sales during lunch rush.",
+    "Affordable for small bukkas and scalable as you open more outlets.",
+  ],
+  faqs: [
+    { q: "Can MartPoint handle a daily changing menu?", a: "Yes. Set the day\u2019s soups, proteins and sides in seconds. Prices and availability update at the counter instantly." },
+    { q: "Can it track cost per plate?", a: "Absolutely. Link standard ingredients and portions to each menu item and see estimated cost per plate and daily profit." },
+    { q: "Does it work for small bukkas with one counter?", a: "Yes. The interface is simple enough for one cashier and powerful enough to scale to multiple outlets." },
+    { q: "Can I track rice, oil and meat stock?", a: "Yes. Set low-stock alerts and record usage so you never run out mid-service." },
+  ],
+}
+
 // ─── Exports ─────────────────────────────────────────────────
 
 export const allIndustries: IndustryData[] = [
-  supermarkets, miniMarts, groceryStores, provisionStores, convenienceStores,
-  restaurants, fastFood, bakeries, cakeShops, cafes, pizzaShops, shawarma, juiceBars,
+  supermarkets, miniMarts, groceryStores, provisionStores, convenienceStores, frozenFoods,
+  restaurants, fastFood, bukkaMamaPut, bakeries, cakeShops, cafes, pizzaShops, shawarma, juiceBars,
   pharmacies, medicalStores, clinics, hospitals, diagnosticCentres,
   fashionStores, boutiques, shoeStores, cosmeticsStores, perfumeShops, beautyAndSalons, barbershops, jewelleryStores,
   electronicsStores, phoneShops, computerStores, gadgetStores, applianceStores,

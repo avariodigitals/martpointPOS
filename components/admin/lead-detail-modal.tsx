@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { businessTypeOptions } from "@/lib/industries"
 import {
   X,
   Mail,
@@ -91,19 +92,7 @@ const STAGE_COLORS: Record<string, string> = {
   Lost: "bg-destructive",
 }
 
-const BUSINESS_TYPES = [
-  "Supermarket", "Mini Mart", "Grocery Store", "Convenience Store", "Provision Store",
-  "Restaurant", "Fast Food", "Bakery", "Cafe", "Pizza Shop", "Shawarma", "Juice Bar",
-  "Pharmacy", "Medical Store", "Clinic", "Hospital", "Diagnostic Centre",
-  "Fashion Store", "Boutique", "Shoe Store", "Cosmetics Store", "Perfume Shop",
-  "Beauty & Salon", "Barbershop", "Jewellery Store",
-  "Electronics Store", "Phone Shop", "Computer Store", "Gadget Store", "Appliance Store",
-  "Hardware Store", "Paint Store", "Plumbing Store",
-  "Agro Dealer", "Feed Store", "Auto Parts", "Tyre Shop",
-  "Laundry", "Printing", "Tailoring",
-  "Distributor", "Wholesaler", "Manufacturer",
-  "Multi-Branch Retail", "Other",
-]
+const BUSINESS_TYPES = businessTypeOptions
 
 const inputClass =
   "w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-retail/30 focus:border-retail"

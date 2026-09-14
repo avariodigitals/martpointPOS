@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Building2, Plus, ArrowRight, X, Search, CheckCircle2, Ban, PauseCircle, Trash2, Save } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
-import { allIndustries } from "@/lib/industries"
+import { allIndustries, businessTypeOptions } from "@/lib/industries"
 
-const BUSINESS_TYPE_OPTIONS = ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"]
+const BUSINESS_TYPE_OPTIONS = businessTypeOptions
 const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
 
 interface Business {

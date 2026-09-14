@@ -15,7 +15,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { allIndustries } from "@/lib/industries"
+import { businessTypeOptions } from "@/lib/industries"
 import { COUNTRIES } from "@/lib/locations"
 import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 import {
@@ -39,7 +39,7 @@ const WHATSAPP_NUMBER = "+2348036028069"
 
 const STEPS = ["Business", "Scale", "Requirements", "Estimate", "Contact"] as const
 
-const businessTypes = [...allIndustries.map((i) => i.name), "Other"]
+const businessTypes = businessTypeOptions
 const countryOptions = COUNTRIES.map((c) => c.name)
 
 interface EstimateCalculatorProps {

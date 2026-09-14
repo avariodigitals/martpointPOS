@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Loader2 } from "lucide-react"
-import { allIndustries } from "@/lib/industries"
+import { businessTypeOptions } from "@/lib/industries"
 import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 
 const leadSchema = z.object({
@@ -31,10 +31,7 @@ interface LeadFormProps {
   partnerCode?: string
 }
 
-const businessTypes = [
-  ...allIndustries.map((i) => i.name),
-  "Other",
-]
+const businessTypes = businessTypeOptions
 
 const productOptions = [
   { value: "retail", label: "MartPoint Retail" },

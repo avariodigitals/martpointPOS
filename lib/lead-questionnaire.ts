@@ -1,4 +1,5 @@
 import crypto from "crypto"
+import { businessTypeOptions } from "./industries"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import { sendEmail } from "./email"
@@ -15,7 +16,7 @@ export interface QuestionnaireField {
 
 export const DEFAULT_QUESTIONNAIRE_FIELDS: QuestionnaireField[] = [
   { name: "businessName", label: "Business name", type: "text", required: true },
-  { name: "businessType", label: "Business type", type: "select", options: ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"], required: true },
+  { name: "businessType", label: "Business type", type: "select", options: businessTypeOptions, required: true },
   { name: "industry", label: "Industry", type: "text" },
   { name: "country", label: "Country", type: "text" },
   { name: "state", label: "State / Region", type: "text" },

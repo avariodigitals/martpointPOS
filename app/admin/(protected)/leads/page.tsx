@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import { LeadDetailModal } from "@/components/admin/lead-detail-modal"
 import { COUNTRIES, STATES, CITIES } from "@/lib/locations"
+import { businessTypeOptions } from "@/lib/industries"
 
 const COUNTRY_OPTIONS = COUNTRIES.map((c) => c.name)
 const STATE_OPTIONS = [...new Set(Object.values(STATES).flat())].sort()
@@ -403,7 +404,7 @@ export default function AdminLeadsPage() {
 
   const defaultQuestionnaireFieldSelection = (): QuestionnaireField[] => [
     { name: "businessName", label: "Business name", type: "text", required: true },
-    { name: "businessType", label: "Business type", type: "select", options: ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"], required: true },
+    { name: "businessType", label: "Business type", type: "select", options: businessTypeOptions, required: true },
     { name: "country", label: "Country", type: "select", options: COUNTRY_OPTIONS },
     { name: "state", label: "State / Region", type: "select", options: STATE_OPTIONS },
     { name: "city", label: "City", type: "select", options: CITY_OPTIONS },
@@ -974,15 +975,9 @@ export default function AdminLeadsPage() {
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="">Select...</option>
-                  <option value="Supermarket">Supermarket</option>
-                  <option value="Mini Mart">Mini Mart</option>
-                  <option value="Restaurant">Restaurant</option>
-                  <option value="Pharmacy">Pharmacy</option>
-                  <option value="Electronics Store">Electronics Store</option>
-                  <option value="Fashion Retailer">Fashion Retailer</option>
-                  <option value="Distributor">Distributor</option>
-                  <option value="Wholesaler">Wholesaler</option>
-                  <option value="Other">Other</option>
+                  {businessTypeOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
                 </select>
               </div>
               <div>

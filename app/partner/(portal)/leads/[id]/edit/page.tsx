@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
 import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
-import { allIndustries } from "@/lib/industries"
+import { allIndustries, businessTypeOptions } from "@/lib/industries"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-sm font-medium mb-1"
 
 const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
-const BUSINESS_TYPE_OPTIONS = ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"]
+const BUSINESS_TYPE_OPTIONS = businessTypeOptions
 const PRODUCT_OPTIONS = ["MartPoint Retail", "MartPoint ERP", "Not Sure — Need Guidance"]
 
 interface Lead {

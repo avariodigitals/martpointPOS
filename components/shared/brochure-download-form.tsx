@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Loader2, Download, FileText, CheckCircle, Home } from "lucide-react"
-import { allIndustries } from "@/lib/industries"
+import { businessTypeOptions } from "@/lib/industries"
 import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 
 interface Brochure {
@@ -17,7 +17,7 @@ interface BrochureDownloadFormProps {
   brochure: Brochure | null
 }
 
-const businessTypes = [...allIndustries.map((i) => i.name), "Other"]
+const businessTypes = businessTypeOptions
 
 export function BrochureDownloadForm({ brochure }: BrochureDownloadFormProps) {
   const [form, setForm] = useState({

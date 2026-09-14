@@ -22,10 +22,10 @@ import {
   Calendar,
 } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
-import { allIndustries } from "@/lib/industries"
+import { allIndustries, businessTypeOptions } from "@/lib/industries"
 
 const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
-const BUSINESS_TYPE_OPTIONS = ["Retail", "Supermarket", "Pharmacy", "Restaurant", "Beauty/Salon", "Services", "Other"]
+const BUSINESS_TYPE_OPTIONS = businessTypeOptions
 const PRODUCT_OPTIONS = ["MartPoint Retail", "MartPoint ERP", "Not Sure — Need Guidance"]
 
 type LeadStatus =

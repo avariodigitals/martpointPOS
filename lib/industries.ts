@@ -2608,3 +2608,11 @@ export const categoryOrder = [
   "Services",
   "Enterprise",
 ]
+
+// All options used by forms. Includes dedicated industry pages + extras.
+export const businessTypeOptions = [
+  ...allIndustries.map((i) => i.name),
+  "Frozen Foods (Cow, Pig, Chicken, Fish)",
+  "Bukka / Mama Put",
+  "Other",
+]

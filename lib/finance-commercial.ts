@@ -1,4 +1,7 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { getBusinessById, setOnboardingStage } from "./businesses"
+import type { AuditContext } from "./audit"
+import crypto from "crypto"
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPES — Sprint 4 Commercial Finance
@@ -512,6 +515,8 @@ export async function recalculateInvoice(invoiceId: string) {
     status,
     updated_at: new Date().toISOString(),
   }).eq("id", invoiceId)
+
+  await syncInvoiceFinanceTransaction(invoiceId)
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -582,6 +587,31 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
 
   // Evaluate commissions where payment is the trigger
   await evaluateCommissionsForPayment(paymentId, actorId)
+
+  // On a paid invoice, advance the business onboarding to Payment Confirmed.
+  const business = p.business_id ? await getBusinessById(p.business_id) : null
+  if (business && business.status !== "ACTIVE") {
+    const actor: AuditContext = { actorType: "ADMIN", actorId: actorId || confirmedBy, actorName: null }
+    await setOnboardingStage(business.id, "AWAITING_PAYMENT", true, actor)
+
+    // If this business is linked to a lead that is not yet Won, mark it Won.
+    if (business.sourceLeadId) {
+      try {
+        const { data: lead } = await supabase.from("leads").select("status").eq("id", business.sourceLeadId).single()
+        if (lead && lead.status !== "Won") {
+          await supabase.from("leads").update({ status: "Won", updated_at: new Date().toISOString() }).eq("id", business.sourceLeadId)
+        }
+      } catch (err) {
+        console.error("[confirmPayment] lead status update", err)
+      }
+    }
+  }
+
+  if (p.invoice_id) {
+    await syncInvoiceFinanceTransaction(p.invoice_id)
+  } else {
+    await syncPaymentFinanceTransaction(paymentId)
+  }
 }
 
 export async function allocatePayment(input: PaymentAllocationInput) {
@@ -972,4 +1002,134 @@ export async function refreshRenewalStatus(subscriptionId: string) {
     status,
     updated_at: new Date().toISOString(),
   }, { onConflict: "subscription_id" })
+}
+
+const RECOGNISED_INCOME_STATUSES = ["ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE"]
+
+const INCOME_CATEGORY_BY_ITEM: Record<string, string> = {
+  PRODUCT: "Product Sales",
+  PLAN: "Software Subscription",
+  ADDON: "Support Contracts",
+  SERVICE: "Implementation Services",
+  CUSTOM: "Other Income",
+}
+
+export async function syncInvoiceFinanceTransaction(invoiceId: string) {
+  if (!isSupabaseConfigured()) return
+  const { data } = await supabase
+    .from("invoices")
+    .select("*, invoice_items(item_type, reference_id, description)")
+    .eq("id", invoiceId)
+    .single()
+  if (!data) return
+
+  const invoice = data as unknown as Invoice & { invoice_items: Array<{ item_type: string; reference_id: string | null; description: string }> }
+
+  if (!RECOGNISED_INCOME_STATUSES.includes(invoice.status)) {
+    await supabase.from("finance_transactions").delete().eq("invoice_id", invoiceId)
+    return
+  }
+
+  const primary = invoice.invoice_items?.[0]?.item_type || "CUSTOM"
+  let category = INCOME_CATEGORY_BY_ITEM[primary] || "Other Income"
+
+  const planItem = invoice.invoice_items?.find((i) => i.item_type === "PLAN")
+  let recurring = false
+  let frequency: "one-time" | "monthly" | "quarterly" | "yearly" = "one-time"
+  if (planItem?.reference_id) {
+    const { data: plan } = await supabase.from("plans").select("billing_type, billing_interval").eq("id", planItem.reference_id).single()
+    if (plan) {
+      const p = plan as { billing_type: string; billing_interval: string }
+      if (p.billing_type === "RECURRING") {
+        recurring = true
+        if (p.billing_interval === "MONTHLY") frequency = "monthly"
+        else if (p.billing_interval === "QUARTERLY") frequency = "quarterly"
+        else if (p.billing_interval === "ANNUAL") frequency = "yearly"
+      }
+    }
+  }
+
+  const description = `Invoice ${invoice.invoice_number} — ${invoice.invoice_items.map((i) => i.description).filter(Boolean).join(", ").slice(0, 120)}`
+  const txn = {
+    type: "income" as const,
+    category,
+    subcategory: `Invoice ${invoice.invoice_number}`,
+    amount: Math.round(invoice.total_amount),
+    tax: Math.round(invoice.tax_amount || 0),
+    description,
+    date: invoice.issue_date || new Date().toISOString().split("T")[0],
+    business_id: invoice.business_id,
+    invoice_id: invoice.id,
+    commercial_reference: invoice.invoice_number,
+    recurring,
+    frequency,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { data: existing } = await supabase
+    .from("finance_transactions")
+    .select("id")
+    .eq("invoice_id", invoiceId)
+    .eq("type", "income")
+    .single()
+
+  if (existing) {
+    await supabase.from("finance_transactions").update(txn).eq("id", (existing as { id: string }).id)
+  } else {
+    await supabase.from("finance_transactions").insert({
+      ...txn,
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+    })
+  }
+}
+
+export async function syncPaymentFinanceTransaction(paymentId: string) {
+  if (!isSupabaseConfigured()) return
+  const { data } = await supabase.from("payments").select("*").eq("id", paymentId).single()
+  if (!data) return
+  const payment = data as Payment
+
+  if (payment.status !== "CONFIRMED" || payment.invoice_id) {
+    await supabase.from("finance_transactions").delete().eq("payment_id", paymentId)
+    return
+  }
+
+  const txn = {
+    type: "income" as const,
+    category: "Other Income",
+    subcategory: `Payment ${payment.payment_reference}`,
+    amount: Math.round(payment.amount),
+    tax: 0,
+    description: `Payment ${payment.payment_reference}${payment.notes ? " — " + payment.notes : ""}`.slice(0, 200),
+    date: payment.paid_at ? payment.paid_at.split("T")[0] : new Date().toISOString().split("T")[0],
+    business_id: payment.business_id,
+    payment_id: payment.id,
+    commercial_reference: payment.payment_reference,
+    recurring: false,
+    frequency: "one-time" as const,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { data: existing } = await supabase
+    .from("finance_transactions")
+    .select("id")
+    .eq("payment_id", paymentId)
+    .eq("type", "income")
+    .single()
+
+  if (existing) {
+    await supabase.from("finance_transactions").update(txn).eq("id", (existing as { id: string }).id)
+  } else {
+    await supabase.from("finance_transactions").insert({
+      ...txn,
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+    })
+  }
+}
+
+export async function removePaymentFinanceTransaction(paymentId: string) {
+  if (!isSupabaseConfigured()) return
+  await supabase.from("finance_transactions").delete().eq("payment_id", paymentId)
 }

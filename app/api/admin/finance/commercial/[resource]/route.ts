@@ -20,6 +20,8 @@ import {
   evaluateCommissionsForPayment,
   createCommissionPayout,
   refreshRenewalStatus,
+  syncInvoiceFinanceTransaction,
+  removePaymentFinanceTransaction,
   money,
 } from "@/lib/finance-commercial"
 
@@ -380,6 +382,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: inv, error } = await supabase.from("invoices").update({ status: "ISSUED", issued_by: actor.id, updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_ISSUED", "INVOICE", id)
+        await syncInvoiceFinanceTransaction(id)
         return ok(inv)
       }
       if (action === "void") {
@@ -387,12 +390,14 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: inv, error } = await supabase.from("invoices").update({ status: "VOID", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_VOIDED", "INVOICE", id)
+        await syncInvoiceFinanceTransaction(id)
         return ok(inv)
       }
       if (action === "cancel") {
         const { id } = data
         const { data: inv, error } = await supabase.from("invoices").update({ status: "CANCELLED", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
+        await syncInvoiceFinanceTransaction(id)
         return ok(inv)
       }
       if (action === "update") {
@@ -405,6 +410,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       }
       if (action === "delete") {
         const { id } = data
+        await supabase.from("finance_transactions").delete().eq("invoice_id", id)
         await supabase.from("invoice_items").delete().eq("invoice_id", id)
         await supabase.from("payment_allocations").delete().eq("invoice_id", id)
         await supabase.from("payments").update({ invoice_id: null, updated_at: now() }).eq("invoice_id", id)
@@ -430,6 +436,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: p, error } = await supabase.from("payments").update({ status: "REVERSED", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "PAYMENT_REVERSED", "PAYMENT", id)
+        await removePaymentFinanceTransaction(id)
         return ok(p)
       }
       if (action === "allocate") {

@@ -708,107 +708,116 @@ export default function QuotationsPage() {
                   </Button>
                 </div>
 
-                <div className="hidden sm:grid grid-cols-12 gap-2 px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                  <div className="col-span-5">Description</div>
-                  <div className="col-span-1 text-center">Qty</div>
-                  <div className="col-span-2 text-center">Unit Price</div>
-                  <div className="col-span-1 text-center">Disc</div>
-                  <div className="col-span-2 text-center">Tax %</div>
-                  <div className="col-span-1"></div>
-                </div>
+                <div className="overflow-x-auto">
+                  <div className="min-w-[720px]">
+                    <div className="grid grid-cols-12 gap-2 px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                      <div className="col-span-5">Description</div>
+                      <div className="col-span-1 text-center">Qty</div>
+                      <div className="col-span-2 text-center">Unit Price</div>
+                      <div className="col-span-1 text-center">Disc</div>
+                      <div className="col-span-2 text-center">Tax %</div>
+                      <div className="col-span-1"></div>
+                    </div>
 
-                <div className="space-y-2">
-                  {totals.items.map((item, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-start p-3 rounded-lg border border-border bg-muted/20">
-                      <div className="col-span-12 sm:col-span-5">
-                        {catalogItems.length > 0 && (
-                          <select
-                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm mb-2"
-                            value={catalogItems.find((c) => item.description?.split("\n")[0] === c.name)?.id || ""}
-                            onChange={(e) => {
-                              const picked = catalogItems.find((c) => c.id === e.target.value)
-                              if (picked) {
-                                const desc = picked.description?.trim()
-                                updateItem(idx, {
-                                  description: desc ? `${picked.name}\n${desc}` : picked.name,
-                                  unitPrice: picked.price,
-                                })
-                              }
-                            }}
-                          >
-                            <option value="">Pick from catalog...</option>
-                            {catalogItems.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name} ({c.type})
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        <textarea
-                          rows={2}
-                          placeholder="Item name / description"
-                          value={item.description}
-                          onChange={(e) => updateItem(idx, { description: e.target.value })}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[44px]"
-                        />
-                      </div>
-                      <div className="col-span-4 sm:col-span-1">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          placeholder="Qty"
-                          value={item.quantity}
-                          onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-4 sm:col-span-2">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          placeholder="Unit price"
-                          value={item.unitPrice}
-                          onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2 sm:col-span-1">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          placeholder="Disc"
-                          value={item.discount}
-                          onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-6 sm:col-span-2">
-                        <select
-                          value={item.taxRate ?? 0}
-                          onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })}
-                          className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
-                        >
-                          <option value={0}>No tax</option>
-                          {taxRates.map((t) => (
-                            <option key={t.id} value={t.rate}>
-                              {t.name} ({t.rate}%)
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-[10px] text-muted-foreground text-right mt-1">
-                          Tax: {formatNgnFull(item.tax || 0)}
-                        </p>
-                      </div>
-                      <div className="col-span-12 sm:col-span-1 flex justify-end">
-                        <button onClick={() => removeItem(idx)} className="p-1 text-muted-foreground hover:text-red-600">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                    <div className="space-y-2">
+                      {totals.items.map((item, idx) => (
+                        <div key={idx} className="grid grid-cols-12 gap-2 items-start p-3 rounded-lg border border-border bg-muted/20">
+                          <div className="col-span-5">
+                            {catalogItems.length > 0 && (
+                              <select
+                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm mb-2"
+                                value={catalogItems.find((c) => item.description?.split("\n")[0] === c.name)?.id || ""}
+                                onChange={(e) => {
+                                  const picked = catalogItems.find((c) => c.id === e.target.value)
+                                  if (picked) {
+                                    const desc = picked.description?.trim()
+                                    updateItem(idx, {
+                                      description: desc ? `${picked.name}\n${desc}` : picked.name,
+                                      unitPrice: picked.price,
+                                    })
+                                  }
+                                }}
+                              >
+                                <option value="">Pick from catalog...</option>
+                                {catalogItems.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name} ({c.type})
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            <textarea
+                              rows={2}
+                              placeholder="Item name / description"
+                              value={item.description}
+                              onChange={(e) => updateItem(idx, { description: e.target.value })}
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[44px]"
+                            />
+                          </div>
+                          <div className="col-span-1">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              placeholder="Qty"
+                              value={item.quantity}
+                              onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })}
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              placeholder="Unit price"
+                              value={item.unitPrice}
+                              onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })}
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div className="col-span-1">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              placeholder="Disc"
+                              value={item.discount}
+                              onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })}
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <select
+                              value={item.taxRate ?? 0}
+                              onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })}
+                              className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
+                            >
+                              <option value={0}>No tax</option>
+                              {taxRates.map((t) => (
+                                <option key={t.id} value={t.rate}>
+                                  {t.name} ({t.rate}%)
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-[10px] text-muted-foreground text-right mt-1">
+                              Tax: {formatNgnFull(item.tax || 0)}
+                            </p>
+                          </div>
+                          <div className="col-span-1 flex justify-end">
+                            <button onClick={() => removeItem(idx)} className="p-1 text-muted-foreground hover:text-red-600">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex justify-end pt-2">
+                        <Button size="sm" variant="outline" onClick={addItem}>
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Add Item
+                        </Button>
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
               </div>
 

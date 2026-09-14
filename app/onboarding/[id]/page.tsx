@@ -7,7 +7,6 @@ import {
   Loader2,
   Check,
   Upload,
-  FileText,
   AlertCircle,
   ShieldCheck,
   ClipboardCheck,
@@ -26,44 +25,21 @@ interface OnboardingRecord {
   signatureUrl: string
 }
 
-const RETAIL_QUESTIONS = [
-  { key: "businessName", label: "Registered business name", type: "text", required: true },
-  { key: "cacNumber", label: "CAC registration number (if applicable)", type: "text", required: false },
-  { key: "businessAddress", label: "Business address", type: "textarea", required: true },
-  { key: "ownerName", label: "Owner / Director full name", type: "text", required: true },
-  { key: "ownerPhone", label: "Owner / Director phone number", type: "text", required: true },
-  { key: "staffCount", label: "How many staff will use the system?", type: "text", required: true },
-  { key: "devices", label: "What devices will you use? (Android tablet, iPad, computer, phone)", type: "textarea", required: true },
-  { key: "barcodePrinter", label: "Do you have a barcode scanner and receipt printer?", type: "text", required: true },
+const DEPLOYMENT_QUESTIONS = [
   { key: "goLiveDate", label: "Preferred go-live date", type: "text", required: true },
-  { key: "storeType", label: "What type of store do you run?", type: "text", required: true },
-  { key: "creditSales", label: "Do you sell on credit to customers?", type: "text", required: true },
-  { key: "weighingScale", label: "Do you need weighing scale integration?", type: "text", required: true },
-  { key: "expiryTracking", label: "Do you track expiry dates on products?", type: "text", required: true },
-  { key: "currentStockMethod", label: "How do you currently manage stock?", type: "textarea", required: true },
-]
-
-const ERP_QUESTIONS = [
-  { key: "businessName", label: "Registered business name", type: "text", required: true },
-  { key: "cacNumber", label: "CAC registration number (if applicable)", type: "text", required: false },
-  { key: "businessAddress", label: "Business address and branch locations", type: "textarea", required: true },
-  { key: "ownerName", label: "Owner / Director full name and phone number", type: "text", required: true },
-  { key: "staffCount", label: "How many staff will use the system?", type: "text", required: true },
-  { key: "devices", label: "What devices will you use? (Android tablet, iPad, computer, phone)", type: "textarea", required: true },
-  { key: "barcodePrinter", label: "Do you have a barcode scanner and receipt printer?", type: "text", required: true },
-  { key: "goLiveDate", label: "Preferred go-live date", type: "text", required: true },
-  { key: "warehouseCount", label: "How many warehouses or godowns do you operate?", type: "text", required: true },
-  { key: "creditToDealers", label: "Do you sell on credit to dealers?", type: "text", required: true },
-  { key: "multiBranchTransfer", label: "Do you need multi-branch transfer tracking?", type: "text", required: true },
-  { key: "keySuppliers", label: "Who are your key suppliers?", type: "textarea", required: true },
-  { key: "apiAccess", label: "Do you need API access to other systems?", type: "text", required: true },
+  { key: "branches", label: "Branch names and addresses (one per line)", type: "textarea", required: true },
+  { key: "adminUser", label: "Primary admin name, email and phone", type: "text", required: true },
+  { key: "staffList", label: "Staff users to create (name, role, branch — one per line)", type: "textarea", required: false },
+  { key: "productData", label: "Do you have product data to import? (CSV, Excel, or list format)", type: "textarea", required: false },
+  { key: "suppliers", label: "Key suppliers (names and contacts)", type: "textarea", required: false },
+  { key: "hardware", label: "What hardware do you have? (barcode scanner, receipt printer, weighing scale, etc.)", type: "textarea", required: false },
+  { key: "bankAccount", label: "Bank account for settlements / payouts", type: "text", required: false },
+  { key: "preferredSubdomain", label: "Preferred account / subdomain name (if any)", type: "text", required: false },
+  { key: "specialRequests", label: "Any special deployment or integration requests", type: "textarea", required: false },
 ]
 
 const COMPLIANCE_DOCS = [
-  { key: "idCard", label: "Valid ID Card (Driver's Licence, Passport, Voter's Card, or National ID)", required: true },
-  { key: "cacCertificate", label: "CAC Registration Certificate (if business is registered)", required: false },
-  { key: "utilityBill", label: "Utility Bill (not older than 3 months) for address verification", required: true },
-  { key: "passportPhoto", label: "Passport photograph of business owner / director", required: true },
+  { key: "logo", label: "Business logo (PNG or JPG — max 2MB)", required: false },
 ]
 
 export default function ClientOnboardingPage() {
@@ -76,13 +52,11 @@ export default function ClientOnboardingPage() {
 
   const [responses, setResponses] = useState<Record<string, string>>({})
   const [documents, setDocuments] = useState<Record<string, { name: string; data: string }>>({})
-  const [signatureName, setSignatureName] = useState("")
-  const [agreed, setAgreed] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  const questions = record?.productInterest === "erp" ? ERP_QUESTIONS : RETAIL_QUESTIONS
+  const questions = DEPLOYMENT_QUESTIONS
 
   useEffect(() => {
     if (!id) return
@@ -98,9 +72,6 @@ export default function ClientOnboardingPage() {
               existing[k] = String(v)
             })
             setResponses(existing)
-          }
-          if (data.record.signatureUrl) {
-            setSignatureName(data.record.signatureUrl.replace("signed-by:", ""))
           }
         } else {
           setError(data.error || "Record not found")
@@ -131,13 +102,6 @@ export default function ClientOnboardingPage() {
         return `Please answer: ${q.label}`
       }
     }
-    for (const doc of COMPLIANCE_DOCS) {
-      if (doc.required && !documents[doc.key] && !record?.documents?.find((d) => d.name.includes(doc.key))) {
-        return `Please upload: ${doc.label}`
-      }
-    }
-    if (!signatureName.trim()) return "Please type your full name as a digital signature"
-    if (!agreed) return "Please confirm the accuracy of your information"
     return null
   }
 
@@ -167,8 +131,7 @@ export default function ClientOnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id,
-          clientResponses: responses,
-          signatureName,
+          clientResponses: { ...responses, logo: documents.logo?.data || "" },
           documents: allDocs,
         }),
       })
@@ -242,11 +205,11 @@ export default function ClientOnboardingPage() {
           </div>
         )}
 
-        {/* Setup Questions */}
+        {/* Deployment Questions */}
         <div className="rounded-xl border border-border bg-card p-6 md:p-8 space-y-6">
           <div className="flex items-center gap-2">
             <ClipboardCheck className="w-5 h-5 text-retail" />
-            <h2 className="text-lg font-semibold text-foreground">Setup Questions</h2>
+            <h2 className="text-lg font-semibold text-foreground">Deployment Information</h2>
           </div>
           {questions.map((q) => (
             <div key={q.key}>
@@ -272,14 +235,14 @@ export default function ClientOnboardingPage() {
           ))}
         </div>
 
-        {/* Compliance Documents */}
+        {/* Branding & Documents */}
         <div className="rounded-xl border border-border bg-card p-6 md:p-8 space-y-6">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-retail" />
-            <h2 className="text-lg font-semibold text-foreground">Compliance Documents</h2>
+            <h2 className="text-lg font-semibold text-foreground">Branding & Documents</h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            We are required by law to verify the identity of every business we onboard. Please upload the following documents. All information is stored securely and used only for compliance purposes.
+            Upload your business logo and any supporting files that will help us configure your account correctly.
           </p>
           {COMPLIANCE_DOCS.map((doc) => (
             <div key={doc.key}>
@@ -293,7 +256,7 @@ export default function ClientOnboardingPage() {
                 </div>
               ) : documents[doc.key] ? (
                 <div className="flex items-center gap-2 text-sm text-retail">
-                  <FileText className="w-4 h-4" />
+                  <Check className="w-4 h-4" />
                   <span>{documents[doc.key].name}</span>
                 </div>
               ) : (
@@ -310,47 +273,6 @@ export default function ClientOnboardingPage() {
               )}
             </div>
           ))}
-        </div>
-
-        {/* Digital Signature & Agreement */}
-        <div className="rounded-xl border border-border bg-card p-6 md:p-8 space-y-6">
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-retail" />
-            <h2 className="text-lg font-semibold text-foreground">Declaration & Signature</h2>
-          </div>
-          <div className="rounded-lg bg-muted/30 p-4 text-sm text-muted-foreground space-y-2">
-            <p>I hereby declare that:</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>All information provided above is true, accurate and complete to the best of my knowledge.</li>
-              <li>The documents uploaded are genuine and belong to the business named above.</li>
-              <li>I am authorised to act on behalf of this business.</li>
-              <li>I understand that providing false information may result in termination of service.</li>
-              <li>MartPoint may verify my identity and business registration with relevant authorities.</li>
-            </ul>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Type your full name as digital signature <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={signatureName}
-              onChange={(e) => setSignatureName(e.target.value)}
-              placeholder="e.g. Adebayo Olumide"
-              className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-retail/30"
-            />
-          </div>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="mt-1 w-4 h-4 rounded border-border text-retail focus:ring-retail"
-            />
-            <span className="text-sm text-muted-foreground">
-              I confirm that all the information and documents provided are accurate and I agree to the terms above.
-            </span>
-          </label>
         </div>
 
         {/* Submit */}

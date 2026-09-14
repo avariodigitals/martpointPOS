@@ -22,6 +22,18 @@ import {
   Trash2,
 } from "lucide-react"
 
+const STAGES = [
+  { key: "INTAKE_RECEIVED", label: "Intake Received" },
+  { key: "AWAITING_PAYMENT", label: "Payment Confirmed" },
+  { key: "INFO_RECEIVED", label: "Info Received" },
+  { key: "SETUP_REVIEW", label: "Setup Review" },
+  { key: "PROVISIONING", label: "Provisioning" },
+  { key: "BUSINESS_SETUP", label: "Business Setup" },
+  { key: "READY_FOR_TRAINING", label: "Ready for Training" },
+  { key: "TRAINING_IN_PROGRESS", label: "Training in Progress" },
+  { key: "ONBOARDING_COMPLETE", label: "Onboarding Complete" },
+]
+
 interface Lead {
   id: string
   fullName: string
@@ -48,6 +60,8 @@ interface OnboardingRecord {
   notes: string
   createdAt: string
   updatedAt: string
+  businessId?: string
+  onboardingStages?: Record<string, unknown>
 }
 
 export default function AdminOnboardingPage() {
@@ -106,7 +120,21 @@ export default function AdminOnboardingPage() {
       // Fetch onboarding records
       const onboardingRes = await fetch("/api/admin/onboarding")
       const onboardingData = await onboardingRes.json()
-      const fetchedRecords = onboardingData.records ? (onboardingData.records as OnboardingRecord[]) : []
+      let fetchedRecords = onboardingData.records ? (onboardingData.records as OnboardingRecord[]) : []
+
+      // Fetch linked businesses to show onboarding stages
+      const leadIds = fetchedRecords.map((r) => r.leadId).filter(Boolean)
+      let businessMap = new Map<string, { id: string; onboarding_stages: Record<string, unknown> }>()
+      if (leadIds.length > 0) {
+        const businessesRes = await fetch(`/api/admin/businesses?sourceLeadIds=${leadIds.join(",")}`)
+        const businessesData = await businessesRes.json()
+        const businesses = (businessesData.businesses || []) as { id: string; source_lead_id: string; onboarding_stages: Record<string, unknown> }[]
+        businessMap = new Map(businesses.map((b) => [b.source_lead_id, { id: b.id, onboarding_stages: b.onboarding_stages }]))
+      }
+      fetchedRecords = fetchedRecords.map((r) => {
+        const b = businessMap.get(r.leadId)
+        return b ? { ...r, businessId: b.id, onboardingStages: b.onboarding_stages } : r
+      })
       setRecords(fetchedRecords)
 
       // Auto-open initiate modal if ?initiate=leadId is present
@@ -465,6 +493,34 @@ export default function AdminOnboardingPage() {
                           </div>
                         </div>
                       )}
+
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Onboarding Stages</label>
+                        <div className="rounded-md border border-border bg-background p-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {STAGES.map((s) => {
+                              const stage = (record.onboardingStages as Record<string, { completedAt?: string }> | undefined)?.[s.key]
+                              return (
+                                <div key={s.key} className="flex items-center gap-2 text-sm">
+                                  {stage?.completedAt ? (
+                                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                                  ) : (
+                                    <div className="w-4 h-4 rounded-full border-2 border-muted-foreground shrink-0" />
+                                  )}
+                                  <span className={stage?.completedAt ? "text-foreground" : "text-muted-foreground"}>
+                                    {s.label}
+                                  </span>
+                                  {stage?.completedAt && (
+                                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                                      {new Date(stage.completedAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
 
                       <div>
                         <label className="block text-xs font-medium mb-1">Documents</label>

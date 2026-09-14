@@ -50,8 +50,9 @@ export interface Business {
  */
 export const ONBOARDING_STAGES = [
   { key: "INTAKE_RECEIVED", label: "Intake Received" },
+  { key: "AWAITING_PAYMENT", label: "Payment Confirmed" },
+  { key: "INFO_RECEIVED", label: "Info Received" },
   { key: "SETUP_REVIEW", label: "Setup Review" },
-  { key: "AWAITING_PAYMENT", label: "Awaiting Payment" },
   { key: "PROVISIONING", label: "Provisioning" },
   { key: "BUSINESS_SETUP", label: "Business Setup" },
   { key: "READY_FOR_TRAINING", label: "Ready for Training" },
@@ -66,6 +67,7 @@ export interface OnboardingStageProgress {
   completedBy: string | null
   approved?: boolean
   needsClarification?: boolean
+  data?: Record<string, unknown>
 }
 
 export interface SetupReviewData {
@@ -450,7 +452,7 @@ export async function setOnboardingStage(
   stage: OnboardingStageKey,
   completed: boolean,
   actor: AuditContext,
-  opts?: { force?: boolean; paymentConfirmed?: boolean }
+  opts?: { force?: boolean; paymentConfirmed?: boolean; data?: Record<string, unknown> }
 ): Promise<{ ok: boolean; stages?: OnboardingStages; error?: string }> {
   if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
 
@@ -473,7 +475,7 @@ export async function setOnboardingStage(
   }
 
   if (completed) {
-    stages[stage] = { completedAt: new Date().toISOString(), completedBy: actor.actorName ?? actor.actorId ?? null }
+    stages[stage] = { completedAt: new Date().toISOString(), completedBy: actor.actorName ?? actor.actorId ?? null, data: opts?.data }
     // Auto-complete earlier stages in the pipeline so the tracker stays ordered.
     for (const s of ONBOARDING_STAGES.slice(0, idx)) {
       if (!stages[s.key]) {

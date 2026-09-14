@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { setOnboardingStage } from "@/lib/businesses"
 
 /* ─── GET: fetch onboarding record by ID ─── */
 export async function GET(request: Request) {
@@ -25,8 +26,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Record not found" }, { status: 404 })
     }
 
+    // Find the canonical business linked to this onboarding's lead, if any.
+    const { data: businessRow } = await supabase
+      .from("businesses")
+      .select("id, onboarding_stages, source_lead_id")
+      .eq("source_lead_id", data.lead_id)
+      .maybeSingle()
+
     const record = {
       id: data.id,
+      leadId: data.lead_id,
+      businessId: businessRow?.id as string | undefined,
+      onboardingStages: businessRow?.onboarding_stages as Record<string, unknown> | undefined,
       fullName: data.full_name,
       businessName: data.business_name,
       email: data.email,
@@ -65,7 +76,7 @@ export async function POST(request: Request) {
     // Verify record exists
     const { data: existing } = await supabase
       .from("onboarding")
-      .select("id, status")
+      .select("id, status, lead_id, business_id")
       .eq("id", id)
       .single()
 
@@ -106,6 +117,29 @@ export async function POST(request: Request) {
     if (error || !data) {
       console.error("[Onboarding Client Update Error]", error)
       return NextResponse.json({ error: "Update failed" }, { status: 500 })
+    }
+
+    // Advance the canonical business onboarding to "Info Received" with the payload.
+    const businessId = existing.business_id as string | undefined
+    if (businessId) {
+      try {
+        await setOnboardingStage(businessId, "INFO_RECEIVED", true, { actorType: "SYSTEM", actorId: null, actorName: null }, { data: clientResponses })
+      } catch (err) {
+        console.error("[Onboarding Client Update] setOnboardingStage", err)
+      }
+    } else if (existing.lead_id) {
+      const { data: businessRow } = await supabase
+        .from("businesses")
+        .select("id")
+        .eq("source_lead_id", existing.lead_id)
+        .maybeSingle()
+      if (businessRow?.id) {
+        try {
+          await setOnboardingStage(businessRow.id as string, "INFO_RECEIVED", true, { actorType: "SYSTEM", actorId: null, actorName: null }, { data: clientResponses })
+        } catch (err) {
+          console.error("[Onboarding Client Update] setOnboardingStage", err)
+        }
+      }
     }
 
     return NextResponse.json({ success: true, record: data })

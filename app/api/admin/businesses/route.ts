@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession } from "@/lib/audit"
+import { supabase } from "@/lib/supabase"
 import {
   convertLeadToBusiness,
   createBusiness,
@@ -25,6 +26,21 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ business })
   }
+
+  const sourceLeadIds = searchParams.get("sourceLeadIds")
+  if (sourceLeadIds) {
+    const ids = sourceLeadIds.split(",").filter(Boolean)
+    const { data, error } = await supabase
+      .from("businesses")
+      .select("id, source_lead_id, onboarding_stages, onboarding_progress")
+      .in("source_lead_id", ids)
+    if (error) {
+      console.error("[admin/businesses] sourceLeadIds error", error)
+      return NextResponse.json({ error: "Failed to fetch businesses" }, { status: 500 })
+    }
+    return NextResponse.json({ businesses: data || [] })
+  }
+
   const search = searchParams.get("search")
   const businesses = search ? await searchBusinesses(search) : await listBusinesses()
   return NextResponse.json({ businesses })

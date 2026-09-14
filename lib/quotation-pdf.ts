@@ -8,7 +8,7 @@ function formatPdfNgn(n: number): string {
   return `NGN ${n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-async function getLogoDataUrl(logoPath: string): Promise<string | null> {
+async function getLogoDataUrl(logoPath: string): Promise<{ dataUrl: string; w: number; h: number } | null> {
   if (typeof window === "undefined" || typeof document === "undefined") return null
   try {
     const res = await fetch(logoPath)
@@ -21,17 +21,26 @@ async function getLogoDataUrl(logoPath: string): Promise<string | null> {
       img.onload = () => resolve()
       img.onerror = (err) => reject(err)
     })
+
+    const MAX_W = 140
+    const MAX_H = 44
+    const naturalW = img.naturalWidth || img.width || 200
+    const naturalH = img.naturalHeight || img.height || 60
+    const scale = Math.min(MAX_W / naturalW, MAX_H / naturalH, 1)
+    const w = Math.max(1, Math.round(naturalW * scale))
+    const h = Math.max(1, Math.round(naturalH * scale))
+
     const canvas = document.createElement("canvas")
-    canvas.width = img.width || 200
-    canvas.height = img.height || 60
+    canvas.width = w
+    canvas.height = h
     const ctx = canvas.getContext("2d")
     if (!ctx) {
       URL.revokeObjectURL(url)
       return null
     }
-    ctx.drawImage(img, 0, 0)
+    ctx.drawImage(img, 0, 0, w, h)
     URL.revokeObjectURL(url)
-    return canvas.toDataURL("image/png")
+    return { dataUrl: canvas.toDataURL("image/png"), w, h }
   } catch (e) {
     console.error("[quotation-pdf] failed to load logo", e)
     return null
@@ -46,12 +55,11 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
   let y = 40
 
   // Header: logo on the left, company details on the right.
-  const logoDataUrl = await getLogoDataUrl(logoUrl)
-  if (logoDataUrl) {
-    const logoW = 90
-    const logoH = 36
+  const logo = await getLogoDataUrl(logoUrl)
+  const logoH = logo?.h || 0
+  if (logo) {
     try {
-      doc.addImage(logoDataUrl, "PNG", margin, y, logoW, logoH)
+      doc.addImage(logo.dataUrl, "PNG", margin, y, logo.w, logo.h)
     } catch (e) {
       console.error("[quotation-pdf] addImage failed", e)
       doc.setFontSize(18)
@@ -75,7 +83,7 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
   companyLines.forEach((line, i) => {
     doc.text(line, rightCol, y + i * 13, { align: "right" })
   })
-  y += 60
+  y += Math.max(logoH + 10, companyLines.length * 13 + 10)
 
   // Two-column block: client (left) and quote details (right).
   const midX = pageW / 2
@@ -134,7 +142,7 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
 
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin },
+    margin: { left: margin, right: margin, bottom: 100 },
     head: [["Description", "Qty", "Unit", "Disc.", "Tax", "Total"]],
     body: rows,
     styles: { fontSize: 9, cellPadding: 6, overflow: "linebreak", valign: "middle" },
@@ -150,86 +158,106 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
     },
   })
 
-  const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || y + 80
+  const pageH = doc.internal.pageSize.getHeight()
+  const pageWNum = Number(doc.internal.pageSize.getWidth())
+  let finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || y + 80
 
-  let summaryY = finalY + 20
-  const summaryX = 320
-  const valueX = 520
+  // If the table ends too low, start the summary block on a fresh page.
+  const summaryMinH = 240
+  if (pageH - finalY < summaryMinH) {
+    doc.addPage()
+    finalY = 40
+  }
+
+  // Draw the totals on the right, payment terms on the left (same band).
+  const totalsX = pageWNum - margin - 180
+  const totalsValueX = pageWNum - margin
+  let totalsY = finalY + 20
 
   doc.setFontSize(10)
   doc.setTextColor(107, 114, 128)
-  doc.text("Subtotal:", summaryX, summaryY)
+  doc.text("Subtotal:", totalsX, totalsY)
   doc.setTextColor(17, 24, 39)
-  doc.text(formatPdfNgn(quote.subtotal), valueX, summaryY, { align: "right" })
-  summaryY += 16
+  doc.text(formatPdfNgn(quote.subtotal), totalsValueX, totalsY, { align: "right" })
+  totalsY += 16
 
   doc.setTextColor(107, 114, 128)
-  doc.text("Discount:", summaryX, summaryY)
+  doc.text("Discount:", totalsX, totalsY)
   doc.setTextColor(17, 24, 39)
-  doc.text(formatPdfNgn(quote.discount_amount), valueX, summaryY, { align: "right" })
-  summaryY += 16
+  doc.text(formatPdfNgn(quote.discount_amount), totalsValueX, totalsY, { align: "right" })
+  totalsY += 16
 
   doc.setTextColor(107, 114, 128)
-  doc.text("Tax:", summaryX, summaryY)
+  doc.text("Tax:", totalsX, totalsY)
   doc.setTextColor(17, 24, 39)
-  doc.text(formatPdfNgn(quote.tax_amount), valueX, summaryY, { align: "right" })
-  summaryY += 20
+  doc.text(formatPdfNgn(quote.tax_amount), totalsValueX, totalsY, { align: "right" })
+  totalsY += 20
 
   doc.setDrawColor(229, 231, 235)
-  doc.line(summaryX, summaryY - 6, valueX, summaryY - 6)
+  doc.line(totalsX, totalsY - 6, totalsValueX, totalsY - 6)
 
   doc.setFontSize(12)
   doc.setTextColor(0, 87, 255)
-  doc.text("Total:", summaryX, summaryY)
-  doc.text(formatPdfNgn(quote.total_amount), valueX, summaryY, { align: "right" })
-  summaryY += 28
+  doc.text("Total:", totalsX, totalsY)
+  doc.text(formatPdfNgn(quote.total_amount), totalsValueX, totalsY, { align: "right" })
+  totalsY += 24
 
+  let termsY = finalY + 20
   if (quote.payment_terms) {
     doc.setFontSize(10)
-    doc.setTextColor(107, 114, 128)
-    doc.text("Payment Terms:", margin, summaryY)
-    summaryY += 14
     doc.setTextColor(17, 24, 39)
-    const splitTerms = doc.splitTextToSize(quote.payment_terms, 520)
-    doc.text(splitTerms, margin, summaryY)
-    summaryY += splitTerms.length * 12 + 8
+    doc.text("Payment Terms", margin, termsY)
+    termsY += 14
+    doc.setFontSize(9)
+    doc.setTextColor(17, 24, 39)
+    const termsW = Math.max(200, totalsX - margin - 30)
+    const splitTerms = doc.splitTextToSize(quote.payment_terms, termsW)
+    doc.text(splitTerms, margin, termsY)
+    termsY += splitTerms.length * 11 + 8
   }
 
   if (accountNumber) {
     doc.setFontSize(10)
     doc.setTextColor(107, 114, 128)
-    doc.text("Wire / Bank Account Number:", margin, summaryY)
-    summaryY += 14
+    doc.text("Wire / Bank Account Number:", margin, termsY)
+    termsY += 14
     doc.setFontSize(11)
     doc.setTextColor(17, 24, 39)
-    doc.text(accountNumber, margin, summaryY)
-    summaryY += 20
+    doc.text(accountNumber, margin, termsY)
+    termsY += 22
   }
 
+  // Public notes sit above the footer, full width.
+  let notesY = Math.max(totalsY, termsY) + 20
   if (quote.notes_public) {
     doc.setFontSize(10)
     doc.setTextColor(107, 114, 128)
-    doc.text("Notes:", margin, summaryY)
-    summaryY += 14
+    doc.text("Notes:", margin, notesY)
+    notesY += 14
     doc.setTextColor(17, 24, 39)
-    const splitNotes = doc.splitTextToSize(quote.notes_public, 520)
-    doc.text(splitNotes, margin, summaryY)
-    summaryY += splitNotes.length * 12 + 8
+    doc.setFontSize(9)
+    const splitNotes = doc.splitTextToSize(quote.notes_public, pageWNum - margin * 2)
+    doc.text(splitNotes, margin, notesY)
   }
 
-  // Footer note.
-  const pageH = doc.internal.pageSize.getHeight()
-  const footerY = pageH - 40
-  doc.setDrawColor(229, 231, 235)
-  doc.line(margin, footerY - 10, pageW - margin, footerY - 10)
-  doc.setFontSize(9)
-  doc.setTextColor(107, 114, 128)
-  const footerNote =
-    "Prices are quoted in Nigerian Naira (NGN). Taxes are calculated per line item. " +
-    "Software licenses include standard support during business hours. " +
-    "Implementation, training and customisation are scoped separately unless expressly included."
-  const footerLines = doc.splitTextToSize(footerNote, pageW - margin * 2)
-  doc.text(footerLines, margin, footerY)
+  // Footer is drawn on every page at a fixed bottom position so it is never disturbed.
+  const totalPages = (doc as unknown as { getNumberOfPages: () => number }).getNumberOfPages()
+  for (let i = 1; i <= totalPages; i++) {
+    ;(doc as unknown as { setPage: (n: number) => void }).setPage(i)
+    const footerY = pageH - 40
+    doc.setDrawColor(229, 231, 235)
+    doc.line(margin, footerY - 10, pageWNum - margin, footerY - 10)
+    doc.setFontSize(9)
+    doc.setTextColor(107, 114, 128)
+    const footerNote =
+      "Prices are quoted in Nigerian Naira (NGN). Taxes are calculated per line item. " +
+      "Software licenses include standard support during business hours. " +
+      "Implementation, training and customisation are scoped separately unless expressly included."
+    const footerLines = doc.splitTextToSize(footerNote, pageWNum - margin * 2)
+    doc.text(footerLines, margin, footerY)
+    doc.setFontSize(8)
+    doc.text(`Page ${i} of ${totalPages}`, pageWNum - margin, footerY - 18, { align: "right" })
+  }
 
   doc.save(`MartPoint-Quotation-${quote.quote_number}.pdf`)
 }

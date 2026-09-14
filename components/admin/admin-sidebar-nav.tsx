@@ -32,6 +32,7 @@ import {
   Palette,
   UserPlus,
   Download,
+  Calendar as CalendarIcon,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -53,6 +54,7 @@ const navItems: NavItem[] = [
 
   // SALES
   { href: "/admin/leads", label: "Leads", icon: Funnel, page: "leads", section: "Sales" },
+  { href: "/admin/calendar", label: "Calendar", icon: CalendarIcon, page: "leads", section: "Sales" },
   { href: "/admin/quotations", label: "Quotations", icon: FileText, page: "quotations", section: "Sales" },
 
   // CUSTOMERS

@@ -29,6 +29,7 @@ import {
   Smartphone,
   Globe,
   ArrowUpRight,
+  Video,
 } from "lucide-react"
 
 export interface Lead {
@@ -65,7 +66,19 @@ export interface QuestionnaireField {
   selected?: boolean
 }
 
-type Tab = "overview" | "edit" | "notes" | "questionnaire" | "actions"
+type Tab = "overview" | "edit" | "notes" | "questionnaire" | "meeting" | "actions"
+
+interface Meeting {
+  id: string
+  customerToken: string
+  title: string
+  scheduledAt: string
+  durationMinutes: number
+  timezone: string
+  meetingLink: string | null
+  provider: string | null
+  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"
+}
 
 const PIPELINE_STAGES: Lead["status"][] = ["New", "Contacted", "Qualified", "Proposal", "Won", "Lost"]
 
@@ -144,6 +157,17 @@ export function LeadDetailModal({
   const [converting, setConverting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [questionnaireLoading, setQuestionnaireLoading] = useState(false)
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [meetingLoading, setMeetingLoading] = useState(false)
+  const [meetingForm, setMeetingForm] = useState({
+    title: "MartPoint Demo",
+    scheduledAt: "",
+    durationMinutes: 30,
+    timezone: "Africa/Lagos",
+    meetingLink: "",
+    provider: "",
+    notes: "",
+  })
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -156,6 +180,20 @@ export function LeadDetailModal({
       document.body.style.overflow = ""
     }
   }, [onClose])
+
+  useEffect(() => {
+    if (tab !== "meeting") return
+    let cancelled = false
+    fetch(`/api/admin/leads/${lead.id}/meetings`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setMeetings(data.meetings || [])
+      })
+      .catch(() => {
+        if (!cancelled) setMeetings([])
+      })
+    return () => { cancelled = true }
+  }, [tab, lead.id])
 
   const handleSaveNotes = async () => {
     setSavingNotes(true)
@@ -211,6 +249,48 @@ export function LeadDetailModal({
     setQuestionnaireLoading(false)
   }
 
+  const handleScheduleMeeting = async () => {
+    if (!meetingForm.scheduledAt) return
+    setMeetingLoading(true)
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/meetings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: meetingForm.title,
+          scheduledAt: meetingForm.scheduledAt,
+          durationMinutes: Number(meetingForm.durationMinutes) || 30,
+          timezone: meetingForm.timezone,
+          meetingLink: meetingForm.meetingLink,
+          provider: meetingForm.provider,
+          notes: meetingForm.notes,
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.meeting) {
+        setMeetings((prev) => [data.meeting, ...prev])
+        setMeetingForm({
+          title: "MartPoint Demo",
+          scheduledAt: "",
+          durationMinutes: 30,
+          timezone: "Africa/Lagos",
+          meetingLink: "",
+          provider: "",
+          notes: "",
+        })
+      }
+    } catch {
+      // ignore
+    } finally {
+      setMeetingLoading(false)
+    }
+  }
+
+  const copyMeetingLink = (token: string) => {
+    const url = `${window.location.origin}/meeting/${token}`
+    navigator.clipboard.writeText(url)
+  }
+
   const productLabel =
     lead.productInterest === "retail"
       ? "MartPoint Retail"
@@ -227,6 +307,7 @@ export function LeadDetailModal({
     { id: "edit", label: "Edit", icon: <Pencil className="w-3.5 h-3.5" /> },
     { id: "notes", label: "Notes", icon: <MessageSquare className="w-3.5 h-3.5" /> },
     { id: "questionnaire", label: "Questionnaire", icon: <ClipboardList className="w-3.5 h-3.5" /> },
+    { id: "meeting", label: "Meeting", icon: <Video className="w-3.5 h-3.5" /> },
     { id: "actions", label: "Actions", icon: <Rocket className="w-3.5 h-3.5" /> },
   ]
 
@@ -689,6 +770,138 @@ export function LeadDetailModal({
                   </Button>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* ─── Meeting ─── */}
+          {tab === "meeting" && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Title</label>
+                  <input
+                    type="text"
+                    value={meetingForm.title}
+                    onChange={(e) => setMeetingForm((p) => ({ ...p, title: e.target.value }))}
+                    className={inputClass}
+                    placeholder="e.g. MartPoint Demo"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Scheduled At *</label>
+                  <input
+                    type="datetime-local"
+                    value={meetingForm.scheduledAt}
+                    onChange={(e) => setMeetingForm((p) => ({ ...p, scheduledAt: e.target.value }))}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Duration (minutes)</label>
+                  <input
+                    type="number"
+                    value={meetingForm.durationMinutes}
+                    onChange={(e) => setMeetingForm((p) => ({ ...p, durationMinutes: Number(e.target.value) }))}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Timezone</label>
+                  <input
+                    type="text"
+                    value={meetingForm.timezone}
+                    onChange={(e) => setMeetingForm((p) => ({ ...p, timezone: e.target.value }))}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Meeting Link</label>
+                  <input
+                    type="url"
+                    value={meetingForm.meetingLink}
+                    onChange={(e) => setMeetingForm((p) => ({ ...p, meetingLink: e.target.value }))}
+                    className={inputClass}
+                    placeholder="https://meet.google.com/... or Zoom link"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Provider</label>
+                  <select
+                    value={meetingForm.provider}
+                    onChange={(e) => setMeetingForm((p) => ({ ...p, provider: e.target.value }))}
+                    className={inputClass}
+                  >
+                    <option value="">Select...</option>
+                    <option value="Google Meet">Google Meet</option>
+                    <option value="Zoom">Zoom</option>
+                    <option value="Microsoft Teams">Microsoft Teams</option>
+                    <option value="WhatsApp">WhatsApp</option>
+                    <option value="Custom">Custom</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Internal Notes</label>
+                <textarea
+                  rows={3}
+                  value={meetingForm.notes}
+                  onChange={(e) => setMeetingForm((p) => ({ ...p, notes: e.target.value }))}
+                  className={`${inputClass} resize-none`}
+                  placeholder="Agenda, talking points, preparation..."
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button size="sm" onClick={handleScheduleMeeting} disabled={meetingLoading || !meetingForm.scheduledAt}>
+                  {meetingLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Video className="w-4 h-4 mr-1.5" />}
+                  Schedule Meeting
+                </Button>
+              </div>
+
+              {meetings.length > 0 && (
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <p className={labelClass}>Scheduled Meetings</p>
+                  {meetings.map((m) => (
+                    <div key={m.id} className="rounded-lg border border-border p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-sm">{m.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(m.scheduledAt).toLocaleString("en-GB", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })}
+                            {" "}·{" "}
+                            {m.durationMinutes} mins · {m.timezone}
+                          </p>
+                        </div>
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
+                          {m.status}
+                        </span>
+                      </div>
+                      {m.meetingLink ? (
+                        <a href={m.meetingLink} target="_blank" rel="noopener noreferrer" className="text-xs text-retail hover:underline">
+                          {m.provider || "Meeting link"}
+                        </a>
+                      ) : null}
+                      <div className="flex items-center gap-2">
+                        <input
+                          readOnly
+                          value={`${typeof window !== "undefined" ? window.location.origin : ""}/meeting/${m.customerToken}`}
+                          className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
+                        />
+                        <Button size="sm" variant="outline" onClick={() => copyMeetingLink(m.customerToken)}>
+                          <Copy className="w-3.5 h-3.5 mr-1" />
+                          Copy
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => window.open(`/meeting/${m.customerToken}`, "_blank")}>
+                          <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                          Open
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

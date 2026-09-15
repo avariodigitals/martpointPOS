@@ -96,6 +96,7 @@ export default function AdminOnboardingPage() {
   const [statusDraft, setStatusDraft] = useState("")
   const [noteDraft, setNoteDraft] = useState("")
   const [updating, setUpdating] = useState(false)
+  const [stageSaving, setStageSaving] = useState<string | null>(null)
 
   // Invoice modal
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
@@ -233,6 +234,38 @@ export default function AdminOnboardingPage() {
       }
     } catch {
       setMessage("Failed to delete record")
+    }
+  }
+
+  const toggleRecordStage = async (record: OnboardingRecord, stage: string, completed: boolean) => {
+    if (!record.businessId) {
+      setMessage("No linked business to update stages.")
+      return
+    }
+    setStageSaving(`${record.id}-${stage}`)
+    setMessage("")
+    try {
+      const res = await fetch(`/api/admin/businesses/${record.businessId}/onboarding-stage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage, completed }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.id === record.id
+              ? { ...r, onboardingStages: data.stages as Record<string, unknown> }
+              : r
+          )
+        )
+      } else {
+        setMessage(data.error || "Failed to update stage")
+      }
+    } catch {
+      setMessage("Failed to update stage")
+    } finally {
+      setStageSaving(null)
     }
   }
 
@@ -508,22 +541,33 @@ export default function AdminOnboardingPage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {STAGES.map((s) => {
                               const stage = (record.onboardingStages as Record<string, { completedAt?: string }> | undefined)?.[s.key]
+                              const saving = stageSaving === `${record.id}-${s.key}`
+                              const completed = !!stage?.completedAt
                               return (
-                                <div key={s.key} className="flex items-center gap-2 text-sm">
-                                  {stage?.completedAt ? (
+                                <button
+                                  key={s.key}
+                                  type="button"
+                                  disabled={!record.businessId || saving}
+                                  onClick={() => toggleRecordStage(record, s.key, !completed)}
+                                  className="flex items-center gap-2 text-sm text-left w-full disabled:cursor-not-allowed disabled:opacity-60 group"
+                                  title={record.businessId ? (completed ? "Click to reopen" : "Click to complete") : "No linked business"}
+                                >
+                                  {saving ? (
+                                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />
+                                  ) : completed ? (
                                     <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
                                   ) : (
-                                    <div className="w-4 h-4 rounded-full border-2 border-muted-foreground shrink-0" />
+                                    <div className="w-4 h-4 rounded-full border-2 border-gray-300 bg-background group-hover:border-retail shrink-0" />
                                   )}
-                                  <span className={stage?.completedAt ? "text-foreground" : "text-muted-foreground"}>
+                                  <span className={completed ? "text-foreground font-medium" : "text-muted-foreground group-hover:text-foreground"}>
                                     {s.label}
                                   </span>
-                                  {stage?.completedAt && (
+                                  {completed && (
                                     <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                                      {new Date(stage.completedAt).toLocaleDateString()}
+                                      {new Date(stage.completedAt!).toLocaleDateString()}
                                     </span>
                                   )}
-                                </div>
+                                </button>
                               )
                             })}
                           </div>

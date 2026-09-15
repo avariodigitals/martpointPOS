@@ -6,6 +6,8 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { generateSetupQuestions } from "@/lib/onboarding"
 import { sendEmail } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
+import { auditContextFromSession } from "@/lib/audit"
+import { initiateOnboarding } from "@/lib/businesses"
 
 /* ─── Types ─── */
 interface OnboardingRecord {
@@ -136,6 +138,14 @@ export async function POST(request: Request) {
         console.error("[Supabase Onboarding Insert Error]", error)
         return NextResponse.json({ error: "Failed to create onboarding record" }, { status: 500 })
       }
+
+      // Also start onboarding on the linked business if it is still a PROSPECT
+      const { data: linked } = await supabase.from("businesses").select("id, status").eq("source_lead_id", leadId).single()
+      if (linked?.id && linked.status === "PROSPECT") {
+        const session = await getSession()
+        const ctx = auditContextFromSession(session, request)
+        await initiateOnboarding(linked.id, ctx)
+      }
     }
 
     // Send email with setup questions
@@ -234,6 +244,27 @@ export async function PUT(request: Request) {
     if (error || !data) {
       console.error("[Supabase Onboarding Update Error]", error)
       return NextResponse.json({ error: "Update failed" }, { status: 500 })
+    }
+
+    // Sync linked business status to the onboarding record lifecycle
+    if (status && isSupabaseConfigured() && data.lead_id) {
+      const { data: linked } = await supabase.from("businesses").select("id, status").eq("source_lead_id", data.lead_id).single()
+      if (linked?.id) {
+        const businessUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() }
+        if (status === "Completed") {
+          businessUpdate.status = "ACTIVE"
+          businessUpdate.onboarding_progress = 100
+        } else if (status === "In Progress") {
+          businessUpdate.status = "ONBOARDING"
+        } else if (status === "Rejected") {
+          businessUpdate.status = "INACTIVE"
+        } else if (status === "Pending" && linked.status !== "ACTIVE") {
+          businessUpdate.status = "ONBOARDING"
+        }
+        if (businessUpdate.status) {
+          await supabase.from("businesses").update(businessUpdate).eq("id", linked.id)
+        }
+      }
     }
 
     return NextResponse.json({ success: true, record: data })

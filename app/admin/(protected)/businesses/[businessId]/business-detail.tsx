@@ -384,6 +384,8 @@ export function BusinessDetail({
 
   const completedCount = ONBOARDING_STAGES.filter((s) => stages[s.key]).length
   const plan = subscription?.plans as { name?: string; code?: string; billing_type?: string } | null | undefined
+  const hasOnboarding = business.onboardingStartedAt || business.status === "ONBOARDING" || onboardingRecords.length > 0 || Object.keys(stages).length > 0
+  const showInitiate = business.status === "PROSPECT" && !hasOnboarding
 
   return (
     <div className="space-y-6">
@@ -534,7 +536,7 @@ export function BusinessDetail({
       {tab === "onboarding" && (
         <div className="space-y-4">
           {/* Initiate Onboarding CTA */}
-          {business.status === "PROSPECT" && (
+          {showInitiate && (
             <Card className="border-dashed border-primary/30 bg-primary/5">
               <CardContent className="p-4 flex items-center justify-between flex-wrap gap-3">
                 <div>
@@ -549,7 +551,7 @@ export function BusinessDetail({
           )}
 
           {/* Progress + Health */}
-          {(business.onboardingStartedAt || business.status === "ONBOARDING") && (
+          {hasOnboarding && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card className="md:col-span-2">
                 <CardHeader className="pb-2">
@@ -609,7 +611,7 @@ export function BusinessDetail({
           )}
 
           {/* Kanban Board */}
-          {(business.onboardingStartedAt || business.status === "ONBOARDING") && (
+          {hasOnboarding && (
             <div className="overflow-x-auto pb-2">
               <div className="flex gap-3 min-w-[1400px]">
                 {ONBOARDING_STAGES.map((s, i) => {
@@ -653,7 +655,7 @@ export function BusinessDetail({
           )}
 
           {/* Training */}
-          {(business.onboardingStartedAt || business.status === "ONBOARDING") && (
+          {hasOnboarding && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-sm font-medium">Training Sessions ({trainingSessions.length})</CardTitle>

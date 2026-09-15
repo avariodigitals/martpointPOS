@@ -146,6 +146,7 @@ export function LeadDetailModal({
   const [converting, setConverting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [questionnaireLoading, setQuestionnaireLoading] = useState(false)
+  const [questionnaireData, setQuestionnaireData] = useState<{ fields: QuestionnaireField[]; responses: Record<string, unknown> } | null>(null)
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [meetingLoading, setMeetingLoading] = useState(false)
   const [meetingForm, setMeetingForm] = useState({
@@ -181,6 +182,21 @@ export function LeadDetailModal({
       .catch(() => {
         if (!cancelled) setMeetings([])
       })
+    return () => { cancelled = true }
+  }, [tab, lead.id])
+
+  useEffect(() => {
+    if (tab !== "questionnaire") return
+    let cancelled = false
+    setQuestionnaireData(null)
+    fetch(`/api/admin/leads/${lead.id}/questionnaire`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data.fields && data.responses) {
+          setQuestionnaireData({ fields: data.fields, responses: data.responses })
+        }
+      })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [tab, lead.id])
 
@@ -723,6 +739,26 @@ export function LeadDetailModal({
                       <ExternalLink className="w-3.5 h-3.5 mr-1" />
                       Open
                     </Button>
+                  </div>
+                </div>
+              )}
+
+              {(lead.questionnaireStatus === "Submitted" || lead.questionnaireStatus === "Reviewed") && questionnaireData && Object.keys(questionnaireData.responses).length > 0 && (
+                <div className="space-y-3 pt-2 border-t border-border">
+                  <p className={labelClass}>Submitted Responses</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {questionnaireData.fields.map((field) => (
+                      <div key={field.name} className="rounded-lg border border-border bg-muted/20 p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                          {field.label}
+                        </p>
+                        <p className="text-sm text-foreground whitespace-pre-wrap">
+                          {questionnaireData.responses[field.name] !== undefined
+                            ? String(questionnaireData.responses[field.name])
+                            : "—"}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

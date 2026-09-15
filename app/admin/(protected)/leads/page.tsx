@@ -455,7 +455,7 @@ export default function AdminLeadsPage() {
       })
       const data = await res.json()
       if (data.token && data.url) {
-        setQuestionnaireUrl(data.url)
+        setQuestionnaireUrl(`/questionnaire/${data.token}`)
         setLeads((prev) => prev.map((l) => (l.id === questionnaireLead.id ? { ...l, questionnaireToken: data.token, questionnaireStatus: "Sent" } : l)))
         setMessage("Questionnaire link generated.")
       } else {
@@ -470,7 +470,10 @@ export default function AdminLeadsPage() {
 
   const copyQuestionnaireLink = () => {
     if (!questionnaireUrl) return
-    const full = typeof window !== "undefined" ? `${window.location.origin}${questionnaireUrl}` : questionnaireUrl
+    const full =
+      typeof window !== "undefined" && !questionnaireUrl.startsWith("http")
+        ? `${window.location.origin}${questionnaireUrl}`
+        : questionnaireUrl
     navigator.clipboard.writeText(full).then(() => {
       setQuestionnaireLinkCopied(true)
       setTimeout(() => setQuestionnaireLinkCopied(false), 2000)
@@ -1187,7 +1190,11 @@ export default function AdminLeadsPage() {
                 <div className="flex items-center gap-2">
                   <input
                     readOnly
-                    value={`${typeof window !== "undefined" ? window.location.origin : ""}${questionnaireUrl}`}
+                    value={
+                      questionnaireUrl.startsWith("http")
+                        ? questionnaireUrl
+                        : `${typeof window !== "undefined" ? window.location.origin : ""}${questionnaireUrl}`
+                    }
                     className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-xs"
                   />
                   <Button size="sm" variant="outline" onClick={copyQuestionnaireLink}>

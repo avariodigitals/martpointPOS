@@ -613,7 +613,7 @@ export function BusinessDetail({
           {/* Kanban Board */}
           {hasOnboarding && (
             <div className="overflow-x-auto pb-2">
-              <div className="flex gap-3 min-w-[1400px]">
+              <div className="flex gap-3 w-max">
                 {ONBOARDING_STAGES.map((s, i) => {
                   const progress = stages[s.key]
                   const done = !!progress

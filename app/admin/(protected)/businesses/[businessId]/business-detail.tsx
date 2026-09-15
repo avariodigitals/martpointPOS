@@ -477,7 +477,15 @@ export function BusinessDetail({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm border-t border-border pt-4">
                   <div><span className="text-muted-foreground">Source lead: </span>{business.sourceLeadId ? <code className="bg-muted px-1 rounded">{business.sourceLeadId}</code> : "None"}</div>
                   <div><span className="text-muted-foreground">Created: </span>{fmt(business.createdAt)}</div>
-                  <div><span className="text-muted-foreground">Onboarding progress: </span>{completedCount}/{ONBOARDING_STAGES.length} stages</div>
+                  <div>
+                    <span className="text-muted-foreground">Onboarding progress: </span>
+                    <button
+                      onClick={() => setTab("onboarding")}
+                      className="font-medium text-retail hover:underline focus:outline-none"
+                    >
+                      {completedCount}/{ONBOARDING_STAGES.length} stages
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button size="sm" variant="outline" onClick={deleteBusiness} disabled={deleting} className="text-red-600 hover:text-red-700 hover:bg-red-50">

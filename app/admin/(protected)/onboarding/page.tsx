@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { generateSetupQuestions } from "@/lib/onboarding"
 import { Button } from "@/components/ui/button"
@@ -434,6 +435,13 @@ export default function AdminOnboardingPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {record.businessId && (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/admin/businesses/${record.businessId}`}>
+                            View Business
+                          </Link>
+                        </Button>
+                      )}
                       {record.setupQuestionsSent && (
                         <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-green-50 text-green-700 font-medium flex items-center gap-1">
                           <Check className="w-3 h-3" /> Questions Sent

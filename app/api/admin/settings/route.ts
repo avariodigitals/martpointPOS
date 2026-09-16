@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { revalidateTag } from "next/cache"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { getIntegrationDefaults } from "@/lib/integrations"
 
 async function readSettings(): Promise<Record<string, unknown>> {
   if (!isSupabaseConfigured()) {
@@ -224,6 +225,7 @@ function getDefaultSettings() {
         },
       ],
     },
+    ...getIntegrationDefaults(),
   }
 }
 

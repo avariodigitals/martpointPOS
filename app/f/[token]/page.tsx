@@ -5,7 +5,14 @@ import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Loader2, Star, AlertCircle, Check, ThumbsUp, ThumbsDown } from "lucide-react"
 
-const STEPS = ["deployment", "configuration", "testing", "training", "handover"]
+const STEPS = [
+  { key: "deployment", label: "Deployment", description: "Getting your MartPoint system installed and ready for use." },
+  { key: "configuration", label: "Configuration", description: "Setting things up to match the way your business works." },
+  { key: "testing", label: "Testing", description: "Making sure everything works correctly before you start using it." },
+  { key: "training", label: "Training", description: "How well we showed you and your staff how to use the system." },
+  { key: "handover", label: "Handover", description: "How smooth and complete the final handover to your team was." },
+  { key: "customer-service", label: "Customer Service", description: "How friendly, helpful, and responsive our team was in communicating with you." },
+]
 
 type Customer = {
   fullName: string
@@ -42,6 +49,7 @@ export default function CustomerFeedbackPage() {
             testing: 0,
             training: 0,
             handover: 0,
+            "customer-service": 0,
             ...saved,
           })
           setComment((data.customer.feedback?.comment as string) || "")
@@ -144,20 +152,23 @@ export default function CustomerFeedbackPage() {
 
           <div className="space-y-4">
             {STEPS.map((step) => (
-              <div key={step} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border border-border bg-muted/20">
-                <span className="text-sm font-medium capitalize">{step}</span>
-                <div className="flex items-center gap-1">
+              <div key={step.key} className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 p-3 rounded-lg border border-border bg-muted/20">
+                <div>
+                  <span className="text-sm font-medium">{step.label}</span>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{step.description}</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
                       key={n}
                       type="button"
-                      onClick={() => setRating(step, n)}
+                      onClick={() => setRating(step.key, n)}
                       className="p-1 focus:outline-none"
-                      aria-label={`${n} star`}
+                      aria-label={`${n} star for ${step.label}`}
                     >
                       <Star
                         className={`w-6 h-6 transition-colors ${
-                          n <= (ratings[step] || 0)
+                          n <= (ratings[step.key] || 0)
                             ? "text-amber-500 fill-amber-500"
                             : "text-gray-300 hover:text-amber-300"
                         }`}
@@ -211,7 +222,7 @@ export default function CustomerFeedbackPage() {
             variant="retail"
             className="w-full"
             onClick={handleSubmit}
-            disabled={submitting || STEPS.some((s) => !ratings[s])}
+            disabled={submitting || STEPS.some((s) => !ratings[s.key])}
           >
             {submitting ? (
               <>

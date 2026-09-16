@@ -1,6 +1,7 @@
 import { cache } from "react"
 import { unstable_cache } from "next/cache"
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { getIntegrationDefaults, type IntegrationSettings } from "./integrations"
 
 const fetchSettings = unstable_cache(
   async function fetchSettings(): Promise<Record<string, unknown> | null> {
@@ -65,4 +66,15 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
     console.error("[settings] getPublicSiteSettings", err)
     return defaults
   }
+}
+
+export async function getSettings(): Promise<Record<string, unknown> & IntegrationSettings> {
+  const stored = (await readSettings()) || {}
+  const defaults = getIntegrationDefaults()
+
+  return {
+    ...stored,
+    livekit: { ...defaults.livekit, ...((stored.livekit || {}) as Partial<IntegrationSettings["livekit"]>) },
+    whatsapp: { ...defaults.whatsapp, ...((stored.whatsapp || {}) as Partial<IntegrationSettings["whatsapp"]>) },
+  } as Record<string, unknown> & IntegrationSettings
 }

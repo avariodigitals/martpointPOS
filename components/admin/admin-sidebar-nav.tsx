@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
   Settings,
+  Radio,
   BarChart3,
   Search,
   FileText,
@@ -33,6 +34,7 @@ import {
   UserPlus,
   Download,
   Calendar as CalendarIcon,
+  MessageCircle,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -59,6 +61,7 @@ const navItems: NavItem[] = [
 
   // CUSTOMERS
   { href: "/admin/customers", label: "Customers", icon: Users, page: "customers", section: "Customers" },
+  { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, page: "customers", section: "Customers" },
   { href: "/admin/businesses", label: "Businesses", icon: Building2, page: "businesses", section: "Customers" },
   { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardCheck, page: "onboarding", section: "Customers" },
   { href: "/admin/customer-success", label: "Customer Success", icon: Activity, page: "customer_success", section: "Customers" },
@@ -95,6 +98,7 @@ const navItems: NavItem[] = [
 
   // ADMINISTRATION
   { href: "/admin/settings", label: "Settings", icon: Settings, page: "settings", section: "Administration" },
+  { href: "/admin/integrations", label: "Integrations", icon: Radio, page: "integrations", section: "Administration" },
   { href: "/admin/settings/email", label: "Email Settings", icon: Mail, page: "settings", section: "Administration" },
   { href: "/admin/settings/email-routes", label: "Email Routes", icon: Route, page: "settings", section: "Administration" },
   { href: "/admin/settings/email-templates", label: "Email Templates", icon: Mail, page: "settings", section: "Administration" },

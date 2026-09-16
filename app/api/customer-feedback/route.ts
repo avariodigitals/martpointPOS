@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
-const STEPS = ["deployment", "configuration", "testing", "training", "handover"]
+const STEPS = ["deployment", "configuration", "testing", "training", "handover", "customer-service"]
 
 function averageRating(ratings: Record<string, number>) {
   const values = STEPS.map((s) => Number(ratings[s])).filter((n) => !Number.isNaN(n))

@@ -10,6 +10,7 @@ import {
   MessageSquare,
   CheckCircle2,
   AlertCircle,
+  Phone,
   Send,
   Copy,
   Check,
@@ -21,6 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react"
+import { LiveKitCallButton } from "@/components/admin/livekit-call-button"
+import { LiveKitInboundPanel } from "@/components/admin/livekit-inbound-panel"
 
 interface Ticket {
   id: string
@@ -84,7 +87,7 @@ export default function AdminCustomersPage() {
   const [message, setMessage] = useState("")
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<"checklist" | "tickets" | "testimonial" | "feedback">("checklist")
+  const [activeTab, setActiveTab] = useState<"checklist" | "tickets" | "testimonial" | "feedback" | "call">("checklist")
 
   const [draftChecks, setDraftChecks] = useState<Record<string, CheckItem>>({})
   const [draftTestimonial, setDraftTestimonial] = useState("")
@@ -200,6 +203,8 @@ export default function AdminCustomersPage() {
       {message && (
         <p className={`text-sm ${message.includes("Saved") ? "text-green-600" : "text-red-500"}`}>{message}</p>
       )}
+
+      <LiveKitInboundPanel />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -334,6 +339,7 @@ export default function AdminCustomersPage() {
                             { key: "tickets", label: "Complaints & Resolutions", icon: MessageSquare },
                             { key: "testimonial", label: "Testimonial", icon: Star },
                             { key: "feedback", label: "Feedback", icon: ThumbsUp },
+                            { key: "call", label: "Call", icon: Phone },
                           ].map((tab) => {
                             const Icon = tab.icon
                             return (
@@ -485,12 +491,13 @@ export default function AdminCustomersPage() {
                             {customer.feedback && Object.keys(customer.feedback).length > 0 ? (
                               <>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  {STEPS.map((step) => {
+                                  {[...STEPS, "customer-service"].map((step) => {
                                     const ratings = (customer.feedback.ratings as Record<string, number>) || {}
                                     const value = ratings[step] || 0
+                                    const label = step.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
                                     return (
                                       <div key={step} className="flex items-center justify-between p-2 rounded-md border border-border bg-muted/10">
-                                        <span className="text-sm font-medium capitalize">{step}</span>
+                                        <span className="text-sm font-medium">{label}</span>
                                         <StarRating value={value} />
                                       </div>
                                     )
@@ -513,6 +520,12 @@ export default function AdminCustomersPage() {
                                 <p className="text-xs mt-1">Share the link above to collect ratings for every step.</p>
                               </div>
                             )}
+                          </div>
+                        )}
+
+                        {activeTab === "call" && (
+                          <div className="space-y-3">
+                            <LiveKitCallButton customerId={customer.id} phone={customer.phone} />
                           </div>
                         )}
                       </div>

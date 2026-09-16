@@ -11,7 +11,7 @@ import {
   Gem, Paintbrush, Wrench, Carrot, Tractor, Car, Printer, BookOpen,
   EyeOff, Puzzle, Gauge, PackageOpen, HandCoins, TrendingUp, WifiOff,
   Cloud, Lock, ClipboardCheck, History, HeadphonesIcon,
-  Snowflake, Flame, Fish, Zap,
+  Snowflake, Flame, Fish, Zap, MonitorPlay,
 } from "lucide-react"
 
 export interface IndustryData {
@@ -2243,6 +2243,118 @@ export const tyreShops: IndustryData = {
   ],
 }
 
+export const automobile: IndustryData = {
+  name: "Automobile",
+  slug: "automobile",
+  category: "Automotive",
+  product: "retail",
+  navVisible: true,
+  description: "Manage new and used car inventory, test drives, trade-ins, customer deposits and vehicle sales in one place.",
+  seo: {
+    title: "Automobile & Car Sales POS Software — MartPoint Retail",
+    description: "Track vehicles, test drives, trade-ins, customer deposits and sales for your car dealership or automobile business. MartPoint Retail is built for African auto retailers.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Sell Cars and Track Every Vehicle from Lot to Customer",
+    paragraph: "New or used, every vehicle in your lot has a story. MartPoint Retail helps you manage automobile stock by make, model, year and colour, track test drives, customer deposits and trade-ins so you never miss a sale.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I sell automobiles (new/used cars) and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: Car, title: "Lost Vehicle Details", desc: "Make, model, year, VIN, colour and condition are scattered across notes. Staff cannot answer customer questions fast." },
+    { icon: AlertTriangle, title: "Duplicate Test Drives", desc: "The same car is out with multiple customers or test drives are not logged. Confusion and risk pile up." },
+    { icon: Receipt, title: "Deposits and Instalments", desc: "Customer deposits, part-payments and instalment plans are hard to track. Cash is lost or misapplied." },
+    { icon: Package, title: "Trade-In Valuation Chaos", desc: "Trade-in values, documents and condition notes are not tied to the new sale. Mistakes cost money." },
+    { icon: BarChart3, title: "No Sales Pipeline", desc: "You do not know which prospects are hot, which cars are slow and which sales person is closing." },
+    { icon: Users, title: "Follow-Up Leads Slip", desc: "Interested buyers call back and staff cannot find the car, price or previous conversation." },
+  ],
+  solutions: [
+    { icon: Car, title: "Vehicle Master Record", desc: "Record make, model, year, VIN, colour, condition, price and photos for every car on the lot." },
+    { icon: AlertTriangle, title: "Test Drive Log", desc: "Log every test drive with customer, time, staff and vehicle. See which cars are on the road." },
+    { icon: Receipt, title: "Deposit and Instalment Tracking", desc: "Record deposits, part-payments and balances by customer. Know who has paid what." },
+    { icon: Package, title: "Trade-In Journals", desc: "Attach trade-in details and valuation directly to the new vehicle sale." },
+    { icon: BarChart3, title: "Sales Pipeline Reports", desc: "Track prospects, test drives, quotes and closed deals by sales person and vehicle." },
+    { icon: Users, title: "Customer Follow-Up", desc: "Customer notes, phone numbers and follow-up dates attached to every vehicle interest." },
+  ],
+  capabilities: [
+    { icon: Car, title: "Vehicle Inventory", desc: "Stock by make, model, year, colour and condition with VIN support." },
+    { icon: AlertTriangle, title: "Test Drive Management", desc: "Log and track every test drive with customer and staff." },
+    { icon: Receipt, title: "Deposits and Payments", desc: "Track deposits, instalments and full payments by customer and vehicle." },
+    { icon: Package, title: "Trade-Ins", desc: "Record trade-in value, condition and documents against a sale." },
+    { icon: BarChart3, title: "Sales Analytics", desc: "Prospects, closes and revenue by vehicle, make and sales person." },
+    { icon: Users, title: "Customer CRM", desc: "Notes, calls and follow-ups tied to each interested buyer." },
+  ],
+  whyMartPoint: [
+    "Built for African automobile retail: vehicle stock, test drives and deposits handled out of the box.",
+    "Works offline so your showroom keeps recording even when the network drops.",
+    "Simple enough for sales staff to use while negotiating with customers.",
+    "Local support that understands vehicle sales and instalment plans.",
+  ],
+  faqs: [
+    { q: "Can I track each car by VIN, make, model and colour?", a: "Yes. Record full vehicle details including VIN, make, model, year, colour, condition and price for every unit on your lot." },
+    { q: "Can I log customer deposits and instalments?", a: "Absolutely. Record deposits, part-payments and balances per customer and per vehicle so nothing is lost." },
+    { q: "Does it track test drives?", a: "Yes. Log test drives with customer, vehicle, time and staff so you know which cars are on the road." },
+    { q: "Can I manage trade-in vehicles?", a: "Yes. Record trade-in valuation, condition and documents directly against the new vehicle sale." },
+  ],
+}
+
+export const digitalCreator: IndustryData = {
+  name: "Digital Creator",
+  slug: "digital-creator",
+  category: "Digital & Creative",
+  product: "retail",
+  navVisible: true,
+  description: "Sell online courses, ebooks, templates and digital products with payments, access control and customer tracking.",
+  seo: {
+    title: "Digital Creator POS & Sales Software — MartPoint Retail",
+    description: "Sell online courses, ebooks, templates and digital products. MartPoint Retail handles payments, access control, coupons and customer tracking for African digital creators.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Sell Courses and Digital Products Without the Tech Headache",
+    paragraph: "As a digital creator, your time should be spent creating, not chasing payments. MartPoint Retail lets you sell online courses, ebooks, templates and downloads, track every customer and control access from one simple dashboard.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I'm a digital creator selling online courses and digital products. I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: MonitorPlay, title: "Manual Payment Confirmation", desc: "Students pay by transfer but you confirm access one by one. Sales slip through and customers wait." },
+    { icon: Lock, title: "No Access Control", desc: "Anyone with the link gets your course. Piracy spreads and revenue leaks." },
+    { icon: Receipt, title: "Scattered Sales Records", desc: "Course sales, membership fees and product payments live in different apps. You cannot see real profit." },
+    { icon: BarChart3, title: "No Student Insight", desc: "You do not know which course, bundle or funnel is making money. Marketing is guesswork." },
+    { icon: Cloud, title: "Lost Download Links", desc: "Ebook and template buyers email for new links. You spend hours resending files." },
+    { icon: Users, title: "No Student Follow-Up", desc: "You cannot tell who completed a course, who refunded or who is ready for the next offer." },
+  ],
+  solutions: [
+    { icon: MonitorPlay, title: "Course Product Catalogue", desc: "List courses, ebooks, templates and bundles with pricing, access rules and expiry." },
+    { icon: Lock, title: "Access Control", desc: "Generate unique access links or tokens after payment. One purchase, one customer, one gate." },
+    { icon: Receipt, title: "Sales Consolidation", desc: "All payments — courses, products, memberships — recorded in one dashboard with real profit." },
+    { icon: BarChart3, title: "Creator Analytics", desc: "See revenue by product, funnel and student cohort. Know what to create next." },
+    { icon: Cloud, title: "Digital Delivery", desc: "Issue secure download links and course access automatically after payment confirmation." },
+    { icon: Users, title: "Student CRM", desc: "Track every student, purchase, refund and completion. Follow up at the right time." },
+  ],
+  capabilities: [
+    { icon: MonitorPlay, title: "Course & Product Listing", desc: "Sell online courses, ebooks, templates and digital downloads." },
+    { icon: Lock, title: "Gated Access", desc: "Issue payment-locked access links and tokens for each customer." },
+    { icon: Receipt, title: "Payment Recording", desc: "Card, transfer and wallet payments recorded by product." },
+    { icon: BarChart3, title: "Revenue Reports", desc: "Profit by course, bundle, funnel and month." },
+    { icon: Cloud, title: "Auto Delivery", desc: "Send access and download links automatically after confirmation." },
+    { icon: Users, title: "Student Tracking", desc: "Customer history, refunds, completions and follow-ups." },
+  ],
+  whyMartPoint: [
+    "Built for African digital creators: course sales, gated content and payments in one place.",
+    "Works offline and syncs, so you can record sales even without internet.",
+    "Simple enough to set up a new course or product in minutes.",
+    "Local support that understands digital payments and access control.",
+  ],
+  faqs: [
+    { q: "Can I sell online courses and ebooks with MartPoint?", a: "Yes. List courses, ebooks, templates and digital products with pricing and payment rules." },
+    { q: "How do I stop people from sharing my course links?", a: "You can issue unique access tokens or links per customer, making it easy to control who gets in." },
+    { q: "Can I see which product makes the most money?", a: "Yes. Revenue and profit reports by product, bundle and month show exactly what is working." },
+    { q: "Does it confirm payments automatically?", a: "Sales staff can mark payments confirmed and the customer is automatically given access." },
+  ],
+}
+
 export const laundry: IndustryData = {
   name: "Laundry",
   slug: "laundry",
@@ -2697,8 +2809,9 @@ export const allIndustries: IndustryData[] = [
   electronicsStores, phoneShops, computerStores, gadgetStores, applianceStores,
   hardwareStores, paintStores, plumbingStores,
   agroDealers, feedStores,
-  autoParts, tyreShops,
+  autoParts, tyreShops, automobile,
   laundry, printing, tailoring,
+  digitalCreator,
   distributors, wholesalers, manufacturers,
   multiBranchRetail,
 ]
@@ -2721,6 +2834,7 @@ export const categoryOrder = [
   "Agriculture",
   "Automotive",
   "Services",
+  "Digital & Creative",
   "Enterprise",
 ]
 

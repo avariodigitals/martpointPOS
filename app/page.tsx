@@ -15,7 +15,9 @@ import { BlogPreview } from "@/components/sections/blog-preview"
 import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 
 export const metadata: Metadata = {
-  title: "MartPoint — #1 Retail & ERP Software for African Businesses",
+  title: {
+    absolute: "MartPoint — #1 Retail & ERP Software for African Businesses",
+  },
   description:
     "All-in-one POS, inventory management, online store, WhatsApp ordering, loyalty rewards, and multi-branch management software built for African retail businesses. Supermarkets, pharmacies, restaurants, fashion stores & more.",
   keywords: [

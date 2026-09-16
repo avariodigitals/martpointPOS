@@ -33,6 +33,11 @@ const ROUTES: RouteDef[] = [
     label: "Support Ticket",
     description: "New customer support ticket notifications",
   },
+  {
+    key: "customer_feedback",
+    label: "Customer Feedback",
+    description: "Customer rating submissions from the feedback page",
+  },
 ]
 
 export default function EmailRoutesPage() {

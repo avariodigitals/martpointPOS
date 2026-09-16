@@ -189,4 +189,6 @@ export const socialLinks = [
   { key: "instagram", label: "Instagram" },
   { key: "twitter", label: "X" },
   { key: "linkedin", label: "LinkedIn" },
+  { key: "youtube", label: "YouTube" },
+  { key: "tiktok", label: "TikTok" },
 ]

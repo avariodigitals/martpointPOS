@@ -5,9 +5,13 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
 export async function OrganizationSchema() {
   const settings = await readSettings()
   const general = settings?.general as Record<string, string> | undefined
+  const social = (settings?.social as Record<string, string>) || {}
   const companyName = general?.companyName || "MartPoint"
   const email = general?.contactEmail || "hello@martpoint.com.ng"
   const whatsapp = general?.whatsappNumber || "+2348036028069"
+  const sameAs = [social.facebook, social.instagram, social.twitter, social.linkedin, social.youtube, social.tiktok].filter(
+    Boolean,
+  )
 
   const schema = {
     "@context": "https://schema.org",
@@ -16,12 +20,7 @@ export async function OrganizationSchema() {
     alternateName: "MartPoint Africa",
     url: BASE_URL,
     logo: `${BASE_URL}/logo.webp`,
-    sameAs: [
-      "https://www.facebook.com/martpoint.ng",
-      "https://www.linkedin.com/company/martpoint",
-      "https://www.instagram.com/martpoint.ng",
-      "https://twitter.com/martpointng",
-    ],
+    sameAs,
     contactPoint: [
       {
         "@type": "ContactPoint",

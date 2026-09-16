@@ -908,6 +908,24 @@ It only takes a few minutes and the details you provide will help us tailor the 
 Best regards,
 MartPoint Sales Team`,
   },
+  {
+    key: "customer_feedback",
+    label: "Customer Feedback (internal)",
+    description: "Internal notification when a customer submits a rating. Recipient is controlled by the customer_feedback email route.",
+    variables: ["fullName", "businessName", "average", "mood", "comment", "ratingsList"],
+    subject: "Customer Feedback: {{fullName}} — {{average}}/5",
+    text: `New customer feedback submitted.
+
+Customer: {{fullName}}
+Business: {{businessName}}
+Average rating: {{average}}/5
+Mood: {{mood}}
+
+Ratings:
+{{ratingsList}}
+
+Comment: {{comment}}`,
+  },
 ]
 
 const templateMap = new Map(EMAIL_TEMPLATES.map((t) => [t.key, t]))

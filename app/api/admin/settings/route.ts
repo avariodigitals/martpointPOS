@@ -63,6 +63,7 @@ function getDefaultSettings() {
         onboarding_invoice: "",
         support_ticket: "support@martpoint.com.ng",
         quotation: "",
+        customer_feedback: "support@martpoint.com.ng",
       },
     },
     social: {
@@ -70,6 +71,8 @@ function getDefaultSettings() {
       instagram: "",
       twitter: "",
       linkedin: "",
+      youtube: "",
+      tiktok: "",
     },
     searchConsole: {
       verificationCode: "",

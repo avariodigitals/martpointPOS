@@ -65,6 +65,7 @@ const DEFAULT_ROUTES: Record<string, string> = {
   onboarding_invoice: "",
   support_ticket: "support@martpoint.com.ng",
   quotation: "",
+  customer_feedback: "support@martpoint.com.ng",
 }
 
 let cachedSettings: EmailSettings | null = null

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { sendEmail } from "@/lib/email"
+import { renderEmailTemplate } from "@/lib/email-templates"
 
 const STEPS = ["deployment", "configuration", "testing", "training", "handover", "customer-service"]
 
@@ -113,6 +115,21 @@ export async function POST(request: Request) {
     if (error || !data) {
       console.error("[Customer Feedback Update Error]", error)
       return NextResponse.json({ error: "Failed to save feedback" }, { status: 500 })
+    }
+
+    try {
+      const ratingsList = STEPS.map((s) => `${s}: ${ratings?.[s] || "—"}`).join("\n")
+      const tpl = await renderEmailTemplate("customer_feedback", {
+        fullName: data.full_name,
+        businessName: data.business_name,
+        average: avg.toFixed(1),
+        mood: relationship,
+        comment: comment || "—",
+        ratingsList,
+      })
+      await sendEmail({ route: "customer_feedback", subject: tpl.subject, text: tpl.text, html: tpl.html })
+    } catch (err) {
+      console.error("[feedback email]", err)
     }
 
     return NextResponse.json({ success: true, customer: data })

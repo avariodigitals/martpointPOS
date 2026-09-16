@@ -29,6 +29,8 @@ interface SocialSettings {
   instagram: string
   twitter: string
   linkedin: string
+  youtube: string
+  tiktok: string
 }
 
 interface SearchConsoleSettings {
@@ -96,6 +98,8 @@ export default function AdminSettingsPage() {
     instagram: "",
     twitter: "",
     linkedin: "",
+    youtube: "",
+    tiktok: "",
   })
   const [searchConsole, setSearchConsole] = useState<SearchConsoleSettings>({
     verificationCode: "",
@@ -506,6 +510,26 @@ export default function AdminSettingsPage() {
                   onChange={(e) => setSocial({ ...social, linkedin: e.target.value })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="https://linkedin.com/company/martpoint"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">YouTube URL</label>
+                <input
+                  type="url"
+                  value={social.youtube}
+                  onChange={(e) => setSocial({ ...social, youtube: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="https://youtube.com/@martpoint"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">TikTok URL</label>
+                <input
+                  type="url"
+                  value={social.tiktok}
+                  onChange={(e) => setSocial({ ...social, tiktok: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="https://tiktok.com/@martpoint"
                 />
               </div>
             </CardContent>

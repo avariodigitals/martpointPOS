@@ -96,6 +96,7 @@ export default function AdminOnboardingPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [statusDraft, setStatusDraft] = useState("")
   const [noteDraft, setNoteDraft] = useState("")
+  const [editingNote, setEditingNote] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [stageSaving, setStageSaving] = useState<string | null>(null)
 
@@ -230,16 +231,38 @@ export default function AdminOnboardingPage() {
       const res = await fetch("/api/admin/onboarding", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status: statusDraft, notes: noteDraft }),
+        body: JSON.stringify({ id, status: statusDraft }),
       })
       const data = await res.json()
       if (data.success) {
-        setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, status: statusDraft as OnboardingRecord["status"], notes: noteDraft } : r)))
+        setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, status: statusDraft as OnboardingRecord["status"] } : r)))
         setMessage("Record updated.")
         setTimeout(() => setMessage(""), 2000)
       }
     } catch {
       setMessage("Failed to update record")
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const saveNote = async (id: string) => {
+    setUpdating(true)
+    try {
+      const res = await fetch("/api/admin/onboarding", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, notes: noteDraft }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, notes: noteDraft } : r)))
+        setEditingNote(false)
+        setMessage("Note saved.")
+        setTimeout(() => setMessage(""), 2000)
+      }
+    } catch {
+      setMessage("Failed to save note")
     } finally {
       setUpdating(false)
     }
@@ -651,6 +674,7 @@ MartPoint Team`
                       setExpandedId(expandedId === record.id ? null : record.id)
                       setStatusDraft(record.status)
                       setNoteDraft(record.notes || "")
+                      setEditingNote(false)
                     }}
                   >
                     <div className="flex-1">
@@ -787,21 +811,59 @@ MartPoint Team`
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium mb-1">Internal Notes</label>
-                        <textarea
-                          value={noteDraft}
-                          onChange={(e) => setNoteDraft(e.target.value)}
-                          rows={2}
-                          placeholder="Add notes about this client..."
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
-                        />
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-medium">Internal Notes</label>
+                          {!editingNote && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNoteDraft(record.notes || "")
+                                setEditingNote(true)
+                              }}
+                              className="text-xs text-retail hover:underline"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                        {editingNote ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={noteDraft}
+                              onChange={(e) => setNoteDraft(e.target.value)}
+                              rows={3}
+                              placeholder="Add notes about this client..."
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+                            />
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" onClick={() => saveNote(record.id)} disabled={updating}>
+                                {updating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
+                                Save Note
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingNote(false)
+                                  setNoteDraft(record.notes || "")
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 min-h-[38px]">
+                            {record.notes ? record.notes : <span className="text-muted-foreground">No notes yet.</span>}
+                          </p>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <Button size="sm" onClick={() => updateRecord(record.id)} disabled={updating}>
+                          <Button size="sm" onClick={() => updateRecord(record.id)} disabled={updating || statusDraft === record.status}>
                             {updating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
-                            Save Changes
+                            Save Status
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => openInvoice(record)}>
                             <FileText className="w-3.5 h-3.5 mr-1" />

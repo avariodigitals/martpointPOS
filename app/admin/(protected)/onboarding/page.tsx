@@ -64,6 +64,20 @@ interface OnboardingRecord {
   updatedAt: string
   businessId?: string
   onboardingStages?: Record<string, unknown>
+  accessDetails?: {
+    recipients?: string
+    softwareUrl?: string
+    adminUsername?: string
+    tempPassword?: string
+    onlineStoreUrl?: string
+    supportGroupUrl?: string
+    supportContact?: string
+    trainingSchedule?: string
+    attachStoreQr?: boolean
+    attachLoginQr?: boolean
+    message?: string
+    lastSentAt?: string
+  } | null
 }
 
 export default function AdminOnboardingPage() {
@@ -423,24 +437,25 @@ MartPoint Team`
   }
 
   const openAccess = (record: OnboardingRecord) => {
+    const saved = record.accessDetails
     const slug = (record.businessName || record.fullName).toLowerCase().replace(/[^a-z0-9]+/g, "")
     const form = {
-      recipients: record.email,
-      softwareUrl: slug ? `https://${slug}.martpoint.com.ng/login` : "",
-      adminUsername: record.email,
-      tempPassword: "",
-      onlineStoreUrl: "",
-      supportGroupUrl: "",
-      supportContact: "Blessing / 08036028069",
-      trainingSchedule: "Please share a suitable date with us.",
-      attachStoreQr: true,
-      attachLoginQr: false,
+      recipients: saved?.recipients || record.email,
+      softwareUrl: saved?.softwareUrl || (slug ? `https://${slug}.martpoint.com.ng/login` : ""),
+      adminUsername: saved?.adminUsername || record.email,
+      tempPassword: saved?.tempPassword || "",
+      onlineStoreUrl: saved?.onlineStoreUrl || "",
+      supportGroupUrl: saved?.supportGroupUrl || "",
+      supportContact: saved?.supportContact || "Blessing / 08036028069",
+      trainingSchedule: saved?.trainingSchedule || "Please share a suitable date with us.",
+      attachStoreQr: saved?.attachStoreQr ?? true,
+      attachLoginQr: saved?.attachLoginQr ?? false,
       message: "",
     }
     setAccessRecord(record)
     setAccessFiles([])
-    setAccessForm({ ...form, message: buildAccessMessage(record, form) })
-    setAccessDirty(false)
+    setAccessForm({ ...form, message: saved?.message || buildAccessMessage(record, form) })
+    setAccessDirty(!!saved?.message)
     setShowAccessModal(true)
   }
 
@@ -1022,7 +1037,14 @@ MartPoint Team`
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Send Access Details</h3>
+              <div>
+                <h3 className="text-lg font-semibold">Send Access Details</h3>
+                {accessRecord.accessDetails?.lastSentAt && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Last sent {new Date(accessRecord.accessDetails.lastSentAt).toLocaleString()} — previous values are prefilled.
+                  </p>
+                )}
+              </div>
               <button
                 onClick={() => { setShowAccessModal(false); setAccessRecord(null) }}
                 className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"

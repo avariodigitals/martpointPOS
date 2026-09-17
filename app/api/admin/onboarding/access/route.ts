@@ -137,9 +137,26 @@ export async function POST(request: Request) {
       attachments: emailAttachments.length ? emailAttachments : undefined,
     })
 
+    // Persist the payload so the modal can be reopened prefilled for resends
     await supabase
       .from("onboarding")
-      .update({ updated_at: new Date().toISOString() })
+      .update({
+        updated_at: new Date().toISOString(),
+        access_details: {
+          recipients: to,
+          softwareUrl,
+          adminUsername,
+          tempPassword,
+          onlineStoreUrl: onlineStoreUrl || "",
+          supportGroupUrl: supportGroupUrl || "",
+          supportContact: supportContact || "",
+          trainingSchedule: trainingSchedule || "",
+          attachStoreQr: !!attachStoreQr,
+          attachLoginQr: !!attachLoginQr,
+          message: emailText,
+          lastSentAt: new Date().toISOString(),
+        },
+      })
       .eq("id", recordId)
 
     return NextResponse.json({ success: true, sent })

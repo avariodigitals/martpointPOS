@@ -71,6 +71,7 @@ export async function GET() {
       documents: row.documents || [],
       signatureUrl: row.signature_url || "",
       notes: row.notes || "",
+      accessDetails: row.access_details || null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }))

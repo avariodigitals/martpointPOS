@@ -702,6 +702,58 @@ Best regards,
 MartPoint Team`,
   },
   {
+    key: "onboarding_access",
+    label: "Onboarding Access Details",
+    description: "Sent after deployment to share the client's software URL, admin credentials and support information. Note: a custom message entered in the admin UI overrides this body.",
+    variables: ["fullName", "businessName", "productLabel", "softwareUrl", "adminUsername", "tempPassword", "onlineStoreBlock", "supportGroupBlock", "supportContact", "trainingSchedule"],
+    subject: "Welcome to MartPoint — Your Access Details ({{businessName}})",
+    text: `Hi {{fullName}},
+
+Welcome to MartPoint! We're pleased to confirm that your MartPoint {{productLabel}} system is ready.
+
+Your MartPoint Access Details
+
+Software URL: {{softwareUrl}}
+Admin Username/Email: {{adminUsername}}
+Temporary Password: {{tempPassword}}
+
+For security, please change the temporary password after your first login and do not share your login credentials with anyone who is not authorised to access your business account.
+
+{{onlineStoreBlock}}Your training session will be arranged according to the agreed schedule, and our team will guide you through the system, your initial setup and the key features your team will be using.
+
+{{supportGroupBlock}}Support Hours
+Monday–Friday: 9:00 a.m.–5:00 p.m.
+Time Zone: West Africa Time (WAT)
+
+Messages received outside these hours will be attended to on the next business day.
+
+What Standard MartPoint Support Covers
+
+Your MartPoint licence and standard support cover the MartPoint Retail software and assistance with using the system.
+
+Hardware, computers, printers, internet connections, power supply, data entry, third-party applications and services outside the MartPoint software are not covered under standard support.
+
+Online Store & Marketing Services
+
+Please note that Online Store services and Marketing services are not included in the standard MartPoint licence fee.
+
+These are optional add-on services that can be requested separately depending on your business needs. This may include online store setup or customisation, product uploads, marketing campaigns, and other related digital services. Where required, the scope and cost will be provided separately before any additional service begins.
+
+When reporting an issue, please include a clear description together with a screenshot or short screen recording where possible.
+
+For security, please do not share passwords, payment information or sensitive customer information in the support group or over email.
+
+Your MartPoint Support Contact: {{supportContact}}
+Training Date & Time: {{trainingSchedule}}
+
+Our commitment does not end with providing the software. We will guide your team through onboarding and continue to support the proper use of MartPoint so your business can operate confidently.
+
+We appreciate your patronage.
+
+Best regards,
+MartPoint Team`,
+  },
+  {
     key: "support_magic_link",
     label: "Support Sign-in Link",
     description: "Magic-link email for the customer support portal.",

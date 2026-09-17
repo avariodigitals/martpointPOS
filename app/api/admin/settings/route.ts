@@ -61,6 +61,7 @@ function getDefaultSettings() {
         partner_application: "",
         onboarding_welcome: "",
         onboarding_invoice: "",
+        onboarding_access: "",
         support_ticket: "support@martpoint.com.ng",
         quotation: "",
         customer_feedback: "support@martpoint.com.ng",

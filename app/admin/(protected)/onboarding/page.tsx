@@ -21,6 +21,7 @@ import {
   Clock,
   Check,
   Trash2,
+  KeyRound,
 } from "lucide-react"
 
 const STAGES = [
@@ -107,6 +108,23 @@ export default function AdminOnboardingPage() {
     amount: "",
     tax: "",
     dueDate: "",
+    message: "",
+  })
+
+  // Access details modal
+  const [showAccessModal, setShowAccessModal] = useState(false)
+  const [accessRecord, setAccessRecord] = useState<OnboardingRecord | null>(null)
+  const [sendingAccess, setSendingAccess] = useState(false)
+  const [accessDirty, setAccessDirty] = useState(false)
+  const [accessForm, setAccessForm] = useState({
+    recipients: "",
+    softwareUrl: "",
+    adminUsername: "",
+    tempPassword: "",
+    onlineStoreUrl: "",
+    supportGroupUrl: "",
+    supportContact: "",
+    trainingSchedule: "",
     message: "",
   })
 
@@ -315,6 +333,127 @@ export default function AdminOnboardingPage() {
       setMessage("Failed to send invoice")
     } finally {
       setSendingInvoice(false)
+    }
+  }
+
+  const buildAccessMessage = (record: OnboardingRecord, form: typeof accessForm) => {
+    const productLabel = record.productInterest === "erp" ? "ERP" : "Retail"
+    const storeBlock = form.onlineStoreUrl ? `Online Store: ${form.onlineStoreUrl}\n\n` : ""
+    const groupBlock = form.supportGroupUrl
+      ? `Your MartPoint Support Group\n\nJoin your dedicated support group here:\n${form.supportGroupUrl}\n\nThe group is used for:\n\n• MartPoint onboarding and training coordination\n• Guidance on using the MartPoint software\n• Reporting software-related issues\n• Updates on reported issues\n• Important MartPoint service information\n\n`
+      : ""
+    return `Hi ${record.fullName},
+
+Welcome to MartPoint! We're pleased to confirm that your MartPoint ${productLabel} system is ready.
+
+Your MartPoint Access Details
+
+Software URL: ${form.softwareUrl}
+Admin Username/Email: ${form.adminUsername}
+Temporary Password: ${form.tempPassword}
+
+For security, please change the temporary password after your first login and do not share your login credentials with anyone who is not authorised to access your business account.
+
+${storeBlock}Your training session will be arranged according to the agreed schedule, and our team will guide you through the system, your initial setup and the key features your team will be using.
+
+${groupBlock}Support Hours
+Monday–Friday: 9:00 a.m.–5:00 p.m.
+Time Zone: West Africa Time (WAT)
+
+Messages received outside these hours will be attended to on the next business day.
+
+What Standard MartPoint Support Covers
+
+Your MartPoint licence and standard support cover the MartPoint Retail software and assistance with using the system.
+
+Hardware, computers, printers, internet connections, power supply, data entry, third-party applications and services outside the MartPoint software are not covered under standard support.
+
+Online Store & Marketing Services
+
+Please note that Online Store services and Marketing services are not included in the standard MartPoint licence fee.
+
+These are optional add-on services that can be requested separately depending on your business needs. This may include online store setup or customisation, product uploads, marketing campaigns, and other related digital services. Where required, the scope and cost will be provided separately before any additional service begins.
+
+When reporting an issue, please include a clear description together with a screenshot or short screen recording where possible.
+
+For security, please do not share passwords, payment information or sensitive customer information in the support group or over email.
+
+Your MartPoint Support Contact: ${form.supportContact}
+Training Date & Time: ${form.trainingSchedule}
+
+Our commitment does not end with providing the software. We will guide your team through onboarding and continue to support the proper use of MartPoint so your business can operate confidently.
+
+We appreciate your patronage.
+
+Best regards,
+MartPoint Team`
+  }
+
+  const openAccess = (record: OnboardingRecord) => {
+    const slug = (record.businessName || record.fullName).toLowerCase().replace(/[^a-z0-9]+/g, "")
+    const form = {
+      recipients: record.email,
+      softwareUrl: slug ? `https://${slug}.martpoint.com.ng/login` : "",
+      adminUsername: record.email,
+      tempPassword: "",
+      onlineStoreUrl: "",
+      supportGroupUrl: "",
+      supportContact: "Blessing / 08036028069",
+      trainingSchedule: "Please share a suitable date with us.",
+      message: "",
+    }
+    setAccessRecord(record)
+    setAccessForm({ ...form, message: buildAccessMessage(record, form) })
+    setAccessDirty(false)
+    setShowAccessModal(true)
+  }
+
+  const updateAccessField = (key: keyof typeof accessForm, value: string) => {
+    setAccessForm((prev) => {
+      const next = { ...prev, [key]: value }
+      if (!accessDirty && accessRecord) {
+        next.message = buildAccessMessage(accessRecord, next)
+      }
+      return next
+    })
+  }
+
+  const sendAccess = async () => {
+    if (!accessRecord) return
+    setSendingAccess(true)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/onboarding/access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recordId: accessRecord.id,
+          recipients: accessForm.recipients,
+          softwareUrl: accessForm.softwareUrl,
+          adminUsername: accessForm.adminUsername,
+          tempPassword: accessForm.tempPassword,
+          onlineStoreUrl: accessForm.onlineStoreUrl,
+          supportGroupUrl: accessForm.supportGroupUrl,
+          supportContact: accessForm.supportContact,
+          trainingSchedule: accessForm.trainingSchedule,
+          message: accessForm.message,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setShowAccessModal(false)
+        setAccessRecord(null)
+        setMessage(data.sent
+          ? "Access details sent to client."
+          : "Email logged but not delivered — check Email Settings.")
+        setTimeout(() => setMessage(""), 4000)
+      } else {
+        setMessage(data.error || "Failed to send access details")
+      }
+    } catch {
+      setMessage("Failed to send access details")
+    } finally {
+      setSendingAccess(false)
     }
   }
 
@@ -610,6 +749,10 @@ export default function AdminOnboardingPage() {
                             <FileText className="w-3.5 h-3.5 mr-1" />
                             Generate Invoice
                           </Button>
+                          <Button size="sm" variant="outline" onClick={() => openAccess(record)}>
+                            <KeyRound className="w-3.5 h-3.5 mr-1" />
+                            Send Access Details
+                          </Button>
                         </div>
                         <button
                           onClick={(e) => {
@@ -748,6 +891,147 @@ export default function AdminOnboardingPage() {
               <Button size="sm" variant="retail" onClick={sendInvoice} disabled={sendingInvoice || !invoiceForm.description || !invoiceForm.amount}>
                 {sendingInvoice ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
                 {sendingInvoice ? "Sending..." : "Send Invoice"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Access Details Modal */}
+      {showAccessModal && accessRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Send Access Details</h3>
+              <button
+                onClick={() => { setShowAccessModal(false); setAccessRecord(null) }}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium mb-1">Send To (comma-separated)</label>
+                <input
+                  type="text"
+                  value={accessForm.recipients}
+                  onChange={(e) => updateAccessField("recipients", e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Software URL</label>
+                <input
+                  type="text"
+                  value={accessForm.softwareUrl}
+                  onChange={(e) => updateAccessField("softwareUrl", e.target.value)}
+                  placeholder="https://clientname.martpoint.com.ng/login"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Admin Username/Email</label>
+                  <input
+                    type="text"
+                    value={accessForm.adminUsername}
+                    onChange={(e) => updateAccessField("adminUsername", e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Temporary Password</label>
+                  <input
+                    type="text"
+                    value={accessForm.tempPassword}
+                    onChange={(e) => updateAccessField("tempPassword", e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Online Store URL (optional)</label>
+                <input
+                  type="text"
+                  value={accessForm.onlineStoreUrl}
+                  onChange={(e) => updateAccessField("onlineStoreUrl", e.target.value)}
+                  placeholder="https://clientname.martpoint.com.ng/store/slug"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Support Group Link (optional)</label>
+                <input
+                  type="text"
+                  value={accessForm.supportGroupUrl}
+                  onChange={(e) => updateAccessField("supportGroupUrl", e.target.value)}
+                  placeholder="https://chat.whatsapp.com/..."
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Support Contact</label>
+                  <input
+                    type="text"
+                    value={accessForm.supportContact}
+                    onChange={(e) => updateAccessField("supportContact", e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Training Date & Time</label>
+                  <input
+                    type="text"
+                    value={accessForm.trainingSchedule}
+                    onChange={(e) => updateAccessField("trainingSchedule", e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium">Welcome Email</label>
+                  {accessDirty && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (accessRecord) {
+                          setAccessForm((prev) => ({ ...prev, message: buildAccessMessage(accessRecord, prev) }))
+                          setAccessDirty(false)
+                        }
+                      }}
+                      className="text-xs text-retail hover:underline"
+                    >
+                      Rebuild from fields
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={accessForm.message}
+                  onChange={(e) => {
+                    setAccessDirty(true)
+                    setAccessForm((prev) => ({ ...prev, message: e.target.value }))
+                  }}
+                  rows={16}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none font-mono"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  The message rebuilds automatically as you edit the fields above until you edit it manually.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => { setShowAccessModal(false); setAccessRecord(null) }}>Cancel</Button>
+              <Button
+                size="sm"
+                variant="retail"
+                onClick={sendAccess}
+                disabled={sendingAccess || !accessForm.softwareUrl || !accessForm.adminUsername || !accessForm.tempPassword || !accessForm.recipients}
+              >
+                {sendingAccess ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
+                {sendingAccess ? "Sending..." : "Send Access Details"}
               </Button>
             </div>
           </div>

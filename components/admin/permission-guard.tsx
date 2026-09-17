@@ -24,6 +24,7 @@ const pageMap: Record<string, string> = {
   "/admin/tasks": "tasks",
   "/admin/reports": "analytics",
   "/admin/audit": "admin",
+  "/admin/marketing": "marketing",
 }
 
 function matchPage(pathname: string): string | undefined {

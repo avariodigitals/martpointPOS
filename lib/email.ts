@@ -31,6 +31,10 @@ export interface EmailMessage {
   from?: string
   route?: string
   attachments?: EmailAttachment[]
+  /** Per-message provider override; defaults to the configured provider. */
+  provider?: EmailProvider
+  /** Extra SMTP/API headers, e.g. List-Unsubscribe for marketing email. */
+  headers?: Record<string, string>
 }
 
 export interface EmailSettings {
@@ -64,6 +68,7 @@ const DEFAULT_ROUTES: Record<string, string> = {
   onboarding_welcome: "",
   onboarding_invoice: "",
   onboarding_access: "",
+  marketing: "",
   support_ticket: "support@martpoint.com.ng",
   quotation: "",
   customer_feedback: "support@martpoint.com.ng",
@@ -172,7 +177,9 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
   const settings = await getEmailSettings()
 
   const provider: EmailProvider =
-    settings.provider === "brevo" ? "brevo" : "resend"
+    message.provider === "brevo" || message.provider === "resend"
+      ? message.provider
+      : settings.provider === "brevo" ? "brevo" : "resend"
 
   const from =
     message.from ||
@@ -274,6 +281,7 @@ async function sendViaResend(
     }
     if (message.html) body.html = message.html
     if (message.attachments?.length) body.attachments = message.attachments
+    if (message.headers) body.headers = message.headers
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -351,6 +359,7 @@ async function sendViaBrevo(
     if (message.attachments?.length) {
       body.attachment = message.attachments.map((a) => ({ name: a.filename, content: a.content }))
     }
+    if (message.headers) body.headers = message.headers
 
     const res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",

@@ -42,10 +42,10 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
-  Admin: ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "integrations", "users", "leads", "quotations", "customers", "finance", "onboarding", "partners", "businesses", "support", "customer_success", "compliance", "tasks"],
+  Admin: ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "integrations", "users", "leads", "quotations", "customers", "finance", "onboarding", "partners", "businesses", "support", "customer_success", "compliance", "tasks", "marketing"],
   Finance: ["dashboard", "finance", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "compliance"],
-  "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses"],
-  Sales: ["tracker", "analytics", "leads", "quotations", "customers", "finance", "onboarding", "businesses", "partners", "customer_success"],
+  "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "marketing"],
+  Sales: ["tracker", "analytics", "leads", "quotations", "customers", "finance", "onboarding", "businesses", "partners", "customer_success", "marketing"],
   Tech: ["settings", "integrations", "seo", "blog", "faqs", "customers", "businesses", "support", "customer_success", "compliance", "tasks"],
   Editor: ["blog", "faqs"],
 }

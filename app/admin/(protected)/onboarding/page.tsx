@@ -1032,7 +1032,7 @@ MartPoint Team`
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium mb-1">Send To (comma-separated)</label>
+                <label className="block text-xs font-medium mb-1">Send To (separate multiple with commas, semicolons or new lines)</label>
                 <input
                   type="text"
                   value={accessForm.recipients}

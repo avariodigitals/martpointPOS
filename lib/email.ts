@@ -166,11 +166,10 @@ async function writeEmailLog(log: EmailLogInsert): Promise<void> {
 
 function normalizeRecipients(value?: string | string[]): string[] {
   if (!value) return []
-  if (Array.isArray(value)) return value.map((s) => s.trim()).filter(Boolean)
-  return value
-    .split(",")
+  const parts = Array.isArray(value) ? value : value.split(/[,;\n]+/)
+  return parts
     .map((s) => s.trim())
-    .filter(Boolean)
+    .filter((s) => s.includes("@"))
 }
 
 export async function sendEmail(message: EmailMessage): Promise<boolean> {

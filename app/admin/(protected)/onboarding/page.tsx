@@ -125,8 +125,11 @@ export default function AdminOnboardingPage() {
     supportGroupUrl: "",
     supportContact: "",
     trainingSchedule: "",
+    attachStoreQr: true,
+    attachLoginQr: false,
     message: "",
   })
+  const [accessFiles, setAccessFiles] = useState<Array<{ name: string; content: string; size: number }>>([])
 
   const loadData = async () => {
     setLoading(true)
@@ -336,11 +339,18 @@ export default function AdminOnboardingPage() {
     }
   }
 
-  const buildAccessMessage = (record: OnboardingRecord, form: typeof accessForm) => {
+  const buildAccessMessage = (record: OnboardingRecord, form: typeof accessForm, files: Array<{ name: string; content: string; size: number }> = accessFiles) => {
     const productLabel = record.productInterest === "erp" ? "ERP" : "Retail"
     const storeBlock = form.onlineStoreUrl ? `Online Store: ${form.onlineStoreUrl}\n\n` : ""
     const groupBlock = form.supportGroupUrl
       ? `Your MartPoint Support Group\n\nJoin your dedicated support group here:\n${form.supportGroupUrl}\n\nThe group is used for:\n\n• MartPoint onboarding and training coordination\n• Guidance on using the MartPoint software\n• Reporting software-related issues\n• Updates on reported issues\n• Important MartPoint service information\n\n`
+      : ""
+    const kitItems: string[] = []
+    if (form.attachStoreQr && form.onlineStoreUrl) kitItems.push("Store QR code — print and display at your counter")
+    if (form.attachLoginQr && form.softwareUrl) kitItems.push("Login QR code — quick sign-in on staff devices")
+    for (const f of files) kitItems.push(f.name)
+    const kitBlock = kitItems.length
+      ? `Your Welcome Kit — see attachments\n\n${kitItems.map((i) => `• ${i}`).join("\n")}\n\n`
       : ""
     return `Hi ${record.fullName},
 
@@ -354,7 +364,7 @@ Temporary Password: ${form.tempPassword}
 
 For security, please change the temporary password after your first login and do not share your login credentials with anyone who is not authorised to access your business account.
 
-${storeBlock}Your training session will be arranged according to the agreed schedule, and our team will guide you through the system, your initial setup and the key features your team will be using.
+${storeBlock}${kitBlock}Your training session will be arranged according to the agreed schedule, and our team will guide you through the system, your initial setup and the key features your team will be using.
 
 ${groupBlock}Support Hours
 Monday–Friday: 9:00 a.m.–5:00 p.m.
@@ -400,15 +410,18 @@ MartPoint Team`
       supportGroupUrl: "",
       supportContact: "Blessing / 08036028069",
       trainingSchedule: "Please share a suitable date with us.",
+      attachStoreQr: true,
+      attachLoginQr: false,
       message: "",
     }
     setAccessRecord(record)
+    setAccessFiles([])
     setAccessForm({ ...form, message: buildAccessMessage(record, form) })
     setAccessDirty(false)
     setShowAccessModal(true)
   }
 
-  const updateAccessField = (key: keyof typeof accessForm, value: string) => {
+  const updateAccessField = (key: keyof typeof accessForm, value: string | boolean) => {
     setAccessForm((prev) => {
       const next = { ...prev, [key]: value }
       if (!accessDirty && accessRecord) {
@@ -416,6 +429,48 @@ MartPoint Team`
       }
       return next
     })
+  }
+
+  const MAX_ACCESS_FILES_BYTES = 3 * 1024 * 1024
+
+  const addAccessFiles = (list: FileList | null) => {
+    if (!list || !accessRecord) return
+    let running = accessFiles.reduce((s, f) => s + f.size, 0)
+    const readers = Array.from(list).map((file) => new Promise<{ name: string; content: string; size: number } | null>((resolve) => {
+      if (running + file.size > MAX_ACCESS_FILES_BYTES) {
+        resolve(null)
+        return
+      }
+      running += file.size
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = String(reader.result || "")
+        resolve({ name: file.name, content: dataUrl.split(",")[1] || "", size: file.size })
+      }
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(file)
+    }))
+    Promise.all(readers).then((results) => {
+      const ok = results.filter((r): r is { name: string; content: string; size: number } => !!r)
+      const next = [...accessFiles, ...ok]
+      setAccessFiles(next)
+      if (ok.length < results.length) {
+        setMessage("Some files were skipped — total attachment limit is 3 MB.")
+        setTimeout(() => setMessage(""), 4000)
+      }
+      if (!accessDirty) {
+        setAccessForm((prev) => ({ ...prev, message: buildAccessMessage(accessRecord, prev, next) }))
+      }
+    })
+  }
+
+  const removeAccessFile = (index: number) => {
+    if (!accessRecord) return
+    const next = accessFiles.filter((_, i) => i !== index)
+    setAccessFiles(next)
+    if (!accessDirty) {
+      setAccessForm((prev) => ({ ...prev, message: buildAccessMessage(accessRecord, prev, next) }))
+    }
   }
 
   const sendAccess = async () => {
@@ -436,6 +491,9 @@ MartPoint Team`
           supportGroupUrl: accessForm.supportGroupUrl,
           supportContact: accessForm.supportContact,
           trainingSchedule: accessForm.trainingSchedule,
+          attachStoreQr: accessForm.attachStoreQr,
+          attachLoginQr: accessForm.attachLoginQr,
+          attachments: accessFiles.map((f) => ({ name: f.name, content: f.content })),
           message: accessForm.message,
         }),
       })
@@ -969,6 +1027,65 @@ MartPoint Team`
                   placeholder="https://chat.whatsapp.com/..."
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
+              </div>
+              <div className="rounded-md border border-border bg-muted/10 p-3 space-y-2">
+                <label className="block text-xs font-medium">Welcome Kit Attachments</label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={accessForm.attachStoreQr}
+                    onChange={(e) => updateAccessField("attachStoreQr", e.target.checked)}
+                    disabled={!accessForm.onlineStoreUrl}
+                    className="rounded border-input"
+                  />
+                  <span className={!accessForm.onlineStoreUrl ? "text-muted-foreground" : ""}>
+                    Store QR code{!accessForm.onlineStoreUrl ? " (needs Online Store URL)" : " — generated from the Online Store URL"}
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={accessForm.attachLoginQr}
+                    onChange={(e) => updateAccessField("attachLoginQr", e.target.checked)}
+                    disabled={!accessForm.softwareUrl}
+                    className="rounded border-input"
+                  />
+                  <span className={!accessForm.softwareUrl ? "text-muted-foreground" : ""}>
+                    Login QR code{!accessForm.softwareUrl ? " (needs Software URL)" : " — generated from the Software URL"}
+                  </span>
+                </label>
+                <div>
+                  <input
+                    type="file"
+                    multiple
+                    onChange={(e) => {
+                      addAccessFiles(e.target.files)
+                      e.target.value = ""
+                    }}
+                    className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-xs file:font-medium hover:file:bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Welcome card, digital card, brand kit, etc. — 3 MB total max.</p>
+                </div>
+                {accessFiles.length > 0 && (
+                  <ul className="space-y-1">
+                    {accessFiles.map((f, i) => (
+                      <li key={`${f.name}-${i}`} className="flex items-center justify-between text-xs rounded bg-muted/30 px-2 py-1">
+                        <span className="truncate flex items-center gap-1">
+                          <FileText className="w-3 h-3 shrink-0" /> {f.name}
+                          <span className="text-muted-foreground">({Math.ceil(f.size / 1024)} KB)</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeAccessFile(i)}
+                          className="p-0.5 text-muted-foreground hover:text-red-600"
+                          title="Remove"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

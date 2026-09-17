@@ -75,6 +75,7 @@ interface OnboardingRecord {
     trainingSchedule?: string
     attachStoreQr?: boolean
     attachLoginQr?: boolean
+    additionalUsers?: string
     message?: string
     lastSentAt?: string
   } | null
@@ -142,6 +143,7 @@ export default function AdminOnboardingPage() {
     trainingSchedule: "",
     attachStoreQr: true,
     attachLoginQr: false,
+    additionalUsers: "",
     message: "",
   })
   const [accessFiles, setAccessFiles] = useState<Array<{ name: string; content: string; size: number }>>([])
@@ -382,6 +384,9 @@ export default function AdminOnboardingPage() {
     const groupBlock = form.supportGroupUrl
       ? `Your MartPoint Support Group\n\nJoin your dedicated support group here:\n${form.supportGroupUrl}\n\nThe group is used for:\n\n• MartPoint onboarding and training coordination\n• Guidance on using the MartPoint software\n• Reporting software-related issues\n• Updates on reported issues\n• Important MartPoint service information\n\n`
       : ""
+    const usersBlock = form.additionalUsers.trim()
+      ? `Additional Users:\n${form.additionalUsers.trim()}\n`
+      : ""
     const kitItems: string[] = []
     if (form.attachStoreQr && form.onlineStoreUrl) kitItems.push("Store QR code — print and display at your counter")
     if (form.attachLoginQr && form.softwareUrl) kitItems.push("Login QR code — quick sign-in on staff devices")
@@ -398,7 +403,7 @@ Your MartPoint Access Details
 Software URL: ${form.softwareUrl}
 Admin Username/Email: ${form.adminUsername}
 Temporary Password: ${form.tempPassword}
-
+${usersBlock}
 For security, please change the temporary password after your first login and do not share your login credentials with anyone who is not authorised to access your business account.
 
 ${storeBlock}${kitBlock}Your training session will be arranged according to the agreed schedule, and our team will guide you through the system, your initial setup and the key features your team will be using.
@@ -450,6 +455,7 @@ MartPoint Team`
       trainingSchedule: saved?.trainingSchedule || "Please share a suitable date with us.",
       attachStoreQr: saved?.attachStoreQr ?? true,
       attachLoginQr: saved?.attachLoginQr ?? false,
+      additionalUsers: saved?.additionalUsers || "",
       message: "",
     }
     setAccessRecord(record)
@@ -531,6 +537,7 @@ MartPoint Team`
           trainingSchedule: accessForm.trainingSchedule,
           attachStoreQr: accessForm.attachStoreQr,
           attachLoginQr: accessForm.attachLoginQr,
+          additionalUsers: accessForm.additionalUsers,
           attachments: accessFiles.map((f) => ({ name: f.name, content: f.content })),
           message: accessForm.message,
         }),
@@ -1091,6 +1098,16 @@ MartPoint Team`
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Additional Users (optional — included in the email)</label>
+                <textarea
+                  value={accessForm.additionalUsers}
+                  onChange={(e) => updateAccessField("additionalUsers", e.target.value)}
+                  rows={2}
+                  placeholder={"One per line, e.g.\nCashier — temi / Temp@123\nManager — bola / Temp@456"}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none font-mono"
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Online Store URL (optional)</label>

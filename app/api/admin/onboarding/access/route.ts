@@ -38,6 +38,7 @@ export async function POST(request: Request) {
       trainingSchedule,
       attachStoreQr,
       attachLoginQr,
+      additionalUsers,
       attachments,
       message,
     } = body
@@ -153,6 +154,7 @@ export async function POST(request: Request) {
           trainingSchedule: trainingSchedule || "",
           attachStoreQr: !!attachStoreQr,
           attachLoginQr: !!attachLoginQr,
+          additionalUsers: additionalUsers || "",
           message: emailText,
           lastSentAt: new Date().toISOString(),
         },

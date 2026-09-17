@@ -64,6 +64,7 @@ interface RecipientPreview {
 const AUDIENCE_LABELS: Record<string, string> = {
   leads: "Leads",
   partner_leads: "Partner Leads",
+  businesses: "Businesses",
   manual: "Pasted list",
 }
 
@@ -327,6 +328,7 @@ export default function AdminMarketingPage() {
               >
                 <option value="leads">Leads</option>
                 <option value="partner_leads">Partner Leads</option>
+                <option value="businesses">Businesses</option>
                 <option value="manual">Paste emails</option>
               </select>
             </div>

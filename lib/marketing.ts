@@ -11,11 +11,12 @@ export interface MarketingRecipient {
   name: string
 }
 
-export type MarketingAudience = "leads" | "partner_leads" | "manual"
+export type MarketingAudience = "leads" | "partner_leads" | "businesses" | "manual"
 
 export const MARKETING_AUDIENCES: Array<{ key: MarketingAudience; label: string }> = [
   { key: "leads", label: "Leads" },
   { key: "partner_leads", label: "Partner Leads" },
+  { key: "businesses", label: "Businesses" },
   { key: "manual", label: "Paste emails" },
 ]
 
@@ -69,6 +70,12 @@ export async function getAudienceRecipients(audience: string): Promise<Marketing
       .select("email, contact_name, business_name")
       .order("created_at", { ascending: false })
     for (const r of data || []) push(r.email, r.contact_name || r.business_name)
+  } else if (audience === "businesses") {
+    const { data } = await supabase
+      .from("businesses")
+      .select("primary_email, primary_contact_name, business_name")
+      .order("created_at", { ascending: false })
+    for (const r of data || []) push(r.primary_email, r.primary_contact_name || r.business_name)
   }
 
   return out.slice(0, MAX_CAMPAIGN_RECIPIENTS)

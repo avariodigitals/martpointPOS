@@ -4,14 +4,18 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import { sendEmail } from "./email"
 import { renderEmailTemplate } from "./email-templates"
+import { ADVANCED_QUESTIONNAIRE_FIELDS } from "./questionnaire-catalog"
 
 export interface QuestionnaireField {
   name: string
   label: string
-  type: "text" | "email" | "tel" | "number" | "select" | "textarea" | "date" | "boolean"
+  type: "text" | "email" | "tel" | "number" | "select" | "multiselect" | "textarea" | "date" | "boolean" | "section"
   options?: string[]
+  /** Optional per-option availability badge, e.g. { "Payroll": "coming-soon" } */
+  optionStatuses?: Record<string, string>
   required?: boolean
   default?: string | boolean | number
+  helpText?: string
 }
 
 export const DEFAULT_QUESTIONNAIRE_FIELDS: QuestionnaireField[] = [
@@ -35,6 +39,7 @@ export const DEFAULT_QUESTIONNAIRE_FIELDS: QuestionnaireField[] = [
   { name: "contactPerson", label: "Primary contact person", type: "text", required: true },
   { name: "phone", label: "Contact phone", type: "tel" },
   { name: "desiredGoLiveDate", label: "Desired go-live date", type: "date" },
+  ...ADVANCED_QUESTIONNAIRE_FIELDS.map((f) => f as QuestionnaireField),
   { name: "specialWorkflowRequirements", label: "Special workflow / requirements", type: "textarea" },
   { name: "notes", label: "Notes", type: "textarea" },
 ]

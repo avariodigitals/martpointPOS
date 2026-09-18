@@ -11,8 +11,10 @@ interface QuestionnaireField {
   label: string
   type: string
   options?: string[]
+  optionStatuses?: Record<string, string>
   required?: boolean
   default?: string | number | boolean
+  helpText?: string
 }
 
 export default function QuestionnairePage() {
@@ -44,6 +46,13 @@ export default function QuestionnairePage() {
 
   const update = (name: string, value: unknown) => {
     setResponses((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const toggleMulti = (name: string, option: string) => {
+    setResponses((prev) => {
+      const current = Array.isArray(prev[name]) ? (prev[name] as string[]) : []
+      return { ...prev, [name]: current.includes(option) ? current.filter((o) => o !== option) : [...current, option] }
+    })
   }
 
   const submit = async (e: React.FormEvent) => {
@@ -111,10 +120,17 @@ export default function QuestionnairePage() {
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
             {fields.map((field) => (
+              field.type === "section" ? (
+                <div key={field.name} className="pt-4 mt-2 border-t border-border">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">{field.label}</h3>
+                  {field.helpText && <p className="text-xs text-muted-foreground mt-1">{field.helpText}</p>}
+                </div>
+              ) : (
               <div key={field.name}>
                 <label className="block text-sm font-medium mb-1">
                   {field.label} {field.required && <span className="text-red-500">*</span>}
                 </label>
+                {field.helpText && <p className="text-xs text-muted-foreground mb-1.5">{field.helpText}</p>}
                 {field.type === "textarea" ? (
                   <textarea
                     required={field.required}
@@ -122,6 +138,34 @@ export default function QuestionnairePage() {
                     onChange={(e) => update(field.name, e.target.value)}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px]"
                   />
+                ) : field.type === "multiselect" ? (
+                  <div className="rounded-md border border-input bg-background px-3 py-2 space-y-1.5">
+                    {field.options?.map((o) => {
+                      const selected = Array.isArray(responses[field.name]) && (responses[field.name] as string[]).includes(o)
+                      const status = field.optionStatuses?.[o]
+                      return (
+                        <label key={o} className="flex items-center gap-2 text-sm cursor-pointer py-0.5">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleMulti(field.name, o)}
+                            className="rounded border-input shrink-0"
+                          />
+                          <span className="flex-1">{o}</span>
+                          {status === "coming-soon" && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                              Coming soon
+                            </span>
+                          )}
+                          {status === "ready" && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                              Ready
+                            </span>
+                          )}
+                        </label>
+                      )
+                    })}
+                  </div>
                 ) : field.type === "select" ? (
                   <select
                     required={field.required}
@@ -130,7 +174,11 @@ export default function QuestionnairePage() {
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
                     <option value="">Select...</option>
-                    {field.options?.map((o) => <option key={o} value={o}>{o}</option>)}
+                    {field.options?.map((o) => (
+                      <option key={o} value={o}>
+                        {o}{field.optionStatuses?.[o] === "coming-soon" ? " (Coming soon)" : ""}
+                      </option>
+                    ))}
                   </select>
                 ) : field.type === "boolean" ? (
                   <select
@@ -153,7 +201,7 @@ export default function QuestionnairePage() {
                   />
                 )}
               </div>
-            ))}
+            )))}
             {error && <p className="text-sm text-red-600">{error}</p>}
             <Button type="submit" disabled={saving} className="w-full">
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}

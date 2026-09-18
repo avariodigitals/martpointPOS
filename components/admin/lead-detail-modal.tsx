@@ -62,12 +62,26 @@ export interface QuestionnaireField {
   label: string
   type: string
   options?: string[]
+  optionStatuses?: Record<string, string>
   required?: boolean
   default?: string | number | boolean
+  helpText?: string
   selected?: boolean
 }
 
-type Tab = "overview" | "edit" | "notes" | "questionnaire" | "meeting" | "actions"
+type Tab = "overview" | "edit" | "notes" | "email" | "questionnaire" | "meeting" | "actions"
+
+interface LeadEmailMessage {
+  id: string
+  direction: "inbound" | "outbound"
+  fromEmail: string | null
+  toEmail: string | null
+  subject: string | null
+  bodyText: string | null
+  bodyHtml: string | null
+  status: string
+  createdAt: string
+}
 
 interface Meeting {
   id: string
@@ -149,6 +163,12 @@ export function LeadDetailModal({
   const [questionnaireData, setQuestionnaireData] = useState<{ fields: QuestionnaireField[]; responses: Record<string, unknown> } | null>(null)
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [meetingLoading, setMeetingLoading] = useState(false)
+  const [emails, setEmails] = useState<LeadEmailMessage[]>([])
+  const [emailsLoading, setEmailsLoading] = useState(false)
+  const [emailsError, setEmailsError] = useState("")
+  const [emailForm, setEmailForm] = useState({ subject: "", body: "" })
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null)
   const [meetingForm, setMeetingForm] = useState({
     title: "MartPoint Demo",
     scheduledAt: "",
@@ -186,9 +206,31 @@ export function LeadDetailModal({
   }, [tab, lead.id])
 
   useEffect(() => {
+    if (tab !== "email") return
+    let cancelled = false
+    fetch(`/api/admin/leads/${lead.id}/emails`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data.error) {
+          setEmailsError(data.error)
+          setEmails([])
+        } else {
+          setEmails(data.emails || [])
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setEmailsError("Failed to load email thread")
+      })
+      .finally(() => {
+        if (!cancelled) setEmailsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [tab, lead.id])
+
+  useEffect(() => {
     if (tab !== "questionnaire") return
     let cancelled = false
-    setQuestionnaireData(null)
     fetch(`/api/admin/leads/${lead.id}/questionnaire`)
       .then((res) => res.json())
       .then((data) => {
@@ -296,6 +338,40 @@ export function LeadDetailModal({
     navigator.clipboard.writeText(url)
   }
 
+  const handleSendEmail = async () => {
+    if (!emailForm.subject.trim() || !emailForm.body.trim()) return
+    setSendingEmail(true)
+    setEmailsError("")
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/emails`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: emailForm.subject.trim(), body: emailForm.body }),
+      })
+      const data = await res.json()
+      if (data.email) {
+        setEmails((prev) => [...prev, data.email])
+        setEmailForm({ subject: "", body: "" })
+        if (!data.sent) setEmailsError("Email saved to thread but delivery failed — check email settings.")
+      } else {
+        setEmailsError(data.error || "Failed to send email")
+      }
+    } catch {
+      setEmailsError("Failed to send email")
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
+  const copyEmailBody = (msg: LeadEmailMessage) => {
+    const text = msg.bodyText || msg.subject || ""
+    if (!text) return
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedEmailId(msg.id)
+      setTimeout(() => setCopiedEmailId(null), 2000)
+    })
+  }
+
   const productLabel =
     lead.productInterest === "retail"
       ? "MartPoint Retail"
@@ -307,10 +383,22 @@ export function LeadDetailModal({
 
   const estimate = lead.source.includes("estimate") ? parseEstimate(lead.challenge) : null
 
+  const selectTab = (t: Tab) => {
+    setTab(t)
+    if (t === "email") {
+      setEmailsLoading(true)
+      setEmailsError("")
+    }
+    if (t === "questionnaire") {
+      setQuestionnaireData(null)
+    }
+  }
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "overview", label: "Overview", icon: <User className="w-3.5 h-3.5" /> },
     { id: "edit", label: "Edit", icon: <Pencil className="w-3.5 h-3.5" /> },
     { id: "notes", label: "Notes", icon: <MessageSquare className="w-3.5 h-3.5" /> },
+    { id: "email", label: "Email", icon: <Mail className="w-3.5 h-3.5" /> },
     { id: "questionnaire", label: "Questionnaire", icon: <ClipboardList className="w-3.5 h-3.5" /> },
     { id: "meeting", label: "Meeting", icon: <Video className="w-3.5 h-3.5" /> },
     { id: "actions", label: "Actions", icon: <Rocket className="w-3.5 h-3.5" /> },
@@ -397,7 +485,7 @@ export function LeadDetailModal({
             {tabs.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id)}
+                onClick={() => selectTab(t.id)}
                 className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   tab === t.id
                     ? "border-retail text-retail"
@@ -683,6 +771,109 @@ export function LeadDetailModal({
             </div>
           )}
 
+          {/* ─── Email ─── */}
+          {tab === "email" && (
+            <div className="space-y-5">
+              <div className="rounded-lg border border-border bg-muted/20 p-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <Mail className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  Two-way thread with <span className="font-medium text-foreground">{lead.email}</span>.
+                  Replies from the lead appear here once inbound email is connected.
+                </span>
+              </div>
+
+              {emailsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : emails.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No emails in this thread yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {emails.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`rounded-lg border p-4 space-y-2 ${
+                        msg.direction === "outbound"
+                          ? "border-retail/20 bg-retail-soft/30 ml-8"
+                          : "border-border bg-muted/20 mr-8"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{msg.subject || "(no subject)"}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {msg.direction === "outbound" ? "You" : msg.fromEmail || "Lead"} → {msg.direction === "outbound" ? msg.toEmail : "you"}
+                            {" "}· {new Date(msg.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${
+                              msg.direction === "outbound"
+                                ? msg.status === "failed"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-blue-100 text-blue-700"
+                                : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {msg.direction === "outbound" ? (msg.status === "failed" ? "Failed" : "Sent") : "Received"}
+                          </span>
+                          {(msg.bodyText || msg.subject) && (
+                            <button
+                              type="button"
+                              onClick={() => copyEmailBody(msg)}
+                              className="text-muted-foreground hover:text-foreground p-1"
+                              title="Copy message body"
+                            >
+                              {copiedEmailId === msg.id ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {msg.bodyText && (
+                        <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{msg.bodyText}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {emailsError && (
+                <p className="text-sm text-destructive">{emailsError}</p>
+              )}
+
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <p className={labelClass}>New message</p>
+                <input
+                  type="text"
+                  value={emailForm.subject}
+                  onChange={(e) => setEmailForm((p) => ({ ...p, subject: e.target.value }))}
+                  placeholder={`Subject — e.g. Re: MartPoint for ${lead.businessName}`}
+                  className={inputClass}
+                />
+                <textarea
+                  rows={5}
+                  value={emailForm.body}
+                  onChange={(e) => setEmailForm((p) => ({ ...p, body: e.target.value }))}
+                  placeholder={`Write your reply to ${lead.fullName}...`}
+                  className={`${inputClass} resize-y`}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] text-muted-foreground">Sent to {lead.email}</p>
+                  <Button
+                    size="sm"
+                    onClick={handleSendEmail}
+                    disabled={sendingEmail || !emailForm.subject.trim() || !emailForm.body.trim()}
+                  >
+                    {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Mail className="w-4 h-4 mr-1.5" />}
+                    Send Email
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ─── Questionnaire ─── */}
           {tab === "questionnaire" && (
             <div className="space-y-5">
@@ -747,14 +938,16 @@ export function LeadDetailModal({
                 <div className="space-y-3 pt-2 border-t border-border">
                   <p className={labelClass}>Submitted Responses</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {questionnaireData.fields.map((field) => (
+                    {questionnaireData.fields.filter((f) => f.type !== "section").map((field) => (
                       <div key={field.name} className="rounded-lg border border-border bg-muted/20 p-4">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
                           {field.label}
                         </p>
                         <p className="text-sm text-foreground whitespace-pre-wrap">
                           {questionnaireData.responses[field.name] !== undefined
-                            ? String(questionnaireData.responses[field.name])
+                            ? Array.isArray(questionnaireData.responses[field.name])
+                              ? (questionnaireData.responses[field.name] as string[]).join(", ")
+                              : String(questionnaireData.responses[field.name])
                             : "—"}
                         </p>
                       </div>

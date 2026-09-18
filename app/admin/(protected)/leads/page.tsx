@@ -22,6 +22,7 @@ import {
 import { LeadDetailModal } from "@/components/admin/lead-detail-modal"
 import { COUNTRIES, STATES, CITIES } from "@/lib/locations"
 import { businessTypeOptions } from "@/lib/industries"
+import { ADVANCED_QUESTIONNAIRE_FIELDS } from "@/lib/questionnaire-catalog"
 
 const COUNTRY_OPTIONS = COUNTRIES.map((c) => c.name)
 const STATE_OPTIONS = [...new Set(Object.values(STATES).flat())].sort()
@@ -32,8 +33,10 @@ interface QuestionnaireField {
   label: string
   type: string
   options?: string[]
+  optionStatuses?: Record<string, string>
   required?: boolean
   default?: string | number | boolean
+  helpText?: string
   selected?: boolean
 }
 
@@ -136,6 +139,10 @@ export default function AdminLeadsPage() {
   const [questionnaireUrl, setQuestionnaireUrl] = useState<string | null>(null)
   const [sendingQuestionnaire, setSendingQuestionnaire] = useState(false)
   const [questionnaireLinkCopied, setQuestionnaireLinkCopied] = useState(false)
+  const [expandedFieldOptions, setExpandedFieldOptions] = useState<string | null>(null)
+  const [newOptionDrafts, setNewOptionDrafts] = useState<Record<string, string>>({})
+  const [showNewFieldForm, setShowNewFieldForm] = useState(false)
+  const [newFieldDraft, setNewFieldDraft] = useState({ label: "", type: "text", options: "", required: false })
 
   useEffect(() => {
     let cancelled = false
@@ -419,8 +426,17 @@ export default function AdminLeadsPage() {
     { name: "trainingPreference", label: "Training preference", type: "select", options: ["Remote", "Onsite", "Both"] },
     { name: "contactPerson", label: "Primary contact person", type: "text", required: true },
     { name: "desiredGoLiveDate", label: "Desired go-live date", type: "date" },
+    ...ADVANCED_QUESTIONNAIRE_FIELDS.map((f) => f as QuestionnaireField),
     { name: "specialWorkflowRequirements", label: "Special workflow / requirements", type: "textarea" },
   ]
+
+  // Adds the Advanced section to questionnaires saved before it existed.
+  const ensureAdvancedFields = (fields: QuestionnaireField[]): QuestionnaireField[] => {
+    if (fields.some((f) => f.name === "modulesRequired")) return fields
+    const advanced = ADVANCED_QUESTIONNAIRE_FIELDS.map((f) => f as QuestionnaireField)
+    const idx = fields.findIndex((f) => f.name === "specialWorkflowRequirements")
+    return idx === -1 ? [...fields, ...advanced] : [...fields.slice(0, idx), ...advanced, ...fields.slice(idx)]
+  }
 
   const openQuestionnaire = async (lead: Lead) => {
     setQuestionnaireLead(lead)
@@ -429,7 +445,7 @@ export default function AdminLeadsPage() {
     try {
       const res = await fetch(`/api/admin/leads/${lead.id}/questionnaire`)
       const data = await res.json()
-      const baseFields: QuestionnaireField[] = data.fields && data.fields.length > 0 ? data.fields : defaultQuestionnaireFieldSelection()
+      const baseFields: QuestionnaireField[] = data.fields && data.fields.length > 0 ? ensureAdvancedFields(data.fields) : defaultQuestionnaireFieldSelection()
       setQuestionnaireFields(baseFields.map((f: QuestionnaireField) => ({ ...f, selected: true })))
       if (data.token) setQuestionnaireUrl(`/questionnaire/${data.token}`)
     } catch {
@@ -440,6 +456,65 @@ export default function AdminLeadsPage() {
 
   const toggleQuestionnaireField = (name: string) => {
     setQuestionnaireFields((prev) => prev.map((f) => (f.name === name ? { ...f, selected: !f.selected } : f)))
+  }
+
+  const updateQuestionnaireField = (name: string, updater: (f: QuestionnaireField) => QuestionnaireField) => {
+    setQuestionnaireFields((prev) => prev.map((f) => (f.name === name ? updater(f) : f)))
+  }
+
+  const cycleOptionStatus = (fieldName: string, option: string) => {
+    updateQuestionnaireField(fieldName, (f) => {
+      const statuses = { ...(f.optionStatuses || {}) }
+      const cur = statuses[option]
+      if (!cur) statuses[option] = "ready"
+      else if (cur === "ready") statuses[option] = "coming-soon"
+      else delete statuses[option]
+      return { ...f, optionStatuses: statuses }
+    })
+  }
+
+  const addQuestionnaireOption = (fieldName: string) => {
+    const option = (newOptionDrafts[fieldName] || "").trim()
+    if (!option) return
+    updateQuestionnaireField(fieldName, (f) =>
+      f.options?.includes(option) ? f : { ...f, options: [...(f.options || []), option] }
+    )
+    setNewOptionDrafts((prev) => ({ ...prev, [fieldName]: "" }))
+  }
+
+  const removeQuestionnaireOption = (fieldName: string, option: string) => {
+    updateQuestionnaireField(fieldName, (f) => {
+      const statuses = { ...(f.optionStatuses || {}) }
+      delete statuses[option]
+      return { ...f, options: (f.options || []).filter((o) => o !== option), optionStatuses: statuses }
+    })
+  }
+
+  const removeQuestionnaireField = (name: string) => {
+    setQuestionnaireFields((prev) => prev.filter((f) => f.name !== name))
+  }
+
+  const addCustomQuestionnaireField = () => {
+    const label = newFieldDraft.label.trim()
+    if (!label) return
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field"
+    let name = `custom_${slug}`
+    let i = 2
+    while (questionnaireFields.some((f) => f.name === name)) name = `custom_${slug}_${i++}`
+    const options = newFieldDraft.options.split(",").map((s) => s.trim()).filter(Boolean)
+    setQuestionnaireFields((prev) => [
+      ...prev,
+      {
+        name,
+        label,
+        type: newFieldDraft.type,
+        options: newFieldDraft.type === "select" || newFieldDraft.type === "multiselect" ? options : undefined,
+        required: newFieldDraft.required,
+        selected: true,
+      },
+    ])
+    setNewFieldDraft({ label: "", type: "text", options: "", required: false })
+    setShowNewFieldForm(false)
   }
 
   const sendQuestionnaire = async () => {
@@ -1170,19 +1245,162 @@ export default function AdminLeadsPage() {
               </button>
             </div>
             <p className="text-sm text-muted-foreground">Select the fields to include in the client questionnaire. A unique link will be generated.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[40vh] overflow-y-auto border border-border rounded-lg p-3">
-              {questionnaireFields.map((field) => (
-                <label key={field.name} className="flex items-center gap-2 text-sm p-2 rounded-md hover:bg-muted/50 cursor-pointer">
+            <div className="max-h-[45vh] overflow-y-auto border border-border rounded-lg p-3">
+              {questionnaireFields.map((field) =>
+                field.type === "section" ? (
+                  <div key={field.name} className="flex items-center gap-2 pt-3 mt-2 border-t border-border first:mt-0 first:pt-0 first:border-t-0">
+                    <input
+                      type="checkbox"
+                      checked={!!field.selected}
+                      onChange={() => toggleQuestionnaireField(field.name)}
+                      className="rounded border-input"
+                    />
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-retail">{field.label}</span>
+                  </div>
+                ) : (
+                  <div key={field.name}>
+                    <div className="flex items-center gap-2 text-sm p-1.5 rounded-md hover:bg-muted/50">
+                      <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!field.selected}
+                          onChange={() => toggleQuestionnaireField(field.name)}
+                          className="rounded border-input shrink-0"
+                        />
+                        <span className="truncate">{field.label}</span>
+                        {field.required && <span className="text-red-500 text-xs">*</span>}
+                      </label>
+                      {field.options && field.options.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedFieldOptions(expandedFieldOptions === field.name ? null : field.name)}
+                          className="shrink-0 text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted"
+                        >
+                          {field.options.length} options {expandedFieldOptions === field.name ? "▴" : "▾"}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeQuestionnaireField(field.name)}
+                        className="shrink-0 text-muted-foreground hover:text-destructive p-0.5"
+                        title="Remove field"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    {expandedFieldOptions === field.name && field.options && (
+                      <div className="ml-7 mb-2 rounded-md border border-border bg-muted/20 p-2 space-y-1.5">
+                        {field.options.map((opt) => {
+                          const status = field.optionStatuses?.[opt]
+                          return (
+                            <div key={opt} className="flex items-center gap-2 text-xs">
+                              <span className="flex-1 truncate">{opt}</span>
+                              <button
+                                type="button"
+                                onClick={() => cycleOptionStatus(field.name, opt)}
+                                title="Cycle status: none → ready → coming soon"
+                                className={`shrink-0 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                                  status === "ready"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : status === "coming-soon"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                {status === "ready" ? "Ready" : status === "coming-soon" ? "Coming soon" : "No status"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeQuestionnaireOption(field.name, opt)}
+                                className="shrink-0 text-muted-foreground hover:text-destructive"
+                                title="Remove option"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )
+                        })}
+                        <div className="flex items-center gap-2 pt-1">
+                          <input
+                            value={newOptionDrafts[field.name] || ""}
+                            onChange={(e) => setNewOptionDrafts((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addQuestionnaireOption(field.name) } }}
+                            placeholder="Add option..."
+                            className="flex-1 rounded border border-input bg-background px-2 py-1 text-xs"
+                          />
+                          <Button size="sm" variant="outline" onClick={() => addQuestionnaireOption(field.name)}>
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              )}
+
+              {showNewFieldForm ? (
+                <div className="mt-3 rounded-md border border-dashed border-border p-3 space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Add custom field</p>
                   <input
-                    type="checkbox"
-                    checked={!!field.selected}
-                    onChange={() => toggleQuestionnaireField(field.name)}
-                    className="rounded border-input"
+                    value={newFieldDraft.label}
+                    onChange={(e) => setNewFieldDraft((p) => ({ ...p, label: e.target.value }))}
+                    placeholder="Field label (e.g. Delivery requirements)"
+                    className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm"
                   />
-                  <span>{field.label}</span>
-                  {field.required && <span className="text-red-500 text-xs">*</span>}
-                </label>
-              ))}
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={newFieldDraft.type}
+                      onChange={(e) => setNewFieldDraft((p) => ({ ...p, type: e.target.value }))}
+                      className="rounded border border-input bg-background px-2 py-1.5 text-sm"
+                    >
+                      <option value="text">Text</option>
+                      <option value="textarea">Long text</option>
+                      <option value="select">Dropdown</option>
+                      <option value="multiselect">Checkboxes (multi-select)</option>
+                      <option value="number">Number</option>
+                      <option value="date">Date</option>
+                      <option value="boolean">Yes / No</option>
+                      <option value="email">Email</option>
+                      <option value="tel">Phone</option>
+                    </select>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={newFieldDraft.required}
+                        onChange={(e) => setNewFieldDraft((p) => ({ ...p, required: e.target.checked }))}
+                        className="rounded border-input"
+                      />
+                      Required
+                    </label>
+                  </div>
+                  {(newFieldDraft.type === "select" || newFieldDraft.type === "multiselect") && (
+                    <input
+                      value={newFieldDraft.options}
+                      onChange={(e) => setNewFieldDraft((p) => ({ ...p, options: e.target.value }))}
+                      placeholder="Options, comma separated"
+                      className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm"
+                    />
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setShowNewFieldForm(false)}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={addCustomQuestionnaireField} disabled={!newFieldDraft.label.trim()}>
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Add Field
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowNewFieldForm(true)}
+                  className="mt-3 flex items-center gap-1.5 text-xs font-medium text-retail hover:underline"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add custom field
+                </button>
+              )}
             </div>
             {questionnaireUrl && (
               <div className="p-3 rounded-md bg-muted/30 space-y-2">

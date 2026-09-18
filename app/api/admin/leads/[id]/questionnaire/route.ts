@@ -11,10 +11,12 @@ const postSchema = z.object({
   fields: z.array(z.object({
     name: z.string(),
     label: z.string(),
-    type: z.enum(["text", "email", "tel", "number", "select", "textarea", "date", "boolean"]),
+    type: z.enum(["text", "email", "tel", "number", "select", "multiselect", "textarea", "date", "boolean", "section"]),
     options: z.array(z.string()).optional(),
+    optionStatuses: z.record(z.string(), z.string()).optional(),
     required: z.boolean().optional(),
     default: z.union([z.string(), z.boolean(), z.number()]).optional(),
+    helpText: z.string().optional(),
   })).optional(),
 })
 

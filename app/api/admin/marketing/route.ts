@@ -7,6 +7,7 @@ import { sendEmail } from "@/lib/email"
 import type { EmailProvider } from "@/lib/email"
 import {
   getAudienceRecipients,
+  getSavedAudienceRecipients,
   getSuppressedEmails,
   parseManualEmails,
   applyMergeTags,
@@ -64,6 +65,7 @@ export async function GET() {
       id: c.id,
       name: c.name,
       subject: c.subject,
+      preheader: c.preheader || "",
       audience: c.audience,
       provider: c.provider,
       status: c.status,
@@ -86,9 +88,11 @@ export async function POST(request: Request) {
     const {
       name,
       subject,
+      preheader,
       html,
       text,
       audience,
+      audienceId,
       provider,
       manualEmails,
       testEmail,
@@ -114,7 +118,7 @@ export async function POST(request: Request) {
       }
       const token = crypto.randomUUID()
       const recipient = { email: to, name: "Test User" }
-      const trackedHtml = buildMarketingHtml(applyMergeTags(html, recipient), token, baseUrl)
+      const trackedHtml = buildMarketingHtml(applyMergeTags(html, recipient), token, baseUrl, preheader)
       const sent = await sendEmail({
         to,
         subject: `[TEST] ${applyMergeTags(subject, recipient)}`,
@@ -130,6 +134,8 @@ export async function POST(request: Request) {
     let recipients: MarketingRecipient[]
     if (audience === "manual") {
       recipients = parseManualEmails(String(manualEmails || ""))
+    } else if (audience === "saved") {
+      recipients = await getSavedAudienceRecipients(String(audienceId || ""))
     } else {
       recipients = await getAudienceRecipients(String(audience || "leads"))
     }
@@ -154,9 +160,11 @@ export async function POST(request: Request) {
       id: campaignId,
       name: name || subject,
       subject,
+      preheader: preheader || "",
       html,
       text: plainText,
       audience: audience || "manual",
+      audience_id: audience === "saved" ? audienceId || null : null,
       provider: providerOverride || "default",
       status: "sent",
       recipient_count: deliverable.length,
@@ -177,7 +185,7 @@ export async function POST(request: Request) {
       const token = crypto.randomUUID()
       const mergedSubject = applyMergeTags(subject, recipient)
       const mergedHtml = applyMergeTags(html, recipient)
-      const trackedHtml = buildMarketingHtml(mergedHtml, token, baseUrl)
+      const trackedHtml = buildMarketingHtml(mergedHtml, token, baseUrl, preheader)
       const unsubUrl = unsubscribeUrl(token, baseUrl)
 
       const ok = await sendEmail({

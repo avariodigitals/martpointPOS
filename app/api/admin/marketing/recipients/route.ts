@@ -4,6 +4,7 @@ import type { UserRole } from "@/lib/admin-auth"
 import { isSupabaseConfigured } from "@/lib/supabase"
 import {
   getAudienceRecipients,
+  getSavedAudienceRecipients,
   getSuppressedEmails,
   parseManualEmails,
 } from "@/lib/marketing"
@@ -18,11 +19,14 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const audience = searchParams.get("audience") || "leads"
+  const audienceId = searchParams.get("audienceId") || ""
   const manual = searchParams.get("manual") || ""
 
   let recipients: MarketingRecipient[]
   if (audience === "manual") {
     recipients = parseManualEmails(manual)
+  } else if (audience === "saved") {
+    recipients = await getSavedAudienceRecipients(audienceId)
   } else if (isSupabaseConfigured()) {
     recipients = await getAudienceRecipients(audience)
   } else {

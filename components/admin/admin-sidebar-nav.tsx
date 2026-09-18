@@ -36,6 +36,7 @@ import {
   Calendar as CalendarIcon,
   MessageCircle,
   Megaphone,
+  Ban,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -89,7 +90,9 @@ const navItems: NavItem[] = [
   { href: "/admin/incidents", label: "Incidents", icon: Shield, page: "support", section: "Operations" },
 
   // MARKETING
-  { href: "/admin/marketing", label: "Email Marketing", icon: Megaphone, page: "marketing", section: "Marketing" },
+  { href: "/admin/marketing", label: "Campaigns", icon: Megaphone, page: "marketing", section: "Marketing" },
+  { href: "/admin/marketing/audiences", label: "Audiences", icon: Users, page: "marketing", section: "Marketing" },
+  { href: "/admin/marketing/suppressions", label: "Suppressions", icon: Ban, page: "marketing", section: "Marketing" },
 
   // CONTENT
   { href: "/admin/seo", label: "SEO", icon: Search, page: "seo", section: "Content" },

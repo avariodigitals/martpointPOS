@@ -30,6 +30,10 @@ export function isValidEmail(e: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
 /** Parse a pasted list — one per line or comma/semicolon separated. Accepts "Name <email>". */
 export function parseManualEmails(raw: string): MarketingRecipient[] {
   const seen = new Set<string>()
@@ -81,6 +85,26 @@ export async function getAudienceRecipients(audience: string): Promise<Marketing
   return out.slice(0, MAX_CAMPAIGN_RECIPIENTS)
 }
 
+/** Contacts of a saved audience created in /admin/marketing/audiences. */
+export async function getSavedAudienceRecipients(audienceId: string): Promise<MarketingRecipient[]> {
+  if (!isSupabaseConfigured() || !audienceId) return []
+  const { data } = await supabase
+    .from("marketing_contacts")
+    .select("email, name")
+    .eq("audience_id", audienceId)
+    .order("created_at", { ascending: true })
+
+  const seen = new Set<string>()
+  const out: MarketingRecipient[] = []
+  for (const r of data || []) {
+    const e = normalizeEmail(String(r.email || ""))
+    if (!isValidEmail(e) || seen.has(e)) continue
+    seen.add(e)
+    out.push({ email: e, name: String(r.name || "").trim() })
+  }
+  return out.slice(0, MAX_CAMPAIGN_RECIPIENTS)
+}
+
 /** Returns the subset of `emails` present on the unsubscribe suppression list. */
 export async function getSuppressedEmails(emails: string[]): Promise<Set<string>> {
   const suppressed = new Set<string>()
@@ -103,17 +127,21 @@ export function applyMergeTags(input: string, recipient: MarketingRecipient): st
 
 /**
  * Wraps every http(s) link in the HTML with the click-tracking redirect,
- * appends the unsubscribe footer and the open-tracking pixel.
+ * injects the inbox preheader (hidden preview text), and appends the
+ * unsubscribe footer plus the open-tracking pixel.
  */
-export function buildMarketingHtml(html: string, token: string, baseUrl: string): string {
+export function buildMarketingHtml(html: string, token: string, baseUrl: string, preheader?: string): string {
   const base = baseUrl.replace(/\/$/, "")
+  const preheaderBlock = preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(preheader)}${"&zwnj;&nbsp;".repeat(20)}</div>`
+    : ""
   const tracked = html.replace(/href="([^"]+)"/gi, (match, url: string) => {
     if (!/^https?:\/\//i.test(url)) return match
     if (url.includes("/unsubscribe") || url.includes("/api/marketing/")) return match
     return `href="${base}/api/marketing/track/click/${token}?u=${encodeURIComponent(url)}"`
   })
   const unsubUrl = `${base}/unsubscribe?t=${encodeURIComponent(token)}`
-  return `${tracked}
+  return `${preheaderBlock}${tracked}
 <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;font-family:sans-serif">
   You are receiving this email because you subscribed to MartPoint updates or shared your details with our team.<br>
   <a href="${unsubUrl}" style="color:#6b7280;text-decoration:underline">Unsubscribe</a> from these emails &middot; MartPoint &middot; martpoint.com.ng

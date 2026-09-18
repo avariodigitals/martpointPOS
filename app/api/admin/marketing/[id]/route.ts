@@ -46,6 +46,7 @@ export async function GET(
       id: campaign.id,
       name: campaign.name,
       subject: campaign.subject,
+      preheader: campaign.preheader || "",
       html: campaign.html,
       text: campaign.text,
       audience: campaign.audience,

@@ -16,6 +16,7 @@ import {
   Image as ImageIcon,
   ChevronDown,
   ChevronRight,
+  Copy,
 } from "lucide-react"
 
 interface CampaignMetrics {
@@ -27,10 +28,17 @@ interface CampaignMetrics {
   clickTotal: number
 }
 
+interface SavedAudience {
+  id: string
+  name: string
+  contactCount: number
+}
+
 interface Campaign {
   id: string
   name: string
   subject: string
+  preheader: string
   audience: string
   provider: string
   status: string
@@ -65,6 +73,7 @@ const AUDIENCE_LABELS: Record<string, string> = {
   leads: "Leads",
   partner_leads: "Partner Leads",
   businesses: "Businesses",
+  saved: "Saved Audience",
   manual: "Pasted list",
 }
 
@@ -76,8 +85,11 @@ export default function AdminMarketingPage() {
   // Compose state
   const [provider, setProvider] = useState("default")
   const [audience, setAudience] = useState("leads")
+  const [savedAudiences, setSavedAudiences] = useState<SavedAudience[]>([])
+  const [audienceId, setAudienceId] = useState("")
   const [manualEmails, setManualEmails] = useState("")
   const [subject, setSubject] = useState("")
+  const [preheader, setPreheader] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [html, setHtml] = useState("")
   const [showPreview, setShowPreview] = useState(false)
@@ -108,11 +120,26 @@ export default function AdminMarketingPage() {
     }
   }
 
+  const loadSavedAudiences = async () => {
+    try {
+      const res = await fetch("/api/admin/marketing/audiences")
+      const data = await res.json()
+      setSavedAudiences(data.audiences || [])
+    } catch {
+      setSavedAudiences([])
+    }
+  }
+
   const loadRecipientPreview = useCallback(async () => {
+    if (audience === "saved" && !audienceId) {
+      setRecipientInfo(null)
+      return
+    }
     setLoadingRecipients(true)
     try {
       const params = new URLSearchParams({ audience })
       if (audience === "manual") params.set("manual", manualEmails)
+      if (audience === "saved") params.set("audienceId", audienceId)
       const res = await fetch(`/api/admin/marketing/recipients?${params}`)
       const data = await res.json()
       setRecipientInfo(data)
@@ -121,10 +148,13 @@ export default function AdminMarketingPage() {
     } finally {
       setLoadingRecipients(false)
     }
-  }, [audience, manualEmails])
+  }, [audience, audienceId, manualEmails])
 
   useEffect(() => {
-    const t = setTimeout(loadCampaigns, 0)
+    const t = setTimeout(() => {
+      loadCampaigns()
+      loadSavedAudiences()
+    }, 0)
     return () => clearTimeout(t)
   }, [])
 
@@ -174,7 +204,7 @@ export default function AdminMarketingPage() {
       const res = await fetch("/api/admin/marketing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, html, testEmail, provider }),
+        body: JSON.stringify({ subject, preheader, html, testEmail, provider }),
       })
       const data = await res.json()
       setMessage(data.success ? `Test email sent to ${testEmail}.` : data.error || "Test send failed")
@@ -183,6 +213,25 @@ export default function AdminMarketingPage() {
     } finally {
       setSendingTest(false)
       setTimeout(() => setMessage(""), 4000)
+    }
+  }
+
+  const duplicateCampaign = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/marketing/${id}`)
+      const data = await res.json()
+      const c = data.campaign
+      if (!c) return
+      setSubject(c.subject || "")
+      setPreheader(c.preheader || "")
+      setHtml(c.html || "")
+      setAudience(c.audience === "saved" ? "saved" : c.audience || "manual")
+      setConsent(false)
+      window.scrollTo({ top: 0, behavior: "smooth" })
+      setMessage("Campaign loaded into composer — review and send.")
+      setTimeout(() => setMessage(""), 4000)
+    } catch {
+      setMessage("Failed to load campaign")
     }
   }
 
@@ -198,8 +247,10 @@ export default function AdminMarketingPage() {
         body: JSON.stringify({
           name: subject,
           subject,
+          preheader,
           html,
           audience,
+          audienceId: audience === "saved" ? audienceId : undefined,
           provider,
           manualEmails: audience === "manual" ? manualEmails : undefined,
         }),
@@ -210,6 +261,7 @@ export default function AdminMarketingPage() {
           `Campaign sent: ${data.sent} delivered${data.failed ? `, ${data.failed} failed` : ""}${data.skipped ? `, ${data.skipped} skipped (unsubscribed)` : ""}.`
         )
         setSubject("")
+        setPreheader("")
         setHtml("")
         setConsent(false)
         loadCampaigns()
@@ -329,10 +381,35 @@ export default function AdminMarketingPage() {
                 <option value="leads">Leads</option>
                 <option value="partner_leads">Partner Leads</option>
                 <option value="businesses">Businesses</option>
+                <option value="saved">Saved Audience</option>
                 <option value="manual">Paste emails</option>
               </select>
             </div>
           </div>
+
+          {audience === "saved" && (
+            <div>
+              <label className="block text-xs font-medium mb-1">Select Audience</label>
+              {savedAudiences.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No saved audiences yet — create one under <a href="/admin/marketing/audiences" className="text-retail hover:underline">Marketing → Audiences</a>.
+                </p>
+              ) : (
+                <select
+                  value={audienceId}
+                  onChange={(e) => setAudienceId(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Choose an audience…</option>
+                  {savedAudiences.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.contactCount} contacts)
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
 
           {audience === "manual" && (
             <div>
@@ -392,6 +469,17 @@ export default function AdminMarketingPage() {
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="New: what's shipping in MartPoint this week"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium mb-1">Preheader (inbox preview text)</label>
+            <input
+              type="text"
+              value={preheader}
+              onChange={(e) => setPreheader(e.target.value)}
+              placeholder="Short teaser shown next to the subject in the inbox"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
@@ -534,6 +622,16 @@ export default function AdminMarketingPage() {
 
                     {expanded && (
                       <div className="border border-t-0 border-border rounded-b-lg bg-muted/10 p-4">
+                        <div className="flex justify-end mb-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => duplicateCampaign(c.id)}
+                          >
+                            <Copy className="w-3.5 h-3.5 mr-1" />
+                            Duplicate into composer
+                          </Button>
+                        </div>
                         {loadingSends ? (
                           <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading recipients…</p>
                         ) : (

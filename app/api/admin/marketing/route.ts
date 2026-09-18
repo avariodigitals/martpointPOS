@@ -13,7 +13,7 @@ import {
   applyMergeTags,
   buildMarketingHtml,
   htmlToText,
-  unsubscribeUrl,
+  executeCampaign,
 } from "@/lib/marketing"
 import type { MarketingRecipient } from "@/lib/marketing"
 
@@ -73,6 +73,7 @@ export async function GET() {
       createdBy: c.created_by,
       createdAt: c.created_at,
       sentAt: c.sent_at,
+      scheduledFor: c.scheduled_for || null,
       metrics: metrics.get(c.id) || { sent: 0, failed: 0, opens: 0, openTotal: 0, clicks: 0, clickTotal: 0 },
     })),
   })
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
       provider,
       manualEmails,
       testEmail,
+      scheduledFor,
     } = body
 
     if (!subject || !html) {
@@ -156,6 +158,10 @@ export async function POST(request: Request) {
     const now = new Date().toISOString()
     const plainText = text || htmlToText(html)
 
+    // Scheduled send — snapshot recipients now, suppression is re-checked at send time
+    const scheduledDate = scheduledFor ? new Date(String(scheduledFor)) : null
+    const isScheduled = scheduledDate && !isNaN(scheduledDate.getTime()) && scheduledDate.getTime() > Date.now()
+
     const { error: insertError } = await supabase.from("marketing_campaigns").insert({
       id: campaignId,
       name: name || subject,
@@ -166,11 +172,13 @@ export async function POST(request: Request) {
       audience: audience || "manual",
       audience_id: audience === "saved" ? audienceId || null : null,
       provider: providerOverride || "default",
-      status: "sent",
+      status: isScheduled ? "scheduled" : "sending",
       recipient_count: deliverable.length,
+      recipients_snapshot: deliverable,
+      scheduled_for: isScheduled ? scheduledDate.toISOString() : null,
       created_by: session.username || session.name || "admin",
       created_at: now,
-      sent_at: now,
+      sent_at: isScheduled ? null : now,
     })
 
     if (insertError) {
@@ -178,52 +186,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to create campaign" }, { status: 500 })
     }
 
-    let sentCount = 0
-    let failedCount = 0
-
-    for (const recipient of deliverable) {
-      const token = crypto.randomUUID()
-      const mergedSubject = applyMergeTags(subject, recipient)
-      const mergedHtml = applyMergeTags(html, recipient)
-      const trackedHtml = buildMarketingHtml(mergedHtml, token, baseUrl, preheader)
-      const unsubUrl = unsubscribeUrl(token, baseUrl)
-
-      const ok = await sendEmail({
-        to: recipient.email,
-        subject: mergedSubject,
-        text: applyMergeTags(plainText, recipient),
-        html: trackedHtml,
-        provider: providerOverride,
-        route: "marketing",
-        headers: { "List-Unsubscribe": `<${unsubUrl}>` },
+    if (isScheduled) {
+      return NextResponse.json({
+        success: true,
+        campaignId,
+        scheduled: true,
+        scheduledFor: scheduledDate.toISOString(),
+        recipients: deliverable.length,
+        skipped: skippedCount,
       })
-
-      await supabase.from("marketing_sends").insert({
-        campaign_id: campaignId,
-        email: recipient.email,
-        name: recipient.name,
-        token,
-        status: ok ? "sent" : "failed",
-        error_message: ok ? null : "send failed",
-        sent_at: ok ? new Date().toISOString() : null,
-      })
-
-      if (ok) sentCount += 1
-      else failedCount += 1
     }
 
-    if (sentCount === 0) {
-      await supabase.from("marketing_campaigns").update({ status: "failed" }).eq("id", campaignId)
-    } else if (failedCount > 0) {
-      await supabase.from("marketing_campaigns").update({ status: "partial" }).eq("id", campaignId)
-    }
+    const result = await executeCampaign(campaignId)
 
     return NextResponse.json({
-      success: sentCount > 0,
+      success: result.sent > 0,
       campaignId,
-      sent: sentCount,
-      failed: failedCount,
-      skipped: skippedCount,
+      sent: result.sent,
+      failed: result.failed,
+      skipped: result.skipped + skippedCount,
     })
   } catch {
     return NextResponse.json({ error: "Failed to send campaign" }, { status: 500 })

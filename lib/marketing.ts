@@ -4,7 +4,10 @@
  * redirect + unsubscribe footer), merge tags and HTML→text fallback.
  */
 
+import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { sendEmail } from "./email"
+import type { EmailProvider } from "./email"
 
 export interface MarketingRecipient {
   email: string
@@ -126,27 +129,60 @@ export function applyMergeTags(input: string, recipient: MarketingRecipient): st
 }
 
 /**
- * Wraps every http(s) link in the HTML with the click-tracking redirect,
- * injects the inbox preheader (hidden preview text), and appends the
- * unsubscribe footer plus the open-tracking pixel.
+ * Builds the final campaign HTML for one recipient:
+ *  - resolves relative src/href URLs against the site base
+ *  - wraps simple content in the branded MartPoint shell (logo header + card);
+ *    pasted full documents (with <html>/<body>) pass through unwrapped
+ *  - rewrites http(s) links through the click tracker
+ *  - injects the hidden preheader, unsubscribe footer and open pixel
  */
 export function buildMarketingHtml(html: string, token: string, baseUrl: string, preheader?: string): string {
   const base = baseUrl.replace(/\/$/, "")
+
   const preheaderBlock = preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(preheader)}${"&zwnj;&nbsp;".repeat(20)}</div>`
     : ""
-  const tracked = html.replace(/href="([^"]+)"/gi, (match, url: string) => {
+
+  // Resolve relative asset/link URLs so pasted content and uploads always render
+  let body = html.replace(/\b(src|href)="(?!https?:|mailto:|tel:|#|data:)([^"]+)"/gi, (_m, attr: string, url: string) => {
+    const path = url.startsWith("/") ? url : `/${url}`
+    return `${attr}="${base}${path}"`
+  })
+
+  // Rewrite external links through the click tracker
+  body = body.replace(/href="([^"]+)"/gi, (match, url: string) => {
     if (!/^https?:\/\//i.test(url)) return match
     if (url.includes("/unsubscribe") || url.includes("/api/marketing/")) return match
     return `href="${base}/api/marketing/track/click/${token}?u=${encodeURIComponent(url)}"`
   })
+
   const unsubUrl = `${base}/unsubscribe?t=${encodeURIComponent(token)}`
-  return `${preheaderBlock}${tracked}
-<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;font-family:sans-serif">
+  const footer = `<div style="margin-top:24px;font-size:12px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;text-align:center">
   You are receiving this email because you subscribed to MartPoint updates or shared your details with our team.<br>
   <a href="${unsubUrl}" style="color:#6b7280;text-decoration:underline">Unsubscribe</a> from these emails &middot; MartPoint &middot; martpoint.com.ng
+</div>`
+  const pixel = `<img src="${base}/api/marketing/track/open/${encodeURIComponent(token)}" width="1" height="1" alt="" style="display:none" />`
+
+  // Full documents keep their own layout — just add footer + pixel
+  if (/<html|<body/i.test(html)) {
+    return `${preheaderBlock}${body}\n${footer}\n${pixel}`
+  }
+
+  // Branded shell for simple content
+  return `${preheaderBlock}<div style="margin:0;padding:0;background:#f4f5f7">
+  <div style="max-width:620px;margin:0 auto;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">
+    <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+      <div style="padding:18px 24px;border-bottom:1px solid #f1f5f9">
+        <img src="${base}/logo.webp" alt="MartPoint" height="34" style="height:34px;display:block" />
+      </div>
+      <div style="padding:24px;font-size:15px;line-height:1.65;color:#1f2937">
+        ${body}
+      </div>
+    </div>
+    ${footer}
+  </div>
 </div>
-<img src="${base}/api/marketing/track/open/${encodeURIComponent(token)}" width="1" height="1" alt="" style="display:none" />`
+${pixel}`
 }
 
 export function htmlToText(html: string): string {
@@ -171,4 +207,109 @@ export function htmlToText(html: string): string {
 
 export function unsubscribeUrl(token: string, baseUrl: string): string {
   return `${baseUrl.replace(/\/$/, "")}/unsubscribe?t=${encodeURIComponent(token)}`
+}
+
+export function getBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng").replace(/\/$/, "")
+}
+
+/** Resolve recipients for a campaign — snapshot first, else by audience. */
+export async function resolveCampaignRecipients(campaign: {
+  audience: string
+  audience_id?: string | null
+  recipients_snapshot?: MarketingRecipient[] | null
+}): Promise<MarketingRecipient[]> {
+  const snapshot = campaign.recipients_snapshot
+  if (Array.isArray(snapshot) && snapshot.length > 0) {
+    const seen = new Set<string>()
+    const out: MarketingRecipient[] = []
+    for (const r of snapshot) {
+      const e = normalizeEmail(String(r?.email || ""))
+      if (!isValidEmail(e) || seen.has(e)) continue
+      seen.add(e)
+      out.push({ email: e, name: String(r?.name || "").trim() })
+    }
+    return out
+  }
+  if (campaign.audience === "saved") {
+    return getSavedAudienceRecipients(String(campaign.audience_id || ""))
+  }
+  return getAudienceRecipients(campaign.audience || "leads")
+}
+
+/**
+ * Executes a campaign: resolves recipients, re-checks the suppression list at
+ * send time, sends per-recipient tracked email, records sends and updates the
+ * campaign status. Used for immediate sends and by the scheduler.
+ */
+export async function executeCampaign(campaignId: string): Promise<{ sent: number; failed: number; skipped: number }> {
+  if (!isSupabaseConfigured()) return { sent: 0, failed: 0, skipped: 0 }
+
+  const { data: campaign } = await supabase
+    .from("marketing_campaigns")
+    .select("*")
+    .eq("id", campaignId)
+    .single()
+
+  if (!campaign) return { sent: 0, failed: 0, skipped: 0 }
+
+  const recipients = await resolveCampaignRecipients(campaign)
+  const suppressed = await getSuppressedEmails(recipients.map((r) => r.email))
+  const deliverable = recipients.filter((r) => !suppressed.has(r.email))
+  const skipped = recipients.length - deliverable.length
+
+  const baseUrl = getBaseUrl()
+  const plainText = campaign.text || htmlToText(campaign.html || "")
+  const provider: EmailProvider | undefined =
+    campaign.provider === "resend" || campaign.provider === "brevo" ? campaign.provider : undefined
+
+  await supabase
+    .from("marketing_campaigns")
+    .update({ status: "sending", recipient_count: deliverable.length })
+    .eq("id", campaignId)
+
+  let sent = 0
+  let failed = 0
+
+  for (const recipient of deliverable) {
+    const token = crypto.randomUUID()
+    const mergedSubject = applyMergeTags(campaign.subject || "", recipient)
+    const trackedHtml = buildMarketingHtml(
+      applyMergeTags(campaign.html || "", recipient),
+      token,
+      baseUrl,
+      campaign.preheader || undefined
+    )
+
+    const ok = await sendEmail({
+      to: recipient.email,
+      subject: mergedSubject,
+      text: applyMergeTags(plainText, recipient),
+      html: trackedHtml,
+      provider,
+      route: "marketing",
+      headers: { "List-Unsubscribe": `<${unsubscribeUrl(token, baseUrl)}>` },
+    })
+
+    await supabase.from("marketing_sends").insert({
+      campaign_id: campaignId,
+      email: recipient.email,
+      name: recipient.name,
+      token,
+      status: ok ? "sent" : "failed",
+      error_message: ok ? null : "send failed",
+      sent_at: ok ? new Date().toISOString() : null,
+    })
+
+    if (ok) sent += 1
+    else failed += 1
+  }
+
+  const status = sent === 0 ? "failed" : failed > 0 ? "partial" : "sent"
+  await supabase
+    .from("marketing_campaigns")
+    .update({ status, sent_at: new Date().toISOString() })
+    .eq("id", campaignId)
+
+  return { sent, failed, skipped }
 }

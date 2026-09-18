@@ -1,8 +1,10 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
+import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import EmailRichEditor from "@/components/admin/email-rich-editor"
 import {
   Loader2,
   Megaphone,
@@ -13,10 +15,11 @@ import {
   MousePointerClick,
   CheckCircle2,
   AlertCircle,
-  Image as ImageIcon,
   ChevronDown,
   ChevronRight,
   Copy,
+  Code2,
+  CalendarClock,
 } from "lucide-react"
 
 interface CampaignMetrics {
@@ -46,6 +49,7 @@ interface Campaign {
   createdBy: string
   createdAt: string
   sentAt: string
+  scheduledFor: string | null
   metrics: CampaignMetrics
 }
 
@@ -90,9 +94,11 @@ export default function AdminMarketingPage() {
   const [manualEmails, setManualEmails] = useState("")
   const [subject, setSubject] = useState("")
   const [preheader, setPreheader] = useState("")
-  const [imageUrl, setImageUrl] = useState("")
   const [html, setHtml] = useState("")
+  const [editSource, setEditSource] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now")
+  const [scheduledFor, setScheduledFor] = useState("")
   const [testEmail, setTestEmail] = useState("")
   const [consent, setConsent] = useState(false)
   const [sending, setSending] = useState(false)
@@ -170,11 +176,29 @@ export default function AdminMarketingPage() {
     return { campaigns: campaigns.length, sent, opens, clicks }
   }, [campaigns])
 
-  const insertImage = () => {
-    const url = imageUrl.trim()
-    if (!url) return
-    setHtml((prev) => `${prev}${prev.endsWith("\n") || prev === "" ? "" : "\n"}<img src="${url}" alt="" style="max-width:100%;height:auto;display:block;margin:16px 0" />\n`)
-    setImageUrl("")
+  const uploadImage = async (file: File): Promise<string | null> => {
+    try {
+      const content = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader()
+        r.onload = () => resolve(String(r.result).split(",")[1] || "")
+        r.onerror = reject
+        r.readAsDataURL(file)
+      })
+      const res = await fetch("/api/admin/marketing/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, mimeType: file.type, content }),
+      })
+      const data = await res.json()
+      if (!data.url) {
+        setMessage(data.error || "Image upload failed")
+        return null
+      }
+      return data.url as string
+    } catch {
+      setMessage("Image upload failed")
+      return null
+    }
   }
 
   const toggleExpand = async (id: string) => {
@@ -253,10 +277,20 @@ export default function AdminMarketingPage() {
           audienceId: audience === "saved" ? audienceId : undefined,
           provider,
           manualEmails: audience === "manual" ? manualEmails : undefined,
+          scheduledFor: scheduleMode === "later" ? scheduledFor : undefined,
         }),
       })
       const data = await res.json()
-      if (data.success || data.campaignId) {
+      if (data.scheduled) {
+        setMessage(`Campaign scheduled for ${new Date(data.scheduledFor).toLocaleString()} — ${data.recipients} recipients${data.skipped ? ` (${data.skipped} already unsubscribed)` : ""}.`)
+        setSubject("")
+        setPreheader("")
+        setHtml("")
+        setConsent(false)
+        setScheduleMode("now")
+        setScheduledFor("")
+        loadCampaigns()
+      } else if (data.success || data.campaignId) {
         setMessage(
           `Campaign sent: ${data.sent} delivered${data.failed ? `, ${data.failed} failed` : ""}${data.skipped ? `, ${data.skipped} skipped (unsubscribed)` : ""}.`
         )
@@ -485,49 +519,57 @@ export default function AdminMarketingPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1">Insert Image (hosted URL)</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://…/banner.png"
-                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-              <Button type="button" size="sm" variant="outline" onClick={insertImage} disabled={!imageUrl.trim()}>
-                <ImageIcon className="w-3.5 h-3.5 mr-1" />
-                Insert
-              </Button>
-            </div>
-          </div>
-
-          <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-medium">HTML Body</label>
-              <button
-                type="button"
-                onClick={() => setShowPreview((v) => !v)}
-                className="text-xs text-retail hover:underline flex items-center gap-1"
-              >
-                <Eye className="w-3 h-3" /> {showPreview ? "Hide preview" : "Preview"}
-              </button>
+              <label className="block text-xs font-medium">Email Content</label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditSource((v) => !v)}
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                >
+                  <Code2 className="w-3 h-3" /> {editSource ? "Visual editor" : "Edit HTML"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPreview((v) => !v)}
+                  className="text-xs text-retail hover:underline flex items-center gap-1"
+                >
+                  <Eye className="w-3 h-3" /> {showPreview ? "Hide preview" : "Preview"}
+                </button>
+              </div>
             </div>
-            <textarea
-              value={html}
-              onChange={(e) => setHtml(e.target.value)}
-              rows={10}
-              placeholder={'<h2>Hi {{firstName}},</h2>\n<p>We just shipped…</p>\n<a href="https://martpoint.com.ng/product-updates">See what\'s new</a>'}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y font-mono"
-            />
+            {editSource ? (
+              <textarea
+                value={html}
+                onChange={(e) => setHtml(e.target.value)}
+                rows={12}
+                placeholder={'<h2>Hi {{firstName}},</h2>\n<p>We just shipped…</p>\n<a href="https://martpoint.com.ng/product-updates">See what\'s new</a>'}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y font-mono"
+              />
+            ) : (
+              <EmailRichEditor value={html} onChange={setHtml} onUploadImage={uploadImage} />
+            )}
             <p className="text-xs text-muted-foreground mt-1">
-              Merge tags: {"{{name}}"}, {"{{firstName}}"}, {"{{email}}"}. Links are automatically click-tracked, and an unsubscribe footer is added to every email.
+              Merge tags: {"{{name}}"}, {"{{firstName}}"}, {"{{email}}"}. Your logo, click tracking and the unsubscribe footer are added automatically.
             </p>
           </div>
 
           {showPreview && html && (
-            <div className="rounded-md border border-border bg-white p-4">
-              <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">Preview (approximate)</p>
-              <div dangerouslySetInnerHTML={{ __html: html }} />
+            <div className="rounded-md border border-border bg-[#f4f5f7] p-4 sm:p-6">
+              <div className="max-w-[620px] mx-auto">
+                <div className="bg-white border border-[#e5e7eb] rounded-xl overflow-hidden">
+                  <div className="px-6 py-4 border-b border-[#f1f5f9]">
+                    <Image src="/logo.webp" alt="MartPoint" width={120} height={34} className="h-8 w-auto" />
+                  </div>
+                  <div
+                    className="px-6 py-5 text-[15px] leading-relaxed text-gray-800 [&_a]:text-retail [&_a]:underline [&_img]:max-w-full [&_img]:h-auto [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:border-gray-200 [&_blockquote]:pl-3"
+                    dangerouslySetInnerHTML={{ __html: html }}
+                  />
+                </div>
+                <p className="text-xs text-center text-muted-foreground mt-3">
+                  Approximate preview — unsubscribe footer and tracking are added on send.
+                </p>
+              </div>
             </div>
           )}
 
@@ -542,6 +584,38 @@ export default function AdminMarketingPage() {
               I confirm these recipients consented to receive MartPoint marketing emails. Anyone who previously unsubscribed will be skipped automatically.
             </span>
           </label>
+
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="radio"
+                name="scheduleMode"
+                checked={scheduleMode === "now"}
+                onChange={() => setScheduleMode("now")}
+                className="accent-retail"
+              />
+              Send now
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="radio"
+                name="scheduleMode"
+                checked={scheduleMode === "later"}
+                onChange={() => setScheduleMode("later")}
+                className="accent-retail"
+              />
+              <CalendarClock className="w-3.5 h-3.5 text-muted-foreground" />
+              Schedule for later
+            </label>
+            {scheduleMode === "later" && (
+              <input
+                type="datetime-local"
+                value={scheduledFor}
+                onChange={(e) => setScheduledFor(e.target.value)}
+                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+              />
+            )}
+          </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
             <div className="flex items-center gap-2">
@@ -566,10 +640,27 @@ export default function AdminMarketingPage() {
               size="sm"
               variant="retail"
               onClick={sendCampaign}
-              disabled={sending || !subject || !html || !consent || !recipientInfo?.deliverable}
+              disabled={
+                sending ||
+                !subject ||
+                !html ||
+                !consent ||
+                !recipientInfo?.deliverable ||
+                (scheduleMode === "later" && !scheduledFor)
+              }
             >
-              {sending ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
-              {sending ? "Sending…" : `Send to ${recipientInfo?.deliverable ?? 0} recipients`}
+              {sending ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+              ) : scheduleMode === "later" ? (
+                <CalendarClock className="w-3.5 h-3.5 mr-1" />
+              ) : (
+                <Send className="w-3.5 h-3.5 mr-1" />
+              )}
+              {sending
+                ? "Sending…"
+                : scheduleMode === "later"
+                  ? `Schedule for ${recipientInfo?.deliverable ?? 0} recipients`
+                  : `Send to ${recipientInfo?.deliverable ?? 0} recipients`}
             </Button>
           </div>
         </CardContent>
@@ -609,6 +700,9 @@ export default function AdminMarketingPage() {
                             <p className="text-sm font-semibold text-foreground truncate">{c.name}</p>
                             <p className="text-xs text-muted-foreground">
                               {AUDIENCE_LABELS[c.audience] || c.audience} · {c.provider === "default" ? "default provider" : c.provider} · {new Date(c.sentAt).toLocaleDateString()} · by {c.createdBy}
+                              {c.status === "scheduled" && c.scheduledFor && (
+                                <span className="text-amber-600"> · scheduled {new Date(c.scheduledFor).toLocaleString()}</span>
+                              )}
                             </p>
                           </div>
                         </div>

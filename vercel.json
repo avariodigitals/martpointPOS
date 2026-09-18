@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/admin/marketing/send-due",
-      "schedule": "*/15 * * * *"
-    }
-  ]
-}

@@ -6,8 +6,9 @@ import { executeCampaign } from "@/lib/marketing"
 
 /*
  * Sends scheduled campaigns whose time has come.
- * Called by Vercel Cron (Authorization: Bearer <CRON_SECRET>) — vercel.json
- * schedules this every 15 minutes. Also callable by admins manually.
+ * Called by the GitHub Actions workflow .github/workflows/marketing-cron.yml
+ * (Authorization: Bearer <CRON_SECRET>) every 30 minutes.
+ * Also callable by admins manually.
  */
 export async function POST(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ processed: results.length, results })
 }
 
-/* Vercel Cron invokes routes with GET — delegate to the same logic. */
+/* GET delegates to the same logic (useful for manual browser hits / health checks). */
 export async function GET(request: Request) {
   return POST(request)
 }

@@ -1,0 +1,23 @@
+name: Marketing cron — send scheduled campaigns
+
+on:
+  schedule:
+    # Every 30 minutes — see https://crontab.guru/#*/30_*_*_*_*
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    # Manual trigger from the Actions tab (useful for testing)
+
+concurrency:
+  group: marketing-send-due
+  cancel-in-progress: false
+
+jobs:
+  send-due-campaigns:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger scheduled campaign send
+        run: |
+          curl -fsS -X POST "${{ vars.APP_BASE_URL || 'https://www.martpoint.com.ng' }}/api/admin/marketing/send-due" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

@@ -53,6 +53,7 @@ export interface Lead {
   questionnaireStatus?: string
   questionnaireSentAt?: string | null
   questionnaireSubmittedAt?: string | null
+  businessId?: string | null
   submittedAt: string
   updatedAt: string
 }
@@ -1127,15 +1128,26 @@ export function LeadDetailModal({
           {tab === "actions" && (
             <div className="space-y-4">
               {lead.status === "Won" && (
-                <ActionCard
-                  icon={<Rocket className="w-5 h-5 text-retail" />}
-                  title="Convert to Business"
-                  description="Create a full business record from this lead and start onboarding."
-                  buttonText="Convert Now"
-                  onClick={handleConvert}
-                  loading={converting}
-                  accent="retail"
-                />
+                lead.businessId ? (
+                  <ActionCard
+                    icon={<CheckCircle2 className="w-5 h-5 text-success" />}
+                    title="Converted to Business"
+                    description="This lead already has a business record — conversion can only happen once."
+                    buttonText="View Business"
+                    onClick={() => (window.location.href = `/admin/businesses/${lead.businessId}`)}
+                    accent="success"
+                  />
+                ) : (
+                  <ActionCard
+                    icon={<Rocket className="w-5 h-5 text-retail" />}
+                    title="Convert to Business"
+                    description="Create a full business record from this lead and start onboarding."
+                    buttonText="Convert Now"
+                    onClick={handleConvert}
+                    loading={converting}
+                    accent="retail"
+                  />
+                )
               )}
 
               <ActionCard

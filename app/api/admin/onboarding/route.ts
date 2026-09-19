@@ -169,13 +169,18 @@ export async function POST(request: Request) {
       <p>Best regards,<br>MartPoint Team</p>
     </div>`
 
-    await sendEmail({
+    const emailSent = await sendEmail({
       to: email,
       subject: welcomeTpl.subject,
       text: emailText,
       html: emailHtml,
       replyTo: REPLY_TO.sales,
     })
+
+    record.setupQuestionsSent = emailSent
+    if (isSupabaseConfigured()) {
+      await supabase.from("onboarding").update({ setup_questions_sent: emailSent }).eq("id", recordId)
+    }
 
     // WhatsApp notification (if configured)
     const waPhoneId = process.env.WHATSAPP_PHONE_ID
@@ -206,7 +211,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, record })
+    return NextResponse.json({ success: true, record, emailSent })
   } catch {
     return NextResponse.json({ error: "Failed to initiate onboarding" }, { status: 500 })
   }
@@ -219,7 +224,7 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json()
-    const { id, status, notes, clientResponses, documents, signatureUrl } = body
+    const { id, status, notes, clientResponses, documents, signatureUrl, resendForm } = body
 
     if (!id) {
       return NextResponse.json({ error: "Onboarding ID is required" }, { status: 400 })
@@ -227,6 +232,46 @@ export async function PUT(request: Request) {
 
     if (!isSupabaseConfigured()) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
+    }
+
+    if (resendForm) {
+      const { data: rec, error: recErr } = await supabase
+        .from("onboarding")
+        .select("*")
+        .eq("id", id)
+        .single()
+      if (recErr || !rec) {
+        return NextResponse.json({ error: "Record not found" }, { status: 404 })
+      }
+
+      const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "").replace(/\/$/, "")
+      const formLink = `${baseUrl}/onboarding/${rec.id}`
+      const welcomeTpl = await renderEmailTemplate("onboarding_welcome", {
+        fullName: rec.full_name,
+        setupQuestions: generateSetupQuestions((rec.product_interest as string) || "retail"),
+        formLink,
+      })
+      const emailHtml = `<div style="font-family:sans-serif;max-width:600px">
+        <h2 style="color:#0057FF">Welcome to MartPoint</h2>
+        <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${String(welcomeTpl.text).replace(/\n/g, "<br>")}</div>
+        <p><a href="${formLink}" style="color:#0057FF">Complete Onboarding Form</a></p>
+        <p>Best regards,<br>MartPoint Team</p>
+      </div>`
+
+      const emailSent = await sendEmail({
+        to: rec.email as string,
+        subject: welcomeTpl.subject,
+        text: welcomeTpl.text,
+        html: emailHtml,
+        replyTo: REPLY_TO.sales,
+      })
+
+      await supabase
+        .from("onboarding")
+        .update({ setup_questions_sent: emailSent, updated_at: new Date().toISOString() })
+        .eq("id", id)
+
+      return NextResponse.json({ success: true, emailSent })
     }
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }

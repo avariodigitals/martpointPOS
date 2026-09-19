@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import {
   ArrowLeft, Save, Loader2, Building2, ClipboardCheck, Activity, Lock, Landmark,
   Headset, HeartHandshake, ShieldCheck, AlertTriangle, Trash2, Pencil, X,
-  CheckCircle2, MapPin, Users, CreditCard, Plus, Rocket,
+  CheckCircle2, MapPin, Users, CreditCard, Plus, Rocket, Paperclip, FileText, Download,
 } from "lucide-react"
 import type { Business, BusinessStatus, BusinessBranch, BusinessUser, OnboardingStages, OnboardingStageKey } from "@/lib/businesses"
 import { ONBOARDING_STAGES } from "@/lib/businesses"
@@ -41,6 +41,7 @@ const TABS: Tab[] = [
   { key: "onboarding", label: "Onboarding", icon: ClipboardCheck, enabled: true },
   { key: "branches", label: "Branches", icon: MapPin, enabled: true },
   { key: "users", label: "Users", icon: Users, enabled: true },
+  { key: "files", label: "Files", icon: Paperclip, enabled: true },
   { key: "subscription", label: "Subscription", icon: CreditCard, enabled: true },
   { key: "activity", label: "Activity", icon: Activity, enabled: true },
   { key: "finance", label: "Finance", icon: Landmark, enabled: true, href: (id: string) => `/admin/businesses/${id}/finance` },
@@ -105,6 +106,27 @@ export function BusinessDetail({
   const [userForm, setUserForm] = useState({ fullName: "", email: "", phone: "", role: "STAFF" as string, branchId: "" })
   const [savingBranch, setSavingBranch] = useState(false)
   const [savingUser, setSavingUser] = useState(false)
+
+  // All files uploaded for this business — onboarding form documents plus any
+  // file-type answers (logo etc.) stored inside client_responses.
+  const files = useMemo(() => {
+    const list: Array<{ name: string; url: string; uploadedAt?: string; source: string }> = []
+    for (const r of onboardingRecords) {
+      const docs = (r.documents as Array<{ name: string; url: string; uploadedAt?: string }>) || []
+      for (const d of docs) {
+        if (d?.url) list.push({ name: d.name, url: d.url, uploadedAt: d.uploadedAt, source: "Onboarding form" })
+      }
+      const responses = (r.client_responses as Record<string, unknown>) || {}
+      for (const [key, value] of Object.entries(responses)) {
+        if (typeof value === "string" && value.startsWith("data:") && !docs.some((d) => d.name.startsWith(`${key}-`))) {
+          const mime = value.slice(5, value.indexOf(";"))
+          const ext = (mime.split("/")[1] || "bin").replace("jpeg", "jpg")
+          list.push({ name: `${key}.${ext}`, url: value, uploadedAt: r.updated_at as string, source: "Onboarding form" })
+        }
+      }
+    }
+    return list
+  }, [onboardingRecords])
   const [form, setForm] = useState({
     businessName: business.businessName,
     legalName: business.legalName || "",
@@ -773,6 +795,47 @@ export function BusinessDetail({
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "files" && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm font-medium">Files ({files.length})</CardTitle></CardHeader>
+          <CardContent>
+            {files.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No files yet. Documents and images uploaded via the onboarding form appear here.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {files.map((f, i) => {
+                  const isDataUrl = f.url.startsWith("data:")
+                  const isImage = f.url.startsWith("data:image/")
+                  return (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-md border border-border bg-muted/10">
+                      {isImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={f.url} alt={f.name} className="h-12 w-12 rounded border border-border bg-white object-contain shrink-0" />
+                      ) : (
+                        <div className="h-12 w-12 rounded border border-border bg-background flex items-center justify-center shrink-0">
+                          <FileText className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate" title={f.name}>{f.name}</p>
+                        <p className="text-xs text-muted-foreground">{f.source}{f.uploadedAt ? ` · ${fmt(f.uploadedAt)}` : ""}</p>
+                        <a
+                          href={f.url}
+                          {...(isDataUrl ? { download: f.name } : { target: "_blank", rel: "noopener noreferrer" })}
+                          className="text-xs text-retail hover:underline inline-flex items-center gap-1 mt-0.5"
+                        >
+                          <Download className="w-3 h-3" /> Download
+                        </a>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </CardContent>

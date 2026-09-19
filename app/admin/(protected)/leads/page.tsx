@@ -60,6 +60,7 @@ interface Lead {
   questionnaireStatus?: string
   questionnaireSentAt?: string | null
   questionnaireSubmittedAt?: string | null
+  businessId?: string | null
   submittedAt: string
   updatedAt: string
 }

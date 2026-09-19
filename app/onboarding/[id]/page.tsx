@@ -232,8 +232,12 @@ export default function ClientOnboardingPage() {
       uploadedAt: new Date().toISOString(),
     }))
 
-    // Merge with existing documents
-    const allDocs = [...(record?.documents || []), ...docRecords]
+    // Merge with existing documents — replace prior uploads for the same field
+    const uploadKeys = new Set(Object.keys(documents))
+    const allDocs = [
+      ...(record?.documents || []).filter((d) => !uploadKeys.has(d.name.split("-")[0])),
+      ...docRecords,
+    ]
 
     try {
       const res = await fetch("/api/onboarding/client", {
@@ -241,7 +245,7 @@ export default function ClientOnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id,
-          clientResponses: { ...responses, logo: documents.logo?.data || "" },
+          clientResponses: { ...responses, ...(documents.logo ? { logo: documents.logo.data } : {}) },
           documents: allDocs,
         }),
       })

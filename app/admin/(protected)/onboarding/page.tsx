@@ -114,6 +114,7 @@ export default function AdminOnboardingPage() {
   const [editingNote, setEditingNote] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [stageSaving, setStageSaving] = useState<string | null>(null)
+  const [formSendingId, setFormSendingId] = useState<string | null>(null)
 
   // Invoice modal
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
@@ -229,7 +230,11 @@ export default function AdminOnboardingPage() {
         setRecords((prev) => [data.record, ...prev])
         setShowInitiateModal(false)
         setSelectedLead(null)
-        setMessage("Onboarding initiated. Setup questions sent via email and WhatsApp.")
+        setMessage(
+          data.emailSent === false
+            ? "Onboarding initiated, but the email failed to send — use Send Form on the Info Received stage to retry."
+            : "Onboarding initiated. Setup questions sent via email and WhatsApp."
+        )
       } else {
         setMessage(data.error || "Failed to initiate onboarding")
       }
@@ -237,6 +242,30 @@ export default function AdminOnboardingPage() {
       setMessage("Failed to initiate onboarding")
     } finally {
       setInitiating(false)
+      setTimeout(() => setMessage(""), 4000)
+    }
+  }
+
+  const sendOnboardingForm = async (record: OnboardingRecord) => {
+    setFormSendingId(record.id)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/onboarding", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: record.id, resendForm: true }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setRecords((prev) => prev.map((r) => (r.id === record.id ? { ...r, setupQuestionsSent: !!data.emailSent } : r)))
+        setMessage(data.emailSent ? "Onboarding form sent to client." : "Email delivery failed — check email settings.")
+      } else {
+        setMessage(data.error || "Failed to send onboarding form")
+      }
+    } catch {
+      setMessage("Failed to send onboarding form")
+    } finally {
+      setFormSendingId(null)
       setTimeout(() => setMessage(""), 4000)
     }
   }
@@ -771,7 +800,19 @@ MartPoint Team`
                             {Object.entries(record.clientResponses).map(([key, value]) => (
                               <div key={key} className="text-sm">
                                 <span className="font-medium text-muted-foreground">{humanizeKey(key)}:</span>{" "}
-                                <span className="text-foreground whitespace-pre-wrap">{formatResponseValue(value)}</span>
+                                {typeof value === "string" && value.startsWith("data:") ? (
+                                  <span className="inline-flex items-center gap-3 align-middle">
+                                    {value.startsWith("data:image/") && (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={value} alt={humanizeKey(key)} className="h-12 w-12 rounded border border-border bg-white object-contain" />
+                                    )}
+                                    <a href={value} download={dataUrlFileName(key, value)} className="text-xs text-retail hover:underline">
+                                      Download
+                                    </a>
+                                  </span>
+                                ) : (
+                                  <span className="text-foreground whitespace-pre-wrap">{formatResponseValue(value)}</span>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -786,31 +827,44 @@ MartPoint Team`
                               const stage = (record.onboardingStages as Record<string, { completedAt?: string }> | undefined)?.[s.key]
                               const saving = stageSaving === `${record.id}-${s.key}`
                               const completed = !!stage?.completedAt
+                              const hasResponses = Object.keys(record.clientResponses || {}).length > 0
+                              const needsForm = s.key === "INFO_RECEIVED" && !completed && !record.setupQuestionsSent && !hasResponses
                               return (
-                                <button
-                                  key={s.key}
-                                  type="button"
-                                  disabled={!record.businessId || saving}
-                                  onClick={() => toggleRecordStage(record, s.key, !completed)}
-                                  className="flex items-center gap-2 text-sm text-left w-full disabled:cursor-not-allowed disabled:opacity-60 group"
-                                  title={record.businessId ? (completed ? "Click to reopen" : "Click to complete") : "No linked business"}
-                                >
-                                  {saving ? (
-                                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />
-                                  ) : completed ? (
-                                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                                  ) : (
-                                    <div className="w-4 h-4 rounded-full border-2 border-gray-300 bg-background group-hover:border-retail shrink-0" />
-                                  )}
-                                  <span className={completed ? "text-foreground font-medium" : "text-muted-foreground group-hover:text-foreground"}>
-                                    {s.label}
-                                  </span>
-                                  {completed && (
-                                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                                      {new Date(stage.completedAt!).toLocaleDateString()}
+                                <div key={s.key} className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={!record.businessId || saving || needsForm}
+                                    onClick={() => toggleRecordStage(record, s.key, !completed)}
+                                    className="flex items-center gap-2 text-sm text-left flex-1 disabled:cursor-not-allowed disabled:opacity-60 group"
+                                    title={needsForm ? "Send the onboarding form first" : record.businessId ? (completed ? "Click to reopen" : "Click to complete") : "No linked business"}
+                                  >
+                                    {saving ? (
+                                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />
+                                    ) : completed ? (
+                                      <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                                    ) : (
+                                      <div className="w-4 h-4 rounded-full border-2 border-gray-300 bg-background group-hover:border-retail shrink-0" />
+                                    )}
+                                    <span className={completed ? "text-foreground font-medium" : "text-muted-foreground group-hover:text-foreground"}>
+                                      {s.label}
                                     </span>
+                                    {completed && (
+                                      <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                                        {new Date(stage.completedAt!).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                  </button>
+                                  {s.key === "INFO_RECEIVED" && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); void sendOnboardingForm(record) }}
+                                      disabled={formSendingId === record.id}
+                                      className="shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-retail/30 text-retail hover:bg-retail/5 font-medium disabled:opacity-50"
+                                    >
+                                      {formSendingId === record.id ? "Sending…" : record.setupQuestionsSent ? "Resend Form" : "Send Form"}
+                                    </button>
                                   )}
-                                </button>
+                                </div>
                               )
                             })}
                           </div>
@@ -820,12 +874,25 @@ MartPoint Team`
                       <div>
                         <label className="block text-xs font-medium mb-1">Documents</label>
                         {record.documents && record.documents.length > 0 ? (
-                          <div className="space-y-1">
-                            {record.documents.map((doc, i) => (
-                              <a key={i} href={doc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-retail hover:underline flex items-center gap-1">
-                                <FileText className="w-3.5 h-3.5" /> {doc.name}
-                              </a>
-                            ))}
+                          <div className="space-y-2">
+                            {record.documents.map((doc, i) => {
+                              const isDataUrl = doc.url.startsWith("data:")
+                              return (
+                                <div key={i} className="flex items-center gap-3">
+                                  {doc.url.startsWith("data:image/") && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={doc.url} alt={doc.name} className="h-10 w-10 rounded border border-border bg-white object-contain" />
+                                  )}
+                                  <a
+                                    href={doc.url}
+                                    {...(isDataUrl ? { download: doc.name } : { target: "_blank", rel: "noopener noreferrer" })}
+                                    className="text-sm text-retail hover:underline flex items-center gap-1"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" /> {doc.name}
+                                  </a>
+                                </div>
+                              )
+                            })}
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
@@ -1267,6 +1334,12 @@ function humanizeKey(key: string): string {
     .trim()
     .replace(/^./, (c) => c.toUpperCase())
   return label.replace(/\b(Rc|Tin|Vat|Cac|Api|Pos)\b/g, (m) => m.toUpperCase())
+}
+
+function dataUrlFileName(key: string, dataUrl: string): string {
+  const mime = dataUrl.slice(5, dataUrl.indexOf(";"))
+  const ext = mime.split("/")[1]?.replace("jpeg", "jpg") || "bin"
+  return `${key}.${ext}`
 }
 
 function formatResponseValue(value: unknown): string {

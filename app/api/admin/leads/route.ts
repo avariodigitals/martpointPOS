@@ -24,6 +24,7 @@ interface LeadRecord {
   questionnaireStatus?: string
   questionnaireSentAt?: string | null
   questionnaireSubmittedAt?: string | null
+  businessId?: string | null
   submittedAt: string
   updatedAt: string
 }
@@ -75,9 +76,20 @@ export async function GET() {
     questionnaireStatus: row.questionnaire_status,
     questionnaireSentAt: row.questionnaire_sent_at,
     questionnaireSubmittedAt: row.questionnaire_submitted_at,
+    businessId: null as string | null,
     submittedAt: row.submitted_at,
     updatedAt: row.updated_at,
   }))
+
+  const leadIds = leads.map((l) => l.id as string)
+  if (leadIds.length > 0) {
+    const { data: bizRows } = await supabase
+      .from("businesses")
+      .select("id, source_lead_id")
+      .in("source_lead_id", leadIds)
+    const bizByLead = new Map((bizRows || []).map((b) => [b.source_lead_id as string, b.id as string]))
+    for (const lead of leads) lead.businessId = bizByLead.get(lead.id as string) ?? null
+  }
 
   return NextResponse.json({ leads })
 }

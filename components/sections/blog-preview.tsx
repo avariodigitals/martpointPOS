@@ -1,7 +1,6 @@
 import Link from "next/link"
-import fs from "fs"
-import path from "path"
 import { ArrowRight } from "lucide-react"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 interface BlogPost {
   id: string
@@ -9,26 +8,43 @@ interface BlogPost {
   title: string
   excerpt: string
   coverImage: string
+  coverImageAlt: string
   category: string
   author: string
   publishedAt: string
   status: "published" | "draft"
 }
 
-function getPublishedPosts(): BlogPost[] {
+async function getPublishedPosts(): Promise<BlogPost[]> {
+  if (!isSupabaseConfigured()) return []
   try {
-    const blogPath = path.join(process.cwd(), "data", "blog.json")
-    if (!fs.existsSync(blogPath)) return []
-    const data = fs.readFileSync(blogPath, "utf-8")
-    const posts: BlogPost[] = JSON.parse(data).posts || []
-    return posts.filter((p) => p.status === "published").slice(0, 3)
+    const { data, error } = await supabase
+      .from("blog_posts")
+      .select("id, slug, title, excerpt, cover_image, cover_image_alt, category, author, published_at, status")
+      .eq("status", "published")
+      .order("published_at", { ascending: false })
+      .limit(3)
+
+    if (error || !data) return []
+    return data.map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      excerpt: row.excerpt,
+      coverImage: row.cover_image,
+      coverImageAlt: row.cover_image_alt || "",
+      category: row.category,
+      author: row.author,
+      publishedAt: row.published_at,
+      status: row.status,
+    }))
   } catch {
     return []
   }
 }
 
-export function BlogPreview() {
-  const posts = getPublishedPosts()
+export async function BlogPreview() {
+  const posts = await getPublishedPosts()
 
   if (posts.length === 0) return null
 
@@ -67,7 +83,7 @@ export function BlogPreview() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={post.coverImage}
-                    alt={post.title}
+                    alt={post.coverImageAlt || post.title}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>

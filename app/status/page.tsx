@@ -65,7 +65,6 @@ function fmtDateTime(iso: string): string {
 }
 
 function fmtWindow(startIso: string | null, endIso: string | null): string {
-  if (!startIso) return ""
   const opts: Intl.DateTimeFormatOptions = {
     timeZone: TIMEZONE,
     month: "short",
@@ -76,6 +75,10 @@ function fmtWindow(startIso: string | null, endIso: string | null): string {
     hour12: false,
   }
   try {
+    if (!startIso) {
+      if (!endIso) return ""
+      return `Until ${new Date(endIso).toLocaleString("en-US", opts)} WAT`
+    }
     const start = new Date(startIso).toLocaleString("en-US", opts)
     if (!endIso) return `${start} WAT`
     const sameDay =
@@ -167,7 +170,7 @@ function IncidentCard({ incident }: { incident: StatusIncident }) {
           </span>
         )}
       </div>
-      {incident.kind === "maintenance" && incident.scheduledFor && (
+      {incident.kind === "maintenance" && (incident.scheduledFor || incident.scheduledUntil) && (
         <p className="mt-0.5 text-xs text-muted-foreground">
           {fmtWindow(incident.scheduledFor, incident.scheduledUntil)}
         </p>

@@ -272,42 +272,121 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;")
 }
 
+const UPDATE_BADGE_COLORS: Record<string, { bg: string; fg: string }> = {
+  investigating: { bg: "#DC2626", fg: "#FFFFFF" },
+  identified: { bg: "#EA580C", fg: "#FFFFFF" },
+  monitoring: { bg: "#2563EB", fg: "#FFFFFF" },
+  verifying: { bg: "#2563EB", fg: "#FFFFFF" },
+  in_progress: { bg: "#2563EB", fg: "#FFFFFF" },
+  scheduled: { bg: "#64748B", fg: "#FFFFFF" },
+  resolved: { bg: "#16A34A", fg: "#FFFFFF" },
+  completed: { bg: "#16A34A", fg: "#FFFFFF" },
+}
+
+function buildStatusEmailHtml(
+  incident: StatusIncident,
+  update: StatusIncidentUpdate,
+  affectedNames: string[],
+  unsubUrl: string,
+  base: string
+): string {
+  const statusLabel =
+    INCIDENT_STATUS_LABELS[update.status as IncidentStatus] || update.status || "Update"
+  const badge = UPDATE_BADGE_COLORS[update.status] || { bg: "#64748B", fg: "#FFFFFF" }
+  const when = new Date(update.createdAt).toLocaleString("en-US", {
+    timeZone: TIMEZONE,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+
+  const affectedBlock =
+    affectedNames.length > 0
+      ? `<p style="margin:0 0 16px;font-size:13px;color:#6b7280">Affected: ${affectedNames.map(escapeHtml).join(", ")}</p>`
+      : ""
+
+  const windowBlock =
+    incident.kind === "maintenance" && (incident.scheduledFor || incident.scheduledUntil)
+      ? `<p style="margin:0 0 16px;font-size:13px;color:#6b7280">Window: ${
+          incident.scheduledFor
+            ? new Date(incident.scheduledFor).toLocaleString("en-US", { timeZone: TIMEZONE, month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
+            : "—"
+        } → ${
+          incident.scheduledUntil
+            ? new Date(incident.scheduledUntil).toLocaleString("en-US", { timeZone: TIMEZONE, month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
+            : "—"
+        } WAT</p>`
+      : ""
+
+  return `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(statusLabel)} — ${escapeHtml(incident.title)}${"&zwnj;&nbsp;".repeat(20)}</div>
+<div style="margin:0;padding:0;background:#f4f5f7">
+  <div style="max-width:620px;margin:0 auto;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">
+    <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+      <div style="padding:18px 24px;border-bottom:1px solid #f1f5f9">
+        <img src="${base}/logo.webp" alt="MartPoint" height="34" style="height:34px;display:block" />
+      </div>
+      <div style="padding:24px;font-size:15px;line-height:1.65;color:#1f2937">
+        <p style="margin:0 0 4px">
+          <span style="display:inline-block;background:${badge.bg};color:${badge.fg};font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:4px 10px;border-radius:999px">${escapeHtml(statusLabel)}</span>
+          ${incident.kind === "maintenance" ? '<span style="display:inline-block;background:#EBF1FF;color:#0057FF;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:4px 10px;border-radius:999px;margin-left:6px">Maintenance</span>' : ""}
+        </p>
+        <h2 style="margin:12px 0 4px;font-size:20px;line-height:1.3;color:#111827">${escapeHtml(incident.title)}</h2>
+        <p style="margin:0 0 16px;font-size:13px;color:#6b7280">${when} WAT</p>
+        ${affectedBlock}
+        ${windowBlock}
+        <p style="margin:0 0 20px;white-space:pre-wrap">${escapeHtml(update.body)}</p>
+        <p style="margin:0 0 8px">
+          <a href="${base}/status" style="display:inline-block;background:#0057FF;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px">View Status Page</a>
+        </p>
+      </div>
+      <div style="padding:16px 24px;background:#f8fafc;border-top:1px solid #f1f5f9;font-size:13px;color:#4b5563;line-height:1.6">
+        Need more insight? Our team is here —
+        <a href="${base}/support" style="color:#0057FF;text-decoration:none">visit support</a>,
+        email <a href="mailto:support@martpoint.com.ng" style="color:#0057FF;text-decoration:none">support@martpoint.com.ng</a>,
+        or chat on <a href="https://wa.me/2348036028069" style="color:#0057FF;text-decoration:none">WhatsApp</a>.
+      </div>
+    </div>
+    <div style="margin-top:24px;font-size:12px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;text-align:center">
+      You are receiving this email because you subscribed to MartPoint status updates.<br>
+      <a href="${unsubUrl}" style="color:#6b7280;text-decoration:underline">Unsubscribe</a> from these emails &middot; MartPoint &middot; martpoint.com.ng
+    </div>
+  </div>
+</div>`
+}
+
 /**
  * Email all active subscribers about an incident create/update.
  * Failures are logged via sendEmail's email_logs integration and never throw.
  */
 export async function notifyStatusSubscribers(incident: StatusIncident, update: StatusIncidentUpdate) {
   if (!isSupabaseConfigured()) return
-  const subscribers = await listSubscribers()
+  const [subscribers, components] = await Promise.all([listSubscribers(), listComponents()])
   if (subscribers.length === 0) return
+
+  const affectedNames = components
+    .filter((c) => incident.componentIds.includes(c.id))
+    .map((c) => c.name)
 
   const base = baseUrl()
   const statusLabel =
     INCIDENT_STATUS_LABELS[update.status as IncidentStatus] || update.status || "Update"
   const subject = `[${statusLabel}] ${incident.title} — MartPoint Status`
-  const text = `${incident.title}\n\n${statusLabel} — ${update.body}\n\nView the status page: ${base}/status`
+  const text = `${incident.title}\n\n${statusLabel} — ${update.body}\n\n${
+    affectedNames.length ? `Affected: ${affectedNames.join(", ")}\n\n` : ""
+  }View the status page: ${base}/status\n\nNeed help? support@martpoint.com.ng`
 
   await Promise.allSettled(
     subscribers.map((sub) => {
       const unsubUrl = `${base}/status/unsubscribe?t=${encodeURIComponent(sub.token)}`
-      const html = `
-<div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;color:#111">
-  <h2 style="margin:0 0 4px">${escapeHtml(incident.title)}</h2>
-  <p style="margin:0 0 12px;color:#6b7280;font-size:13px">${escapeHtml(statusLabel)}</p>
-  <p style="white-space:pre-wrap;line-height:1.5">${escapeHtml(update.body)}</p>
-  <p><a href="${base}/status" style="color:#0047CC">View status page</a></p>
-  <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 12px" />
-  <p style="font-size:12px;color:#6b7280">
-    You are receiving this because you subscribed to MartPoint status updates.
-    <a href="${unsubUrl}" style="color:#6b7280;text-decoration:underline">Unsubscribe</a>
-  </p>
-</div>`
       return sendEmail({
         to: sub.email,
         subject,
         text,
-        html,
-        replyTo: REPLY_TO.noreply,
+        html: buildStatusEmailHtml(incident, update, affectedNames, unsubUrl, base),
+        replyTo: REPLY_TO.support,
         headers: { "List-Unsubscribe": `<${unsubUrl}>` },
       })
     })

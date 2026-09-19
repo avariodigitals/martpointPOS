@@ -120,30 +120,59 @@ export async function POST(request: Request) {
     }
 
     // Advance the canonical business onboarding to "Info Received" with the payload.
-    const businessId = existing.business_id as string | undefined
-    if (businessId) {
-      try {
-        await setOnboardingStage(businessId, "INFO_RECEIVED", true, { actorType: "SYSTEM", actorId: null, actorName: null }, { data: clientResponses })
-      } catch (err) {
-        console.error("[Onboarding Client Update] setOnboardingStage", err)
-      }
-    } else if (existing.lead_id) {
+    let resolvedBusinessId = (existing.business_id as string | undefined) || undefined
+    if (!resolvedBusinessId && existing.lead_id) {
       const { data: businessRow } = await supabase
         .from("businesses")
         .select("id")
         .eq("source_lead_id", existing.lead_id)
         .maybeSingle()
-      if (businessRow?.id) {
-        try {
-          await setOnboardingStage(businessRow.id as string, "INFO_RECEIVED", true, { actorType: "SYSTEM", actorId: null, actorName: null }, { data: clientResponses })
-        } catch (err) {
-          console.error("[Onboarding Client Update] setOnboardingStage", err)
-        }
+      resolvedBusinessId = businessRow?.id as string | undefined
+    }
+
+    if (resolvedBusinessId) {
+      try {
+        await setOnboardingStage(resolvedBusinessId, "INFO_RECEIVED", true, { actorType: "SYSTEM", actorId: null, actorName: null }, { data: clientResponses })
+      } catch (err) {
+        console.error("[Onboarding Client Update] setOnboardingStage", err)
       }
+      await backfillBusinessFromDeployment(resolvedBusinessId, clientResponses || {})
     }
 
     return NextResponse.json({ success: true, record: data })
   } catch {
     return NextResponse.json({ error: "Failed to update record" }, { status: 500 })
+  }
+}
+
+// Fill business contact fields that are still empty from the structured
+// deployment responses — never overwrites existing values.
+async function backfillBusinessFromDeployment(businessId: string, responses: Record<string, unknown>) {
+  try {
+    const { data: biz } = await supabase
+      .from("businesses")
+      .select("address, city, state, country, primary_phone")
+      .eq("id", businessId)
+      .single()
+    if (!biz) return
+
+    const str = (k: string) => {
+      const v = responses[k]
+      return typeof v === "string" && v.trim() ? v.trim() : ""
+    }
+
+    const patch: Record<string, string> = {}
+    if (!biz.address && str("address")) patch.address = str("address")
+    if (!biz.city && str("city")) patch.city = str("city")
+    if (!biz.state && str("state")) patch.state = str("state")
+    if (!biz.country && str("country")) patch.country = str("country")
+    if (!biz.primary_phone && str("storePhone")) patch.primary_phone = str("storePhone")
+
+    if (Object.keys(patch).length > 0) {
+      patch.updated_at = new Date().toISOString()
+      await supabase.from("businesses").update(patch).eq("id", businessId)
+    }
+  } catch (err) {
+    console.error("[Onboarding Client Update] business backfill", err)
   }
 }

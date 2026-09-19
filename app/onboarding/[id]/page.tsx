@@ -10,6 +10,8 @@ import {
   AlertCircle,
   ShieldCheck,
   ClipboardCheck,
+  Plus,
+  X,
 } from "lucide-react"
 
 interface OnboardingRecord {
@@ -25,22 +27,101 @@ interface OnboardingRecord {
   signatureUrl: string
 }
 
-const DEPLOYMENT_QUESTIONS = [
-  { key: "goLiveDate", label: "Preferred go-live date", type: "text", required: true },
-  { key: "branches", label: "Branch names and addresses (one per line)", type: "textarea", required: true },
-  { key: "adminUser", label: "Primary admin name, email and phone", type: "text", required: true },
-  { key: "staffList", label: "Staff users to create (name, role, branch — one per line)", type: "textarea", required: false },
-  { key: "productData", label: "Do you have product data to import? (CSV, Excel, or list format)", type: "textarea", required: false },
-  { key: "suppliers", label: "Key suppliers (names and contacts)", type: "textarea", required: false },
-  { key: "hardware", label: "What hardware do you have? (barcode scanner, receipt printer, weighing scale, etc.)", type: "textarea", required: false },
-  { key: "bankAccount", label: "Bank account for settlements / payouts", type: "text", required: false },
-  { key: "preferredSubdomain", label: "Preferred account / subdomain name (if any)", type: "text", required: false },
-  { key: "specialRequests", label: "Any special deployment or integration requests", type: "textarea", required: false },
+type FieldType =
+  | "text" | "email" | "tel" | "number" | "date"
+  | "select" | "multiselect" | "textarea" | "section"
+  | "userlist" | "branchlist"
+
+interface DeploymentField {
+  key: string
+  label: string
+  type: FieldType
+  options?: string[]
+  required?: boolean
+  helpText?: string
+  placeholder?: string
+}
+
+interface UserRow {
+  name: string
+  email: string
+  phone: string
+  role: string
+}
+
+interface BranchRow {
+  name: string
+  address: string
+  phone: string
+}
+
+const USER_ROLES = ["Manager", "Cashier", "Staff", "Accountant", "Owner"]
+
+const DEPLOYMENT_FIELDS: DeploymentField[] = [
+  // ─── Branding ───
+  { key: "sectionBranding", label: "Branding", type: "section" },
+  { key: "brandName", label: "Brand / store display name", type: "text", required: true, placeholder: "e.g. Ada's Supermart" },
+  { key: "preferredSubdomain", label: "Preferred account / subdomain name", type: "text", placeholder: "e.g. adassupermart" },
+  { key: "receiptFooter", label: "Receipt footer message", type: "text", placeholder: "e.g. Thank you for shopping with us!" },
+
+  // ─── Business & Contact ───
+  { key: "sectionBusiness", label: "Business & Contact", type: "section" },
+  { key: "legalName", label: "Registered business / legal name", type: "text", placeholder: "As registered with CAC" },
+  { key: "rcNumber", label: "Business registration number (RC / CAC)", type: "text" },
+  { key: "storePhone", label: "Store phone number", type: "tel", required: true },
+  { key: "storeEmail", label: "Store email address", type: "email" },
+  { key: "address", label: "Store address", type: "textarea", required: true, placeholder: "Street, area, nearest landmark" },
+  { key: "city", label: "City", type: "text", required: true },
+  { key: "state", label: "State / Region", type: "text", required: true },
+  { key: "country", label: "Country", type: "text", required: true },
+
+  // ─── Users & Access ───
+  { key: "sectionUsers", label: "Users & Access", type: "section", helpText: "Who should get a login? The primary admin is usually the owner or manager." },
+  { key: "adminName", label: "Primary admin — full name", type: "text", required: true },
+  { key: "adminEmail", label: "Primary admin — email", type: "email", required: true },
+  { key: "adminPhone", label: "Primary admin — phone", type: "tel", required: true },
+  { key: "additionalUsers", label: "Additional users", type: "userlist", helpText: "Add each staff member who needs a login — name, email, phone and role." },
+
+  // ─── Branches ───
+  { key: "sectionBranches", label: "Branches", type: "section", helpText: "Your head office is assumed to be the store address above unless listed here." },
+  { key: "branchList", label: "Branch locations", type: "branchlist" },
+
+  // ─── Banking & Tax ───
+  { key: "sectionBanking", label: "Banking & Tax", type: "section" },
+  { key: "bankName", label: "Bank name", type: "text" },
+  { key: "accountName", label: "Account name", type: "text" },
+  { key: "accountNumber", label: "Business account number", type: "text" },
+  { key: "vatRegistered", label: "Are you registered for VAT / tax?", type: "select", options: ["Yes", "No"] },
+  { key: "taxRate", label: "Tax rate to apply on sales (%)", type: "number", placeholder: "e.g. 7.5" },
+  { key: "tin", label: "Tax Identification Number (TIN)", type: "text" },
+
+  // ─── Online Payments ───
+  { key: "sectionPayments", label: "Online Payments", type: "section" },
+  { key: "paymentVendor", label: "Which online payment vendor should we connect?", type: "select", options: ["Paystack", "Flutterwave", "Monnify", "Bank transfer only", "None — advise me"], required: true },
+  { key: "paymentAccountExists", label: "Do you already have an account with that vendor?", type: "select", options: ["Yes", "No", "Not yet — need help setting up"] },
+  { key: "paymentPublicKey", label: "Vendor public key (optional)", type: "text", placeholder: "e.g. pk_live_...", helpText: "Paste your PUBLIC key only. Never share secret keys here — we will collect those securely during setup." },
+
+  // ─── Shipping & Fulfilment ───
+  { key: "sectionShipping", label: "Shipping & Fulfilment", type: "section" },
+  { key: "shippingArrangement", label: "How do you handle deliveries?", type: "select", options: ["We deliver ourselves", "Third-party courier", "Customer pickup only", "Combination"], required: true },
+  { key: "deliveryZones", label: "Delivery areas / zones covered", type: "textarea", placeholder: "e.g. Lekki, VI, Ikoyi — mainland on request" },
+  { key: "deliveryFee", label: "Delivery fee structure", type: "text", placeholder: "e.g. Free within Lekki, ₦2,000 elsewhere" },
+
+  // ─── Data, Hardware & Go-live ───
+  { key: "sectionData", label: "Data, Hardware & Go-live", type: "section" },
+  { key: "productData", label: "Do you have product data to import?", type: "select", options: ["Yes — CSV/Excel ready", "Yes — needs cleanup", "No — starting fresh"] },
+  { key: "hardware", label: "What hardware do you have? (select all that apply)", type: "multiselect", options: ["Barcode scanner", "Receipt printer", "Cash drawer", "Customer display", "Tablet / iPad", "Computer", "Weighing scale", "Card terminal", "None yet"] },
+  { key: "suppliers", label: "Key suppliers (names and contacts)", type: "textarea" },
+  { key: "goLiveDate", label: "Preferred go-live date", type: "date", required: true },
+  { key: "specialRequests", label: "Any special deployment or integration requests", type: "textarea" },
 ]
 
 const COMPLIANCE_DOCS = [
   { key: "logo", label: "Business logo (PNG or JPG — max 2MB)", required: false },
 ]
+
+const inputCls =
+  "w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-retail/30"
 
 export default function ClientOnboardingPage() {
   const params = useParams()
@@ -50,13 +131,13 @@ export default function ClientOnboardingPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
-  const [responses, setResponses] = useState<Record<string, string>>({})
+  const [responses, setResponses] = useState<Record<string, unknown>>({})
   const [documents, setDocuments] = useState<Record<string, { name: string; data: string }>>({})
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  const questions = DEPLOYMENT_QUESTIONS
+  const fields = DEPLOYMENT_FIELDS
 
   useEffect(() => {
     if (!id) return
@@ -65,13 +146,8 @@ export default function ClientOnboardingPage() {
       .then((data) => {
         if (data.record) {
           setRecord(data.record)
-          // Pre-fill existing responses
           if (data.record.clientResponses) {
-            const existing: Record<string, string> = {}
-            Object.entries(data.record.clientResponses).forEach(([k, v]) => {
-              existing[k] = String(v)
-            })
-            setResponses(existing)
+            setResponses(data.record.clientResponses)
           }
         } else {
           setError(data.error || "Record not found")
@@ -80,6 +156,35 @@ export default function ClientOnboardingPage() {
       .catch(() => setError("Failed to load onboarding record"))
       .finally(() => setLoading(false))
   }, [id])
+
+  const update = (key: string, value: unknown) => {
+    setResponses((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const toggleMulti = (key: string, option: string) => {
+    setResponses((prev) => {
+      const current = Array.isArray(prev[key]) ? (prev[key] as string[]) : []
+      return { ...prev, [key]: current.includes(option) ? current.filter((o) => o !== option) : [...current, option] }
+    })
+  }
+
+  const userRows = (): UserRow[] =>
+    Array.isArray(responses.additionalUsers) ? (responses.additionalUsers as UserRow[]) : []
+
+  const setUserRows = (rows: UserRow[]) => update("additionalUsers", rows)
+
+  const updateUserRow = (idx: number, patch: Partial<UserRow>) => {
+    setUserRows(userRows().map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  }
+
+  const branchRows = (): BranchRow[] =>
+    Array.isArray(responses.branchList) ? (responses.branchList as BranchRow[]) : []
+
+  const setBranchRows = (rows: BranchRow[]) => update("branchList", rows)
+
+  const updateBranchRow = (idx: number, patch: Partial<BranchRow>) => {
+    setBranchRows(branchRows().map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  }
 
   const handleFileChange = async (key: string, file: File | null) => {
     if (!file) return
@@ -97,9 +202,14 @@ export default function ClientOnboardingPage() {
   }
 
   const validate = (): string | null => {
-    for (const q of questions) {
-      if (q.required && !responses[q.key]?.trim()) {
+    for (const q of fields) {
+      if (q.type === "section" || !q.required) continue
+      const v = responses[q.key]
+      if (v === undefined || v === null || String(v).trim() === "") {
         return `Please answer: ${q.label}`
+      }
+      if (q.type === "email" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v))) {
+        return `Please enter a valid email for: ${q.label}`
       }
     }
     return null
@@ -211,28 +321,161 @@ export default function ClientOnboardingPage() {
             <ClipboardCheck className="w-5 h-5 text-retail" />
             <h2 className="text-lg font-semibold text-foreground">Deployment Information</h2>
           </div>
-          {questions.map((q) => (
-            <div key={q.key}>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                {q.label} {q.required && <span className="text-red-500">*</span>}
-              </label>
-              {q.type === "textarea" ? (
-                <textarea
-                  value={responses[q.key] || ""}
-                  onChange={(e) => setResponses((prev) => ({ ...prev, [q.key]: e.target.value }))}
-                  rows={3}
-                  className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-retail/30 resize-none"
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={responses[q.key] || ""}
-                  onChange={(e) => setResponses((prev) => ({ ...prev, [q.key]: e.target.value }))}
-                  className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-retail/30"
-                />
-              )}
-            </div>
-          ))}
+          {fields.map((field) => {
+            if (field.type === "section") {
+              return (
+                <div key={field.key} className="pt-4 border-t border-border first:border-t-0 first:pt-0">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">{field.label}</h3>
+                  {field.helpText && <p className="text-xs text-muted-foreground mt-1">{field.helpText}</p>}
+                </div>
+              )
+            }
+            return (
+              <div key={field.key}>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  {field.label} {field.required && <span className="text-red-500">*</span>}
+                </label>
+                {field.helpText && <p className="text-xs text-muted-foreground mb-1.5">{field.helpText}</p>}
+
+                {field.type === "textarea" ? (
+                  <textarea
+                    value={String(responses[field.key] ?? "")}
+                    onChange={(e) => update(field.key, e.target.value)}
+                    rows={3}
+                    placeholder={field.placeholder}
+                    className={`${inputCls} resize-none`}
+                  />
+                ) : field.type === "select" ? (
+                  <select
+                    value={String(responses[field.key] ?? "")}
+                    onChange={(e) => update(field.key, e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="">Select...</option>
+                    {field.options?.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : field.type === "multiselect" ? (
+                  <div className="rounded-lg border border-border bg-background px-4 py-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {field.options?.map((o) => {
+                      const selected = Array.isArray(responses[field.key]) && (responses[field.key] as string[]).includes(o)
+                      return (
+                        <label key={o} className="flex items-center gap-2 text-sm cursor-pointer py-0.5">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleMulti(field.key, o)}
+                            className="rounded border-input shrink-0"
+                          />
+                          <span>{o}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ) : field.type === "userlist" ? (
+                  <div className="space-y-2">
+                    {userRows().map((row, i) => (
+                      <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_130px_28px] gap-2 items-center rounded-lg border border-border bg-muted/20 p-2">
+                        <input
+                          value={row.name}
+                          onChange={(e) => updateUserRow(i, { name: e.target.value })}
+                          placeholder="Full name"
+                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                        />
+                        <input
+                          value={row.email}
+                          onChange={(e) => updateUserRow(i, { email: e.target.value })}
+                          placeholder="Email"
+                          type="email"
+                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                        />
+                        <input
+                          value={row.phone}
+                          onChange={(e) => updateUserRow(i, { phone: e.target.value })}
+                          placeholder="Phone"
+                          type="tel"
+                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                        />
+                        <select
+                          value={row.role}
+                          onChange={(e) => updateUserRow(i, { role: e.target.value })}
+                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                        >
+                          <option value="">Role...</option>
+                          {USER_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setUserRows(userRows().filter((_, j) => j !== i))}
+                          className="text-muted-foreground hover:text-destructive justify-self-end"
+                          title="Remove user"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setUserRows([...userRows(), { name: "", email: "", phone: "", role: "Cashier" }])}
+                      className="flex items-center gap-1.5 text-xs font-medium text-retail hover:underline"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add user
+                    </button>
+                  </div>
+                ) : field.type === "branchlist" ? (
+                  <div className="space-y-2">
+                    {branchRows().map((row, i) => (
+                      <div key={i} className="grid grid-cols-1 sm:grid-cols-[160px_1fr_140px_28px] gap-2 items-center rounded-lg border border-border bg-muted/20 p-2">
+                        <input
+                          value={row.name}
+                          onChange={(e) => updateBranchRow(i, { name: e.target.value })}
+                          placeholder="Branch name"
+                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                        />
+                        <input
+                          value={row.address}
+                          onChange={(e) => updateBranchRow(i, { address: e.target.value })}
+                          placeholder="Address"
+                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                        />
+                        <input
+                          value={row.phone}
+                          onChange={(e) => updateBranchRow(i, { phone: e.target.value })}
+                          placeholder="Phone"
+                          type="tel"
+                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setBranchRows(branchRows().filter((_, j) => j !== i))}
+                          className="text-muted-foreground hover:text-destructive justify-self-end"
+                          title="Remove branch"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setBranchRows([...branchRows(), { name: "", address: "", phone: "" }])}
+                      className="flex items-center gap-1.5 text-xs font-medium text-retail hover:underline"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add branch
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type={field.type}
+                    value={String(responses[field.key] ?? "")}
+                    onChange={(e) => update(field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                    className={inputCls}
+                  />
+                )}
+              </div>
+            )
+          })}
         </div>
 
         {/* Branding & Documents */}

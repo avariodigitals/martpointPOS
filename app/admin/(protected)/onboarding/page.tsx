@@ -770,8 +770,8 @@ MartPoint Team`
                           <div className="rounded-md border border-border bg-background p-3 space-y-2">
                             {Object.entries(record.clientResponses).map(([key, value]) => (
                               <div key={key} className="text-sm">
-                                <span className="font-medium text-muted-foreground">{key}:</span>{" "}
-                                <span className="text-foreground">{String(value)}</span>
+                                <span className="font-medium text-muted-foreground">{humanizeKey(key)}:</span>{" "}
+                                <span className="text-foreground whitespace-pre-wrap">{formatResponseValue(value)}</span>
                               </div>
                             ))}
                           </div>
@@ -1257,6 +1257,35 @@ MartPoint Team`
       )}
     </div>
   )
+}
+
+function humanizeKey(key: string): string {
+  const label = key
+    .replace(/^section/, "")
+    .replace(/([A-Z])/g, " $1")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase())
+  return label.replace(/\b(Rc|Tin|Vat|Cac|Api|Pos)\b/g, (m) => m.toUpperCase())
+}
+
+function formatResponseValue(value: unknown): string {
+  if (typeof value === "string" && value.startsWith("data:")) return "[uploaded file]"
+  if (Array.isArray(value)) {
+    return value
+      .map((item) =>
+        item && typeof item === "object"
+          ? Object.values(item).filter(Boolean).join(" — ")
+          : String(item)
+      )
+      .join("\n")
+  }
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .map(([k, v]) => `${humanizeKey(k)}: ${String(v)}`)
+      .join("\n")
+  }
+  return String(value ?? "")
 }
 
 function StatusBadge({ status }: { status: string }) {

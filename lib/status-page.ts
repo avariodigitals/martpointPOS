@@ -130,6 +130,20 @@ export async function listSubscribers(): Promise<Array<{ email: string; token: s
   return data.map((r) => ({ email: r.email, token: r.token, createdAt: r.created_at }))
 }
 
+export async function listBusinessEmails(): Promise<string[]> {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase
+    .from("businesses")
+    .select("primary_email")
+    .not("primary_email", "is", null)
+  if (error || !data) return []
+  return [...new Set(
+    data
+      .map((r) => String(r.primary_email || "").trim().toLowerCase())
+      .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+  )]
+}
+
 /* ───────────────────────────  Uptime math  ─────────────────────────── */
 
 function dayKey(d: Date): string {
@@ -360,17 +374,46 @@ function buildStatusEmailHtml(
 }
 
 /**
- * Email all active subscribers about an incident create/update.
- * Failures are logged via sendEmail's email_logs integration and never throw.
+ * Email status update to subscribers — optionally expanding the audience to
+ * every business's primary email (upserted as subscribers so they can
+ * unsubscribe). Failures are logged via sendEmail's email_logs and never throw.
  */
-export async function notifyStatusSubscribers(incident: StatusIncident, update: StatusIncidentUpdate) {
+export async function notifyStatusSubscribers(
+  incident: StatusIncident,
+  update: StatusIncidentUpdate,
+  opts: { subscribers?: boolean; businesses?: boolean } = {}
+) {
   if (!isSupabaseConfigured()) return
+  const includeSubscribers = opts.subscribers !== false
+  const includeBusinesses = opts.businesses === true
+  if (!includeSubscribers && !includeBusinesses) return
+
+  let businessSet = new Set<string>()
+  if (includeBusinesses) {
+    const businessEmails = await listBusinessEmails()
+    businessSet = new Set(businessEmails)
+    if (businessEmails.length > 0) {
+      // Add as subscribers (deduped) so they get unsubscribe tokens.
+      // ignoreDuplicates preserves unsubscribed_at for anyone who opted out.
+      await supabase
+        .from("status_subscribers")
+        .upsert(businessEmails.map((email) => ({ email })), {
+          onConflict: "email",
+          ignoreDuplicates: true,
+        })
+    }
+  }
+
   const [subscribers, components, site] = await Promise.all([
     listSubscribers(),
     listComponents(),
     getPublicSiteSettings(),
   ])
-  if (subscribers.length === 0) return
+
+  const recipients = subscribers.filter(
+    (s) => includeSubscribers || businessSet.has(s.email)
+  )
+  if (recipients.length === 0) return
 
   const affectedNames = components
     .filter((c) => incident.componentIds.includes(c.id))
@@ -386,7 +429,7 @@ export async function notifyStatusSubscribers(incident: StatusIncident, update: 
   }View the status page: ${base}/status\n\nNeed help? support@martpoint.com.ng`
 
   await Promise.allSettled(
-    subscribers.map((sub) => {
+    recipients.map((sub) => {
       const unsubUrl = `${base}/status/unsubscribe?t=${encodeURIComponent(sub.token)}`
       return sendEmail({
         to: sub.email,

@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import {
   listIncidents,
   listSubscribers,
+  listBusinessEmails,
   notifyStatusSubscribers,
   INCIDENT_STATUSES,
   type IncidentStatus,
@@ -20,8 +21,16 @@ export async function GET() {
   const { denied } = await authorizeAdmin("status")
   if (denied) return denied
 
-  const [incidents, subscribers] = await Promise.all([listIncidents(), listSubscribers()])
-  return NextResponse.json({ incidents, subscriberCount: subscribers.length })
+  const [incidents, subscribers, businessEmails] = await Promise.all([
+    listIncidents(),
+    listSubscribers(),
+    listBusinessEmails(),
+  ])
+  return NextResponse.json({
+    incidents,
+    subscriberCount: subscribers.length,
+    businessEmailCount: businessEmails.length,
+  })
 }
 
 export async function POST(request: Request) {
@@ -98,10 +107,11 @@ export async function POST(request: Request) {
       }
     }
 
-    if (body.notify && firstUpdate) {
+    if ((body.notify || body.includeBusinesses) && firstUpdate) {
       await notifyStatusSubscribers(
         { ...incident, componentIds: incident.component_ids || [], updates: [] },
-        firstUpdate
+        firstUpdate,
+        { subscribers: body.notify === true, businesses: body.includeBusinesses === true }
       )
     }
 
@@ -177,7 +187,7 @@ export async function PUT(request: Request) {
         .select()
         .single()
 
-      if (body.notify && upd) {
+      if ((body.notify || body.includeBusinesses) && upd) {
         const { data: inc } = await supabase
           .from("status_incidents")
           .select("*")
@@ -197,7 +207,8 @@ export async function PUT(request: Request) {
               body: upd.body,
               createdBy: upd.created_by || "",
               createdAt: upd.created_at,
-            }
+            },
+            { subscribers: body.notify === true, businesses: body.includeBusinesses === true }
           )
         }
       }

@@ -68,6 +68,7 @@ export default function AdminStatusPage() {
   const [components, setComponents] = useState<StatusComponent[]>([])
   const [incidents, setIncidents] = useState<StatusIncident[]>([])
   const [subscriberCount, setSubscriberCount] = useState(0)
+  const [businessEmailCount, setBusinessEmailCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
@@ -86,10 +87,11 @@ export default function AdminStatusPage() {
     scheduledUntil: "",
     message: "",
     notify: true,
+    includeBusinesses: true,
   })
 
   // Per-incident update composer state
-  const [updateDrafts, setUpdateDrafts] = useState<Record<string, { status: IncidentStatus; body: string; notify: boolean }>>({})
+  const [updateDrafts, setUpdateDrafts] = useState<Record<string, { status: IncidentStatus; body: string; notify: boolean; includeBusinesses: boolean }>>({})
 
   const load = useCallback(async () => {
     try {
@@ -102,6 +104,7 @@ export default function AdminStatusPage() {
       if (cData.components) setComponents(cData.components)
       if (iData.incidents) setIncidents(iData.incidents)
       setSubscriberCount(iData.subscriberCount || 0)
+      setBusinessEmailCount(iData.businessEmailCount || 0)
     } catch {
       setMessage("Failed to load status page data")
     } finally {
@@ -122,6 +125,7 @@ export default function AdminStatusPage() {
         if (cData.components) setComponents(cData.components)
         if (iData.incidents) setIncidents(iData.incidents)
         setSubscriberCount(iData.subscriberCount || 0)
+        setBusinessEmailCount(iData.businessEmailCount || 0)
       })
       .catch(() => {
         if (!cancelled) setMessage("Failed to load status page data")
@@ -205,6 +209,7 @@ export default function AdminStatusPage() {
       scheduledUntil: toIso(form.scheduledUntil),
       message: form.message,
       notify: form.notify,
+      includeBusinesses: form.includeBusinesses,
     })
     if (ok) {
       setForm({
@@ -217,6 +222,7 @@ export default function AdminStatusPage() {
         scheduledUntil: "",
         message: "",
         notify: true,
+        includeBusinesses: true,
       })
       flash("Published to status page")
       load()
@@ -231,6 +237,7 @@ export default function AdminStatusPage() {
       status: draft.status,
       message: draft.body,
       notify: draft.notify,
+      includeBusinesses: draft.includeBusinesses,
     })
     if (ok) {
       setUpdateDrafts((prev) => {
@@ -244,9 +251,21 @@ export default function AdminStatusPage() {
   }
 
   async function quickStatus(incident: StatusIncident, status: IncidentStatus) {
-    const ok = await api("/api/admin/status/incidents", "PUT", { id: incident.id, status })
+    const defaultMsg =
+      status === "resolved"
+        ? "This incident has been resolved."
+        : status === "completed"
+          ? "The scheduled maintenance has been completed."
+          : `Status changed to ${INCIDENT_STATUS_LABELS[status]}.`
+    const ok = await api("/api/admin/status/incidents", "PUT", {
+      id: incident.id,
+      status,
+      message: defaultMsg,
+      notify: true,
+      includeBusinesses: true,
+    })
     if (ok) {
-      flash(`Marked as ${INCIDENT_STATUS_LABELS[status]}`)
+      flash(`Marked as ${INCIDENT_STATUS_LABELS[status]} — update posted and subscribers notified`)
       load()
     }
   }
@@ -443,16 +462,27 @@ export default function AdminStatusPage() {
             />
           </div>
 
-          <div className="flex items-center justify-between gap-4">
-            <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={form.notify}
-                onChange={(e) => setForm({ ...form, notify: e.target.checked })}
-                className="rounded border-input"
-              />
-              Email subscribers about this
-            </label>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.notify}
+                  onChange={(e) => setForm({ ...form, notify: e.target.checked })}
+                  className="rounded border-input"
+                />
+                Email subscribers ({subscriberCount})
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.includeBusinesses}
+                  onChange={(e) => setForm({ ...form, includeBusinesses: e.target.checked })}
+                  className="rounded border-input"
+                />
+                Include all businesses ({businessEmailCount})
+              </label>
+            </div>
             <Button onClick={createIncident} disabled={saving || !form.title.trim()}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Publish
@@ -480,6 +510,7 @@ export default function AdminStatusPage() {
                   status: inc.status,
                   body: "",
                   notify: true,
+                  includeBusinesses: true,
                 }
                 const flow = inc.kind === "maintenance" ? MAINTENANCE_FLOW : INCIDENT_FLOW
                 return (
@@ -548,21 +579,37 @@ export default function AdminStatusPage() {
                         }
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          checked={draft.notify}
-                          onChange={(e) =>
-                            setUpdateDrafts({
-                              ...updateDrafts,
-                              [inc.id]: { ...draft, notify: e.target.checked },
-                            })
-                          }
-                          className="rounded border-input"
-                        />
-                        Notify subscribers
-                      </label>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={draft.notify}
+                            onChange={(e) =>
+                              setUpdateDrafts({
+                                ...updateDrafts,
+                                [inc.id]: { ...draft, notify: e.target.checked },
+                              })
+                            }
+                            className="rounded border-input"
+                          />
+                          Notify subscribers
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={draft.includeBusinesses}
+                            onChange={(e) =>
+                              setUpdateDrafts({
+                                ...updateDrafts,
+                                [inc.id]: { ...draft, includeBusinesses: e.target.checked },
+                              })
+                            }
+                            className="rounded border-input"
+                          />
+                          Include businesses
+                        </label>
+                      </div>
                       <Button
                         size="sm"
                         onClick={() => postUpdate(inc)}

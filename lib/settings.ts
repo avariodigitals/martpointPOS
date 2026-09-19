@@ -37,6 +37,7 @@ export interface PublicSiteSettings {
   companyName: string
   contactEmail: string
   whatsappNumber: string
+  phone: string
   accountNumber: string
   logo: string
 }
@@ -46,6 +47,7 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
     companyName: "MartPoint",
     contactEmail: "hello@martpoint.com.ng",
     whatsappNumber: "+2348036028069",
+    phone: "+2348037978230",
     accountNumber: "",
     logo: "/logo.webp",
   }
@@ -59,6 +61,7 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
       companyName: String(general.companyName || defaults.companyName),
       contactEmail: String(general.contactEmail || defaults.contactEmail),
       whatsappNumber: String(general.whatsappNumber || defaults.whatsappNumber),
+      phone: String(general.phone || defaults.phone),
       accountNumber: String(general.accountNumber || ""),
       logo: String(header.logo || defaults.logo),
     }

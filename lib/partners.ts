@@ -2,7 +2,7 @@ import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import type { PartnerOrgCapability } from "./partner-permissions"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
-import { sendEmail, getEmailSettings, getEmailRoute } from "./email"
+import { sendEmail, getEmailSettings, getEmailRoute, REPLY_TO } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 
 /* ───────────────────────────  Partner types & helpers  ─────────────────────────── */
@@ -227,7 +227,7 @@ export async function sendApplicationSubmittedEmail(email: string, fullName: str
   const applicant = await renderEmailTemplate("partner_application_received", {
     fullName, reference, statusUrl,
   })
-  const applicantSent = await sendEmail({ to: email, subject: applicant.subject, text: applicant.text, html: applicant.html })
+  const applicantSent = await sendEmail({ to: email, subject: applicant.subject, text: applicant.text, html: applicant.html, replyTo: REPLY_TO.partners })
 
   const admin = await renderEmailTemplate("partner_application_admin", {
     fullName, reference, email,
@@ -279,7 +279,7 @@ export async function sendApplicationStatusEmail(
     statusUrl,
   })
 
-  return sendEmail({ to: email, subject: tpl.subject, text: tpl.text, html: tpl.html })
+  return sendEmail({ to: email, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
 }
 
 /* ───────────────────────────  Public directory / verify  ─────────────────────────── */

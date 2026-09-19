@@ -4,7 +4,7 @@ import {
   createSupportMagicToken,
   destroyCustomerSupportSession,
 } from "@/lib/customer-support-auth"
-import { sendEmail } from "@/lib/email"
+import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { checkRateLimit } from "@/lib/rate-limit"
 
@@ -49,6 +49,7 @@ export async function POST(request: Request) {
         subject: tpl.subject,
         text: tpl.text,
         html: tpl.html,
+        replyTo: REPLY_TO.support,
       })
 
       // In non-production, expose the link so local/dev testing works without Resend.

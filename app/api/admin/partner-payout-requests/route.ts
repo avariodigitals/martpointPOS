@@ -3,7 +3,7 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { createCommissionPayout } from "@/lib/finance-commercial"
-import { sendEmail } from "@/lib/email"
+import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { z } from "zod"
 
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
           amount: Number(req.amount).toLocaleString(),
           reasonBlock: notes ? `\n\nReason: ${notes}` : "",
         })
-          .then((tpl) => sendEmail({ to: user.email!, subject: tpl.subject, text: tpl.text, html: tpl.html }))
+          .then((tpl) => sendEmail({ to: user.email!, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners }))
           .catch(() => {})
       }
 
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
         amount: Number(req.amount).toLocaleString(),
         payoutReference: payout.payout_reference,
       })
-        .then((tpl) => sendEmail({ to: user.email!, subject: tpl.subject, text: tpl.text, html: tpl.html }))
+        .then((tpl) => sendEmail({ to: user.email!, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners }))
         .catch(() => {})
     }
 

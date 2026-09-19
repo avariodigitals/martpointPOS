@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recalculateQuote, buildQuotePublicUrl, buildQuoteEmailHtml } from "@/lib/quotations"
-import { sendEmail } from "@/lib/email"
+import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import type { Quotation, QuotationItem } from "@/lib/quotations"
 
@@ -193,6 +193,7 @@ export async function POST(request: Request) {
       await sendEmail({
         to: leadRes.data.email,
         subject: quoteSubjectTpl.subject,
+        replyTo: REPLY_TO.sales,
         text: buildPlainTextEmail(quotation, leadRes.data as { full_name: string; business_name: string; email: string; phone: string; product_interest: string }, publicUrl),
         html: buildQuoteEmailHtml(
           quotation,

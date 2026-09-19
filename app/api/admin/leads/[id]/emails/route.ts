@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { sendEmail, getEmailSettings } from "@/lib/email"
+import { sendEmail, getEmailSettings, REPLY_TO } from "@/lib/email"
 import { z } from "zod"
 
 const postSchema = z.object({
@@ -99,6 +99,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       subject: parsed.data.subject,
       text: parsed.data.body,
       html,
+      replyTo: REPLY_TO.sales,
     })
 
     const { data: row, error } = await supabase

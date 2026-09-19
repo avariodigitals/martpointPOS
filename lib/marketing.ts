@@ -6,7 +6,7 @@
 
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
-import { sendEmail } from "./email"
+import { sendEmail, REPLY_TO } from "./email"
 import type { EmailProvider } from "./email"
 
 export interface MarketingRecipient {
@@ -288,6 +288,7 @@ export async function executeCampaign(campaignId: string): Promise<{ sent: numbe
       html: trackedHtml,
       provider,
       route: "marketing",
+      replyTo: REPLY_TO.sales,
       headers: { "List-Unsubscribe": `<${unsubscribeUrl(token, baseUrl)}>` },
     })
 

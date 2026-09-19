@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { ImageUpload } from "@/components/admin/image-upload"
 import { RichEditor } from "@/components/admin/rich-editor"
 import { AiContentGenerator } from "@/components/admin/ai-content-generator"
+import { FaqEditor, type FaqItem } from "@/components/admin/faq-editor"
 import { Loader2, Save, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
@@ -21,11 +22,14 @@ export default function AdminBlogNewPage() {
     excerpt: "",
     content: "",
     coverImage: "",
+    coverImageAlt: "",
     category: "Retail Tips",
     author: "MartPoint Team",
     status: "draft" as "published" | "draft",
     metaDescription: "",
-    keywords: "",
+    primaryKeywords: "",
+    secondaryKeywords: "",
+    faqs: [] as FaqItem[],
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -162,7 +166,7 @@ export default function AdminBlogNewPage() {
                       ...(generated.excerpt && { excerpt: generated.excerpt }),
                       ...(generated.content && { content: generated.content }),
                       ...(generated.metaDescription && { metaDescription: generated.metaDescription }),
-                      ...(generated.keywords && { keywords: generated.keywords }),
+                      ...(generated.keywords && { primaryKeywords: generated.keywords }),
                     }))
                   }}
                 />
@@ -174,6 +178,8 @@ export default function AdminBlogNewPage() {
               folder="blog"
               value={form.coverImage}
               onChange={(url) => setForm({ ...form, coverImage: url })}
+              altValue={form.coverImageAlt}
+              onAltChange={(alt) => setForm({ ...form, coverImageAlt: alt })}
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -228,15 +234,33 @@ export default function AdminBlogNewPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Keywords (SEO)</label>
+              <label className="block text-sm font-medium mb-1">Primary Keywords (SEO)</label>
               <input
                 type="text"
-                value={form.keywords}
-                onChange={(e) => setForm({ ...form, keywords: e.target.value })}
+                value={form.primaryKeywords}
+                onChange={(e) => setForm({ ...form, primaryKeywords: e.target.value })}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="supermarket, pos, inventory"
+                placeholder="pos system for supermarket, retail software nigeria"
               />
+              <p className="text-xs text-muted-foreground mt-1">Main keywords this post should rank for.</p>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Secondary Keywords (SEO)</label>
+              <input
+                type="text"
+                value={form.secondaryKeywords}
+                onChange={(e) => setForm({ ...form, secondaryKeywords: e.target.value })}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="inventory management tips, pos pricing"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Supporting/long-tail keywords.</p>
+            </div>
+
+            <FaqEditor
+              value={form.faqs}
+              onChange={(faqs) => setForm({ ...form, faqs })}
+            />
           </CardContent>
         </Card>
 

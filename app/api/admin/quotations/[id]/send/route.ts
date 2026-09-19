@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { sendEmail } from "@/lib/email"
+import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { buildQuoteEmailHtml, buildQuotePublicUrl } from "@/lib/quotations"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
@@ -70,6 +70,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const emailSent = await sendEmail({
       to: lead.email,
       subject: quoteSubjectTpl.subject,
+      replyTo: REPLY_TO.sales,
       text: buildPlainText(quote as unknown as Quotation, lead as unknown as LeadSummary, publicUrl),
       html: buildQuoteEmailHtml(
         {

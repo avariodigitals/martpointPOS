@@ -3,7 +3,7 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession } from "@/lib/audit"
 import { listAllPartnerLeads, adminUpdateLead, extendProtection, convertPartnerLeadToBusiness, createPartnerLead, createLeadInvite } from "@/lib/partner-leads"
 import { listPartnerUsers } from "@/lib/partner-service"
-import { sendEmail } from "@/lib/email"
+import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { z } from "zod"
 
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
         businessName: lead.businessName || "",
         inviteLink,
       })
-      await sendEmail({ to: lead.email!, subject: tpl.subject, text: tpl.text, html: tpl.html })
+      await sendEmail({ to: lead.email!, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
 
       return NextResponse.json({ lead: result.lead, inviteLink })
     }

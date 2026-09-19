@@ -1,7 +1,7 @@
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { hashToken } from "./crypto"
-import { sendEmail } from "./email"
+import { sendEmail, REPLY_TO } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { recordStatusHistory, sendApplicationStatusEmail } from "./partners"
 import { uploadPartnerDocument, createSignedDocUrl } from "./partner-documents"
@@ -258,7 +258,7 @@ export async function requestApplicationComplianceDocuments(
     documentsTextBlock,
     documentsBlock,
   })
-  await sendEmail({ to: app.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html })
+  await sendEmail({ to: app.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
 
   // Requesting compliance documents moves the application to COMPLIANCE_REQUIRED
   // so the status always reflects that we are waiting on the applicant.
@@ -342,7 +342,7 @@ export async function resendComplianceUploadToken(
     docType: doc.document_type as string,
     uploadUrl,
   })
-  await sendEmail({ to: email, subject: tpl.subject, text: tpl.text, html: tpl.html })
+  await sendEmail({ to: email, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
 
   return { ok: true }
 }
@@ -408,7 +408,7 @@ export async function verifyApplicationComplianceDocument(
         notesTextBlock,
         notesHtmlBlock,
       })
-      await sendEmail({ to: email, subject: tpl.subject, text: tpl.text, html: tpl.html })
+      await sendEmail({ to: email, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
     } catch (err) {
       console.error("[compliance] failed to send status update email:", err)
     }
@@ -563,7 +563,7 @@ export async function submitComplianceDocumentByToken(
         reference: (app.reference_number as string) || "",
         docType: doc.document_type as string,
       })
-      await sendEmail({ to: app.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html })
+      await sendEmail({ to: app.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
     } catch (err) {
       console.error("[compliance] failed to send submission confirmation email:", err)
     }

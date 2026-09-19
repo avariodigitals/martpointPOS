@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { getPublicSiteSettings } from "@/lib/settings"
-import { sendEmail } from "@/lib/email"
+import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { formatNgnFull } from "@/lib/quotations"
 
@@ -173,7 +173,7 @@ export async function POST(request: Request) {
           })
 
           if (email) {
-            await sendEmail({ to: email, subject: clientTpl.subject, text: clientTpl.text, html: clientTpl.html })
+            await sendEmail({ to: email, subject: clientTpl.subject, text: clientTpl.text, html: clientTpl.html, replyTo: REPLY_TO.sales })
           }
 
           const teamTpl = await renderEmailTemplate("quote_declined_team", {

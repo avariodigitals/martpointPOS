@@ -98,12 +98,16 @@ async function seedBlog() {
     excerpt: p.excerpt,
     content: p.content,
     cover_image: p.coverImage,
+    cover_image_alt: p.coverImageAlt,
     category: p.category,
     author: p.author,
     published_at: p.publishedAt,
     status: p.status,
     meta_description: p.metaDescription,
-    keywords: p.keywords,
+    keywords: p.primaryKeywords ?? p.keywords,
+    primary_keywords: p.primaryKeywords ?? p.keywords,
+    secondary_keywords: p.secondaryKeywords,
+    faqs: p.faqs ?? [],
   }))
 
   const { error } = await supabase.from("blog_posts").upsert(rows, { onConflict: "id" })

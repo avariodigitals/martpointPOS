@@ -23,6 +23,41 @@ export const metadata: Metadata = {
 
 const latestReleases = [
   {
+    month: "September 2026",
+    items: [
+      {
+        title: "Digital Creator Support",
+        description: "MartPoint Retail is now deployed for digital creators — sell online courses, ebooks, templates and downloads with payments, access control and customer tracking built in.",
+        value: "Creators can sell digital products without stitching together payment links, spreadsheets and manual delivery.",
+      },
+      {
+        title: "Automobile & Car Sales",
+        description: "Live deployments for automobile businesses: track every vehicle by make, model, year, colour and VIN, plus test drives, customer deposits and trade-ins.",
+        value: "Dealers manage high-value stock and instalment sales in one place instead of paper records.",
+      },
+      {
+        title: "Perfume Shops",
+        description: "Dedicated setup for fragrance retailers — bottle-level stock tracking, tester bottle management and low-stock alerts for high-value inventory.",
+        value: "Perfume retailers protect expensive stock and finally see which fragrances actually sell.",
+      },
+      {
+        title: "Frozen Foods & Local Restaurants",
+        description: "New deployments for frozen food businesses and bukka/mama put restaurants, with expiry and batch tracking for frozen stock and fast counter service flows.",
+        value: "Food businesses reduce waste from expired stock and serve customers faster at the counter.",
+      },
+    ],
+  },
+  {
+    month: "July 2026",
+    items: [
+      {
+        title: "MartPoint Intelligence — General Availability",
+        description: "Our proactive insights engine is now fully launched: daily summaries of sales trends, low stock, expiring products and staff performance across every branch.",
+        value: "Owners start each day knowing exactly what needs attention, without digging through reports.",
+      },
+    ],
+  },
+  {
     month: "June 2026",
     items: [
       {
@@ -180,8 +215,8 @@ export default function ProductUpdatesPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20want%20to%20join%20the%20MartPoint%20beta%20programme.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
-                    Join the Beta
+                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20MartPoint.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                    Get Started
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
@@ -299,7 +334,7 @@ export default function ProductUpdatesPage() {
             <SectionHeader
               label="Roadmap"
               headline="Coming Soon"
-              description="Features we are actively building. Want early access? Join the beta programme."
+              description="Features we are actively building. Want early access? Get in touch."
             />
             <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-6">
               {comingSoon.map((item) => (
@@ -330,11 +365,11 @@ export default function ProductUpdatesPage() {
             <div className="mt-10 text-center">
               <Button asChild variant="retail">
                 <Link
-                  href="https://wa.me/+2348036028069?text=Hi%2C%20I%20want%20early%20access%20to%20upcoming%20MartPoint%20features.%20Can%20you%20add%20me%20to%20the%20beta%20list%3F"
+                  href="https://wa.me/+2348036028069?text=Hi%2C%20I%20want%20early%20access%20to%20upcoming%20MartPoint%20features.%20Can%20you%20add%20me%20to%20the%20early%20access%20list%3F"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Join the Beta List
+                  Request Early Access
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
@@ -350,7 +385,7 @@ export default function ProductUpdatesPage() {
                 Stay Ahead of Every Update
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Get notified when new features ship. Join the beta programme for early access to everything we are building next.
+                Get notified when new features ship. Thousands of businesses already run on MartPoint — join the update list to see what is coming next.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">

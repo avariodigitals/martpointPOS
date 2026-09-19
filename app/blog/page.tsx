@@ -23,6 +23,7 @@ interface BlogPost {
   title: string
   excerpt: string
   coverImage: string
+  coverImageAlt: string
   category: string
   author: string
   publishedAt: string
@@ -33,7 +34,7 @@ async function getPublishedPosts(): Promise<BlogPost[]> {
   if (!isSupabaseConfigured()) return []
   const { data, error } = await supabase
     .from("blog_posts")
-    .select("id, slug, title, excerpt, cover_image, category, author, published_at, status")
+    .select("id, slug, title, excerpt, cover_image, cover_image_alt, category, author, published_at, status")
     .eq("status", "published")
     .order("published_at", { ascending: false })
 
@@ -44,6 +45,7 @@ async function getPublishedPosts(): Promise<BlogPost[]> {
     title: row.title,
     excerpt: row.excerpt,
     coverImage: row.cover_image,
+    coverImageAlt: row.cover_image_alt || "",
     category: row.category,
     author: row.author,
     publishedAt: row.published_at,
@@ -88,7 +90,7 @@ export default async function BlogPage() {
                       <div className="aspect-video overflow-hidden">
                         <img
                           src={post.coverImage}
-                          alt={post.title}
+                          alt={post.coverImageAlt || post.title}
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         />
                       </div>

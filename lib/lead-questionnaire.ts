@@ -2,7 +2,7 @@ import crypto from "crypto"
 import { businessTypeOptions } from "./industries"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
-import { sendEmail } from "./email"
+import { sendEmail, REPLY_TO } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { ADVANCED_QUESTIONNAIRE_FIELDS } from "./questionnaire-catalog"
 
@@ -130,6 +130,7 @@ export async function generateQuestionnaire(
       subject,
       text: "",
       html,
+      replyTo: REPLY_TO.noreply,
     })
     if (!sent) return { ok: true, token, url, error: "Email delivery failed (link generated)" }
   }
@@ -194,6 +195,7 @@ async function buildQuestionnaireEmail(lead: QuestionnaireLead, url: string): Pr
           <tr>
             <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
               <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>MartPoint Sales Team</strong></p>
+              <p style="font-size:11px; color:#9ca3af; margin:8px 0 0;">This is an automated message — please do not reply. Use the questionnaire link above to send us your answers.</p>
             </td>
           </tr>
         </table>

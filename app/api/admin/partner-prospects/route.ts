@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession } from "@/lib/audit"
 import { listPartnerProspects, createPartnerProspect, updatePartnerProspect, createProspectInvite, resendProspectInvite, deletePartnerProspect } from "@/lib/partner-prospects"
-import { sendEmail } from "@/lib/email"
+import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { z } from "zod"
 
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
         inviteLink,
       })
       if (result.prospect.email) {
-        await sendEmail({ to: result.prospect.email, subject: tpl.subject, text: tpl.text, html: tpl.html })
+        await sendEmail({ to: result.prospect.email, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
       }
       return NextResponse.json({ prospect: result.prospect, inviteLink })
     }
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
         inviteLink,
       })
       if (result.prospect.email) {
-        await sendEmail({ to: result.prospect.email, subject: tpl.subject, text: tpl.text, html: tpl.html })
+        await sendEmail({ to: result.prospect.email, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
       }
       return NextResponse.json({ prospect: result.prospect, inviteLink })
     }

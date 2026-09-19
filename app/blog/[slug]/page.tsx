@@ -5,7 +5,7 @@ import { Footer } from "@/components/layout/footer"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { notFound } from "next/navigation"
-import { ArticleSchema } from "@/components/structured-data"
+import { ArticleSchema, FAQPageSchema } from "@/components/structured-data"
 import { SocialShare } from "@/components/blog/social-share"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
@@ -16,12 +16,15 @@ interface BlogPost {
   excerpt: string
   content: string
   coverImage: string
+  coverImageAlt: string
   category: string
   author: string
   publishedAt: string
   status: "published" | "draft"
   metaDescription: string
-  keywords: string
+  primaryKeywords: string
+  secondaryKeywords: string
+  faqs: Array<{ question: string; answer: string }>
 }
 
 async function getPostBySlug(slug: string): Promise<BlogPost | null> {
@@ -41,12 +44,15 @@ async function getPostBySlug(slug: string): Promise<BlogPost | null> {
     excerpt: data.excerpt,
     content: data.content,
     coverImage: data.cover_image,
+    coverImageAlt: data.cover_image_alt || "",
     category: data.category,
     author: data.author,
     publishedAt: data.published_at,
     status: data.status,
     metaDescription: data.meta_description,
-    keywords: data.keywords,
+    primaryKeywords: data.primary_keywords || data.keywords || "",
+    secondaryKeywords: data.secondary_keywords || "",
+    faqs: Array.isArray(data.faqs) ? data.faqs : [],
   }
 }
 
@@ -54,7 +60,7 @@ async function getAllPosts(): Promise<BlogPost[]> {
   if (!isSupabaseConfigured()) return []
   const { data, error } = await supabase
     .from("blog_posts")
-    .select("id, slug, title, excerpt, content, cover_image, category, author, published_at, status, meta_description, keywords")
+    .select("id, slug, title, excerpt, content, cover_image, cover_image_alt, category, author, published_at, status, meta_description, keywords, primary_keywords, secondary_keywords, faqs")
     .eq("status", "published")
 
   if (error || !data) return []
@@ -65,12 +71,15 @@ async function getAllPosts(): Promise<BlogPost[]> {
     excerpt: row.excerpt || "",
     content: row.content || "",
     coverImage: row.cover_image || "",
+    coverImageAlt: row.cover_image_alt || "",
     category: row.category || "",
     author: row.author || "",
     publishedAt: row.published_at || "",
     status: row.status,
     metaDescription: row.meta_description || "",
-    keywords: row.keywords || "",
+    primaryKeywords: row.primary_keywords || row.keywords || "",
+    secondaryKeywords: row.secondary_keywords || "",
+    faqs: Array.isArray(row.faqs) ? row.faqs : [],
   }))
 }
 
@@ -86,11 +95,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
   const coverImageUrl = post.coverImage?.startsWith("http") ? post.coverImage : `${baseUrl}${post.coverImage}`
+  const keywords = [post.primaryKeywords, post.secondaryKeywords].filter(Boolean).join(", ")
 
   return {
     title: `${post.title} — MartPoint Blog`,
     description: post.metaDescription || post.excerpt,
-    keywords: post.keywords,
+    keywords,
     authors: [{ name: post.author || "MartPoint by Avario Digitals" }],
     alternates: {
       canonical: `/blog/${post.slug}`,
@@ -111,7 +121,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
               secureUrl: coverImageUrl,
               width: 1200,
               height: 630,
-              alt: post.title,
+              alt: post.coverImageAlt || post.title,
               type: "image/webp",
             },
           ]
@@ -137,8 +147,9 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         slug={post.slug}
         publishedAt={post.publishedAt}
         author={post.author}
-        keywords={post.keywords}
+        keywords={[post.primaryKeywords, post.secondaryKeywords].filter(Boolean).join(", ")}
       />
+      {post.faqs.length > 0 && <FAQPageSchema faqs={post.faqs} />}
       <Header />
       <main className="flex-1">
         <article className="w-full bg-background py-12 md:py-16">
@@ -155,7 +166,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               <div className="aspect-video rounded-xl overflow-hidden mb-8">
                 <img
                   src={post.coverImage}
-                  alt={post.title}
+                  alt={post.coverImageAlt || post.title}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -182,6 +193,25 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               className="mt-8 prose prose-slate max-w-none [&_a]:text-blue-600 [&_a]:underline [&_a]:hover:text-blue-800"
               dangerouslySetInnerHTML={{ __html: post.content }}
             />
+
+            {post.faqs.length > 0 && (
+              <section className="mt-12">
+                <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                  Frequently Asked Questions
+                </h2>
+                <div className="mt-4 space-y-3">
+                  {post.faqs.map((faq, i) => (
+                    <details key={i} className="group rounded-lg border border-border p-4">
+                      <summary className="cursor-pointer font-medium text-foreground list-none flex items-center justify-between">
+                        {faq.question}
+                        <span className="ml-2 text-muted-foreground transition-transform group-open:rotate-180">▾</span>
+                      </summary>
+                      <p className="mt-2 text-sm text-muted-foreground">{faq.answer}</p>
+                    </details>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <SocialShare title={post.title} slug={post.slug} />
           </div>

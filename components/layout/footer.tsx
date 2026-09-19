@@ -1,11 +1,14 @@
 import Link from "next/link"
-import { readSettings } from "@/lib/settings"
+import { Mail, Phone } from "lucide-react"
+import { readSettings, getPublicSiteSettings } from "@/lib/settings"
 import { footerColumns, socialLinks } from "@/lib/navigation"
 
 export async function Footer() {
   const settings = await readSettings()
+  const site = await getPublicSiteSettings()
   const social = (settings?.social as Record<string, string>) || {}
   const footer = (settings?.footer as Record<string, string>) || {}
+  const phones = [site.whatsappNumber, site.phone].filter((n) => n && n.trim() !== "")
 
   const activeSocial = socialLinks
     .map((s) => ({ ...s, url: social[s.key] }))
@@ -31,6 +34,30 @@ export async function Footer() {
             <p className="mt-3 text-xs text-white/80">
               Built in Africa for African businesses.
             </p>
+            <ul className="mt-6 space-y-2.5">
+              {site.contactEmail && (
+                <li>
+                  <a
+                    href={`mailto:${site.contactEmail}`}
+                    className="inline-flex items-center gap-2.5 text-sm text-white/90 hover:text-white transition-colors"
+                  >
+                    <Mail className="h-4 w-4 shrink-0" />
+                    {site.contactEmail}
+                  </a>
+                </li>
+              )}
+              {phones.map((num) => (
+                <li key={num}>
+                  <a
+                    href={`tel:${num.replace(/\s+/g, "")}`}
+                    className="inline-flex items-center gap-2.5 text-sm text-white/90 hover:text-white transition-colors"
+                  >
+                    <Phone className="h-4 w-4 shrink-0" />
+                    {num}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
 
           {/* Column 2: Solutions */}

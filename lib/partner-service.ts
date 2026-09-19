@@ -1,7 +1,7 @@
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { hashPassword, hashToken } from "./crypto"
-import { sendEmail } from "./email"
+import { sendEmail, REPLY_TO } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import {
@@ -160,7 +160,7 @@ export async function createPartnerInvitation(
     businessName: partner.businessName,
     link,
   })
-  await sendEmail({ to: normalizedEmail, subject: tpl.subject, text: tpl.text, html: tpl.html })
+  await sendEmail({ to: normalizedEmail, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
 
   const ctx: AuditContext = {
     actorType: input.actorType,
@@ -287,7 +287,7 @@ export async function resendPartnerInvitation(
     businessName: partner.business_name as string,
     link,
   })
-  await sendEmail({ to: user.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html })
+  await sendEmail({ to: user.email as string, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
 
   const ctx: AuditContext = { actorType, actorId: invitedBy }
   await recordAudit(ctx, {
@@ -374,7 +374,7 @@ export async function createPartnerPasswordReset(
     fullName: user.full_name,
     link,
   })
-  await sendEmail({ to: normalizedEmail, subject: tpl.subject, text: tpl.text, html: tpl.html })
+  await sendEmail({ to: normalizedEmail, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
 
   return { ok: true, token }
 }

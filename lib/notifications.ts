@@ -44,6 +44,7 @@ interface NotificationContext {
   subject: string
   text: string
   html?: string
+  replyTo?: string
 }
 
 export async function queueNotification(_event: NotificationEvent, ctx: NotificationContext): Promise<boolean> {
@@ -53,6 +54,7 @@ export async function queueNotification(_event: NotificationEvent, ctx: Notifica
       subject: ctx.subject,
       text: ctx.text,
       html: ctx.html ?? ctx.text,
+      replyTo: ctx.replyTo,
     })
     return true
   } catch (err) {

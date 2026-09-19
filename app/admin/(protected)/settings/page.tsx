@@ -8,6 +8,7 @@ import { Loader2, Save, Settings, Wand2, MousePointerClick, ShieldCheck } from "
 interface GeneralSettings {
   contactEmail: string
   whatsappNumber: string
+  phone: string
   companyName: string
   accountNumber: string
 }
@@ -90,6 +91,7 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<GeneralSettings>({
     contactEmail: "",
     whatsappNumber: "",
+    phone: "",
     companyName: "",
     accountNumber: "",
   })
@@ -440,6 +442,16 @@ export default function AdminSettingsPage() {
                   onChange={(e) => setSettings({ ...settings, whatsappNumber: e.target.value })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="+2348036028069"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Phone Number</label>
+                <input
+                  type="text"
+                  value={settings.phone || ""}
+                  onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="+2348037978230"
                 />
               </div>
               <div>

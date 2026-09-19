@@ -46,6 +46,7 @@ function getDefaultSettings() {
     general: {
       contactEmail: "hello@martpoint.com.ng",
       whatsappNumber: "+2348036028069",
+      phone: "+2348037978230",
       companyName: "MartPoint",
       accountNumber: "",
     },
@@ -275,8 +276,19 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+    }
     const current = await readSettings()
-    const updated = { ...current, ...body }
+    const updated = { ...current }
+    for (const [key, value] of Object.entries(body)) {
+      const existing = updated[key]
+      updated[key] =
+        existing && typeof existing === "object" && !Array.isArray(existing) &&
+        value && typeof value === "object" && !Array.isArray(value)
+          ? { ...(existing as Record<string, unknown>), ...(value as Record<string, unknown>) }
+          : value
+    }
 
     const result = await writeSettings(updated)
     if (!result.success) {

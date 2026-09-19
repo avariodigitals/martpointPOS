@@ -22,6 +22,57 @@ interface RichEditorProps {
   placeholder?: string
 }
 
+const FONT_OPTIONS = [
+  { label: "Inter", value: "Inter" },
+  { label: "Arial", value: "Arial" },
+  { label: "Georgia", value: "Georgia" },
+  { label: "Times New Roman", value: "Times New Roman" },
+  { label: "Courier New", value: "Courier New" },
+  { label: "Verdana", value: "Verdana" },
+]
+
+const SIZE_OPTIONS = [
+  { label: "Small", value: "2" },
+  { label: "Normal", value: "3" },
+  { label: "Medium", value: "4" },
+  { label: "Large", value: "5" },
+  { label: "X-Large", value: "6" },
+  { label: "Huge", value: "7" },
+]
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+
+// Converts tab-separated clipboard text (Excel/Sheets) into an HTML table
+function tsvToTable(text: string): string {
+  const rows = text
+    .split(/\r?\n/)
+    .filter((r) => r.trim().length > 0)
+    .map((r) => r.split("\t"))
+  if (rows.length === 0 || rows.every((r) => r.length < 2)) return ""
+  const [head, ...body] = rows
+  const thead = `<thead><tr>${head.map((c) => `<th>${escapeHtml(c.trim())}</th>`).join("")}</tr></thead>`
+  const tbody = `<tbody>${body
+    .map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c.trim())}</td>`).join("")}</tr>`)
+    .join("")}</tbody>`
+  return `<table>${thead}${tbody}</table><p><br></p>`
+}
+
+// Strips junk from pasted HTML (Word/Docs markup, inline styles, scripts)
+// while keeping semantic elements like tables, lists, and links
+function sanitizePastedHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(html, "text/html")
+  doc.querySelectorAll("script, style, meta, link, title, head, o\\:p").forEach((el) => el.remove())
+  doc.querySelectorAll("*").forEach((el) => {
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase()
+      if (["href", "src", "alt", "colspan", "rowspan"].includes(name)) continue
+      el.removeAttribute(attr.name)
+    }
+  })
+  return doc.body.innerHTML
+}
+
 /* ───────────────────────────  FLOAT TOOLBAR  ─────────────────────────── */
 
 function InlineToolbar({
@@ -50,6 +101,7 @@ function InlineToolbar({
 
   return (
     <div
+      data-inline-toolbar="true"
       className="fixed z-[100] flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 shadow-lg"
       style={{ top: position.top, left: position.left }}
     >
@@ -123,6 +175,36 @@ function InlineToolbar({
           >
             <Link className="w-3.5 h-3.5" />
           </button>
+          <div className="w-px h-4 bg-border mx-0.5" />
+          <select
+            defaultValue=""
+            onChange={(e) => e.target.value && onFormat("fontName", e.target.value)}
+            className="h-7 w-20 rounded border border-input bg-background px-1 text-xs text-muted-foreground"
+            title="Font"
+          >
+            <option value="" disabled>Font</option>
+            {FONT_OPTIONS.map((f) => (
+              <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
+            ))}
+          </select>
+          <select
+            defaultValue=""
+            onChange={(e) => e.target.value && onFormat("fontSize", e.target.value)}
+            className="h-7 w-16 rounded border border-input bg-background px-1 text-xs text-muted-foreground"
+            title="Font size"
+          >
+            <option value="" disabled>Size</option>
+            {SIZE_OPTIONS.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+          <input
+            type="color"
+            defaultValue="#111827"
+            onChange={(e) => onFormat("foreColor", e.target.value)}
+            className="h-7 w-7 cursor-pointer rounded border border-input bg-background p-0.5"
+            title="Text color"
+          />
         </>
       )}
     </div>
@@ -133,9 +215,15 @@ function InlineToolbar({
 
 export function RichEditor({ value, onChange, placeholder = "Write your content here..." }: RichEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
+  const savedRangeRef = useRef<Range | null>(null)
   const [activeCommands, setActiveCommands] = useState<Set<string>>(new Set())
   const [toolbarVisible, setToolbarVisible] = useState(false)
   const [toolbarPos, setToolbarPos] = useState({ top: 0, left: 0 })
+
+  // Emit CSS spans instead of legacy <font> tags for fontName/foreColor/fontSize
+  useEffect(() => {
+    document.execCommand("styleWithCSS", false, "true")
+  }, [])
 
   // Apply value from parent ONLY when editor is not focused (prevents destroying selection while typing)
   useEffect(() => {
@@ -148,9 +236,24 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
   }, [value])
 
   const exec = (command: string, valueArg: string = "") => {
-    editorRef.current?.focus()
+    const editor = editorRef.current
+    if (!editor) return
+    editor.focus()
+
+    // Restore the last non-collapsed selection if focus moved elsewhere
+    // (e.g. clicking a toolbar button or typing in the link input)
+    const selection = window.getSelection()
+    const saved = savedRangeRef.current
+    if (selection && saved && editor.contains(saved.commonAncestorContainer)) {
+      if (selection.isCollapsed || !editor.contains(selection.anchorNode)) {
+        selection.removeAllRanges()
+        selection.addRange(saved)
+      }
+    }
+
     document.execCommand(command, false, valueArg)
     updateActiveCommands()
+    savedRangeRef.current = null
     if (editorRef.current) {
       onChange(editorRef.current.innerHTML)
     }
@@ -177,11 +280,12 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
     if (!editor.contains(selection.anchorNode)) { setToolbarVisible(false); return }
 
     const range = selection.getRangeAt(0)
+    savedRangeRef.current = range.cloneRange()
     const rect = range.getBoundingClientRect()
     const editorRect = editor.getBoundingClientRect()
 
     // Center toolbar above selection
-    const toolbarWidth = 260
+    const toolbarWidth = 460
     const left = Math.min(
       Math.max(rect.left + rect.width / 2 - toolbarWidth / 2, editorRect.left + 8),
       editorRect.right - toolbarWidth - 8
@@ -196,6 +300,28 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
     }
     updateActiveCommands()
     checkSelection()
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const html = e.clipboardData.getData("text/html")
+    const text = e.clipboardData.getData("text/plain")
+
+    if (html) {
+      e.preventDefault()
+      document.execCommand("insertHTML", false, sanitizePastedHtml(html))
+      handleInput()
+      return
+    }
+
+    // Plain-text table (tab-separated cells, e.g. copied from a spreadsheet)
+    if (text && text.includes("\t") && /\r?\n/.test(text)) {
+      const table = tsvToTable(text)
+      if (table) {
+        e.preventDefault()
+        document.execCommand("insertHTML", false, table)
+        handleInput()
+      }
+    }
   }
 
   const handleKeyUp = () => {
@@ -272,6 +398,36 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
         <button type="button" onClick={addLink} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Link">
           <Link className="w-4 h-4" />
         </button>
+        <div className="w-px h-5 bg-border mx-1" />
+        <select
+          defaultValue=""
+          onChange={(e) => e.target.value && exec("fontName", e.target.value)}
+          className="h-8 rounded border border-input bg-background px-1.5 text-xs text-muted-foreground"
+          title="Font"
+        >
+          <option value="" disabled>Font</option>
+          {FONT_OPTIONS.map((f) => (
+            <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
+          ))}
+        </select>
+        <select
+          defaultValue=""
+          onChange={(e) => e.target.value && exec("fontSize", e.target.value)}
+          className="h-8 rounded border border-input bg-background px-1.5 text-xs text-muted-foreground"
+          title="Font size"
+        >
+          <option value="" disabled>Size</option>
+          {SIZE_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+        <input
+          type="color"
+          defaultValue="#111827"
+          onChange={(e) => exec("foreColor", e.target.value)}
+          className="h-8 w-8 cursor-pointer rounded border border-input bg-background p-1"
+          title="Text color"
+        />
       </div>
 
       {/* Inline Floating Toolbar */}
@@ -289,6 +445,7 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
         suppressContentEditableWarning
         className="min-h-[300px] px-4 py-3 text-sm text-foreground outline-none prose prose-sm max-w-none [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-muted-foreground"
         onInput={handleInput}
+        onPaste={handlePaste}
         onKeyUp={handleKeyUp}
         onMouseUp={handleMouseUp}
         onBlur={handleBlur}

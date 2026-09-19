@@ -61,6 +61,32 @@
   p {
     text-wrap: pretty;
   }
+
+  /* Table styles for blog/editor content (scoped to .prose containers) */
+  .prose table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.25rem 0;
+    font-size: 0.875rem;
+  }
+
+  .prose th,
+  .prose td {
+    border: 1px solid var(--color-border);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .prose thead th,
+  .prose th {
+    background-color: var(--color-muted);
+    font-weight: 600;
+  }
+
+  .prose tbody tr:nth-child(even) {
+    background-color: var(--color-muted);
+  }
 }
 
 @layer utilities {

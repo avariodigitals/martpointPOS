@@ -3,7 +3,7 @@ import crypto from "crypto"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { sendEmail } from "@/lib/email"
+import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { getPublicSiteSettings } from "@/lib/settings"
 
@@ -97,6 +97,7 @@ export async function POST(request: Request) {
         subject: invoiceTpl.subject,
         text: emailText,
         html: emailHtml,
+        replyTo: REPLY_TO.sales,
       })
     }
 

@@ -8,9 +8,11 @@ interface ImageUploadProps {
   onChange: (url: string) => void
   folder?: string
   label?: string
+  altValue?: string
+  onAltChange?: (alt: string) => void
 }
 
-export function ImageUpload({ value, onChange, folder = "general", label = "Upload Image" }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, folder = "general", label = "Upload Image", altValue, onAltChange }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState(value)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -70,6 +72,18 @@ export function ImageUpload({ value, onChange, folder = "general", label = "Uplo
             <X className="w-3 h-3" />
           </button>
           <p className="text-xs text-muted-foreground mt-1">{preview}</p>
+          {onAltChange && (
+            <div className="mt-2 max-w-md">
+              <label className="block text-sm font-medium mb-1">Alt Text (SEO)</label>
+              <input
+                type="text"
+                value={altValue ?? ""}
+                onChange={(e) => onAltChange(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Describe the image for search engines and screen readers"
+              />
+            </div>
+          )}
         </div>
       ) : (
         <div

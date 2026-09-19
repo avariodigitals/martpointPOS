@@ -18,6 +18,14 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 
 export type EmailProvider = "resend" | "brevo"
 
+/** Standard Reply-To addresses for outbound mail, by department. */
+export const REPLY_TO = {
+  partners: "MartPoint Partners <partners@martpoint.com.ng>",
+  sales: "MartPoint Sales <sales@martpoint.com.ng>",
+  support: "MartPoint Support <support@martpoint.com.ng>",
+  noreply: "MartPoint <no-reply@martpoint.com.ng>",
+} as const
+
 export interface EmailAttachment {
   filename: string
   content: string
@@ -33,6 +41,8 @@ export interface EmailMessage {
   attachments?: EmailAttachment[]
   /** Per-message provider override; defaults to the configured provider. */
   provider?: EmailProvider
+  /** Address replies should go to (Reply-To header). */
+  replyTo?: string
   /** Extra SMTP/API headers, e.g. List-Unsubscribe for marketing email. */
   headers?: Record<string, string>
 }
@@ -279,6 +289,7 @@ async function sendViaResend(
       text: message.text,
     }
     if (message.html) body.html = message.html
+    if (message.replyTo) body.reply_to = message.replyTo
     if (message.attachments?.length) body.attachments = message.attachments
     if (message.headers) body.headers = message.headers
 
@@ -355,6 +366,10 @@ async function sendViaBrevo(
       textContent: message.text,
     }
     if (message.html) body.htmlContent = message.html
+    if (message.replyTo) {
+      const rt = parseSender(message.replyTo)
+      body.replyTo = { email: rt.email, name: rt.name }
+    }
     if (message.attachments?.length) {
       body.attachment = message.attachments.map((a) => ({ name: a.filename, content: a.content }))
     }

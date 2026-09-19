@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { sendEmail, REPLY_TO } from "./email"
+import { getPublicSiteSettings } from "./settings"
 import {
   COMPONENT_STATUS_META,
   INCIDENT_STATUS_LABELS,
@@ -288,7 +289,8 @@ function buildStatusEmailHtml(
   update: StatusIncidentUpdate,
   affectedNames: string[],
   unsubUrl: string,
-  base: string
+  base: string,
+  logoUrl: string
 ): string {
   const statusLabel =
     INCIDENT_STATUS_LABELS[update.status as IncidentStatus] || update.status || "Update"
@@ -326,7 +328,7 @@ function buildStatusEmailHtml(
   <div style="max-width:620px;margin:0 auto;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">
     <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
       <div style="padding:18px 24px;border-bottom:1px solid #f1f5f9">
-        <img src="${base}/logo.webp" alt="MartPoint" height="34" style="height:34px;display:block" />
+        <img src="${logoUrl}" alt="MartPoint" height="34" style="height:34px;display:block" />
       </div>
       <div style="padding:24px;font-size:15px;line-height:1.65;color:#1f2937">
         <p style="margin:0 0 4px">
@@ -363,7 +365,11 @@ function buildStatusEmailHtml(
  */
 export async function notifyStatusSubscribers(incident: StatusIncident, update: StatusIncidentUpdate) {
   if (!isSupabaseConfigured()) return
-  const [subscribers, components] = await Promise.all([listSubscribers(), listComponents()])
+  const [subscribers, components, site] = await Promise.all([
+    listSubscribers(),
+    listComponents(),
+    getPublicSiteSettings(),
+  ])
   if (subscribers.length === 0) return
 
   const affectedNames = components
@@ -371,6 +377,7 @@ export async function notifyStatusSubscribers(incident: StatusIncident, update: 
     .map((c) => c.name)
 
   const base = baseUrl()
+  const logoUrl = /^https?:\/\//i.test(site.logo) ? site.logo : `${base}${site.logo}`
   const statusLabel =
     INCIDENT_STATUS_LABELS[update.status as IncidentStatus] || update.status || "Update"
   const subject = `[${statusLabel}] ${incident.title} — MartPoint Status`
@@ -385,7 +392,7 @@ export async function notifyStatusSubscribers(incident: StatusIncident, update: 
         to: sub.email,
         subject,
         text,
-        html: buildStatusEmailHtml(incident, update, affectedNames, unsubUrl, base),
+        html: buildStatusEmailHtml(incident, update, affectedNames, unsubUrl, base, logoUrl),
         replyTo: REPLY_TO.support,
         headers: { "List-Unsubscribe": `<${unsubUrl}>` },
       })

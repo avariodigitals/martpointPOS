@@ -159,6 +159,7 @@ export const footerColumns = {
       { label: "Customer Stories", href: "/customer-stories" },
       { label: "Help Centre", href: "/help-centre" },
       { label: "Product Updates", href: "/product-updates" },
+      { label: "System Status", href: "/status" },
       { label: "Download Brochure", href: "/download-brochure" },
     ],
   },

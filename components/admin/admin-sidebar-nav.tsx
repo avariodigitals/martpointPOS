@@ -88,6 +88,7 @@ const navItems: NavItem[] = [
 
   // OPERATIONS
   { href: "/admin/incidents", label: "Incidents", icon: Shield, page: "support", section: "Operations" },
+  { href: "/admin/status", label: "Status Page", icon: Activity, page: "status", section: "Operations" },
 
   // MARKETING
   { href: "/admin/marketing", label: "Campaigns", icon: Megaphone, page: "marketing", section: "Marketing" },

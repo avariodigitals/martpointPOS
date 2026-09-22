@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { recalculateQuote } from "@/lib/quotations"
+import { recalculateQuote, buildQuotePublicUrl, buildQuoteEmailHtml } from "@/lib/quotations"
+import { sendEmail, REPLY_TO } from "@/lib/email"
+import { renderEmailTemplate } from "@/lib/email-templates"
+import type { Quotation, LeadSummary } from "@/lib/quotations"
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { denied } = await authorizeAdmin("quotations")
@@ -70,6 +73,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       paymentTerms,
       status,
       items,
+      sendEmail: shouldSend,
+      allowChanges,
+      allowCounterOffer,
     } = body as {
       title?: string
       validUntil?: string
@@ -78,6 +84,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       paymentTerms?: string
       status?: string
       items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number; taxRate?: number }>
+      sendEmail?: boolean
+      allowChanges?: boolean
+      allowCounterOffer?: boolean
     }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -113,6 +122,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     }
     if (status && allowedStatuses.includes(status as string)) {
       updatePayload.status = status
+    }
+    if (typeof allowChanges === "boolean") {
+      updatePayload.allow_changes = allowChanges
+      updatePayload.allow_counter_offer = allowChanges && Boolean(allowCounterOffer)
     }
 
     const { error: updateError } = await supabase.from("lead_quotations").update(updatePayload).eq("id", id)
@@ -182,9 +195,61 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       })),
     }
 
-    return NextResponse.json({ success: true, quotation })
+    let emailSent = false
+    let emailError: string | null = null
+
+    if (shouldSend) {
+      const lead = quotation.lead
+      if (!lead?.email) {
+        emailError = "Lead has no email address"
+      } else {
+        const publicUrl = buildQuotePublicUrl(fullQuote.public_token as string)
+        const quoteSubjectTpl = await renderEmailTemplate("quotation_subject", {
+          quoteNumber: quotation.quote_number as string,
+          titleBlock: quotation.title ? ` — ${quotation.title}` : "",
+        })
+        emailSent = await sendEmail({
+          to: lead.email,
+          subject: quoteSubjectTpl.subject,
+          replyTo: REPLY_TO.sales,
+          text: buildPlainText(quotation as unknown as Quotation, lead as LeadSummary, publicUrl),
+          html: buildQuoteEmailHtml(
+            {
+              quote_number: quotation.quote_number as string,
+              title: (quotation.title as string) || "",
+              total_amount: Number(quotation.total_amount) || 0,
+              valid_until: (quotation.valid_until as string | null) || null,
+              notes_public: (quotation.notes_public as string | null) || null,
+            },
+            lead as LeadSummary,
+            publicUrl
+          ),
+        })
+        if (emailSent) {
+          const sentAt = new Date().toISOString()
+          await supabase
+            .from("lead_quotations")
+            .update({ status: "SENT", sent_at: sentAt, updated_at: sentAt })
+            .eq("id", id)
+          quotation.status = "SENT"
+          quotation.sent_at = sentAt
+        } else {
+          emailError = "Email delivery failed (see email logs)"
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true, quotation, emailSent, emailError })
   } catch (e) {
     console.error("[admin/quotations/[id]] PUT", e)
     return NextResponse.json({ error: "Failed to update quotation" }, { status: 500 })
   }
+}
+
+function buildPlainText(quote: Quotation, lead: LeadSummary, publicUrl: string): string {
+  const validUntil = quote.valid_until
+    ? new Date(quote.valid_until).toLocaleDateString("en-NG", { year: "numeric", month: "long", day: "numeric" })
+    : "Not specified"
+
+  return `Hello ${lead.fullName},\n\nPlease find your MartPoint quotation below.\n\nQuote: ${quote.quote_number}${quote.title ? `\nTitle: ${quote.title}` : ""}\nBusiness: ${lead.businessName}\nTotal: ₦${quote.total_amount.toLocaleString("en-NG", { minimumFractionDigits: 2 })}\nValid until: ${validUntil}\n\n${quote.notes_public || ""}\n\nView your quotation here:\n${publicUrl}\n\nIf you have any questions, reply to this email.`
 }

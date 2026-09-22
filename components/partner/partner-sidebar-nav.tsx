@@ -13,6 +13,7 @@ import {
   Briefcase,
   GraduationCap,
   Award,
+  BadgeCheck,
   Palette,
   Wallet,
   type LucideIcon,
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
   { href: "/partner/training", label: "Training", icon: GraduationCap, permission: "partner:resources:view" },
   { href: "/partner/certification", label: "Certification", icon: Award, permission: "partner:resources:view" },
   { href: "/partner/branded-materials", label: "Branded Materials", icon: Palette, permission: "partner:resources:view" },
+  { href: "/partner/badge-kit", label: "Badge Kit", icon: BadgeCheck, permission: "partner:resources:view" },
   { href: "/partner/resources", label: "Resources", icon: FolderOpen, permission: "partner:resources:view" },
 ]
 

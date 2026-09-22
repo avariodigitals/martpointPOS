@@ -39,7 +39,7 @@ export async function PATCH(
 
     const { data: current, error: curErr } = await supabase
       .from("partner_applications")
-      .select("id, status, reference_number, email, full_name")
+      .select("id, status, reference_number, email, full_name, internal_notes, risk_compliance_notes")
       .eq("id", id)
       .single()
     if (curErr || !current) {
@@ -70,11 +70,35 @@ export async function PATCH(
       return NextResponse.json({ error: "Update failed" }, { status: 500 })
     }
 
-    await recordStatusHistory(id, null, previousStatus, newStatus, body.reason || null, session!.userId)
+    const statusChanged = newStatus !== previousStatus
+    const actor = { changedByName: session!.name || session!.username }
+
+    // Detect note-only saves so they appear in the trail as note events rather
+    // than fake "X → X" status changes.
+    const noteDetails: string[] = []
+    if (body.internalNotes !== undefined && body.internalNotes !== (current.internal_notes ?? "")) {
+      noteDetails.push(`Internal notes updated: ${body.internalNotes || "(cleared)"}`)
+    }
+    if (body.riskComplianceNotes !== undefined && body.riskComplianceNotes !== (current.risk_compliance_notes ?? "")) {
+      noteDetails.push(`Risk/compliance notes updated: ${body.riskComplianceNotes || "(cleared)"}`)
+    }
+
+    if (statusChanged) {
+      await recordStatusHistory(id, null, previousStatus, newStatus, body.reason || null, session!.userId, {
+        ...actor,
+        eventType: "STATUS_CHANGE",
+      })
+    } else if (noteDetails.length > 0) {
+      await recordStatusHistory(id, null, previousStatus, newStatus, noteDetails.join("\n"), session!.userId, {
+        ...actor,
+        eventType: "NOTE_ADDED",
+      })
+    }
 
     const ctx = auditContextFromSession(session, request)
     const action =
-      newStatus === "MORE_INFORMATION_REQUIRED" ? AUDIT_ACTIONS.PARTNER_APPLICATION_INFORMATION_REQUESTED
+      !statusChanged ? AUDIT_ACTIONS.PARTNER_APPLICATION_NOTE_ADDED
+      : newStatus === "MORE_INFORMATION_REQUIRED" ? AUDIT_ACTIONS.PARTNER_APPLICATION_INFORMATION_REQUESTED
       : AUDIT_ACTIONS.PARTNER_APPLICATION_STATUS_CHANGED
     await recordAudit(ctx, {
       action,
@@ -88,19 +112,22 @@ export async function PATCH(
       },
     })
 
-    // Notify the applicant of every stage change (best-effort)
-    const stageMessage =
-      newStatus === "MORE_INFORMATION_REQUIRED" ? body.informationRequestMessage
-      : newStatus === "REJECTED" ? body.rejectionMessagePublic
-      : null
-    await sendApplicationStatusEmail(
-      current.email,
-      current.full_name,
-      current.reference_number,
-      newStatus,
-      previousStatus,
-      stageMessage
-    )
+    // Notify the applicant of every stage change (best-effort). Skipped when the
+    // status is unchanged so note-only saves don't email the applicant.
+    if (statusChanged) {
+      const stageMessage =
+        newStatus === "MORE_INFORMATION_REQUIRED" ? body.informationRequestMessage
+        : newStatus === "REJECTED" ? body.rejectionMessagePublic
+        : null
+      await sendApplicationStatusEmail(
+        current.email,
+        current.full_name,
+        current.reference_number,
+        newStatus,
+        previousStatus,
+        stageMessage
+      )
+    }
 
     return NextResponse.json({ success: true, application: updated, statusLabel: APPLICATION_STATUS_LABELS[newStatus] })
   } catch {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { recordStatusHistory, type PartnerStatus } from "@/lib/partners"
+import { recordStatusHistory, sendPartnerStatusEmail, type PartnerStatus } from "@/lib/partners"
 import {
   seedPartnerCapabilities,
   listPartnerCapabilities,
@@ -109,7 +109,8 @@ export async function PATCH(
         current.status,
         body.status as PartnerStatus,
         body.reason || null,
-        session!.userId
+        session!.userId,
+        { changedByName: session!.name || session!.username }
       )
       const action =
         body.status === "SUSPENDED"
@@ -123,6 +124,14 @@ export async function PATCH(
         entityId: partnerId,
         metadata: { previousStatus: current.status, newStatus: body.status, partnerId: current.partner_id },
       })
+      // Notify all active portal users of the account status change (best-effort,
+      // no admin message required — body.reason is included if provided).
+      await sendPartnerStatusEmail(
+        partnerId,
+        body.status as PartnerStatus,
+        current.status as PartnerStatus,
+        body.reason || null
+      )
     } else {
       await recordAudit(ctx, {
         action: AUDIT_ACTIONS.PARTNER_UPDATED,

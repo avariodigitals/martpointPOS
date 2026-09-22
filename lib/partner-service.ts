@@ -2,7 +2,7 @@ import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { hashPassword, hashToken } from "./crypto"
 import { sendEmail, REPLY_TO } from "./email"
-import { renderEmailTemplate } from "./email-templates"
+import { renderEmailTemplate, statusPillHtml, type StatusTone } from "./email-templates"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import {
   createSignedDocUrl,
@@ -70,6 +70,8 @@ function mapPartner(row: Record<string, unknown>): PartnerRecord {
     logoUrl: (row.logo_url as string | null) ?? null,
     publicProfileEnabled: (row.public_profile_enabled as boolean) ?? false,
     partnerSince: (row.partner_since as string | null) ?? null,
+    badgeTier: (row.badge_tier as PartnerRecord["badgeTier"]) ?? null,
+    badgeKitIssuedAt: (row.badge_kit_issued_at as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }
@@ -77,6 +79,20 @@ function mapPartner(row: Record<string, unknown>): PartnerRecord {
 
 function now(): string {
   return new Date().toISOString()
+}
+
+const PARTNER_USER_STATUS_LABELS: Record<PartnerUserRecord["status"], string> = {
+  INVITED: "Invited",
+  ACTIVE: "Active",
+  SUSPENDED: "Suspended",
+  DISABLED: "Disabled",
+}
+
+const PARTNER_USER_STATUS_TONES: Record<PartnerUserRecord["status"], StatusTone> = {
+  INVITED: "info",
+  ACTIVE: "success",
+  SUSPENDED: "warning",
+  DISABLED: "danger",
 }
 
 /* ───────────────────────────  Invitations  ─────────────────────────── */
@@ -477,6 +493,35 @@ export async function updatePartnerUserStatus(
     entityId: partnerUserId,
     metadata: { partnerId: current.partner_id, newStatus: status },
   })
+
+  // Notify the user automatically when their portal access status changes.
+  if (current.status !== status) {
+    try {
+      const { data: partner } = await supabase
+        .from("partners")
+        .select("business_name, display_name")
+        .eq("id", current.partner_id as string)
+        .single()
+
+      const statusLabel = PARTNER_USER_STATUS_LABELS[status] || status
+      const tpl = await renderEmailTemplate("partner_user_status_change", {
+        fullName: current.full_name as string,
+        businessName: (partner?.display_name as string) || (partner?.business_name as string) || "",
+        statusLabel,
+        statusPill: statusPillHtml(statusLabel, PARTNER_USER_STATUS_TONES[status] || "info"),
+        portalUrl: `${baseUrl()}/partner/login`,
+      })
+      await sendEmail({
+        to: current.email as string,
+        subject: tpl.subject,
+        text: tpl.text,
+        html: tpl.html,
+        replyTo: REPLY_TO.partners,
+      })
+    } catch (err) {
+      console.error("[partner] failed to send user status email:", err)
+    }
+  }
 
   return { ok: true }
 }

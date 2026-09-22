@@ -5,8 +5,9 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, ArrowLeft, Users, Shield, FileText, Network, Activity, Settings, Check, X, Target, Wrench, LifeBuoy, Coins, BarChart3, Download } from "lucide-react"
+import { Loader2, ArrowLeft, Users, Shield, FileText, Network, Activity, Settings, Check, X, Target, Wrench, LifeBuoy, Coins, BarChart3, Download, Plus, UploadCloud, Trash2, BookOpen, BadgeCheck } from "lucide-react"
 import { PARTNER_USER_ROLES, PARTNER_ROLE_LABELS, type PartnerUserRole, ORG_CAPABILITY_LABELS, type PartnerOrgCapability, relevantPartnerTabs } from "@/lib/partner-permissions"
+import { PARTNER_BADGE_TIERS, PARTNER_BADGE_TIER_LABELS, type PartnerBadgeTier } from "@/lib/partner-badges"
 import { LocationFields } from "@/components/location-fields"
 
 const CAPABILITIES = Object.keys(ORG_CAPABILITY_LABELS) as PartnerOrgCapability[]
@@ -20,10 +21,18 @@ const TAB_LABELS: Record<string, string> = {
   onboarding: "Onboarding",
   support: "Support",
   compliance: "Compliance",
+  guides: "Guides",
+  docs: "Docs",
   commissions: "Commissions",
   performance: "Performance",
   activity: "Activity",
 }
+
+/** Categories for private per-partner documents (Docs tab). */
+const DOC_CATEGORIES = [
+  "Agreement", "Policy", "Certificate", "QR Code", "Partner Logo",
+  "Badge", "Branded Materials", "Certification", "Templates", "Learning Materials",
+]
 
 export function PartnerDetail({ partnerId }: { partnerId: string }) {
   const router = useRouter()
@@ -45,6 +54,16 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
   const [reviewStatus, setReviewStatus] = useState("VERIFIED")
   const [reviewNotes, setReviewNotes] = useState("")
   const [reviewing, setReviewing] = useState(false)
+  const [sharedResources, setSharedResources] = useState<Record<string, unknown>[]>([])
+  const [personalDocs, setPersonalDocs] = useState<Record<string, unknown>[]>([])
+  const [showDocForm, setShowDocForm] = useState(false)
+  const [docForm, setDocForm] = useState({ title: "", description: "", category: "", externalUrl: "", storagePath: "" })
+  const [docFile, setDocFile] = useState<File | null>(null)
+  const [docUploading, setDocUploading] = useState(false)
+  const [docSaving, setDocSaving] = useState(false)
+  const [badgeKit, setBadgeKit] = useState<{ tier: string | null; issuedAt: string | null; stats: { impressions: number; clicks: number } } | null>(null)
+  const [badgeTierSel, setBadgeTierSel] = useState<PartnerBadgeTier>("SILVER")
+  const [badgeSaving, setBadgeSaving] = useState(false)
 
   // Forms
   const [invite, setInvite] = useState({ fullName: "", email: "", role: "PARTNER_MANAGER" as PartnerUserRole })
@@ -119,12 +138,21 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
     setActivity(data.activity || [])
   }
 
+  async function fetchResources() {
+    const res = await fetch(`/api/admin/partner-resources?partnerId=${partnerId}`)
+    const data = await res.json()
+    setSharedResources(data.shared || [])
+    setPersonalDocs(data.personal || [])
+  }
+
   useEffect(() => {
     if (tab === "users") fetchUsers()
     if (tab === "capabilities") fetchCapabilities()
     if (tab === "compliance") fetchCompliance()
     if (tab === "customers") fetchAssignments()
     if (tab === "activity") fetchActivity()
+    if (tab === "guides" || tab === "docs") fetchResources()
+    if (tab === "docs") fetchBadgeKit()
     if (["leads", "onboarding", "support", "commissions", "performance"].includes(tab)) fetch360()
   }, [tab])
 
@@ -256,6 +284,120 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
     const data = await res.json()
     if (data.success) { setMessage(`Request ${action}d.`); fetchOverview() }
     else setMessage(data.error || "Failed.")
+  }
+
+  async function uploadDocFile() {
+    if (!docFile) return
+    setDocUploading(true)
+    setMessage("")
+    try {
+      const fd = new FormData()
+      fd.append("file", docFile)
+      const res = await fetch("/api/admin/partner-resources/upload", { method: "POST", body: fd })
+      const data = await res.json()
+      if (res.ok) {
+        setDocForm((prev) => ({ ...prev, storagePath: data.storagePath }))
+        setMessage("File uploaded. You can now share the document.")
+      } else {
+        setMessage(data.error || "Upload failed.")
+      }
+    } finally {
+      setDocUploading(false)
+    }
+  }
+
+  async function shareDoc(e: React.FormEvent) {
+    e.preventDefault()
+    if (!docForm.title || !docForm.category) {
+      setMessage("Title and category are required.")
+      return
+    }
+    if (!docForm.storagePath && !docForm.externalUrl) {
+      setMessage("Upload a file or provide an external URL.")
+      return
+    }
+    setDocSaving(true)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/partner-resources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: docForm.title,
+          description: docForm.description,
+          category: docForm.category,
+          visibility: "PARTNER",
+          partnerId,
+          storagePath: docForm.storagePath || undefined,
+          externalUrl: docForm.externalUrl || undefined,
+          active: true,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMessage("Document shared with this partner.")
+        setDocForm({ title: "", description: "", category: "", externalUrl: "", storagePath: "" })
+        setDocFile(null)
+        setShowDocForm(false)
+        fetchResources()
+      } else {
+        setMessage(data.error || "Failed to share document.")
+      }
+    } finally {
+      setDocSaving(false)
+    }
+  }
+
+  async function removeResource(id: string) {
+    if (!confirm("Delete this document?")) return
+    const res = await fetch(`/api/admin/partner-resources?id=${encodeURIComponent(id)}`, { method: "DELETE" })
+    if (res.ok) { setMessage("Document deleted."); fetchResources() }
+  }
+
+  async function fetchBadgeKit() {
+    const res = await fetch(`/api/admin/partners/${partnerId}/badge-kit`)
+    const data = await res.json()
+    if (!data.error) {
+      setBadgeKit(data)
+      if (data.tier) setBadgeTierSel(data.tier as PartnerBadgeTier)
+    }
+  }
+
+  async function saveBadgeKit() {
+    setBadgeSaving(true)
+    setMessage("")
+    try {
+      const res = await fetch(`/api/admin/partners/${partnerId}/badge-kit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: badgeTierSel }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMessage("Badge kit issued — it now appears in the partner's documents and Badge Kit page.")
+        fetchBadgeKit()
+        fetchResources()
+      } else {
+        setMessage(data.error || "Failed to generate badge kit.")
+      }
+    } finally {
+      setBadgeSaving(false)
+    }
+  }
+
+  async function revokeBadgeKit() {
+    if (!confirm("Revoke this partner's badge kit? The kit is removed from their documents and the Badge Kit page is disabled.")) return
+    setBadgeSaving(true)
+    try {
+      const res = await fetch(`/api/admin/partners/${partnerId}/badge-kit`, { method: "DELETE" })
+      if (res.ok) {
+        setMessage("Badge kit revoked.")
+        fetchBadgeKit()
+        fetchResources()
+      }
+    } finally {
+      setBadgeSaving(false)
+    }
   }
 
   if (loading || !partner) {
@@ -571,6 +713,137 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {tab === "guides" && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium flex items-center gap-2"><BookOpen className="w-4 h-4" /> Guides & Shared Resources</CardTitle>
+              <Link href="/admin/partners/resources"><Button size="sm" variant="outline">Manage Resources</Button></Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-4">Guides and materials visible to this partner based on visibility rules (all partners, partner type, or capabilities). Use Manage Resources to add or edit shared content.</p>
+            {sharedResources.length === 0 ? <p className="text-sm text-muted-foreground">No shared guides visible to this partner.</p> : (
+              <div className="space-y-2">
+                {sharedResources.map((r) => (
+                  <div key={r.id as string} className="flex items-start justify-between p-3 border-b border-border last:border-0 gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{r.title as string}</p>
+                      <p className="text-xs text-muted-foreground">{r.category as string} · {(r.visibility as string) || "ALL"}</p>
+                      {!!r.description && <p className="text-xs text-muted-foreground mt-1">{r.description as string}</p>}
+                    </div>
+                    {!!r.signedUrl && (
+                      <a href={r.signedUrl as string} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="outline"><Download className="w-3.5 h-3.5" /></Button>
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "docs" && (
+        <div className="space-y-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2"><BadgeCheck className="w-4 h-4" /> Partner Badge Kit</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">Issue an official verification badge. The kit — embeddable HTML snippets and PNG artwork for horizontal &amp; vertical badges — appears in the partner portal under Badge Kit and in Resources → Your documents.</p>
+            {badgeKit === null ? (
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            ) : (
+              <>
+                {badgeKit.tier ? (
+                  <p className="text-sm">
+                    <span className="font-medium">Issued: {PARTNER_BADGE_TIER_LABELS[badgeKit.tier as PartnerBadgeTier] || badgeKit.tier}</span>
+                    {badgeKit.issuedAt && <span className="text-muted-foreground"> · {new Date(badgeKit.issuedAt).toLocaleDateString()}</span>}
+                    <span className="text-muted-foreground"> · {badgeKit.stats.impressions} impressions · {badgeKit.stats.clicks} clicks</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No badge issued yet.</p>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <select value={badgeTierSel} onChange={(e) => setBadgeTierSel(e.target.value as PartnerBadgeTier)} className="rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    {PARTNER_BADGE_TIERS.map((t) => <option key={t} value={t}>{PARTNER_BADGE_TIER_LABELS[t]}</option>)}
+                  </select>
+                  <Button size="sm" onClick={saveBadgeKit} disabled={badgeSaving}>
+                    {badgeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : badgeKit.tier ? "Update Badge Kit" : "Generate Badge Kit"}
+                  </Button>
+                  {badgeKit.tier && <Button size="sm" variant="outline" onClick={revokeBadgeKit} disabled={badgeSaving}>Revoke</Button>}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium flex items-center gap-2"><FileText className="w-4 h-4" /> Partner Documents</CardTitle>
+              {!showDocForm && <Button size="sm" onClick={() => setShowDocForm(true)}><Plus className="w-4 h-4 mr-1" /> Share Document</Button>}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">Private documents for this partner only — agreements, policies, certificates, QR codes, logos. They appear in the partner portal under Resources → Your documents.</p>
+
+            {showDocForm && (
+              <form onSubmit={shareDoc} className="rounded-md border border-border p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input placeholder="Title" value={docForm.title} onChange={(e) => setDocForm({ ...docForm, title: e.target.value })} required className="rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                  <select value={docForm.category} onChange={(e) => setDocForm({ ...docForm, category: e.target.value })} required className="rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="">Select category</option>
+                    {DOC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <textarea placeholder="Description (optional)" value={docForm.description} onChange={(e) => setDocForm({ ...docForm, description: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} />
+                <input placeholder="External URL (optional — or upload a file below)" value={docForm.externalUrl} onChange={(e) => setDocForm({ ...docForm, externalUrl: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                <div className="rounded-md border border-border p-3 space-y-2">
+                  <p className="text-xs font-medium">Upload file</p>
+                  <div className="flex items-center gap-2">
+                    <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.zip" onChange={(e) => setDocFile(e.target.files?.[0] || null)} className="text-sm flex-1" />
+                    <Button type="button" size="sm" variant="outline" onClick={uploadDocFile} disabled={docUploading || !docFile}>
+                      {docUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />} Upload
+                    </Button>
+                  </div>
+                  {docForm.storagePath && <p className="text-xs text-green-700">File uploaded: {docForm.storagePath}</p>}
+                  <p className="text-xs text-muted-foreground">PDF, image, Word, ZIP. Max 10 MB.</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" size="sm" disabled={docSaving}>{docSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Share Document"}</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setShowDocForm(false)}>Cancel</Button>
+                </div>
+              </form>
+            )}
+
+            {personalDocs.length === 0 ? <p className="text-sm text-muted-foreground">No documents shared with this partner yet.</p> : (
+              <div className="space-y-2">
+                {personalDocs.map((r) => (
+                  <div key={r.id as string} className="flex items-start justify-between p-3 border-b border-border last:border-0 gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{r.title as string}</p>
+                      <p className="text-xs text-muted-foreground">{r.category as string}{r.active === false ? " · inactive" : ""}</p>
+                      {!!r.description && <p className="text-xs text-muted-foreground mt-1">{r.description as string}</p>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!!r.signedUrl && (
+                        <a href={r.signedUrl as string} target="_blank" rel="noopener noreferrer">
+                          <Button size="sm" variant="outline"><Download className="w-3.5 h-3.5" /></Button>
+                        </a>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => removeResource(r.id as string)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        </div>
       )}
 
       {tab === "leads" && (

@@ -32,7 +32,7 @@ export async function POST(
   try {
     const body = await request.json()
     const documentTypes = (body.documentTypes || []) as string[]
-    const result = await requestApplicationComplianceDocuments(id, documentTypes, session!.userId)
+    const result = await requestApplicationComplianceDocuments(id, documentTypes, session!.userId, session!.name)
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
     return NextResponse.json({ success: true, documents: result.docs })
   } catch {
@@ -59,7 +59,8 @@ export async function PATCH(
       docId as string,
       status as "VERIFIED" | "APPROVED" | "REJECTED" | "UNDER_REVIEW",
       (notes as string) || "",
-      session!.userId
+      session!.userId,
+      session!.name
     )
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 })
     return NextResponse.json({ success: true })

@@ -10,6 +10,7 @@ import {
   Clock, AlertCircle, Pencil, type LucideIcon,
 } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
+import { AgreementForm } from "./agreement-form"
 
 const TYPE_LABELS: Record<string, string> = {
   REFERRAL: "Referral Partner", CHANNEL: "Channel Partner", IMPLEMENTATION: "Implementation Partner",
@@ -67,6 +68,8 @@ interface HistoryRow {
   new_status: string
   reason: string | null
   created_at: string
+  changed_by_name: string | null
+  event_type: string
 }
 
 interface AppDetail {
@@ -105,6 +108,7 @@ interface AppDetail {
   rejection_message_public: string
   information_request_message: string
   created_at: string
+  reviewed_by_name?: string | null
 }
 
 type TabKey = "overview" | "timeline" | "compliance" | "actions"
@@ -186,7 +190,7 @@ export function ApplicationDetail({ id }: { id: string }) {
       const res = await fetch(`/api/admin/partners/applications/${id}`)
       const data = await res.json()
       if (data.application) {
-        setApp(data.application)
+        setApp({ ...data.application, reviewed_by_name: data.reviewedByName || null })
         setInternalNotes(data.application.internal_notes || "")
         setRiskNotes(data.application.risk_compliance_notes || "")
         setRejectionPublic(data.application.rejection_message_public || "")
@@ -616,20 +620,36 @@ export function ApplicationDetail({ id }: { id: string }) {
           <CardContent>
             {history.length === 0 ? <p className="text-sm text-muted-foreground">No history yet.</p> : (
               <ol className="relative border-l border-border ml-2 space-y-4">
-                {history.map((h, i) => (
-                  <li key={i} className="ml-5">
-                    <span className="absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full bg-retail ring-4 ring-background" />
-                    <div className="flex flex-wrap items-baseline gap-2">
-                      <span className="font-medium text-sm">{(h.new_status || "").replace(/_/g, " ")}</span>
-                      {h.previous_status && <span className="text-xs text-muted-foreground">from {h.previous_status.replace(/_/g, " ")}</span>}
-                      <span className="text-xs text-muted-foreground ml-auto">{new Date(h.created_at).toLocaleString()}</span>
-                    </div>
-                    {h.reason && <p className="text-xs text-muted-foreground mt-0.5">{h.reason}</p>}
-                  </li>
-                ))}
+                {history.map((h, i) => {
+                  const eventType = h.event_type || "STATUS_CHANGE"
+                  const dotColor =
+                    eventType === "NOTE_ADDED" ? "bg-blue-500" :
+                    eventType === "DOCUMENT_REVIEW" ? "bg-amber-500" :
+                    eventType === "DOCUMENT_SUBMITTED" ? "bg-purple-500" :
+                    "bg-retail"
+                  const label =
+                    eventType === "NOTE_ADDED" ? "Internal notes updated" :
+                    eventType === "DOCUMENT_REVIEW" ? "Compliance document reviewed" :
+                    eventType === "DOCUMENT_SUBMITTED" ? "Compliance document submitted" :
+                    (h.new_status || "").replace(/_/g, " ")
+                  return (
+                    <li key={i} className="ml-5">
+                      <span className={`absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full ${dotColor} ring-4 ring-background`} />
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <span className="font-medium text-sm">{label}</span>
+                        {eventType === "STATUS_CHANGE" && h.previous_status && h.previous_status !== h.new_status && (
+                          <span className="text-xs text-muted-foreground">from {h.previous_status.replace(/_/g, " ")}</span>
+                        )}
+                        {h.changed_by_name && <span className="text-xs text-muted-foreground">by {h.changed_by_name}</span>}
+                        <span className="text-xs text-muted-foreground ml-auto">{new Date(h.created_at).toLocaleString()}</span>
+                      </div>
+                      {h.reason && <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{h.reason}</p>}
+                    </li>
+                  )
+                })}
               </ol>
             )}
-            <p className="text-xs text-muted-foreground mt-4">Submitted {new Date(app.submitted_at).toLocaleString()}{app.reviewed_at ? ` · last reviewed ${new Date(app.reviewed_at).toLocaleString()}` : ""}</p>
+            <p className="text-xs text-muted-foreground mt-4">Submitted {new Date(app.submitted_at).toLocaleString()}{app.reviewed_at ? ` · last reviewed ${new Date(app.reviewed_at).toLocaleString()}${app.reviewed_by_name ? ` by ${app.reviewed_by_name}` : ""}` : ""}</p>
           </CardContent>
         </Card>
       )}
@@ -816,6 +836,10 @@ export function ApplicationDetail({ id }: { id: string }) {
               </Button>
             </CardContent>
           </Card>
+
+          {["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"].includes(app.status) && (
+            <AgreementForm applicationId={id} onGenerated={fetchDetail} />
+          )}
 
           {["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"].includes(app.status) && (
             <Card>

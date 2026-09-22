@@ -8,6 +8,20 @@ function formatPdfNgn(n: number): string {
   return `NGN ${n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+// Splits free-form bank details into display lines — on existing newlines and
+// before common field labels, so a single-line entry still renders line-by-line.
+export function bankDetailLines(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .flatMap((line) =>
+      line
+        .replace(/\s+(?=(?:bank name|bank|account name|account number|account no|acct\.?\s*name|acct\.?\s*no|sort code|swift|iban|beneficiary)\s*:)/gi, "\n")
+        .split("\n")
+    )
+    .map((l) => l.trim())
+    .filter(Boolean)
+}
+
 async function getLogoDataUrl(logoPath: string): Promise<{ dataUrl: string; w: number; h: number } | null> {
   if (typeof window === "undefined" || typeof document === "undefined") return null
   try {
@@ -202,6 +216,9 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
   doc.text(formatPdfNgn(quote.total_amount), totalsValueX, totalsY, { align: "right" })
   totalsY += 24
 
+  // Left column is bounded by the totals column so text never overlaps it.
+  const leftColW = Math.max(200, totalsX - margin - 30)
+
   let termsY = finalY + 20
   if (quote.payment_terms) {
     doc.setFontSize(10)
@@ -210,8 +227,7 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
     termsY += 14
     doc.setFontSize(9)
     doc.setTextColor(17, 24, 39)
-    const termsW = Math.max(200, totalsX - margin - 30)
-    const splitTerms = doc.splitTextToSize(quote.payment_terms, termsW)
+    const splitTerms = doc.splitTextToSize(quote.payment_terms, leftColW)
     doc.text(splitTerms, margin, termsY)
     termsY += splitTerms.length * 11 + 8
   }
@@ -219,16 +235,24 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
   if (accountNumber) {
     doc.setFontSize(10)
     doc.setTextColor(107, 114, 128)
-    doc.text("Wire / Bank Account Number:", margin, termsY)
+    doc.text("Bank Details", margin, termsY)
     termsY += 14
-    doc.setFontSize(11)
+    doc.setFontSize(10)
     doc.setTextColor(17, 24, 39)
-    doc.text(accountNumber, margin, termsY)
-    termsY += 22
+    for (const line of bankDetailLines(accountNumber)) {
+      const wrapped = doc.splitTextToSize(line, leftColW)
+      doc.text(wrapped, margin, termsY)
+      termsY += wrapped.length * 12 + 2
+    }
+    termsY += 10
   }
 
   // Public notes sit above the footer, full width.
   let notesY = Math.max(totalsY, termsY) + 20
+  if (notesY > pageH - 140) {
+    doc.addPage()
+    notesY = 40
+  }
   if (quote.notes_public) {
     doc.setFontSize(10)
     doc.setTextColor(107, 114, 128)

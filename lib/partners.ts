@@ -3,7 +3,7 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import type { PartnerOrgCapability } from "./partner-permissions"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import { sendEmail, getEmailSettings, getEmailRoute, REPLY_TO } from "./email"
-import { renderEmailTemplate } from "./email-templates"
+import { renderEmailTemplate, escapeHtml, statusPillHtml, type StatusTone } from "./email-templates"
 
 /* ───────────────────────────  Partner types & helpers  ─────────────────────────── */
 
@@ -43,6 +43,14 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   SUSPENDED: "Suspended",
   REJECTED: "Rejected",
   INACTIVE: "Inactive",
+}
+
+export const PARTNER_STATUS_LABELS: Record<PartnerStatus, string> = {
+  PENDING_ACTIVATION: "Pending Activation",
+  ACTIVE: "Active",
+  SUSPENDED: "Suspended",
+  INACTIVE: "Inactive",
+  TERMINATED: "Terminated",
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng"
@@ -92,13 +100,17 @@ export async function generatePartnerId(countryCode: string): Promise<string> {
 
 /* ───────────────────────────  Status history  ─────────────────────────── */
 
+export type StatusHistoryEventType =
+  | "STATUS_CHANGE" | "NOTE_ADDED" | "DOCUMENT_REVIEW" | "DOCUMENT_SUBMITTED"
+
 export async function recordStatusHistory(
   applicationId: string | null,
   partnerId: string | null,
   previousStatus: string | null,
   newStatus: string,
   reason: string | null,
-  changedBy: string | null
+  changedBy: string | null,
+  opts?: { changedByName?: string | null; eventType?: StatusHistoryEventType }
 ): Promise<void> {
   if (!isSupabaseConfigured()) return
   await supabase.from("partner_status_history").insert({
@@ -108,6 +120,8 @@ export async function recordStatusHistory(
     new_status: newStatus,
     reason,
     changed_by: changedBy,
+    changed_by_name: opts?.changedByName ?? null,
+    event_type: opts?.eventType ?? "STATUS_CHANGE",
   })
 }
 
@@ -256,6 +270,32 @@ export async function sendApplicationSubmittedEmail(email: string, fullName: str
   return applicantSent
 }
 
+/* Status → badge tone for HTML status emails. */
+export function applicationStatusTone(status: ApplicationStatus): StatusTone {
+  if (status === "APPROVED" || status === "ACTIVE") return "success"
+  if (status === "REJECTED" || status === "SUSPENDED" || status === "INACTIVE") return "danger"
+  if (status === "MORE_INFORMATION_REQUIRED" || status === "COMPLIANCE_REQUIRED" || status === "APPROVED_CONDITIONAL") return "warning"
+  return "info"
+}
+
+export function partnerStatusTone(status: PartnerStatus): StatusTone {
+  if (status === "ACTIVE") return "success"
+  if (status === "SUSPENDED" || status === "TERMINATED") return "danger"
+  if (status === "INACTIVE") return "neutral"
+  return "info"
+}
+
+/** Optional admin message rendered as a styled quote box in HTML emails. */
+function messageHtmlBlock(message: string): string {
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;"><tr><td style="border-left:3px solid #0057FF; background-color:#f9fafb; padding:12px 16px;"><p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#6b7280; margin:0 0 6px;">Message from MartPoint</p><p style="font-size:14px; line-height:1.6; color:#111827; margin:0; white-space:pre-line;">${escapeHtml(message)}</p></td></tr></table>`
+}
+
+function previousLabelHtmlBlock(previousLabel: string): string {
+  return previousLabel
+    ? `<p style="font-size:13px; color:#6b7280; margin:10px 0 0;">Previous status: ${escapeHtml(previousLabel)}</p>`
+    : ""
+}
+
 export async function sendApplicationStatusEmail(
   email: string,
   fullName: string,
@@ -272,14 +312,72 @@ export async function sendApplicationStatusEmail(
     fullName,
     reference,
     statusLabel,
+    statusPill: statusPillHtml(statusLabel, applicationStatusTone(newStatus)),
     previousLabel,
     previousLabelBlock: previousLabel ? `\nPrevious status: ${previousLabel}` : "",
+    previousLabelHtmlBlock: previousLabelHtmlBlock(previousLabel),
     message: message || "",
     messageBlock: message ? `\n\nMessage from MartPoint:\n${message}` : "",
+    messageHtmlBlock: message ? messageHtmlBlock(message) : "",
     statusUrl,
   })
 
   return sendEmail({ to: email, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
+}
+
+/* ─── Partner account status emails ───
+ * Sent automatically to all active portal users when the partner's account
+ * status changes (suspend, reactivate, terminate, etc). Best-effort: failures
+ * are logged but never block the admin action.
+ */
+export async function sendPartnerStatusEmail(
+  partnerId: string,
+  newStatus: PartnerStatus,
+  previousStatus: string | null,
+  message?: string | null
+): Promise<void> {
+  if (!isSupabaseConfigured()) return
+  try {
+    const { data: partner } = await supabase
+      .from("partners")
+      .select("business_name, display_name")
+      .eq("id", partnerId)
+      .single()
+    if (!partner) return
+
+    const { data: users } = await supabase
+      .from("partner_users")
+      .select("email, full_name")
+      .eq("partner_id", partnerId)
+      .eq("status", "ACTIVE")
+    if (!users || users.length === 0) return
+
+    const businessName = (partner.display_name as string) || (partner.business_name as string)
+    const statusLabel = PARTNER_STATUS_LABELS[newStatus] || newStatus.replace(/_/g, " ")
+    const previousLabel = previousStatus
+      ? (PARTNER_STATUS_LABELS[previousStatus as PartnerStatus] || previousStatus.replace(/_/g, " "))
+      : ""
+    const portalUrl = `${baseUrl}/partner/login`
+
+    for (const user of users as { email: string; full_name: string }[]) {
+      const tpl = await renderEmailTemplate("partner_status_change", {
+        fullName: user.full_name,
+        businessName,
+        statusLabel,
+        statusPill: statusPillHtml(statusLabel, partnerStatusTone(newStatus)),
+        previousLabel,
+        previousLabelBlock: previousLabel ? `\nPrevious status: ${previousLabel}` : "",
+        previousLabelHtmlBlock: previousLabelHtmlBlock(previousLabel),
+        message: message || "",
+        messageBlock: message ? `\n\nMessage from MartPoint:\n${message}` : "",
+        messageHtmlBlock: message ? messageHtmlBlock(message) : "",
+        portalUrl,
+      })
+      await sendEmail({ to: user.email, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners })
+    }
+  } catch (err) {
+    console.error("[partners] failed to send partner status email:", err)
+  }
 }
 
 /* ───────────────────────────  Public directory / verify  ─────────────────────────── */
@@ -451,6 +549,8 @@ export type PartnerEventType =
   | "phone_click"
   | "email_click"
   | "sales_cta_click"
+  | "badge_click"
+  | "badge_impression"
 
 export const PARTNER_EVENT_TYPES: PartnerEventType[] = [
   "directory_click",
@@ -460,6 +560,8 @@ export const PARTNER_EVENT_TYPES: PartnerEventType[] = [
   "phone_click",
   "email_click",
   "sales_cta_click",
+  "badge_click",
+  "badge_impression",
 ]
 
 /** Record a public engagement event for a partner (identified by partner_code like MP-NG-00001). */

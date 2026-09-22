@@ -455,13 +455,13 @@ export default function AdminSettingsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Wire / Bank Account Number</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium mb-1">Bank Details</label>
+                <textarea
+                  rows={3}
                   value={settings.accountNumber}
                   onChange={(e) => setSettings({ ...settings, accountNumber: e.target.value })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="0123456789 (shown on quotations and invoices)"
+                  placeholder={"Bank Name: Access Bank\nAccount Number: 0123456789\nAccount Name: Company Ltd\n(shown on quotations)"}
                 />
               </div>
             </CardContent>

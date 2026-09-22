@@ -21,6 +21,75 @@ export interface TemplateDefinition extends EmailTemplate {
   variables: string[]
 }
 
+/** Escape user/admin-supplied text before embedding it in an HTML email. */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+export type StatusTone = "success" | "info" | "warning" | "danger" | "neutral"
+
+const STATUS_TONE_COLORS: Record<StatusTone, { bg: string; fg: string }> = {
+  success: { bg: "#d1fae5", fg: "#065f46" },
+  info: { bg: "#dbeafe", fg: "#1e40af" },
+  warning: { bg: "#fef3c7", fg: "#92400e" },
+  danger: { bg: "#fee2e2", fg: "#991b1b" },
+  neutral: { bg: "#e5e7eb", fg: "#374151" },
+}
+
+/** Rounded status badge used inside HTML status emails. Label is HTML-escaped. */
+export function statusPillHtml(label: string, tone: StatusTone): string {
+  const c = STATUS_TONE_COLORS[tone]
+  return `<span style="display:inline-block; padding:6px 14px; border-radius:9999px; font-size:13px; font-weight:600; background-color:${c.bg}; color:${c.fg};">${escapeHtml(label)}</span>`
+}
+
+/* ───────────────────────────  Branded HTML shell  ───────────────────────────
+ * Wraps a body fragment in the standard MartPoint email layout (gradient
+ * header, white card, grey footer). {{variable}} placeholders inside `body`
+ * are substituted at send time.
+ */
+function brandedEmailHtml(body: string, opts: { eyebrow?: string; title?: string } = {}): string {
+  const eyebrow = opts.eyebrow || "Partner Programme"
+  const title = opts.title || "MartPoint"
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f6f7; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
+          <tr>
+            <td style="padding:48px 40px 32px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              <div style="color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.5px;">MartPoint</div>
+              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:6px;">${eyebrow}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+${body}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
+              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>MartPoint Partner Team</strong></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 export const EMAIL_TEMPLATES: TemplateDefinition[] = [
   {
     key: "partner_application_received",
@@ -41,6 +110,35 @@ You will need your application reference and the email used to apply.
 
 Best regards,
 MartPoint Partner Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Thank you for applying to become a MartPoint partner. Your application has been received and is now being reviewed by our team.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Application reference</p>
+                    <p style="font-size:17px; font-weight:700; color:#111827; margin:0; letter-spacing:0.5px;">{{reference}}</p>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{statusUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Track Your Application</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0 0 16px; color:#6b7280; word-break:break-all;">
+                Or copy and paste this link into your browser:<br />
+                <a href="{{statusUrl}}" style="color:#0057FF; text-decoration:underline;">{{statusUrl}}</a>
+              </p>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280;">
+                You will need your application reference and the email used to apply.
+              </p>`,
+      { title: "Application received" }
+    ),
   },
   {
     key: "partner_application_admin",
@@ -60,7 +158,7 @@ Review it in the Control Centre.`,
     key: "application_status_change",
     label: "Application Status Update",
     description: "Sent to the applicant whenever the application status changes.",
-    variables: ["fullName", "reference", "statusLabel", "previousLabel", "message", "statusUrl"],
+    variables: ["fullName", "reference", "statusLabel", "statusPill", "previousLabel", "previousLabelBlock", "previousLabelHtmlBlock", "message", "messageBlock", "messageHtmlBlock", "statusUrl"],
     subject: "MartPoint Partner Application Update — {{reference}}",
     text: `Hi {{fullName}},
 
@@ -73,6 +171,34 @@ You can view the latest status and any required actions at:
 
 Best regards,
 MartPoint Partner Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Your MartPoint partner application <strong>{{reference}}</strong> has been updated.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:20px;">
+                    <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#6b7280; margin:0 0 10px;">Current status</p>
+                    {{statusPill}}
+                    {{previousLabelHtmlBlock}}
+                  </td>
+                </tr>
+              </table>
+              {{messageHtmlBlock}}
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{statusUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">View Application Status</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280; word-break:break-all;">
+                Or copy and paste this link into your browser:<br />
+                <a href="{{statusUrl}}" style="color:#0057FF; text-decoration:underline;">{{statusUrl}}</a>
+              </p>`,
+      { title: "Application status update" }
+    ),
   },
   {
     key: "compliance_doc_request",
@@ -436,6 +562,30 @@ Click the link below to accept your invitation and set your password. This link 
 
 Welcome,
 MartPoint Partner Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                You have been invited to join the <strong>MartPoint Partner Portal</strong> for <strong>{{businessName}}</strong>.
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 32px; color:#374151;">
+                Accept your invitation and set your password to get started.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{link}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Accept Invitation</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0 0 16px; color:#6b7280; word-break:break-all;">
+                Or copy and paste this link into your browser:<br />
+                <a href="{{link}}" style="color:#0057FF; text-decoration:underline;">{{link}}</a>
+              </p>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280;">
+                This link expires in 7 days and can only be used once.
+              </p>`,
+      { title: "Partner Portal invitation" }
+    ),
   },
   {
     key: "partner_user_invite_resent",
@@ -452,6 +602,27 @@ Here is your new invitation link to join the MartPoint Partner Portal for {{busi
 This link expires in 7 days and can only be used once.
 
 MartPoint Partner Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 32px; color:#374151;">
+                Here is your new invitation link to join the <strong>MartPoint Partner Portal</strong> for <strong>{{businessName}}</strong>.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{link}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Accept Invitation</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0 0 16px; color:#6b7280; word-break:break-all;">
+                Or copy and paste this link into your browser:<br />
+                <a href="{{link}}" style="color:#0057FF; text-decoration:underline;">{{link}}</a>
+              </p>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280;">
+                This link expires in 7 days and can only be used once.
+              </p>`,
+      { title: "Partner Portal invitation" }
+    ),
   },
   {
     key: "partner_password_reset",
@@ -470,6 +641,27 @@ Click the link below to set a new password. This link expires in 1 hour and can 
 If you did not request this, please ignore this email.
 
 MartPoint Partner Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 32px; color:#374151;">
+                We received a request to reset the password for your MartPoint Partner Portal account.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{link}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Reset Password</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0 0 16px; color:#6b7280; word-break:break-all;">
+                Or copy and paste this link into your browser:<br />
+                <a href="{{link}}" style="color:#0057FF; text-decoration:underline;">{{link}}</a>
+              </p>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280;">
+                This link expires in 1 hour and can only be used once. If you did not request this, you can ignore this email — your password will stay the same.
+              </p>`,
+      { title: "Reset your password" }
+    ),
   },
   {
     key: "partner_lead_invite",
@@ -647,12 +839,29 @@ Review it in the Control Centre under Partners → Payout Requests.`,
 Your payout request for ₦{{amount}} has been approved and scheduled for payment (reference {{payoutReference}}).
 
 MartPoint Partner Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Good news — your payout request has been approved and scheduled for payment.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Amount</p>
+                    <p style="font-size:17px; font-weight:700; color:#111827; margin:0;">₦{{amount}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:12px 0 4px;">Payout reference</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{payoutReference}}</p>
+                  </td>
+                </tr>
+              </table>`,
+      { title: "Payout approved" }
+    ),
   },
   {
     key: "payout_rejected",
     label: "Payout Request Declined",
     description: "Sent to the partner user when a withdrawal request is rejected.",
-    variables: ["fullName", "amount", "reasonBlock"],
+    variables: ["fullName", "amount", "reasonBlock", "reasonHtmlBlock"],
     subject: "Your MartPoint payout request was declined",
     text: `Hi {{fullName}},
 
@@ -661,6 +870,97 @@ Your payout request for ₦{{amount}} was declined.{{reasonBlock}}
 Contact your partner manager if you have questions.
 
 MartPoint Partner Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Your payout request for <strong>₦{{amount}}</strong> was declined.
+              </p>
+              {{reasonHtmlBlock}}
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                Contact your partner manager if you have questions.
+              </p>`,
+      { title: "Payout declined" }
+    ),
+  },
+  {
+    key: "partner_status_change",
+    label: "Partner Account Status Update",
+    description: "Sent to partner portal users whenever the partner account status changes (e.g. suspended, reactivated, terminated).",
+    variables: ["fullName", "businessName", "statusLabel", "statusPill", "previousLabel", "previousLabelBlock", "previousLabelHtmlBlock", "message", "messageBlock", "messageHtmlBlock", "portalUrl"],
+    subject: "MartPoint Partner Account Update — {{businessName}}",
+    text: `Hi {{fullName}},
+
+The status of your MartPoint partner account ({{businessName}}) has been updated.
+
+Current status: {{statusLabel}}{{previousLabelBlock}}{{messageBlock}}
+
+You can sign in to the Partner Portal at:
+{{portalUrl}}
+
+Best regards,
+MartPoint Partner Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                The status of your MartPoint partner account (<strong>{{businessName}}</strong>) has been updated.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:20px;">
+                    <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#6b7280; margin:0 0 10px;">Current status</p>
+                    {{statusPill}}
+                    {{previousLabelHtmlBlock}}
+                  </td>
+                </tr>
+              </table>
+              {{messageHtmlBlock}}
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{portalUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Sign in to Partner Portal</a>
+                  </td>
+                </tr>
+              </table>`,
+      { title: "Partner account update" }
+    ),
+  },
+  {
+    key: "partner_user_status_change",
+    label: "Partner Portal Access Update",
+    description: "Sent to a partner portal user when their access status changes (e.g. suspended, re-enabled).",
+    variables: ["fullName", "businessName", "statusLabel", "statusPill", "portalUrl"],
+    subject: "Your MartPoint Partner Portal access — {{businessName}}",
+    text: `Hi {{fullName}},
+
+Your access to the MartPoint Partner Portal for {{businessName}} has been updated.
+
+Status: {{statusLabel}}
+
+{{portalUrl}}
+
+MartPoint Partner Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Your access to the MartPoint Partner Portal for <strong>{{businessName}}</strong> has been updated.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:20px;">
+                    <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#6b7280; margin:0 0 10px;">Account status</p>
+                    {{statusPill}}
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{portalUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Sign in to Partner Portal</a>
+                  </td>
+                </tr>
+              </table>`,
+      { title: "Partner Portal access update" }
+    ),
   },
   {
     key: "onboarding_welcome",

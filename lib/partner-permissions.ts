@@ -174,6 +174,8 @@ export const PARTNER_360_TABS = [
   "onboarding",
   "support",
   "compliance",
+  "guides",
+  "docs",
   "commissions",
   "performance",
   "activity",

@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { VerifyPartnerClient } from "./verify-client"
@@ -9,7 +10,19 @@ export const metadata: Metadata = {
   alternates: { canonical: "/partners/verify" },
 }
 
-export default function VerifyPartnerPage() {
+export default async function VerifyPartnerPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  /* Badge embeds link here as /partners/verify?partner=MP-NG-00001 — send
+   * straight to the public profile so one click verifies the partner. */
+  const sp = await searchParams
+  const code = (typeof sp.partner === "string" ? sp.partner : "").trim().toUpperCase()
+  if (/^MP-[A-Z]{2,3}-\d{1,6}$/.test(code)) {
+    redirect(`/partners/${code}?src=badge`)
+  }
+
   return (
     <>
       <Header />

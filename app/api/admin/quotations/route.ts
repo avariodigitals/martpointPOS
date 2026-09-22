@@ -130,7 +130,7 @@ export async function POST(request: Request) {
         lead_id: leadId,
         quote_number: quoteNumber,
         title: title || "",
-        status: shouldSend ? "SENT" : "DRAFT",
+        status: "DRAFT",
         currency: "NGN",
         subtotal: totals.subtotal,
         discount_amount: totals.discountAmount,
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
         created_by: session?.username || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        sent_at: shouldSend ? new Date().toISOString() : null,
+        sent_at: null,
         allow_changes: Boolean(allowChanges),
         allow_counter_offer: Boolean(allowChanges) && Boolean(allowCounterOffer),
       })
@@ -184,33 +184,51 @@ export async function POST(request: Request) {
 
     const quotation = mapQuotation(fullQuote)
 
-    if (shouldSend && leadRes.data.email) {
-      const publicUrl = buildQuotePublicUrl(quotation.public_token)
-      const quoteSubjectTpl = await renderEmailTemplate("quotation_subject", {
-        quoteNumber: quotation.quote_number,
-        titleBlock: quotation.title ? ` — ${quotation.title}` : "",
-      })
-      await sendEmail({
-        to: leadRes.data.email,
-        subject: quoteSubjectTpl.subject,
-        replyTo: REPLY_TO.sales,
-        text: buildPlainTextEmail(quotation, leadRes.data as { full_name: string; business_name: string; email: string; phone: string; product_interest: string }, publicUrl),
-        html: buildQuoteEmailHtml(
-          quotation,
-          {
-            id: leadRes.data.id as string,
-            fullName: leadRes.data.full_name as string,
-            businessName: leadRes.data.business_name as string,
-            email: leadRes.data.email as string,
-            phone: leadRes.data.phone as string,
-            productInterest: leadRes.data.product_interest as string,
-          },
-          publicUrl
-        ),
-      })
+    let emailSent = false
+    let emailError: string | null = null
+
+    if (shouldSend) {
+      if (!leadRes.data.email) {
+        emailError = "Lead has no email address — quotation saved as draft"
+      } else {
+        const publicUrl = buildQuotePublicUrl(quotation.public_token)
+        const quoteSubjectTpl = await renderEmailTemplate("quotation_subject", {
+          quoteNumber: quotation.quote_number,
+          titleBlock: quotation.title ? ` — ${quotation.title}` : "",
+        })
+        emailSent = await sendEmail({
+          to: leadRes.data.email,
+          subject: quoteSubjectTpl.subject,
+          replyTo: REPLY_TO.sales,
+          text: buildPlainTextEmail(quotation, leadRes.data as { full_name: string; business_name: string; email: string; phone: string; product_interest: string }, publicUrl),
+          html: buildQuoteEmailHtml(
+            quotation,
+            {
+              id: leadRes.data.id as string,
+              fullName: leadRes.data.full_name as string,
+              businessName: leadRes.data.business_name as string,
+              email: leadRes.data.email as string,
+              phone: leadRes.data.phone as string,
+              productInterest: leadRes.data.product_interest as string,
+            },
+            publicUrl
+          ),
+        })
+        if (emailSent) {
+          const sentAt = new Date().toISOString()
+          await supabase
+            .from("lead_quotations")
+            .update({ status: "SENT", sent_at: sentAt, updated_at: sentAt })
+            .eq("id", created.id)
+          quotation.status = "SENT"
+          quotation.sent_at = sentAt
+        } else {
+          emailError = "Email delivery failed — quotation saved as draft (see email logs)"
+        }
+      }
     }
 
-    return NextResponse.json({ success: true, quotation })
+    return NextResponse.json({ success: true, quotation, emailSent, emailError })
   } catch (e) {
     console.error("[admin/quotations] POST", e)
     return NextResponse.json({ error: "Failed to create quotation" }, { status: 500 })

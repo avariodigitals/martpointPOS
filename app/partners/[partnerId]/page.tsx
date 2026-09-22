@@ -74,7 +74,7 @@ export default async function PartnerProfilePage({
   return (
     <>
       <Header />
-      <TrackPartnerEvent partnerId={partner.partnerId} event={src === "verify" ? "verify_lookup" : "profile_view"} />
+      <TrackPartnerEvent partnerId={partner.partnerId} event={src === "verify" ? "verify_lookup" : src === "badge" ? "badge_click" : "profile_view"} />
       <main className="flex-1 bg-muted/30">
         <div className="container-martpoint py-12 md:py-16">
           <div className="max-w-3xl mx-auto">

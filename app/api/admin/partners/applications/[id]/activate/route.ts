@@ -90,7 +90,9 @@ export async function POST(
       if (actErr || !activated) {
         return NextResponse.json({ error: "Activation failed" }, { status: 500 })
       }
-      await recordStatusHistory(id, existing.id, existing.status, "ACTIVE", null, session!.userId)
+      await recordStatusHistory(id, existing.id, existing.status, "ACTIVE", null, session!.userId, {
+        changedByName: session!.name || session!.username,
+      })
       await recordAudit(ctx, {
         action: AUDIT_ACTIONS.PARTNER_ACTIVATED,
         entityType: AUDIT_ENTITIES.PARTNER,
@@ -145,7 +147,9 @@ export async function POST(
       return NextResponse.json({ error: "Failed to create partner" }, { status: 500 })
     }
 
-    await recordStatusHistory(id, partner.id, app.status, "ACTIVE", null, session!.userId)
+    await recordStatusHistory(id, partner.id, app.status, "ACTIVE", null, session!.userId, {
+      changedByName: session!.name || session!.username,
+    })
     await recordAudit(ctx, {
       action: AUDIT_ACTIONS.PARTNER_CREATED,
       entityType: AUDIT_ENTITIES.PARTNER,

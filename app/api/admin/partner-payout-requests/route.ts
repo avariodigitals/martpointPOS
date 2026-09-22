@@ -4,7 +4,7 @@ import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } f
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { createCommissionPayout } from "@/lib/finance-commercial"
 import { sendEmail, REPLY_TO } from "@/lib/email"
-import { renderEmailTemplate } from "@/lib/email-templates"
+import { renderEmailTemplate, escapeHtml } from "@/lib/email-templates"
 import { z } from "zod"
 
 const decisionSchema = z.object({
@@ -74,6 +74,9 @@ export async function POST(request: Request) {
           fullName: user.full_name || "",
           amount: Number(req.amount).toLocaleString(),
           reasonBlock: notes ? `\n\nReason: ${notes}` : "",
+          reasonHtmlBlock: notes
+            ? `<p style="font-size:14px; line-height:1.6; color:#374151; margin:0 0 24px;"><strong>Reason:</strong> ${escapeHtml(notes)}</p>`
+            : "",
         })
           .then((tpl) => sendEmail({ to: user.email!, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners }))
           .catch(() => {})

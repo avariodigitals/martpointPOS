@@ -5,7 +5,7 @@ import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Loader2, AlertCircle, Check, X, Download, MessageCircle, FileText, Clock } from "lucide-react"
 import { formatNgnFull, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/quotations"
-import { generateQuotationPdf } from "@/lib/quotation-pdf"
+import { generateQuotationPdf, bankDetailLines } from "@/lib/quotation-pdf"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
 
 export default function PublicQuotePage() {
@@ -307,8 +307,12 @@ export default function PublicQuotePage() {
 
           {accountNumber && (
             <div className="rounded-md bg-retail-soft/30 p-4 text-sm">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Wire / Bank Account Number</p>
-              <p className="font-medium text-retail">{accountNumber}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Bank Details</p>
+              <div className="font-medium text-retail space-y-0.5">
+                {bankDetailLines(accountNumber).map((line, i) => (
+                  <p key={i}>{line}</p>
+                ))}
+              </div>
             </div>
           )}
 

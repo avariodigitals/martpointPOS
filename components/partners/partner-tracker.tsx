@@ -11,6 +11,8 @@ export type PartnerTrackEvent =
   | "phone_click"
   | "email_click"
   | "sales_cta_click"
+  | "badge_click"
+  | "badge_impression"
 
 /** Fire-and-forget tracking beacon to /api/partners/track. */
 export function trackPartnerEvent(

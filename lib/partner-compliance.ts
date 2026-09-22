@@ -114,7 +114,8 @@ export async function listApplicationComplianceDocuments(applicationId: string):
 export async function requestApplicationComplianceDocuments(
   applicationId: string,
   documentTypes: string[],
-  adminUserId: string
+  adminUserId: string,
+  adminName?: string | null
 ): Promise<{ ok: boolean; error?: string; docs?: ComplianceDocWithToken[] }> {
   if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
   if (!documentTypes.length) return { ok: false, error: "No document types selected" }
@@ -281,7 +282,8 @@ export async function requestApplicationComplianceDocuments(
       previousStatus,
       "COMPLIANCE_REQUIRED",
       `Compliance documents requested: ${requestedDocTypes.join(", ")}`,
-      adminUserId
+      adminUserId,
+      { changedByName: adminName }
     )
     await sendApplicationStatusEmail(
       app.email as string,
@@ -351,7 +353,8 @@ export async function verifyApplicationComplianceDocument(
   docId: string,
   status: "VERIFIED" | "APPROVED" | "REJECTED" | "UNDER_REVIEW",
   notes: string,
-  adminUserId: string
+  adminUserId: string,
+  adminName?: string | null
 ): Promise<{ ok: boolean; error?: string }> {
   if (!isSupabaseConfigured()) return { ok: false, error: "This service is temporarily unavailable. Please try again later." }
 
@@ -365,7 +368,7 @@ export async function verifyApplicationComplianceDocument(
 
   const { data: app, error: appErr } = await supabase
     .from("partner_applications")
-    .select("reference_number, full_name, business_name, email")
+    .select("reference_number, full_name, business_name, email, status")
     .eq("id", doc.application_id as string)
     .single()
 
@@ -381,6 +384,16 @@ export async function verifyApplicationComplianceDocument(
 
   const { error } = await supabase.from("partner_documents").update(updates).eq("id", docId)
   if (error) return { ok: false, error: "Failed to update document" }
+
+  await recordStatusHistory(
+    doc.application_id as string,
+    null,
+    app.status as string,
+    app.status as string,
+    `Compliance document "${doc.document_type}" marked ${status.replace(/_/g, " ").toLowerCase()}${notes ? ` — ${notes}` : ""}`,
+    adminUserId,
+    { changedByName: adminName, eventType: "DOCUMENT_REVIEW" }
+  )
 
   const email = (app.email as string) || ""
   if (email) {
@@ -551,9 +564,24 @@ export async function submitComplianceDocumentByToken(
   // Notify the applicant that the document was received.
   const { data: app } = await supabase
     .from("partner_applications")
-    .select("reference_number, full_name, business_name, email")
+    .select("reference_number, full_name, business_name, email, status")
     .eq("id", applicationId)
     .single()
+
+  if (app) {
+    await recordStatusHistory(
+      applicationId,
+      null,
+      app.status as string,
+      app.status as string,
+      `Compliance document "${doc.document_type}" submitted by applicant`,
+      null,
+      {
+        changedByName: (app.full_name as string) || (app.business_name as string) || "Applicant",
+        eventType: "DOCUMENT_SUBMITTED",
+      }
+    )
+  }
 
   if (app?.email) {
     const fullName = (app.full_name as string) || (app.business_name as string) || "there"

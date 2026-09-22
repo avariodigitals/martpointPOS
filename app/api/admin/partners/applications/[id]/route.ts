@@ -51,11 +51,35 @@ export async function GET(
     })
   )
 
-  const { data: history } = await supabase
+  const { data: historyRows } = await supabase
     .from("partner_status_history")
-    .select("previous_status, new_status, reason, changed_by, created_at")
+    .select("previous_status, new_status, reason, changed_by, changed_by_name, event_type, created_at")
     .eq("application_id", id)
     .order("created_at", { ascending: true })
+
+  // Resolve actor names for rows recorded before changed_by_name existed,
+  // plus the application's reviewed_by admin.
+  const history = historyRows || []
+  const idsToResolve = new Set<string>(
+    history.filter((h) => h.changed_by && !h.changed_by_name).map((h) => h.changed_by as string)
+  )
+  if (app.reviewed_by) idsToResolve.add(app.reviewed_by as string)
+  let reviewedByName: string | null = null
+  if (idsToResolve.size > 0) {
+    const { data: actors } = await supabase
+      .from("users")
+      .select("id, name, username")
+      .in("id", [...idsToResolve])
+    const nameById = new Map(
+      (actors || []).map((u) => [u.id as string, (u.name as string) || (u.username as string)])
+    )
+    for (const h of history) {
+      if (!h.changed_by_name && h.changed_by) {
+        h.changed_by_name = nameById.get(h.changed_by as string) || null
+      }
+    }
+    reviewedByName = app.reviewed_by ? nameById.get(app.reviewed_by as string) || null : null
+  }
 
   const complianceDocuments = await listApplicationComplianceDocuments(id)
 
@@ -64,7 +88,8 @@ export async function GET(
     documents: docsWithUrls,
     complianceDocuments,
     requiredComplianceDocuments: (app.required_compliance_documents as string[]) || [],
-    history: history || [],
+    history,
+    reviewedByName,
   })
 }
 

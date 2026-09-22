@@ -241,8 +241,8 @@ export default function QuotationsPage() {
         taxRate: it.tax_rate || 0,
       })),
       sendEmail: false,
-      allowChanges: false,
-      allowCounterOffer: false,
+      allowChanges: qt.allow_changes,
+      allowCounterOffer: qt.allow_counter_offer,
     })
     setShowCreate(true)
   }
@@ -269,12 +269,12 @@ export default function QuotationsPage() {
         notesInternal: form.notesInternal,
         paymentTerms: form.paymentTerms,
         items: form.items,
+        sendEmail: form.sendEmail,
+        allowChanges: form.allowChanges,
+        allowCounterOffer: form.allowCounterOffer,
       }
       if (!editingId) {
         body.leadId = form.leadId
-        body.sendEmail = form.sendEmail
-        body.allowChanges = form.allowChanges
-        body.allowCounterOffer = form.allowCounterOffer
       }
 
       const res = await fetch(url, {
@@ -289,7 +289,12 @@ export default function QuotationsPage() {
         )
         setShowCreate(false)
         resetForm()
-        setMessage(editingId ? "Quotation updated." : "Quotation created.")
+        const base = editingId ? "Quotation updated." : "Quotation created."
+        setMessage(
+          form.sendEmail
+            ? data.emailError || (data.emailSent ? `${base} Quotation sent by email.` : base)
+            : base
+        )
       } else {
         setMessage(data.error || `Failed to ${editingId ? "update" : "create"} quotation`)
       }

@@ -40,12 +40,20 @@ export async function GET(
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Not configured" }, { status: 500 })
 
   const { partnerId } = await params
-  const { data: partner } = await supabase
+  const { data: exists } = await supabase
+    .from("partners")
+    .select("id")
+    .eq("id", partnerId)
+    .maybeSingle()
+  if (!exists) return NextResponse.json({ error: "Partner not found" }, { status: 404 })
+
+  // Badge columns come from migration 045 — if it hasn't been applied yet,
+  // degrade gracefully so the admin can still see the issue.
+  const { data: partner, error: badgeErr } = await supabase
     .from("partners")
     .select("badge_tier, badge_kit_issued_at")
     .eq("id", partnerId)
     .single()
-  if (!partner) return NextResponse.json({ error: "Partner not found" }, { status: 404 })
 
   const [impressions, clicks] = await Promise.all([
     eventCount(partnerId, "badge_impression"),
@@ -53,9 +61,10 @@ export async function GET(
   ])
 
   return NextResponse.json({
-    tier: partner.badge_tier ?? null,
-    issuedAt: partner.badge_kit_issued_at ?? null,
+    tier: (partner?.badge_tier as string | null) ?? null,
+    issuedAt: (partner?.badge_kit_issued_at as string | null) ?? null,
     stats: { impressions, clicks },
+    ...(badgeErr ? { badgeSchemaMissing: true } : {}),
   })
 }
 

@@ -37,6 +37,7 @@ import {
   MessageCircle,
   Megaphone,
   Ban,
+  BookOpen,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -76,6 +77,7 @@ const navItems: NavItem[] = [
   { href: "/admin/partners/prospects", label: "Partner Prospects", icon: UserPlus, page: "partners", section: "Partners" },
   { href: "/admin/partners/payout-requests", label: "Payout Requests", icon: Wallet, page: "finance", section: "Partners" },
   { href: "/admin/partners/branding-requests", label: "Branding Requests", icon: Palette, page: "partners", section: "Partners" },
+  { href: "/admin/partners/resources", label: "Partner Resources", icon: BookOpen, page: "partners", section: "Partners" },
   { href: "/admin/compliance", label: "Compliance", icon: Shield, page: "compliance", section: "Partners" },
 
   // FINANCE

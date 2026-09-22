@@ -9,6 +9,7 @@ import { Loader2, ArrowLeft, Users, Shield, FileText, Network, Activity, Setting
 import { PARTNER_USER_ROLES, PARTNER_ROLE_LABELS, type PartnerUserRole, ORG_CAPABILITY_LABELS, type PartnerOrgCapability, relevantPartnerTabs } from "@/lib/partner-permissions"
 import { PARTNER_BADGE_TIERS, PARTNER_BADGE_TIER_LABELS, type PartnerBadgeTier } from "@/lib/partner-badges"
 import { LocationFields } from "@/components/location-fields"
+import { AgreementForm } from "../applications/[id]/agreement-form"
 
 const CAPABILITIES = Object.keys(ORG_CAPABILITY_LABELS) as PartnerOrgCapability[]
 
@@ -64,6 +65,8 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
   const [badgeKit, setBadgeKit] = useState<{ tier: string | null; issuedAt: string | null; stats: { impressions: number; clicks: number } } | null>(null)
   const [badgeTierSel, setBadgeTierSel] = useState<PartnerBadgeTier>("SILVER")
   const [badgeSaving, setBadgeSaving] = useState(false)
+  const [badgeLoadError, setBadgeLoadError] = useState("")
+  const [editingDetails, setEditingDetails] = useState(false)
 
   // Forms
   const [invite, setInvite] = useState({ fullName: "", email: "", role: "PARTNER_MANAGER" as PartnerUserRole })
@@ -177,7 +180,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
     })
     const data = await res.json()
     setMessage(data.success ? "Partner updated." : data.error || "Update failed.")
-    if (data.success) fetchOverview()
+    if (data.success) { setEditingDetails(false); fetchOverview() }
   }
 
   async function inviteUser(e: React.FormEvent) {
@@ -355,11 +358,21 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
   }
 
   async function fetchBadgeKit() {
-    const res = await fetch(`/api/admin/partners/${partnerId}/badge-kit`)
-    const data = await res.json()
-    if (!data.error) {
+    setBadgeLoadError("")
+    try {
+      const res = await fetch(`/api/admin/partners/${partnerId}/badge-kit`)
+      const data = await res.json()
+      if (data.error) {
+        setBadgeKit({ tier: null, issuedAt: null, stats: { impressions: 0, clicks: 0 } })
+        setBadgeLoadError(data.error)
+        return
+      }
       setBadgeKit(data)
+      if (data.badgeSchemaMissing) setBadgeLoadError("Badge kit database migration (045) has not been applied yet.")
       if (data.tier) setBadgeTierSel(data.tier as PartnerBadgeTier)
+    } catch {
+      setBadgeKit({ tier: null, issuedAt: null, stats: { impressions: 0, clicks: 0 } })
+      setBadgeLoadError("Could not load badge kit status.")
     }
   }
 
@@ -513,37 +526,68 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm font-medium">Partner Details</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">Partner Details</CardTitle>
+                {!editingDetails && (
+                  <Button size="sm" variant="outline" onClick={() => setEditingDetails(true)}>
+                    <Settings className="w-3.5 h-3.5 mr-1" /> Edit
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
             <CardContent>
-              <form onSubmit={updatePartner} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[
-                  { label: "Display Name", key: "display_name" },
-                  { label: "Public Email", key: "public_email" },
-                  { label: "Public Phone", key: "public_phone" },
-                  { label: "Public Address", key: "public_address" },
-                  { label: "Service Areas (comma-separated)", key: "service_areas" },
-                  { label: "Website", key: "website" },
-                ].map((f) => (
-                  <div key={f.key}>
-                    <label className="block text-xs font-medium mb-1">{f.label}</label>
-                    <input
-                      value={(partner[f.key] as string) || ""}
-                      onChange={(e) => setPartner({ ...partner, [f.key]: e.target.value })}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
+              {editingDetails ? (
+                <form onSubmit={updatePartner} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { label: "Display Name", key: "display_name" },
+                    { label: "Public Email", key: "public_email" },
+                    { label: "Public Phone", key: "public_phone" },
+                    { label: "Public Address", key: "public_address" },
+                    { label: "Service Areas (comma-separated)", key: "service_areas" },
+                    { label: "Website", key: "website" },
+                  ].map((f) => (
+                    <div key={f.key}>
+                      <label className="block text-xs font-medium mb-1">{f.label}</label>
+                      <input
+                        value={(partner[f.key] as string) || ""}
+                        onChange={(e) => setPartner({ ...partner, [f.key]: e.target.value })}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                  ))}
+                  <LocationFields
+                    country={(partner.country as string) || ""}
+                    state={(partner.state as string) || ""}
+                    city={(partner.city as string) || ""}
+                    onChange={(vals) => setPartner((prev) => ({ ...prev, ...vals }))}
+                    inputClassName="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                  <div className="sm:col-span-2 flex gap-2">
+                    <Button type="submit"><Check className="w-4 h-4 mr-2" /> Save Changes</Button>
+                    <Button type="button" variant="outline" onClick={() => { setEditingDetails(false); fetchOverview() }}>Cancel</Button>
                   </div>
-                ))}
-                <LocationFields
-                  country={(partner.country as string) || ""}
-                  state={(partner.state as string) || ""}
-                  city={(partner.city as string) || ""}
-                  onChange={(vals) => setPartner((prev) => ({ ...prev, ...vals }))}
-                  inputClassName="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-                <div className="sm:col-span-2 flex gap-2">
-                  <Button type="submit"><Settings className="w-4 h-4 mr-2" /> Update Partner</Button>
+                </form>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                  {[
+                    { label: "Display Name", value: partner.display_name as string },
+                    { label: "Public Email", value: partner.public_email as string },
+                    { label: "Public Phone", value: partner.public_phone as string },
+                    { label: "Public Address", value: partner.public_address as string },
+                    { label: "Service Areas", value: partner.service_areas as string },
+                    { label: "Website", value: partner.website as string },
+                    { label: "Country", value: partner.country as string },
+                    { label: "State", value: partner.state as string },
+                    { label: "City", value: partner.city as string },
+                  ].map((f) => (
+                    <div key={f.label}>
+                      <p className="text-xs text-muted-foreground">{f.label}</p>
+                      <p className="font-medium break-words">{f.value || "—"}</p>
+                    </div>
+                  ))}
                 </div>
-              </form>
+              )}
             </CardContent>
           </Card>
 
@@ -749,12 +793,25 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
 
       {tab === "docs" && (
         <div className="space-y-6">
+        {(partner.application_id as string | null) ? (
+          <AgreementForm applicationId={partner.application_id as string} onGenerated={fetchResources} />
+        ) : (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2"><FileText className="w-4 h-4" /> Partner Agreement</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">No application is linked to this partner, so an agreement cannot be generated from here.</p>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2"><BadgeCheck className="w-4 h-4" /> Partner Badge Kit</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">Issue an official verification badge. The kit — embeddable HTML snippets and PNG artwork for horizontal &amp; vertical badges — appears in the partner portal under Badge Kit and in Resources → Your documents.</p>
+            {badgeLoadError && <p className="text-xs text-red-600">{badgeLoadError}</p>}
             {badgeKit === null ? (
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
             ) : (

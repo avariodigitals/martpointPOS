@@ -115,6 +115,18 @@ function getDefaultSettings() {
       copyrightText: "MartPoint. All rights reserved.",
       tagline: "Built for African businesses.",
     },
+    martpointEntity: {
+      legalName: "MartPoint",
+      registrationNo: "",
+      registeredAddress: "",
+      noticeEmail: "partners@martpoint.com.ng",
+      signatoryName: "",
+      signatoryTitle: "",
+      signatoryEmail: "",
+      ownerName: "",
+      ownerEmail: "",
+      liabilityFloor: "NGN 5,000,000",
+    },
     pricing: {
       cloud: {
         name: "MartPoint Retail Cloud",

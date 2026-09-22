@@ -20,6 +20,8 @@ export {
   earningBasesFor,
   defaultPermittedActivities,
   defaultInsurance,
+  defaultProhibitions,
+  commercialFieldDefaults,
   defaultTrigger,
   ACQUISITION_TRIGGER_TEXT,
   TYPE_LABELS,

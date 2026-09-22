@@ -977,7 +977,7 @@ export async function createPartnerResource(
     .select()
     .single()
 
-  if (error || !data) return { ok: false, error: "Failed to create resource" }
+  if (error || !data) return { ok: false, error: `Failed to create resource${error?.message ? `: ${error.message}` : ""}` }
 
   const ctx: AuditContext = { actorType: "ADMIN", actorId: createdBy }
   await recordAudit(ctx, {
@@ -1012,7 +1012,7 @@ export async function updatePartnerResource(
   if (input.partnerId !== undefined) updateData.partner_id = input.partnerId ?? null
 
   const { error } = await supabase.from("partner_resources").update(updateData).eq("id", id)
-  if (error) return { ok: false, error: "Failed to update resource" }
+  if (error) return { ok: false, error: `Failed to update resource: ${error.message}` }
 
   const ctx: AuditContext = { actorType: "ADMIN", actorId: updatedBy }
   await recordAudit(ctx, {

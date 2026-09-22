@@ -13,6 +13,19 @@ interface GeneralSettings {
   accountNumber: string
 }
 
+interface MartpointEntitySettings {
+  legalName: string
+  registrationNo: string
+  registeredAddress: string
+  noticeEmail: string
+  signatoryName: string
+  signatoryTitle: string
+  signatoryEmail: string
+  ownerName: string
+  ownerEmail: string
+  liabilityFloor: string
+}
+
 interface OpenAISettings {
   apiKey: string
 }
@@ -108,6 +121,18 @@ export default function AdminSettingsPage() {
   })
   const [openai, setOpenai] = useState<OpenAISettings>({
     apiKey: "",
+  })
+  const [martpointEntity, setMartpointEntity] = useState<MartpointEntitySettings>({
+    legalName: "MartPoint",
+    registrationNo: "",
+    registeredAddress: "",
+    noticeEmail: "partners@martpoint.com.ng",
+    signatoryName: "",
+    signatoryTitle: "",
+    signatoryEmail: "",
+    ownerName: "",
+    ownerEmail: "",
+    liabilityFloor: "NGN 5,000,000",
   })
   const [security, setSecurity] = useState<SecuritySettings>({
     captchaProvider: "recaptcha",
@@ -225,6 +250,7 @@ export default function AdminSettingsPage() {
         if (data.social) setSocial(data.social)
         if (data.searchConsole) setSearchConsole(data.searchConsole)
         if (data.openai) setOpenai(data.openai)
+        if (data.martpointEntity) setMartpointEntity((prev) => ({ ...prev, ...data.martpointEntity }))
         if (data.security) setSecurity((prev) => ({ ...prev, ...data.security }))
         if (data.popup) setPopup(data.popup)
         if (data.header) setHeader(data.header)
@@ -321,6 +347,7 @@ export default function AdminSettingsPage() {
       searchConsole,
       openai,
       security,
+      martpointEntity,
       popup,
       header,
       footer,
@@ -474,6 +501,79 @@ export default function AdminSettingsPage() {
               <Button type="button" onClick={() => doSave("general", { general: settings })} disabled={saving["general"]}>
                 {saving["general"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Contact
+              </Button>
+            </CardFooter>
+          </Card>
+
+          <Card className={activeTab === "content" ? "hidden" : ""}>
+            <CardHeader>
+              <CardTitle>MartPoint Legal Entity</CardTitle>
+              <CardDescription>
+                Used as the contracting party on generated partner agreements — entity details, signatory, the MartPoint
+                owner (partner manager) and the default liability floor. Values can still be adjusted per agreement at
+                generation time.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Registered legal name</label>
+                  <input type="text" value={martpointEntity.legalName} onChange={(e) => setMartpointEntity({ ...martpointEntity, legalName: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="MartPoint" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Registration number (RC)</label>
+                  <input type="text" value={martpointEntity.registrationNo} onChange={(e) => setMartpointEntity({ ...martpointEntity, registrationNo: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="RC 1234567" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Registered address</label>
+                <input type="text" value={martpointEntity.registeredAddress} onChange={(e) => setMartpointEntity({ ...martpointEntity, registeredAddress: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Registered office address" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Notice email</label>
+                  <input type="email" value={martpointEntity.noticeEmail} onChange={(e) => setMartpointEntity({ ...martpointEntity, noticeEmail: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="partners@martpoint.com.ng" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Default liability floor</label>
+                  <input type="text" value={martpointEntity.liabilityFloor} onChange={(e) => setMartpointEntity({ ...martpointEntity, liabilityFloor: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="NGN 5,000,000" />
+                  <p className="text-xs text-muted-foreground mt-1">Minimum liability cap — liability is capped at the greater of trailing 12-month fees or this amount.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Signatory name</label>
+                  <input type="text" value={martpointEntity.signatoryName} onChange={(e) => setMartpointEntity({ ...martpointEntity, signatoryName: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Signatory title</label>
+                  <input type="text" value={martpointEntity.signatoryTitle} onChange={(e) => setMartpointEntity({ ...martpointEntity, signatoryTitle: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="e.g. Director" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Signatory email</label>
+                  <input type="email" value={martpointEntity.signatoryEmail} onChange={(e) => setMartpointEntity({ ...martpointEntity, signatoryEmail: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Partner owner name</label>
+                  <input type="text" value={martpointEntity.ownerName} onChange={(e) => setMartpointEntity({ ...martpointEntity, ownerName: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Partner manager / owner" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Partner owner email</label>
+                  <input type="email" value={martpointEntity.ownerEmail} onChange={(e) => setMartpointEntity({ ...martpointEntity, ownerEmail: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.martpointEntity && (
+                <span className={`text-sm px-2 py-1 rounded ${message.martpointEntity.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.martpointEntity}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSave("martpointEntity", { martpointEntity })} disabled={saving["martpointEntity"]}>
+                {saving["martpointEntity"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Entity
               </Button>
             </CardFooter>
           </Card>

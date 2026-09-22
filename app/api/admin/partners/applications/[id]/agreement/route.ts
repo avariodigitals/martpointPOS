@@ -7,11 +7,14 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordStatusHistory, sendApplicationStatusEmail, PARTNER_TYPE_LABELS, type ApplicationStatus } from "@/lib/partners"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 import { uploadPartnerDocument, createSignedDocUrl } from "@/lib/partner-documents"
+import { readSettings } from "@/lib/settings"
 import {
   generatePartnerAgreementPdf,
   earningBasesFor,
   defaultPermittedActivities,
   defaultInsurance,
+  defaultProhibitions,
+  commercialFieldDefaults,
   defaultTrigger,
   AGREEMENT_TEMPLATE_VERSION,
   type AgreementInput,
@@ -30,15 +33,23 @@ import {
 const GENERATABLE_STATUSES = ["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"]
 const GENERATED_DOC_TYPE = "Partner Agreement (Generated)"
 
-function martpointDefaults() {
+/** MartPoint contracting entity: admin Settings → "MartPoint Legal Entity" wins,
+ * then MARTPOINT_* env vars, then hardcoded fallbacks. */
+async function martpointDefaults() {
+  const stored = ((await readSettings())?.martpointEntity || {}) as Record<string, string>
+  const pick = (key: string, env: string, fallback = "") =>
+    (stored[key] || "").trim() || process.env[env] || fallback
   return {
-    legalName: process.env.MARTPOINT_LEGAL_NAME || "MartPoint",
-    registrationNo: process.env.MARTPOINT_REGISTRATION_NO || "",
-    registeredAddress: process.env.MARTPOINT_REGISTERED_ADDRESS || "",
-    noticeEmail: process.env.MARTPOINT_NOTICE_EMAIL || "partners@martpoint.com.ng",
-    signatoryName: process.env.MARTPOINT_SIGNATORY_NAME || "",
-    signatoryTitle: process.env.MARTPOINT_SIGNATORY_TITLE || "",
-    signatoryEmail: process.env.MARTPOINT_SIGNATORY_EMAIL || "",
+    legalName: pick("legalName", "MARTPOINT_LEGAL_NAME", "MartPoint"),
+    registrationNo: pick("registrationNo", "MARTPOINT_REGISTRATION_NO"),
+    registeredAddress: pick("registeredAddress", "MARTPOINT_REGISTERED_ADDRESS"),
+    noticeEmail: pick("noticeEmail", "MARTPOINT_NOTICE_EMAIL", "partners@martpoint.com.ng"),
+    signatoryName: pick("signatoryName", "MARTPOINT_SIGNATORY_NAME"),
+    signatoryTitle: pick("signatoryTitle", "MARTPOINT_SIGNATORY_TITLE"),
+    signatoryEmail: pick("signatoryEmail", "MARTPOINT_SIGNATORY_EMAIL"),
+    ownerName: pick("ownerName", "MARTPOINT_OWNER_NAME"),
+    ownerEmail: pick("ownerEmail", "MARTPOINT_OWNER_EMAIL"),
+    liabilityFloor: pick("liabilityFloor", "MARTPOINT_LIABILITY_FLOOR"),
   }
 }
 
@@ -69,7 +80,11 @@ export async function GET(
   }
 
   const partnerType = app.requested_partner_type as string
-  const earningBases = earningBasesFor(partnerType).map((b) => ({ ...b, trigger: defaultTrigger(b.earningCategory) }))
+  const mp = await martpointDefaults()
+  const earningBases = earningBasesFor(partnerType).map((b) => ({
+    ...b,
+    defaults: { ...commercialFieldDefaults(b.earningCategory), trigger: defaultTrigger(b.earningCategory) },
+  }))
 
   const { data: generated } = await supabase
     .from("partner_documents")
@@ -99,7 +114,10 @@ export async function GET(
     defaults: {
       agreementId: `AGR-${app.reference_number}`,
       effectiveDate: new Date().toISOString().slice(0, 10),
-      martpoint: martpointDefaults(),
+      liabilityFloor: mp.liabilityFloor,
+      coverage: (app.geographic_coverage as string[]) || [],
+      country: (app.country as string) || "",
+      martpoint: mp,
       partner: {
         legalName: (app.business_name as string) || (app.full_name as string),
         registrationNo: (app.registration_number as string) || "",
@@ -115,7 +133,10 @@ export async function GET(
       appointment: {
         territory: ((app.geographic_coverage as string[]) || []).join(", ") || (app.country as string) || "",
         permittedActivities: defaultPermittedActivities(partnerType),
+        additionalProhibitions: defaultProhibitions(partnerType),
         insurance: defaultInsurance(partnerType),
+        martpointOwnerName: mp.ownerName,
+        martpointOwnerEmail: mp.ownerEmail,
       },
     },
   })
@@ -155,7 +176,17 @@ export async function POST(
     }
 
     const partnerType = app.requested_partner_type as string
-    const mp = { ...martpointDefaults(), ...(body.martpoint || {}) }
+    const mpEntity = await martpointDefaults()
+    const mp = {
+      legalName: mpEntity.legalName,
+      registrationNo: mpEntity.registrationNo,
+      registeredAddress: mpEntity.registeredAddress,
+      noticeEmail: mpEntity.noticeEmail,
+      signatoryName: mpEntity.signatoryName,
+      signatoryTitle: mpEntity.signatoryTitle,
+      signatoryEmail: mpEntity.signatoryEmail,
+      ...(body.martpoint || {}),
+    }
     const partnerDefaults = {
       legalName: (app.business_name as string) || (app.full_name as string),
       registrationNo: (app.registration_number as string) || "",
@@ -174,10 +205,10 @@ export async function POST(
       gradeByType: "",
       territory: ((app.geographic_coverage as string[]) || []).join(", ") || (app.country as string) || "",
       permittedActivities: defaultPermittedActivities(partnerType),
-      additionalProhibitions: "None beyond the Common Terms and the applicable Partner Type Schedule.",
+      additionalProhibitions: defaultProhibitions(partnerType),
       insurance: defaultInsurance(partnerType),
-      martpointOwnerName: "",
-      martpointOwnerEmail: "",
+      martpointOwnerName: mpEntity.ownerName,
+      martpointOwnerEmail: mpEntity.ownerEmail,
       ...(body.appointment || {}),
     }
 
@@ -206,7 +237,7 @@ export async function POST(
       disputeDays: body.disputeDays || "30",
       securityNoticeHours: body.securityNoticeHours || "4",
       referralProtectionDays: body.referralProtectionDays || "90",
-      liabilityFloor: body.liabilityFloor || "",
+      liabilityFloor: body.liabilityFloor || mpEntity.liabilityFloor || "",
       partnerType,
       martpoint: mp,
       partner: pt,

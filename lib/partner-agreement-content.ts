@@ -92,6 +92,60 @@ export function defaultInsurance(partnerType: PartnerType | string): string {
   return "None required unless stated by MartPoint in writing."
 }
 
+/** Express prohibitions for the Appointment Summary — distilled from Common Terms clause 7
+ * (No authority and prohibited conduct). These always apply; admin can add partner-specific ones. */
+export function defaultProhibitions(partnerType: PartnerType | string): string {
+  const base = [
+    "No authority to bind MartPoint or sign on its behalf",
+    "No altering prices, plans, quotas or entitlements, and no approving discounts",
+    "No creating or activating licences, deploying MartPoint, or marking a customer live",
+    "No collecting MartPoint licence payments outside an authorised payment route",
+    "No unapproved warranties or representations about MartPoint",
+    "No accessing customers not assigned in writing",
+    "No sharing credentials, reverse engineering or copying the platform",
+    "No using another partner's or customer's information",
+    "No subcontracting regulated, data-sensitive or customer-facing work without written approval",
+  ]
+  const keys = agreementTypeKeys(partnerType)
+  if (keys.includes("payment_provider")) {
+    base.push("No holding, delaying or rerouting settlement funds outside the agreed settlement terms")
+  }
+  if (keys.includes("technology")) {
+    base.push("No production deployment or customer-facing release without a signed Production Approval")
+  }
+  return base.map((p) => `• ${p}`).join("\n")
+}
+
+/** Per-field template defaults for a Commercial Terms section, keyed by earning basis.
+ * Keeps generated wording consistent with the master template's commercial schedule. */
+export function commercialFieldDefaults(earningCategory: string): Partial<Record<string, string>> {
+  const cat = earningCategory.toLowerCase()
+  const acquisition = cat.includes("commission")
+  return {
+    eligibleRevenueDefinition:
+      "Eligible Revenue as defined in clause 2 — net software revenue actually received and cleared by MartPoint after approved discounts, excluding taxes, refunds, chargebacks, hardware, third-party charges and excluded services.",
+    exclusions: "Taxes, refunds, chargebacks, hardware, third-party charges and any excluded services.",
+    attributionRule: acquisition
+      ? "Opportunity must be registered by the Partner and accepted by MartPoint before the sale, and attribution must still be active at payment."
+      : "Earning applies only to work or services expressly assigned to the Partner in writing (Work Order, Customer Assignment or Production Approval).",
+    holdingDays: acquisition ? "30" : "0",
+    holdingStartEvent: acquisition ? "Required licence activation" : "Customer payment cleared",
+    renewalRule: acquisition
+      ? "Commission on renewals only where expressly stated in this Schedule."
+      : "Fees apply per engagement; renewals require a new or extended assignment.",
+    reversalRule:
+      "Earnings on refunded, charged-back, fraudulent or reversed amounts are deducted or clawed back; MartPoint may offset against future payouts.",
+    statementCycle: "Monthly",
+    payoutTiming: "Within 15 days of statement issue, once the minimum payout threshold and all conditions are met.",
+    currencyAndTaxRule: "NGN. Amounts are exclusive of VAT; withholding tax is deducted where required by law. The Partner is responsible for its own taxes.",
+    splitRule:
+      "No stacking — a single Customer transaction generates an earning under one basis only, unless a signed Schedule expressly allows a split.",
+    ...(cat.includes("implementation") || cat.includes("technology") || cat.includes("payment")
+      ? { eligibleItems: "As stated in the applicable Partner Type Schedule and any signed Work Order." }
+      : { eligibleItems: "MartPoint software licence subscriptions on approved plans, as stated in the Partner Type Schedule." }),
+  }
+}
+
 /** Mandatory trigger wording for Referral/Channel acquisition economics (master template rule). */
 export const ACQUISITION_TRIGGER_TEXT =
   "No earning for lead registration, acceptance, meetings, demonstrations, quotations, invoices or verbal commitments. " +

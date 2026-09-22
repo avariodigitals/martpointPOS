@@ -4,11 +4,16 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, FileText, Download, Plus, Trash2 } from "lucide-react"
+import { COUNTRIES, STATES } from "@/lib/locations"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-xs font-medium mb-1"
 
-interface EarningBasis { earningCategory: string; partnerTypeLabel: string; trigger: string }
+interface EarningBasis {
+  earningCategory: string
+  partnerTypeLabel: string
+  defaults?: Record<string, string>
+}
 
 interface CommercialForm {
   earningCategory: string
@@ -39,7 +44,7 @@ const emptyCommercial = (basis: EarningBasis): CommercialForm => ({
   eligibleRevenueDefinition: "",
   exclusions: "",
   attributionRule: "",
-  trigger: basis.trigger,
+  trigger: "",
   holdingDays: "",
   holdingStartEvent: "",
   renewalRule: "",
@@ -50,6 +55,7 @@ const emptyCommercial = (basis: EarningBasis): CommercialForm => ({
   splitRule: "",
   financeApprover: "",
   managementApprover: "",
+  ...(basis.defaults || {}),
 })
 
 interface GeneratedDoc {
@@ -103,6 +109,36 @@ export function AgreementForm({ applicationId, onGenerated }: {
   const [tech, setTech] = useState({ solutionName: "", solutionVersion: "", approvedUseCase: "" })
   const [commercials, setCommercials] = useState<CommercialForm[]>([])
   const [extraSchedules, setExtraSchedules] = useState<{ title: string; body: string }[]>([])
+  const [availableCoverage, setAvailableCoverage] = useState<string[]>([])
+  const [selectedCoverage, setSelectedCoverage] = useState<string[]>([])
+  const [territoryCountry, setTerritoryCountry] = useState("")
+  const [territoryStates, setTerritoryStates] = useState<string[]>([])
+
+  /* Territory is stored as a composed string. The picker drives it: states selected
+   * under a country are written as "State, Country"; applicant coverage entries are
+   * toggled on/off as free-text rows. The composed value still lands in the
+   * territory field, which remains editable for one-off wording. */
+  function composeTerritory(country: string, states: string[], extras: string[]): string {
+    const parts = [...states.map((s) => (country ? `${s}, ${country}` : s)), ...extras]
+    if (parts.length === 0 && country) return country
+    return parts.join("; ")
+  }
+
+  function toggleTerritoryState(state: string) {
+    setTerritoryStates((prev) => {
+      const next = prev.includes(state) ? prev.filter((s) => s !== state) : [...prev, state]
+      setAppt((a) => ({ ...a, territory: composeTerritory(territoryCountry, next, selectedCoverage) }))
+      return next
+    })
+  }
+
+  function toggleCoverageArea(area: string) {
+    setSelectedCoverage((prev) => {
+      const next = prev.includes(area) ? prev.filter((a) => a !== area) : [...prev, area]
+      setAppt((a) => ({ ...a, territory: composeTerritory(territoryCountry, territoryStates, next) }))
+      return next
+    })
+  }
 
   const set = (k: string) => (v: string) => setForm((p) => ({ ...p, [k]: v }))
   const mpField = (k: string) => (v: string) => setMp((p) => ({ ...p, [k]: v }))
@@ -121,7 +157,14 @@ export function AgreementForm({ applicationId, onGenerated }: {
       setPartnerTypeLabel(data.partnerTypeLabel)
       setAgreements(data.agreements || [])
       const d = data.defaults || {}
-      setForm((p) => ({ ...p, effectiveDate: d.effectiveDate || p.effectiveDate }))
+      setForm((p) => ({
+        ...p,
+        effectiveDate: d.effectiveDate || p.effectiveDate,
+        liabilityFloor: d.liabilityFloor || p.liabilityFloor,
+      }))
+      setAvailableCoverage(d.coverage || [])
+      setSelectedCoverage(d.coverage || [])
+      setTerritoryCountry(d.country || "")
       setMp(d.martpoint || {})
       setPt(d.partner || {})
       setAppt({
@@ -235,7 +278,10 @@ export function AgreementForm({ applicationId, onGenerated }: {
                 <Field label="Termination notice (days)" value={form.noticeDays} onChange={set("noticeDays")} />
                 <Field label="Statement dispute window (days)" value={form.disputeDays} onChange={set("disputeDays")} />
                 <Field label="Security incident notice (hours)" value={form.securityNoticeHours} onChange={set("securityNoticeHours")} />
-                <Field label="Liability floor amount" value={form.liabilityFloor} onChange={set("liabilityFloor")} placeholder="e.g. NGN 5,000,000" />
+                <div>
+                  <Field label="Liability floor amount" value={form.liabilityFloor} onChange={set("liabilityFloor")} placeholder="e.g. NGN 5,000,000" />
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Minimum liability cap — each party&apos;s liability is capped at the greater of trailing-12-month fees or this amount. Default comes from Settings → MartPoint Legal Entity.</p>
+                </div>
                 {["REFERRAL", "CHANNEL", "CHANNEL_IMPLEMENTATION"].includes(partnerType) && (
                   <Field label="Referral protection (days)" value={form.referralProtectionDays} onChange={set("referralProtectionDays")} />
                 )}
@@ -279,7 +325,59 @@ export function AgreementForm({ applicationId, onGenerated }: {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Appointment</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="Territory / service area" value={appt.territory || ""} onChange={apptField("territory")} />
+                <div className="sm:col-span-2 rounded-md border border-border p-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Territory country</label>
+                      <select
+                        className={inputCls}
+                        value={territoryCountry}
+                        onChange={(e) => {
+                          setTerritoryCountry(e.target.value)
+                          setTerritoryStates([])
+                          setAppt((a) => ({ ...a, territory: composeTerritory(e.target.value, [], selectedCoverage) }))
+                        }}
+                      >
+                        <option value="">Select country…</option>
+                        {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>States / regions {territoryCountry ? `in ${territoryCountry}` : ""} (multi-select)</label>
+                      <div className="max-h-32 overflow-y-auto rounded-md border border-input bg-background p-2 space-y-1">
+                        {!territoryCountry ? (
+                          <p className="text-xs text-muted-foreground px-1">Select a country first.</p>
+                        ) : (STATES[territoryCountry] || []).map((s) => (
+                          <label key={s} className="flex items-center gap-2 text-sm px-1 py-0.5 rounded hover:bg-muted cursor-pointer">
+                            <input type="checkbox" checked={territoryStates.includes(s)} onChange={() => toggleTerritoryState(s)} />
+                            {s}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {availableCoverage.length > 0 && (
+                    <div>
+                      <p className={labelCls}>Applicant&apos;s stated coverage — click to include/exclude:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {availableCoverage.map((area) => {
+                          const on = selectedCoverage.includes(area)
+                          return (
+                            <button
+                              key={area}
+                              type="button"
+                              onClick={() => toggleCoverageArea(area)}
+                              className={`text-xs px-2 py-1 rounded-full border ${on ? "bg-retail text-white border-retail" : "bg-muted text-muted-foreground border-border line-through"}`}
+                            >
+                              {area}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  <Field label="Territory / service area (as written into the agreement)" textarea value={appt.territory || ""} onChange={apptField("territory")} />
+                </div>
                 <Field label="Operating level" value={appt.levelByType || ""} onChange={apptField("levelByType")} />
                 <Field label="Starting grade" value={appt.gradeByType || ""} onChange={apptField("gradeByType")} placeholder="e.g. Silver" />
                 <Field label="Required insurance" value={appt.insurance || ""} onChange={apptField("insurance")} />

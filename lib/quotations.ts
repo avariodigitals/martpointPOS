@@ -13,9 +13,18 @@ export interface QuotationItemInput {
   quantity: number
   unitPrice: number
   discount?: number
+  /** Fixed tax amount — only used when taxRate is null/undefined. */
   tax?: number
-  taxRate?: number
+  /** Percentage rate. `null`/undefined = fixed `tax` amount; `0` = no tax. */
+  taxRate?: number | null
   lineTotal?: number
+}
+
+export type QuoteDiscountType = "none" | "percent" | "fixed"
+
+export interface QuoteDiscountInput {
+  type?: QuoteDiscountType | string | null
+  value?: number | null
 }
 
 export interface QuotationItem {
@@ -66,6 +75,8 @@ export interface Quotation {
   created_at: string
   updated_at: string
   allow_changes: boolean
+  discount_type?: string | null
+  discount_value?: number | null
   allow_counter_offer: boolean
   lead?: LeadSummary
   items?: QuotationItem[]
@@ -111,21 +122,26 @@ export interface ComputedQuotationItem extends QuotationItemInput {
 
 export interface QuoteTotals {
   subtotal: number
+  /** Line-item discounts plus the quote-level discount. */
   discountAmount: number
+  lineDiscountAmount: number
+  quoteDiscountAmount: number
   taxAmount: number
   total: number
   items: ComputedQuotationItem[]
 }
 
-export function recalculateQuote(items: QuotationItemInput[]): QuoteTotals {
+export function recalculateQuote(items: QuotationItemInput[], quoteDiscount?: QuoteDiscountInput | null): QuoteTotals {
   const computed = items.map((it) => {
     const qty = Math.max(0, Number(it.quantity) || 0)
     const unit = Math.max(0, Number(it.unitPrice) || 0)
-    const disc = Math.max(0, Number(it.discount) || 0)
-    const rate = Math.max(0, Number(it.taxRate) || 0)
     const lineSubtotal = qty * unit
-    const taxableAmount = Math.max(0, lineSubtotal - disc)
-    const tax = rate > 0 ? Math.max(0, taxableAmount * rate / 100) : Math.max(0, Number(it.tax) || 0)
+    const disc = Math.min(lineSubtotal, Math.max(0, Number(it.discount) || 0))
+    // taxRate semantics: a number (including 0 = "No tax") drives a percentage of
+    // the discounted line amount; null/undefined means `tax` is a fixed amount.
+    const rate = it.taxRate == null ? null : Math.max(0, Number(it.taxRate) || 0)
+    const taxableAmount = lineSubtotal - disc
+    const tax = rate == null ? Math.max(0, Number(it.tax) || 0) : Math.max(0, taxableAmount * rate / 100)
     const lineTotal = Math.max(0, taxableAmount + tax)
     return {
       ...it,
@@ -133,19 +149,44 @@ export function recalculateQuote(items: QuotationItemInput[]): QuoteTotals {
       unitPrice: unit,
       discount: disc,
       taxRate: rate,
-      tax: tax,
+      tax,
       lineTotal,
     }
   })
 
   const subtotal = computed.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0)
-  const discountAmount = computed.reduce((sum, it) => sum + it.discount, 0)
-  const taxAmount = computed.reduce((sum, it) => sum + it.tax, 0)
-  const total = Math.max(0, subtotal - discountAmount + taxAmount)
+  const lineDiscountAmount = computed.reduce((sum, it) => sum + (it.discount || 0), 0)
+  const net = Math.max(0, subtotal - lineDiscountAmount)
+
+  const qdType = quoteDiscount?.type === "percent" || quoteDiscount?.type === "fixed" ? quoteDiscount.type : "none"
+  const qdValue = Math.max(0, Number(quoteDiscount?.value) || 0)
+  const quoteDiscountAmount =
+    qdType === "percent" ? net * Math.min(100, qdValue) / 100 :
+    qdType === "fixed" ? Math.min(net, qdValue) : 0
+
+  // A quote-level discount reduces each rate-based line's taxable base
+  // proportionally, so tax is charged on the discounted price. Fixed-amount
+  // tax lines (taxRate null) keep their tax unchanged.
+  const share = net > 0 ? quoteDiscountAmount / net : 0
+  if (share > 0) {
+    for (const it of computed) {
+      if (it.taxRate == null) continue
+      const lineNet = Math.max(0, it.quantity * it.unitPrice - (it.discount || 0))
+      const effTaxable = lineNet * (1 - share)
+      it.tax = Math.max(0, effTaxable * (it.taxRate || 0) / 100)
+      it.lineTotal = Math.max(0, effTaxable + it.tax)
+    }
+  }
+
+  const taxAmount = computed.reduce((sum, it) => sum + (it.tax || 0), 0)
+  const discountAmount = lineDiscountAmount + quoteDiscountAmount
+  const total = Math.max(0, net - quoteDiscountAmount + taxAmount)
 
   return {
     subtotal,
     discountAmount,
+    lineDiscountAmount,
+    quoteDiscountAmount,
     taxAmount,
     total,
     items: computed,

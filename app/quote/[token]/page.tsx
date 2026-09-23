@@ -263,6 +263,8 @@ export default function PublicQuotePage() {
                   <th className="text-left px-4 py-3 font-medium">Description</th>
                   <th className="text-right px-4 py-3 font-medium">Qty</th>
                   <th className="text-right px-4 py-3 font-medium">Unit</th>
+                  <th className="text-right px-4 py-3 font-medium">Disc.</th>
+                  <th className="text-right px-4 py-3 font-medium">Tax</th>
                   <th className="text-right px-4 py-3 font-medium">Total</th>
                 </tr>
               </thead>
@@ -272,6 +274,8 @@ export default function PublicQuotePage() {
                     <td className="px-4 py-3 whitespace-pre-line">{item.description}</td>
                     <td className="px-4 py-3 text-right">{item.quantity}</td>
                     <td className="px-4 py-3 text-right">{formatNgnFull(item.unit_price)}</td>
+                    <td className="px-4 py-3 text-right">{item.discount > 0 ? `−${formatNgnFull(item.discount)}` : "—"}</td>
+                    <td className="px-4 py-3 text-right">{item.tax > 0 ? formatNgnFull(item.tax) : "—"}</td>
                     <td className="px-4 py-3 text-right font-medium">{formatNgnFull(item.line_total)}</td>
                   </tr>
                 ))}
@@ -399,7 +403,7 @@ export default function PublicQuotePage() {
               {changeMode === "scope" ? (
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Adjust quantities or remove items you don't need. We will review and send a revised quotation with final pricing.
+                    Adjust quantities or remove items you don&apos;t need. We will review and send a revised quotation with final pricing.
                   </p>
                   <div className="space-y-2">
                     {scopeItems.map((it, idx) => (

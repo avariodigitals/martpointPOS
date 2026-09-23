@@ -55,7 +55,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { session, denied } = await authorizeAdmin("quotations")
+  const { denied } = await authorizeAdmin("quotations")
   if (denied) return denied
 
   const { id } = await params
@@ -73,6 +73,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       paymentTerms,
       status,
       items,
+      discountType,
+      discountValue,
       sendEmail: shouldSend,
       allowChanges,
       allowCounterOffer,
@@ -83,7 +85,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       notesInternal?: string
       paymentTerms?: string
       status?: string
-      items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number; taxRate?: number }>
+      items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number; taxRate?: number | null }>
+      discountType?: string
+      discountValue?: number
       sendEmail?: boolean
       allowChanges?: boolean
       allowCounterOffer?: boolean
@@ -98,14 +102,18 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "Quotation not found" }, { status: 404 })
     }
 
+    const quoteDiscountType = discountType === "percent" || discountType === "fixed" ? discountType : "none"
+    const quoteDiscountValue = Math.max(0, Number(discountValue) || 0)
+
     const totals = recalculateQuote(items.map((it) => ({
       description: it.description,
       quantity: Number(it.quantity) || 1,
       unitPrice: Number(it.unitPrice) || 0,
       discount: Number(it.discount) || 0,
-      taxRate: Number(it.taxRate) || 0,
+      // null = fixed `tax` amount; a number (incl. 0) = percentage rate
+      taxRate: it.taxRate == null ? null : Number(it.taxRate) || 0,
       tax: Number(it.tax) || 0,
-    })))
+    })), { type: quoteDiscountType, value: quoteDiscountValue })
 
     const allowedStatuses = ["DRAFT", "SENT", "ACCEPTED", "DECLINED", "EXPIRED", "CONVERTED", "CHANGE_REQUESTED", "COUNTER_OFFERED", "REVISED"]
     const updatePayload: Record<string, unknown> = {
@@ -116,6 +124,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       payment_terms: paymentTerms || null,
       subtotal: totals.subtotal,
       discount_amount: totals.discountAmount,
+      discount_type: quoteDiscountType,
+      discount_value: quoteDiscountType === "none" ? 0 : quoteDiscountValue,
       tax_amount: totals.taxAmount,
       total_amount: totals.total,
       updated_at: new Date().toISOString(),
@@ -142,7 +152,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       quantity: it.quantity,
       unit_price: it.unitPrice,
       discount: it.discount,
-      tax_rate: it.taxRate || null,
+      tax_rate: it.taxRate ?? null,
       tax: it.tax,
       line_total: it.lineTotal,
     }))
@@ -170,6 +180,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       ...fullQuote,
       subtotal: Number(fullQuote.subtotal) || 0,
       discount_amount: Number(fullQuote.discount_amount) || 0,
+      discount_type: (fullQuote.discount_type as string) || "none",
+      discount_value: Number(fullQuote.discount_value) || 0,
       tax_amount: Number(fullQuote.tax_amount) || 0,
       total_amount: Number(fullQuote.total_amount) || 0,
       lead: leadRaw

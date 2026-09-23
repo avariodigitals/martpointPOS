@@ -23,7 +23,7 @@ import {
 } from "lucide-react"
 import { formatNgnFull, recalculateQuote, buildWhatsAppLink, buildQuoteWhatsAppMessage, buildQuotePublicUrl } from "@/lib/quotations"
 import { generateQuotationPdf } from "@/lib/quotation-pdf"
-import type { Quotation, QuotationItemInput } from "@/lib/quotations"
+import type { Quotation, QuotationItemInput, QuoteDiscountType } from "@/lib/quotations"
 
 interface Lead {
   id: string
@@ -42,6 +42,8 @@ interface QuoteForm {
   notesInternal: string
   paymentTerms: string
   items: QuotationItemInput[]
+  discountType: QuoteDiscountType
+  discountValue: number
   sendEmail: boolean
   allowChanges: boolean
   allowCounterOffer: boolean
@@ -89,6 +91,8 @@ export default function QuotationsPage() {
     notesInternal: "",
     paymentTerms: "",
     items: [{ ...initialItem }],
+    discountType: "none",
+    discountValue: 0,
     sendEmail: false,
     allowChanges: false,
     allowCounterOffer: false,
@@ -181,7 +185,10 @@ export default function QuotationsPage() {
     load()
   }, [])
 
-  const totals = useMemo(() => recalculateQuote(form.items), [form.items])
+  const totals = useMemo(
+    () => recalculateQuote(form.items, { type: form.discountType, value: form.discountValue }),
+    [form.items, form.discountType, form.discountValue]
+  )
 
   const filtered = useMemo(() => {
     if (!search.trim()) return quotations
@@ -217,6 +224,8 @@ export default function QuotationsPage() {
       notesInternal: "",
       paymentTerms: "",
       items: [{ ...initialItem }],
+      discountType: "none",
+      discountValue: 0,
       sendEmail: false,
       allowChanges: false,
       allowCounterOffer: false,
@@ -238,8 +247,12 @@ export default function QuotationsPage() {
         unitPrice: it.unit_price,
         discount: it.discount,
         tax: it.tax,
-        taxRate: it.tax_rate || 0,
+        // tax_rate null + a stored tax amount = fixed-amount tax; otherwise a
+        // rate (0 = No tax). Preserving null keeps fixed taxes editable.
+        taxRate: it.tax_rate != null ? it.tax_rate : (it.tax > 0 ? null : 0),
       })),
+      discountType: (qt.discount_type as QuoteDiscountType) || "none",
+      discountValue: Number(qt.discount_value) || 0,
       sendEmail: false,
       allowChanges: qt.allow_changes,
       allowCounterOffer: qt.allow_counter_offer,
@@ -269,6 +282,8 @@ export default function QuotationsPage() {
         notesInternal: form.notesInternal,
         paymentTerms: form.paymentTerms,
         items: form.items,
+        discountType: form.discountType,
+        discountValue: form.discountValue,
         sendEmail: form.sendEmail,
         allowChanges: form.allowChanges,
         allowCounterOffer: form.allowCounterOffer,
@@ -399,6 +414,7 @@ export default function QuotationsPage() {
           unitPrice: it.unit_price,
           discount: it.discount,
           tax: it.tax,
+          taxRate: it.tax_rate != null ? it.tax_rate : (it.tax > 0 ? null : 0),
         }))
         // If scope request, apply the client's requested quantities/descriptions.
         if (pending.request_type === "scope" && Array.isArray(pending.payload?.items)) {
@@ -716,18 +732,18 @@ export default function QuotationsPage() {
                 <div className="overflow-x-auto">
                   <div className="min-w-[720px]">
                     <div className="grid grid-cols-12 gap-2 px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                      <div className="col-span-5">Description</div>
+                      <div className="col-span-4">Description</div>
                       <div className="col-span-1 text-center">Qty</div>
                       <div className="col-span-2 text-center">Unit Price</div>
-                      <div className="col-span-1 text-center">Disc</div>
-                      <div className="col-span-2 text-center">Tax %</div>
+                      <div className="col-span-2 text-center">Discount ₦</div>
+                      <div className="col-span-2 text-center">Tax</div>
                       <div className="col-span-1"></div>
                     </div>
 
                     <div className="space-y-2">
                       {totals.items.map((item, idx) => (
                         <div key={idx} className="grid grid-cols-12 gap-2 items-start p-3 rounded-lg border border-border bg-muted/20">
-                          <div className="col-span-5">
+                          <div className="col-span-4">
                             {catalogItems.length > 0 && (
                               <select
                                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm mb-2"
@@ -781,21 +797,25 @@ export default function QuotationsPage() {
                               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                             />
                           </div>
-                          <div className="col-span-1">
+                          <div className="col-span-2">
                             <input
                               type="number"
                               min="0"
                               step="any"
-                              placeholder="Disc"
+                              placeholder="0.00"
                               value={item.discount}
                               onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })}
                               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                             />
+                            <p className="text-[10px] text-muted-foreground mt-1">Flat ₦ off this line</p>
                           </div>
                           <div className="col-span-2">
                             <select
-                              value={item.taxRate ?? 0}
-                              onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })}
+                              value={item.taxRate == null ? "fixed" : String(item.taxRate)}
+                              onChange={(e) => {
+                                const v = e.target.value
+                                updateItem(idx, v === "fixed" ? { taxRate: null } : { taxRate: Number(v), tax: 0 })
+                              }}
                               className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
                             >
                               <option value={0}>No tax</option>
@@ -804,15 +824,34 @@ export default function QuotationsPage() {
                                   {t.name} ({t.rate}%)
                                 </option>
                               ))}
+                              {item.taxRate != null && item.taxRate !== 0 && !taxRates.some((t) => t.rate === item.taxRate) && (
+                                <option value={item.taxRate}>{item.taxRate}% (saved)</option>
+                              )}
+                              <option value="fixed">Fixed amount</option>
                             </select>
-                            <p className="text-[10px] text-muted-foreground text-right mt-1">
-                              Tax: {formatNgnFull(item.tax || 0)}
-                            </p>
+                            {item.taxRate == null ? (
+                              <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                placeholder="Tax ₦"
+                                value={item.tax}
+                                onChange={(e) => updateItem(idx, { tax: Number(e.target.value) })}
+                                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm mt-1"
+                              />
+                            ) : (
+                              <p className="text-[10px] text-muted-foreground text-right mt-1">
+                                Tax: {formatNgnFull(item.tax || 0)}
+                              </p>
+                            )}
                           </div>
-                          <div className="col-span-1 flex justify-end">
+                          <div className="col-span-1 flex flex-col items-end gap-1">
                             <button onClick={() => removeItem(idx)} className="p-1 text-muted-foreground hover:text-red-600">
                               <Trash2 className="w-4 h-4" />
                             </button>
+                            <p className="text-[10px] text-muted-foreground text-right">
+                              Total<br />{formatNgnFull(item.lineTotal || 0)}
+                            </p>
                           </div>
                         </div>
                       ))}
@@ -910,9 +949,40 @@ export default function QuotationsPage() {
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-medium">{formatNgnFull(totals.subtotal)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Discount</span>
-                  <span className="font-medium">{formatNgnFull(totals.discountAmount)}</span>
+                {totals.lineDiscountAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Item discounts</span>
+                    <span className="font-medium">−{formatNgnFull(totals.lineDiscountAmount)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">Quote discount</span>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={form.discountType}
+                      onChange={(e) => setForm((prev) => ({ ...prev, discountType: e.target.value as QuoteDiscountType }))}
+                      className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                    >
+                      <option value="none">None</option>
+                      <option value="percent">% off</option>
+                      <option value="fixed">₦ off</option>
+                    </select>
+                    {form.discountType !== "none" && (
+                      <input
+                        type="number"
+                        min="0"
+                        max={form.discountType === "percent" ? 100 : undefined}
+                        step="any"
+                        placeholder={form.discountType === "percent" ? "%" : "₦"}
+                        value={form.discountValue || ""}
+                        onChange={(e) => setForm((prev) => ({ ...prev, discountValue: Number(e.target.value) }))}
+                        className="w-24 rounded-md border border-input bg-background px-2 py-1.5 text-sm text-right"
+                      />
+                    )}
+                    <span className="font-medium w-28 text-right">
+                      {totals.quoteDiscountAmount > 0 ? `−${formatNgnFull(totals.quoteDiscountAmount)}` : formatNgnFull(0)}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Tax</span>
@@ -1229,7 +1299,7 @@ export default function QuotationsPage() {
                   <div className="space-y-2">
                     {revisedItems.map((item, idx) => (
                       <div key={idx} className="grid grid-cols-12 gap-2 items-start p-3 rounded-lg border border-border bg-muted/20">
-                        <div className="col-span-12 sm:col-span-5">
+                        <div className="col-span-12 sm:col-span-4">
                           <input
                             type="text"
                             placeholder="Description"
@@ -1238,7 +1308,7 @@ export default function QuotationsPage() {
                             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           />
                         </div>
-                        <div className="col-span-4 sm:col-span-2">
+                        <div className="col-span-3 sm:col-span-1">
                           <input
                             type="number"
                             min="0"
@@ -1249,7 +1319,7 @@ export default function QuotationsPage() {
                             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           />
                         </div>
-                        <div className="col-span-4 sm:col-span-2">
+                        <div className="col-span-3 sm:col-span-2">
                           <input
                             type="number"
                             min="0"
@@ -1260,18 +1330,47 @@ export default function QuotationsPage() {
                             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           />
                         </div>
-                        <div className="col-span-2 sm:col-span-2">
+                        <div className="col-span-3 sm:col-span-2">
                           <input
                             type="number"
                             min="0"
                             step="any"
-                            placeholder="Disc"
+                            placeholder="Disc ₦"
                             value={item.discount}
                             onChange={(e) => updateRevisedItem(idx, { discount: Number(e.target.value) })}
                             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           />
                         </div>
-                        <div className="col-span-2 sm:col-span-1 flex justify-end">
+                        <div className="col-span-3 sm:col-span-2">
+                          <select
+                            value={item.taxRate == null ? "fixed" : String(item.taxRate)}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              updateRevisedItem(idx, v === "fixed" ? { taxRate: null } : { taxRate: Number(v), tax: 0 })
+                            }}
+                            className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
+                          >
+                            <option value={0}>No tax</option>
+                            {taxRates.map((t) => (
+                              <option key={t.id} value={t.rate}>
+                                {t.name} ({t.rate}%)
+                              </option>
+                            ))}
+                            <option value="fixed">Fixed ₦</option>
+                          </select>
+                          {item.taxRate == null && (
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              placeholder="Tax ₦"
+                              value={item.tax}
+                              onChange={(e) => updateRevisedItem(idx, { tax: Number(e.target.value) })}
+                              className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm mt-1"
+                            />
+                          )}
+                        </div>
+                        <div className="col-span-12 sm:col-span-1 flex justify-end">
                           <button onClick={() => removeRevisedItem(idx)} className="p-1 text-muted-foreground hover:text-red-600">
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1282,7 +1381,7 @@ export default function QuotationsPage() {
                   <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm">
                     <div className="flex justify-between font-semibold border-t border-border pt-2">
                       <span>Revised Total</span>
-                      <span>{formatNgnFull(recalculateQuote(revisedItems).total)}</span>
+                      <span>{formatNgnFull(recalculateQuote(revisedItems, { type: showReview.discount_type, value: showReview.discount_value }).total)}</span>
                     </div>
                   </div>
                 </div>

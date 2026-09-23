@@ -72,6 +72,8 @@ export async function POST(request: Request) {
       notesInternal,
       paymentTerms,
       items,
+      discountType,
+      discountValue,
       sendEmail: shouldSend,
       allowChanges,
       allowCounterOffer,
@@ -82,7 +84,9 @@ export async function POST(request: Request) {
       notesPublic?: string
       notesInternal?: string
       paymentTerms?: string
-      items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number; taxRate?: number }>
+      items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number; taxRate?: number | null }>
+      discountType?: string
+      discountValue?: number
       sendEmail?: boolean
       allowChanges?: boolean
       allowCounterOffer?: boolean
@@ -106,14 +110,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 })
     }
 
+    const quoteDiscountType = discountType === "percent" || discountType === "fixed" ? discountType : "none"
+    const quoteDiscountValue = Math.max(0, Number(discountValue) || 0)
+
     const totals = recalculateQuote(items.map((it) => ({
       description: it.description,
       quantity: Number(it.quantity) || 1,
       unitPrice: Number(it.unitPrice) || 0,
       discount: Number(it.discount) || 0,
-      taxRate: Number(it.taxRate) || 0,
+      // null = fixed `tax` amount; a number (incl. 0) = percentage rate
+      taxRate: it.taxRate == null ? null : Number(it.taxRate) || 0,
       tax: Number(it.tax) || 0,
-    })))
+    })), { type: quoteDiscountType, value: quoteDiscountValue })
 
     const year = new Date().getFullYear()
     const { data: quoteNumberData, error: quoteNumberError } = await supabase.rpc("next_lead_quote_number", { p_year: year })
@@ -134,6 +142,8 @@ export async function POST(request: Request) {
         currency: "NGN",
         subtotal: totals.subtotal,
         discount_amount: totals.discountAmount,
+        discount_type: quoteDiscountType,
+        discount_value: quoteDiscountType === "none" ? 0 : quoteDiscountValue,
         tax_amount: totals.taxAmount,
         total_amount: totals.total,
         valid_until: validUntil || null,
@@ -161,7 +171,7 @@ export async function POST(request: Request) {
       quantity: it.quantity,
       unit_price: it.unitPrice,
       discount: it.discount,
-      tax_rate: it.taxRate || null,
+      tax_rate: it.taxRate ?? null,
       tax: it.tax,
       line_total: it.lineTotal,
     }))
@@ -261,6 +271,8 @@ function mapQuotation(row: Record<string, unknown>): Quotation {
     currency: (row.currency as string) || "NGN",
     subtotal: Number(row.subtotal) || 0,
     discount_amount: Number(row.discount_amount) || 0,
+    discount_type: (row.discount_type as string) || "none",
+    discount_value: Number(row.discount_value) || 0,
     tax_amount: Number(row.tax_amount) || 0,
     total_amount: Number(row.total_amount) || 0,
     valid_until: (row.valid_until as string | null) || null,

@@ -29,7 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { action, adminNote, items, notesPublic, validUntil } = body as {
       action: "approve" | "decline"
       adminNote?: string
-      items?: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number }>
+      items?: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number; taxRate?: number | null }>
       notesPublic?: string
       validUntil?: string
     }
@@ -84,14 +84,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "At least one revised item is required" }, { status: 400 })
     }
 
-    const totals = recalculateQuote(items.map((it) => ({
-      description: it.description,
-      quantity: Number(it.quantity) || 1,
-      unitPrice: Number(it.unitPrice) || 0,
-      discount: Number(it.discount) || 0,
-      tax: Number(it.tax) || 0,
-    })))
-
     const { data: quote, error: quoteError } = await supabase
       .from("lead_quotations")
       .select("*, lead:leads (full_name, business_name, email, phone, product_interest)")
@@ -100,6 +92,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (quoteError || !quote) {
       return NextResponse.json({ error: "Quotation not found" }, { status: 404 })
     }
+
+    // Re-apply the quote-level discount so a revision keeps the same offer.
+    const totals = recalculateQuote(items.map((it) => ({
+      description: it.description,
+      quantity: Number(it.quantity) || 1,
+      unitPrice: Number(it.unitPrice) || 0,
+      discount: Number(it.discount) || 0,
+      taxRate: it.taxRate == null ? null : Number(it.taxRate) || 0,
+      tax: Number(it.tax) || 0,
+    })), { type: quote.discount_type as string, value: Number(quote.discount_value) || 0 })
 
     const leadRawMaybe = quote.lead as unknown as Record<string, unknown> | Record<string, unknown>[] | undefined
     const leadRaw = Array.isArray(leadRawMaybe) ? leadRawMaybe[0] : leadRawMaybe
@@ -140,6 +142,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       quantity: it.quantity,
       unit_price: it.unitPrice,
       discount: it.discount,
+      tax_rate: it.taxRate ?? null,
       tax: it.tax,
       line_total: it.lineTotal,
     }))

@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation"
-import Link from "next/link"
 import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Download } from "lucide-react"
+import { Download } from "lucide-react"
 import { PayoutRequestPanel } from "./payout-request-panel"
 
 function fmtMoney(amount: number, currency = "NGN") {
@@ -85,13 +84,6 @@ export default async function PartnerCommissionsPage() {
     paid: sumBy(["PAID"]),
   }
 
-  const counts = {
-    ELIGIBLE: rows.filter((r) => r.status === "ELIGIBLE").length,
-    APPROVED: rows.filter((r) => r.status === "APPROVED").length,
-    SCHEDULED: rows.filter((r) => r.status === "SCHEDULED").length,
-    PAID: rows.filter((r) => r.status === "PAID").length,
-  }
-
   const csv = toCsv(rows)
   const csvDataUrl = `data:text/csv;base64,${Buffer.from(csv, "utf8").toString("base64")}`
 
@@ -99,10 +91,7 @@ export default async function PartnerCommissionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/partner" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back
-          </Link>
-          <h2 className="text-2xl font-bold tracking-tight mt-2">Earnings</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Earnings</h2>
           <p className="text-muted-foreground text-sm">Your commission earnings and payouts</p>
         </div>
         <Button asChild variant="outline" size="sm">

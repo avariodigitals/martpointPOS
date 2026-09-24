@@ -97,6 +97,10 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
   PARTNER_IMPLEMENTATION: [
     "partner:profile:view",
     "partner:resources:view",
+    "leads:view",
+    "leads:create",
+    "leads:update",
+    "customers:view_assigned",
     "onboarding:view_assigned",
     "onboarding:manage_assigned",
   ],

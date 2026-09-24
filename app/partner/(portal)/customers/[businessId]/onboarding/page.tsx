@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import { HandoverPanel } from "./handover-panel"
 
 interface Task {
   id: string
@@ -77,6 +78,7 @@ export default function OnboardingWorkspacePage() {
           ))}
         </div>
       )}
+      <HandoverPanel businessId={businessId} />
       <button
         onClick={submitComplete}
         className="rounded-md bg-retail px-4 py-2 text-sm font-medium text-white hover:bg-retail/90"

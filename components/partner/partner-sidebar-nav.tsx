@@ -25,12 +25,12 @@ interface NavItem {
   label: string
   icon: LucideIcon
   permission?: string
-  capability?: PartnerOrgCapability
+  capabilities?: PartnerOrgCapability[]
 }
 
 const navItems: NavItem[] = [
   { href: "/partner", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/partner/leads", label: "Leads", icon: Target, permission: "leads:view", capability: "SALES" },
+  { href: "/partner/leads", label: "Leads", icon: Target, permission: "leads:view", capabilities: ["SALES", "REFERRALS", "IMPLEMENTATION", "CUSTOMER_ONBOARDING"] },
   { href: "/partner/commissions", label: "Earnings", icon: Wallet, permission: "commissions:view_own" },
   { href: "/partner/customers", label: "Customers", icon: Briefcase, permission: "customers:view_assigned" },
   { href: "/partner/profile", label: "Profile", icon: Building2, permission: "partner:profile:view" },
@@ -61,7 +61,7 @@ export function PartnerSidebarNav({
 
   const visibleItems = navItems.filter((item) => {
     if (item.permission && !partnerUserHasPermission(userRole, item.permission as PartnerPermission)) return false
-    if (item.capability && !capabilities.includes(item.capability)) return false
+    if (item.capabilities && !item.capabilities.some((c) => capabilities.includes(c))) return false
     return true
   })
 

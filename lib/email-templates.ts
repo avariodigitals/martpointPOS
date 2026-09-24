@@ -1054,6 +1054,32 @@ Best regards,
 MartPoint Team`,
   },
   {
+    key: "partner_installation_handover",
+    label: "Partner Installation Handover",
+    description: "Sent by an implementation partner to a client after installing and setting up their MartPoint store — shares the store URL and the login created during installation. Installation guides can be attached. Note: a custom message entered in the portal overrides this body.",
+    variables: ["contactName", "businessName", "partnerName", "softwareUrl", "adminUsername", "tempPassword", "messageBlock", "supportBlock"],
+    subject: "Your MartPoint store is ready — {{businessName}}",
+    text: `Hi {{contactName}},
+
+Great news — {{partnerName}}, a certified MartPoint implementation partner, has finished installing and setting up MartPoint for {{businessName}}.
+
+Your Access Details
+
+Store / Login URL: {{softwareUrl}}
+Admin Username/Email: {{adminUsername}}
+Temporary Password: {{tempPassword}}
+
+For security, please sign in and change this temporary password as soon as possible, and do not share your login credentials with anyone who is not authorised to access your business account.
+
+{{messageBlock}}If an installation guide is attached to this email, please keep it handy — it walks you through the essentials of running your new store.
+
+{{supportBlock}}We appreciate your patronage.
+
+Best regards,
+{{partnerName}}
+MartPoint Partner`,
+  },
+  {
     key: "support_magic_link",
     label: "Support Sign-in Link",
     description: "Magic-link email for the customer support portal.",

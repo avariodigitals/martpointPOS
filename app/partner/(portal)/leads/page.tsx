@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
-import { getPartnerSession, authorizePartner, partnerHasCapability } from "@/lib/partner-auth"
-import { listPartnerLeads } from "@/lib/partner-leads"
+import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
+import { listPartnerLeads, partnerCanRegisterLeads } from "@/lib/partner-leads"
 import Link from "next/link"
 
 export default async function PartnerLeadsPage() {
@@ -10,9 +10,7 @@ export default async function PartnerLeadsPage() {
   const auth = await authorizePartner({ session, permission: "leads:view" })
   if (!auth.authorized) redirect("/partner")
 
-  const hasSales = await partnerHasCapability(session.partnerId, "SALES")
-  const hasReferrals = await partnerHasCapability(session.partnerId, "REFERRALS")
-  if (!hasSales && !hasReferrals) redirect("/partner")
+  if (!(await partnerCanRegisterLeads(session.partnerId))) redirect("/partner")
 
   const leads = await listPartnerLeads(session.partnerId)
 

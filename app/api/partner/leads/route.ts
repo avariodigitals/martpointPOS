@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
-import { getPartnerSession, authorizePartner, partnerHasCapability } from "@/lib/partner-auth"
+import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
 import { auditContextFromPartnerSession } from "@/lib/audit"
-import { createPartnerLead, listPartnerLeads } from "@/lib/partner-leads"
+import { createPartnerLead, listPartnerLeads, partnerCanRegisterLeads } from "@/lib/partner-leads"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { z } from "zod"
 
@@ -29,9 +29,7 @@ export async function GET() {
   const auth = await authorizePartner({ session, permission: "leads:view" })
   if (!auth.authorized) return auth.response!
 
-  const hasSales = await partnerHasCapability(session.partnerId, "SALES")
-  const hasReferrals = await partnerHasCapability(session.partnerId, "REFERRALS")
-  if (!hasSales && !hasReferrals) {
+  if (!(await partnerCanRegisterLeads(session.partnerId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -46,9 +44,7 @@ export async function POST(request: Request) {
   const auth = await authorizePartner({ session, permission: "leads:create" })
   if (!auth.authorized) return auth.response!
 
-  const hasSales = await partnerHasCapability(session.partnerId, "SALES")
-  const hasReferrals = await partnerHasCapability(session.partnerId, "REFERRALS")
-  if (!hasSales && !hasReferrals) {
+  if (!(await partnerCanRegisterLeads(session.partnerId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

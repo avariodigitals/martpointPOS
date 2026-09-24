@@ -1,7 +1,7 @@
 import crypto from "node:crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
-import type { PartnerUserRecord } from "./partner-auth"
+import { partnerHasCapability } from "./partner-auth"
 
 export type PartnerLeadStatus =
   | "REGISTERED"
@@ -15,6 +15,17 @@ export type PartnerLeadStatus =
   | "EXPIRED"
 
 export type ProtectionStatus = "PENDING" | "PROTECTED" | "REJECTED" | "EXPIRED"
+
+/** Partners allowed to register leads: sales/referral partners, plus implementation
+ * partners who bring in the clients they install for. */
+export async function partnerCanRegisterLeads(partnerId: string): Promise<boolean> {
+  const capabilities = await Promise.all(
+    (["SALES", "REFERRALS", "IMPLEMENTATION", "CUSTOMER_ONBOARDING"] as const).map((c) =>
+      partnerHasCapability(partnerId, c)
+    )
+  )
+  return capabilities.some(Boolean)
+}
 
 export interface PartnerLeadInput {
   businessName: string

@@ -40,7 +40,7 @@ export async function OrganizationSchema() {
     email,
     description:
       "MartPoint is a African retail and ERP software company providing POS, inventory management, accounting, and business operations tools for supermarkets, pharmacies, restaurants, and fashion stores.",
-    foundingDate: "2020",
+    foundingDate: "2019",
     address: {
       "@type": "PostalAddress",
       addressCountry: "NG",
@@ -153,7 +153,7 @@ export function SoftwareApplicationSchema({
       "Customer Management",
     ],
     softwareVersion: "2025",
-    datePublished: "2020-01-01",
+    datePublished: "2019-01-01",
     dateModified: "2025-06-01",
   }
 

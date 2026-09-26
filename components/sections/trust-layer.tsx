@@ -53,31 +53,30 @@ function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string
 const metrics = [
   {
     icon: CalendarClock,
-    value: 7,
-    suffix: "+",
-    extra: " Years",
-    description: "Continuous Platform Engineering",
+    value: null as number | null,
+    text: "Since 2019",
+    description: "Real-World Testing & Iteration",
   },
   {
     icon: Building2,
-    value: 100,
+    value: 50,
     suffix: "+",
     extra: "",
-    description: "Enterprise & Retail Brands Served",
+    description: "Enterprise & Retail Brands Tested",
   },
   {
     icon: Users,
-    value: 300,
+    value: 40,
     suffix: "+",
     extra: "",
-    description: "Active Operations Professionals",
+    description: "Retail Operators Consulted in Development",
   },
   {
     icon: ShieldCheck,
     value: 100,
     suffix: "%",
-    extra: "",
-    description: "Verified System Uptime",
+    extra: " Uptime",
+    description: "Since Relaunch — Verified Status Page",
   },
   {
     icon: Globe,
@@ -90,7 +89,7 @@ const metrics = [
     value: 54,
     suffix: "+",
     extra: "",
-    description: "African Markets Covered",
+    description: "African Markets Ready to Scale",
   },
 ]
 

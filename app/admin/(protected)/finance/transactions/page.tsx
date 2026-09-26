@@ -80,6 +80,7 @@ export default function FinanceTransactionsPage() {
     amount: "",
     tax: "",
     account: "",
+    paymentAccountId: "",
     description: "",
     date: new Date().toISOString().split("T")[0],
     recurring: false,
@@ -97,6 +98,7 @@ export default function FinanceTransactionsPage() {
     amount: "",
     tax: "",
     account: "",
+    paymentAccountId: "",
     description: "",
     date: new Date().toISOString().split("T")[0],
     recurring: false,
@@ -110,19 +112,27 @@ export default function FinanceTransactionsPage() {
   const [filterType, setFilterType] = useState<string>(validType)
   const [searchQuery, setSearchQuery] = useState("")
   const [categoryList, setCategoryList] = useState<Array<{ id: string; type: string; name: string; active: boolean }>>([])
+  const [paymentAccounts, setPaymentAccounts] = useState<Array<{ id: string; name: string; active: boolean }>>([])
 
   useEffect(() => {
     Promise.all([
       fetch("/api/admin/finance").then((res) => res.json()),
       fetch("/api/admin/finance/categories").then((res) => res.json()),
+      fetch("/api/admin/finance/ledger?resource=payment-accounts").then((res) => res.json()),
     ])
-      .then(([financeData, catData]) => {
+      .then(([financeData, catData, acctData]) => {
         if (financeData.transactions) setTransactions(financeData.transactions)
         if (catData.categories) setCategoryList(catData.categories)
+        if (acctData.success && acctData.data) setPaymentAccounts(acctData.data)
       })
       .catch(() => setMessage("Failed to load data"))
       .finally(() => setLoading(false))
   }, [])
+
+  const accountName = (t: FinanceTransaction) => {
+    const pa = paymentAccounts.find((a) => a.id === (t as { paymentAccountId?: string }).paymentAccountId)
+    return pa?.name || t.account || "—"
+  }
 
   const activeCategories = useMemo(() => {
     const fromDb = categoryList.filter((c) => c.type === addForm.type && c.active).map((c) => c.name)
@@ -171,6 +181,7 @@ export default function FinanceTransactionsPage() {
           amount: "",
           tax: "",
           account: "",
+          paymentAccountId: "",
           description: "",
           date: new Date().toISOString().split("T")[0],
           recurring: false,
@@ -196,6 +207,7 @@ export default function FinanceTransactionsPage() {
       amount: String(t.amount),
       tax: t.tax !== undefined ? String(t.tax) : "",
       account: t.account || "",
+      paymentAccountId: (t as { paymentAccountId?: string }).paymentAccountId || "",
       description: t.description,
       date: t.date,
       recurring: t.recurring,
@@ -373,7 +385,7 @@ export default function FinanceTransactionsPage() {
                   </td>
                   <td className="px-4 py-3">{t.category}</td>
                   <td className="px-4 py-3 max-w-xs truncate">{t.description}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{t.account || "—"}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{accountName(t)}</td>
                   <td className={`px-4 py-3 text-right font-medium ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                     {t.type === "income" ? "+" : "-"}{formatNgn(t.amount)}
                     {t.tax ? <span className="block text-xs text-muted-foreground">Tax: {formatNgn(t.tax)}</span> : null}
@@ -483,14 +495,17 @@ export default function FinanceTransactionsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Account / Bank</label>
-                <input
-                  type="text"
-                  value={addForm.account}
-                  onChange={(e) => setAddForm((prev) => ({ ...prev, account: e.target.value }))}
+                <label className="block text-xs font-medium mb-1">{addForm.type === "expense" ? "Paid From" : "Paid Into"}</label>
+                <select
+                  value={addForm.paymentAccountId}
+                  onChange={(e) => setAddForm((prev) => ({ ...prev, paymentAccountId: e.target.value }))}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="e.g. GTBank Business"
-                />
+                >
+                  <option value="">Default account</option>
+                  {paymentAccounts.filter((a) => a.active).map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium mb-1">Description *</label>
@@ -606,13 +621,17 @@ export default function FinanceTransactionsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Account / Bank</label>
-                <input
-                  type="text"
-                  value={editForm.account}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, account: e.target.value }))}
+                <label className="mb-1 block text-xs font-medium">{editForm.type === "expense" ? "Paid From" : "Paid Into"}</label>
+                <select
+                  value={editForm.paymentAccountId}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, paymentAccountId: e.target.value }))}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
+                >
+                  <option value="">Default account</option>
+                  {paymentAccounts.filter((a) => a.active).map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium mb-1">Description *</label>

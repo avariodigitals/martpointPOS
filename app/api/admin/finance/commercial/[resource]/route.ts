@@ -24,6 +24,11 @@ import {
   removePaymentFinanceTransaction,
   money,
 } from "@/lib/finance-commercial"
+import {
+  postPaymentReversal,
+  postPayoutJournal,
+  voidEntriesForSource,
+} from "@/lib/finance-ledger"
 
 type Action = string
 
@@ -410,6 +415,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       }
       if (action === "delete") {
         const { id } = data
+        await voidEntriesForSource("INVOICE", id)
         await supabase.from("finance_transactions").delete().eq("invoice_id", id)
         await supabase.from("invoice_items").delete().eq("invoice_id", id)
         await supabase.from("payment_allocations").delete().eq("invoice_id", id)
@@ -428,7 +434,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         return ok(p)
       }
       if (action === "confirm") {
-        await confirmPayment(data.id, actor.id, actor.id)
+        await confirmPayment(data.id, actor.id, actor.id, data.payment_account_id)
         return ok({ success: true })
       }
       if (action === "reverse") {
@@ -437,6 +443,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "PAYMENT_REVERSED", "PAYMENT", id)
         await removePaymentFinanceTransaction(id)
+        try { await postPaymentReversal(id) } catch (e) { console.error("[payments.reverse] ledger", e) }
         return ok(p)
       }
       if (action === "allocate") {
@@ -624,12 +631,13 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         return ok(p)
       }
       if (action === "mark_paid") {
-        const { id, bank_reference } = data
-        const { data: p, error } = await supabase.from("commission_payouts").update({ status: "PAID", bank_reference, paid_by: actor.id, paid_at: now(), updated_at: now() }).eq("id", id).select().single()
+        const { id, bank_reference, payment_account_id } = data
+        const { data: p, error } = await supabase.from("commission_payouts").update({ status: "PAID", bank_reference, ...(payment_account_id ? { payment_account_id } : {}), paid_by: actor.id, paid_at: now(), updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         // Reflect the payment on any linked partner payout request
         await supabase.from("partner_payout_requests").update({ status: "PAID", updated_at: now() }).eq("payout_id", id)
         await logFinanceAudit("ADMIN", actor.id, "COMMISSION_PAYOUT_PAID", "COMMISSION_PAYOUT", id)
+        try { await postPayoutJournal(id) } catch (e) { console.error("[payouts.mark_paid] ledger", e) }
         return ok(p)
       }
     }

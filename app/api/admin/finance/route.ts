@@ -7,6 +7,7 @@ import {
   type FinanceTransaction,
 } from "@/lib/finance"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { postFinanceTransactionJournal, voidEntriesForSource } from "@/lib/finance-ledger"
 import crypto from "crypto"
 
 /* ─── GET ─── */
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { type, category, subcategory, amount, tax, description, date, leadId, account, recurring, frequency } = body
+    const { type, category, subcategory, amount, tax, description, date, leadId, account, paymentAccountId, recurring, frequency } = body
 
     if (!type || !category || typeof amount !== "number" || !description || !date) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
       date,
       leadId: leadId || "",
       account: account || "",
+      paymentAccountId: paymentAccountId || "",
       recurring: recurring || false,
       frequency: frequency || "one-time",
       createdAt: new Date().toISOString(),
@@ -79,6 +81,7 @@ export async function POST(request: Request) {
           date: txn.date,
           lead_id: txn.leadId,
           account: txn.account,
+          payment_account_id: txn.paymentAccountId || null,
           recurring: txn.recurring,
           frequency: txn.frequency,
           created_at: txn.createdAt,
@@ -86,6 +89,13 @@ export async function POST(request: Request) {
         })
       } catch {
         return NextResponse.json({ error: "Failed to save transaction" }, { status: 500 })
+      }
+
+      // Post the double-entry journal (DR category / CR payment account, or vice versa).
+      try {
+        await postFinanceTransactionJournal(txn.id)
+      } catch (e) {
+        console.error("[finance] ledger post on create", e)
       }
     }
 
@@ -107,7 +117,7 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json()
-    const { id, type, category, subcategory, amount, tax, description, date, leadId, account, recurring, frequency } = body
+    const { id, type, category, subcategory, amount, tax, description, date, leadId, account, paymentAccountId, recurring, frequency } = body
 
     if (!id) {
       return NextResponse.json({ error: "Transaction ID required" }, { status: 400 })
@@ -128,6 +138,7 @@ export async function PUT(request: Request) {
     if (date !== undefined) finance.transactions[idx].date = date
     if (leadId !== undefined) finance.transactions[idx].leadId = leadId
     if (account !== undefined) finance.transactions[idx].account = account
+    if (paymentAccountId !== undefined) finance.transactions[idx].paymentAccountId = paymentAccountId
     if (recurring !== undefined) finance.transactions[idx].recurring = recurring
     if (frequency !== undefined) finance.transactions[idx].frequency = frequency
     finance.transactions[idx].updatedAt = new Date().toISOString()
@@ -145,12 +156,20 @@ export async function PUT(request: Request) {
           date: t.date,
           lead_id: t.leadId,
           account: t.account,
+          payment_account_id: t.paymentAccountId || null,
           recurring: t.recurring,
           frequency: t.frequency,
           updated_at: t.updatedAt,
         }).eq("id", id)
       } catch {
         return NextResponse.json({ error: "Failed to update transaction" }, { status: 500 })
+      }
+
+      // Repost the journal entry so the ledger reflects the edit.
+      try {
+        await postFinanceTransactionJournal(id)
+      } catch (e) {
+        console.error("[finance] ledger post on update", e)
       }
     }
 
@@ -184,6 +203,10 @@ export async function DELETE(request: Request) {
 
     if (isSupabaseConfigured()) {
       try {
+        const { data: txnRow } = await supabase.from("finance_transactions").select("type").eq("id", id).single()
+        if (txnRow?.type === "expense" || txnRow?.type === "income") {
+          await voidEntriesForSource(txnRow.type === "expense" ? "EXPENSE" : "INCOME", id)
+        }
         await supabase.from("finance_transactions").delete().eq("id", id)
       } catch {
         return NextResponse.json({ error: "Failed to delete transaction" }, { status: 500 })

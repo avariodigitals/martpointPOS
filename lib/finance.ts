@@ -11,6 +11,7 @@ export interface FinanceTransaction {
   date: string
   leadId?: string
   account?: string
+  paymentAccountId?: string
   recurring: boolean
   frequency?: "monthly" | "quarterly" | "yearly" | "one-time"
   createdAt: string
@@ -111,6 +112,7 @@ export async function readFinanceData(): Promise<FinanceData> {
       date: row.date,
       leadId: row.lead_id,
       account: row.account,
+      paymentAccountId: row.payment_account_id,
       recurring: row.recurring,
       frequency: row.frequency,
       createdAt: row.created_at,

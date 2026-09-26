@@ -38,6 +38,8 @@ import {
   Megaphone,
   Ban,
   BookOpen,
+  Scale,
+  ArrowLeftRight,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -82,6 +84,8 @@ const navItems: NavItem[] = [
 
   // FINANCE
   { href: "/admin/finance", label: "Finance", icon: Landmark, page: "finance", section: "Finance" },
+  { href: "/admin/finance/accounts", label: "Accounts", icon: ArrowLeftRight, page: "finance", section: "Finance" },
+  { href: "/admin/finance/chart-of-accounts", label: "Chart of Accounts", icon: Scale, page: "finance", section: "Finance" },
   { href: "/admin/finance/invoices", label: "Invoices", icon: Receipt, page: "finance", section: "Finance" },
   { href: "/admin/finance/catalog", label: "Catalog", icon: Package, page: "finance", section: "Finance" },
   { href: "/admin/finance/transactions?type=expense", label: "Expenses", icon: Wallet, page: "finance", section: "Finance" },

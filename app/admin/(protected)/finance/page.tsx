@@ -161,7 +161,13 @@ export default function FinanceDashboardPage() {
           </h2>
           <p className="text-muted-foreground">Track revenue, expenses, and investor KPIs.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/admin/finance/accounts">Accounts</Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/admin/finance/chart-of-accounts">Chart of Accounts</Link>
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href="/admin/finance/transactions">Manage Transactions</Link>
           </Button>

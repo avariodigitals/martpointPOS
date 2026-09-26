@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { getBusinessById, setOnboardingStage } from "./businesses"
 import type { AuditContext } from "./audit"
+import { postPaymentJournal, postInvoiceJournal } from "./finance-ledger"
 import crypto from "crypto"
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -538,6 +539,7 @@ export async function recordPayment(input: {
   gateway_reference?: string
   paid_at?: string
   notes?: string
+  payment_account_id?: string
 }) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
   const reference = await nextPaymentReference()
@@ -548,6 +550,7 @@ export async function recordPayment(input: {
     amount: input.amount,
     currency: input.currency || "NGN",
     payment_method: input.payment_method,
+    payment_account_id: input.payment_account_id || null,
     gateway_reference: input.gateway_reference || null,
     status: "PENDING",
     paid_at: input.paid_at || new Date().toISOString(),
@@ -560,7 +563,7 @@ export async function recordPayment(input: {
   return data as Payment
 }
 
-export async function confirmPayment(paymentId: string, confirmedBy: string, actorId?: string) {
+export async function confirmPayment(paymentId: string, confirmedBy: string, actorId?: string, paymentAccountId?: string) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
   const now = new Date().toISOString()
 
@@ -572,6 +575,7 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
     status: "CONFIRMED",
     confirmed_at: now,
     confirmed_by: confirmedBy,
+    payment_account_id: paymentAccountId || undefined,
     updated_at: now,
   }).eq("id", paymentId)
 
@@ -611,6 +615,13 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
     await syncInvoiceFinanceTransaction(p.invoice_id)
   } else {
     await syncPaymentFinanceTransaction(paymentId)
+  }
+
+  // Post the double-entry journal: DR deposit account / CR receivable or income.
+  try {
+    await postPaymentJournal(paymentId)
+  } catch (err) {
+    console.error("[confirmPayment] ledger post", err)
   }
 }
 
@@ -1031,7 +1042,7 @@ export async function syncInvoiceFinanceTransaction(invoiceId: string) {
   }
 
   const primary = invoice.invoice_items?.[0]?.item_type || "CUSTOM"
-  let category = INCOME_CATEGORY_BY_ITEM[primary] || "Other Income"
+  const category = INCOME_CATEGORY_BY_ITEM[primary] || "Other Income"
 
   const planItem = invoice.invoice_items?.find((i) => i.item_type === "PLAN")
   let recurring = false
@@ -1081,6 +1092,13 @@ export async function syncInvoiceFinanceTransaction(invoiceId: string) {
       id: crypto.randomUUID(),
       created_at: new Date().toISOString(),
     })
+  }
+
+  // Recognised income → post DR receivable / CR revenue (+ tax payable).
+  try {
+    await postInvoiceJournal(invoiceId)
+  } catch (err) {
+    console.error("[syncInvoiceFinanceTransaction] ledger post", err)
   }
 }
 

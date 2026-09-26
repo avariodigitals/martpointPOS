@@ -17,6 +17,7 @@ export type FinanceAction =
   | "finance:commissions:view"
   | "finance:commissions:approve"
   | "finance:commissions:payout"
+  | "finance:accounts:manage"
   | "finance:reports:view"
 
 const FINANCE_PERMISSIONS: Record<UserRole, FinanceAction[]> = {
@@ -27,6 +28,7 @@ const FINANCE_PERMISSIONS: Record<UserRole, FinanceAction[]> = {
     "finance:subscriptions:view", "finance:subscriptions:manage",
     "finance:renewals:manage",
     "finance:commissions:view", "finance:commissions:approve", "finance:commissions:payout",
+    "finance:accounts:manage",
     "finance:reports:view",
   ],
   Finance: [
@@ -37,6 +39,7 @@ const FINANCE_PERMISSIONS: Record<UserRole, FinanceAction[]> = {
     "finance:subscriptions:view", "finance:subscriptions:manage",
     "finance:renewals:manage",
     "finance:commissions:view", "finance:commissions:approve",
+    "finance:accounts:manage",
     "finance:reports:view",
   ],
   "Digital Marketer": ["finance:view"],

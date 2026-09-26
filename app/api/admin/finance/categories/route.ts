@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { resolveCategoryAccount } from "@/lib/finance-ledger"
 import crypto from "crypto"
 
 export async function GET() {
@@ -60,6 +61,13 @@ export async function POST(request: Request) {
       }
       console.error("[finance/categories] POST", error)
       return NextResponse.json({ error: "Failed to create category" }, { status: 500 })
+    }
+
+    // Ensure the category has a matching GL account on the chart of accounts.
+    try {
+      await resolveCategoryAccount(type as "income" | "expense", name.trim())
+    } catch (e) {
+      console.error("[finance/categories] gl account sync", e)
     }
 
     return NextResponse.json({ success: true, category: data })

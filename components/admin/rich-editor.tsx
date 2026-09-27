@@ -12,6 +12,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Pilcrow,
   Undo,
   Redo,
   Quote,
@@ -281,7 +282,13 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
     const selection = window.getSelection()
     const editor = editorRef.current
     if (!selection || !editor) { setToolbarVisible(false); return }
-    if (selection.isCollapsed) { setToolbarVisible(false); return }
+    if (selection.isCollapsed) {
+      // Forget the last saved range so exec() can't restore a stale
+      // selection and format text the user is no longer on.
+      savedRangeRef.current = null
+      setToolbarVisible(false)
+      return
+    }
 
     // Only show if selection is inside the editor
     if (!editor.contains(selection.anchorNode)) { setToolbarVisible(false); return }
@@ -316,7 +323,7 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
     // (e.g. clicking a toolbar button or typing in the link input)
     const selection = window.getSelection()
     const saved = savedRangeRef.current
-    if (selection && saved && editor.contains(saved.commonAncestorContainer)) {
+    if (selection && saved && !saved.collapsed && editor.contains(saved.commonAncestorContainer)) {
       if (selection.isCollapsed || !editor.contains(selection.anchorNode)) {
         selection.removeAllRanges()
         selection.addRange(saved)
@@ -427,13 +434,16 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
           <Underline className="w-4 h-4" />
         </button>
         <div className="w-px h-5 bg-border mx-1" />
-        <button type="button" onClick={() => exec("formatBlock", "H1")} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Heading 1">
+        <button type="button" onClick={() => exec("formatBlock", "<p>")} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Normal text">
+          <Pilcrow className="w-4 h-4" />
+        </button>
+        <button type="button" onClick={() => exec("formatBlock", "<h1>")} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Heading 1">
           <Heading1 className="w-4 h-4" />
         </button>
-        <button type="button" onClick={() => exec("formatBlock", "H2")} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Heading 2">
+        <button type="button" onClick={() => exec("formatBlock", "<h2>")} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Heading 2">
           <Heading2 className="w-4 h-4" />
         </button>
-        <button type="button" onClick={() => exec("formatBlock", "H3")} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Heading 3">
+        <button type="button" onClick={() => exec("formatBlock", "<h3>")} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Heading 3">
           <Heading3 className="w-4 h-4" />
         </button>
         <div className="w-px h-5 bg-border mx-1" />
@@ -443,7 +453,7 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
         <button type="button" onClick={() => exec("insertOrderedList")} className={buttonClass("insertOrderedList")} title="Numbered List">
           <ListOrdered className="w-4 h-4" />
         </button>
-        <button type="button" onClick={() => exec("formatBlock", "blockquote")} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Quote">
+        <button type="button" onClick={() => exec("formatBlock", "<blockquote>")} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Quote">
           <Quote className="w-4 h-4" />
         </button>
         <button type="button" onClick={addLink} className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors" title="Link">

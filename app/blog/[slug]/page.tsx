@@ -8,6 +8,7 @@ import { notFound } from "next/navigation"
 import { ArticleSchema, FAQPageSchema } from "@/components/structured-data"
 import { SocialShare } from "@/components/blog/social-share"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { processBlogContent, escapeHtmlText } from "@/lib/blog-content"
 
 interface BlogPost {
   id: string
@@ -191,7 +192,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
             <div
               className="mt-8 prose prose-slate max-w-none [&_a]:text-blue-600 [&_a]:underline [&_a]:hover:text-blue-800"
-              dangerouslySetInnerHTML={{ __html: post.content }}
+              dangerouslySetInnerHTML={{ __html: processBlogContent(post.content) }}
             />
 
             {post.faqs.length > 0 && (
@@ -206,7 +207,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                         {faq.question}
                         <span className="ml-2 text-muted-foreground transition-transform group-open:rotate-180">▾</span>
                       </summary>
-                      <p className="mt-2 text-sm text-muted-foreground">{faq.answer}</p>
+                      <p
+                        className="mt-2 text-sm text-muted-foreground [&_a]:text-blue-600 [&_a]:underline [&_a]:hover:text-blue-800"
+                        dangerouslySetInnerHTML={{ __html: processBlogContent(escapeHtmlText(faq.answer || "")) }}
+                      />
                     </details>
                   ))}
                 </div>

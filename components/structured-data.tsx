@@ -1,6 +1,6 @@
 import { readSettings } from "@/lib/settings"
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng"
 
 export async function OrganizationSchema() {
   const settings = await readSettings()

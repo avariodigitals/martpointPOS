@@ -24,7 +24,7 @@ async function getBlogPosts(): Promise<BlogPost[]> {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://martpoint.com.ng"
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng"
   const now = new Date()
 
   const staticPages: MetadataRoute.Sitemap = [

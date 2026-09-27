@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const header = (settings?.header as Record<string, string>) || {};
   const searchConsoleCode = searchConsole.verificationCode || "";
   const favicon = header.favicon || "/icon.webp";
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng";
   const ogImage = seo.ogImage || "/retail-dashboard.webp";
 
   const meta: Metadata = {

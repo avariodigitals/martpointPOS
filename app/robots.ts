@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/admin", "/api"],
     },
-    sitemap: "https://martpoint.com.ng/sitemap.xml",
+    sitemap: `${process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng"}/sitemap.xml`,
   }
 }

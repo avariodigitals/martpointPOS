@@ -1,6 +1,7 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
+import { useRef, useState, useEffect, useCallback, memo } from "react"
+import { enhanceDomAnchors, normalizeHref } from "@/lib/blog-content"
 import {
   Bold,
   Italic,
@@ -66,7 +67,7 @@ function sanitizePastedHtml(html: string): string {
   doc.querySelectorAll("*").forEach((el) => {
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name.toLowerCase()
-      if (["href", "src", "alt", "colspan", "rowspan"].includes(name)) continue
+      if (["href", "src", "alt", "colspan", "rowspan", "target", "rel"].includes(name)) continue
       el.removeAttribute(attr.name)
     }
   })
@@ -75,7 +76,7 @@ function sanitizePastedHtml(html: string): string {
 
 /* ───────────────────────────  FLOAT TOOLBAR  ─────────────────────────── */
 
-function InlineToolbar({
+const InlineToolbar = memo(function InlineToolbar({
   editorRef,
   onFormat,
   visible,
@@ -209,7 +210,7 @@ function InlineToolbar({
       )}
     </div>
   )
-}
+})
 
 /* ───────────────────────────  MAIN EDITOR  ─────────────────────────── */
 
@@ -235,42 +236,48 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
     }
   }, [value])
 
-  const exec = (command: string, valueArg: string = "") => {
+  // Debounced emit: serializing innerHTML + re-rendering the parent form on
+  // every keystroke is what made typing and toolbar actions feel laggy.
+  // Changes are pushed to the parent at most every 250ms and flushed
+  // immediately on blur so a save right after editing never loses content.
+  const onChangeRef = useRef(onChange)
+  useEffect(() => { onChangeRef.current = onChange })
+  const changeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const emitChange = useCallback((immediate = false) => {
     const editor = editorRef.current
     if (!editor) return
-    editor.focus()
-
-    // Restore the last non-collapsed selection if focus moved elsewhere
-    // (e.g. clicking a toolbar button or typing in the link input)
-    const selection = window.getSelection()
-    const saved = savedRangeRef.current
-    if (selection && saved && editor.contains(saved.commonAncestorContainer)) {
-      if (selection.isCollapsed || !editor.contains(selection.anchorNode)) {
-        selection.removeAllRanges()
-        selection.addRange(saved)
-      }
+    if (changeTimer.current) {
+      clearTimeout(changeTimer.current)
+      changeTimer.current = null
     }
-
-    document.execCommand(command, false, valueArg)
-    updateActiveCommands()
-    savedRangeRef.current = null
-    if (editorRef.current) {
-      onChange(editorRef.current.innerHTML)
+    if (immediate) {
+      onChangeRef.current(editor.innerHTML)
+      return
     }
-    // Restore selection check after formatting
-    setTimeout(checkSelection, 0)
-  }
+    changeTimer.current = setTimeout(() => {
+      changeTimer.current = null
+      if (editorRef.current) onChangeRef.current(editorRef.current.innerHTML)
+    }, 250)
+  }, [])
 
-  const updateActiveCommands = () => {
+  useEffect(() => () => {
+    if (changeTimer.current) clearTimeout(changeTimer.current)
+  }, [])
+
+  const updateActiveCommands = useCallback(() => {
     const active = new Set<string>()
     const commands = ["bold", "italic", "underline", "insertUnorderedList", "insertOrderedList"]
     commands.forEach((cmd) => {
       if (document.queryCommandState(cmd)) active.add(cmd)
     })
-    setActiveCommands(active)
-  }
+    // Skip the re-render when the active command set hasn't actually changed
+    setActiveCommands((prev) =>
+      prev.size === active.size && [...active].every((c) => prev.has(c)) ? prev : active
+    )
+  }, [])
 
-  const checkSelection = () => {
+  const checkSelection = useCallback(() => {
     const selection = window.getSelection()
     const editor = editorRef.current
     if (!selection || !editor) { setToolbarVisible(false); return }
@@ -290,16 +297,56 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
       Math.max(rect.left + rect.width / 2 - toolbarWidth / 2, editorRect.left + 8),
       editorRect.right - toolbarWidth - 8
     )
-    setToolbarPos({ top: rect.top - 48, left })
+    const top = rect.top - 48
+    // Keep the same object when the position hasn't moved to avoid re-renders
+    setToolbarPos((prev) =>
+      Math.round(prev.top) === Math.round(top) && Math.round(prev.left) === Math.round(left)
+        ? prev
+        : { top, left }
+    )
     setToolbarVisible(true)
-  }
+  }, [])
+
+  const exec = useCallback((command: string, valueArg: string = "") => {
+    const editor = editorRef.current
+    if (!editor) return
+    editor.focus()
+
+    // Restore the last non-collapsed selection if focus moved elsewhere
+    // (e.g. clicking a toolbar button or typing in the link input)
+    const selection = window.getSelection()
+    const saved = savedRangeRef.current
+    if (selection && saved && editor.contains(saved.commonAncestorContainer)) {
+      if (selection.isCollapsed || !editor.contains(selection.anchorNode)) {
+        selection.removeAllRanges()
+        selection.addRange(saved)
+      }
+    }
+
+    if (command === "createLink" && valueArg) {
+      const href = normalizeHref(valueArg)
+      const sel = window.getSelection()
+      if (sel && !sel.isCollapsed) {
+        document.execCommand("createLink", false, href)
+      } else {
+        // Nothing selected: insert the URL itself as linked anchor text
+        // so raw URL entries still become real backlinks.
+        document.execCommand("insertHTML", false, `<a href="${href}">${escapeHtml(href)}</a>&nbsp;`)
+      }
+      enhanceDomAnchors(editor)
+    } else {
+      document.execCommand(command, false, valueArg)
+    }
+
+    updateActiveCommands()
+    savedRangeRef.current = null
+    emitChange()
+    // Restore selection check after formatting
+    setTimeout(checkSelection, 0)
+  }, [emitChange, updateActiveCommands, checkSelection])
 
   const handleInput = () => {
-    if (editorRef.current) {
-      onChange(editorRef.current.innerHTML)
-    }
-    updateActiveCommands()
-    checkSelection()
+    emitChange()
   }
 
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -309,7 +356,8 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
     if (html) {
       e.preventDefault()
       document.execCommand("insertHTML", false, sanitizePastedHtml(html))
-      handleInput()
+      if (editorRef.current) enhanceDomAnchors(editorRef.current)
+      emitChange()
       return
     }
 
@@ -319,7 +367,7 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
       if (table) {
         e.preventDefault()
         document.execCommand("insertHTML", false, table)
-        handleInput()
+        emitChange()
       }
     }
   }
@@ -334,6 +382,9 @@ export function RichEditor({ value, onChange, placeholder = "Write your content 
   }
 
   const handleBlur = () => {
+    // Flush any pending debounced change so the parent form always has the
+    // latest HTML before a submit that immediately follows the blur.
+    emitChange(true)
     // Delay hiding so toolbar clicks register before it disappears
     setTimeout(() => {
       const activeEl = document.activeElement

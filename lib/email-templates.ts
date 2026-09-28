@@ -1408,6 +1408,47 @@ MartPoint Sales Team`,
       { eyebrow: "Sales", title: "Meeting confirmed", signoff: "MartPoint Sales Team" },
     ),
   },
+  {
+    key: "meeting_summary",
+    label: "Meeting Summary / Notes (lead)",
+    description: "Sent to a lead when an admin shares the AI-generated summary and action items after a call.",
+    variables: ["fullName", "title", "when", "summary", "summaryHtml", "actionItemsText", "actionItemsBlock", "linksText", "linksBlock"],
+    subject: "Notes from our call — {{title}}",
+    text: `Hi {{fullName}},
+
+Thanks for your time on "{{title}}"{{when}}. Here's a quick recap:
+
+{{summary}}
+
+{{actionItemsText}}
+
+{{linksText}}
+
+Anything we missed or want to follow up on? Just reply to this email.
+
+Best regards,
+MartPoint Sales Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Thanks for your time on <strong>{{title}}</strong>{{when}}. Here's a quick recap of what we discussed:
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 6px;">Summary</p>
+                    <p style="font-size:14px; line-height:1.6; color:#111827; margin:0;">{{summaryHtml}}</p>
+                  </td>
+                </tr>
+              </table>
+              {{actionItemsBlock}}
+              {{linksBlock}}
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                Anything we missed or want to follow up on? Just reply to this email.
+              </p>`,
+      { eyebrow: "Sales", title: "Meeting notes", signoff: "MartPoint Sales Team" },
+    ),
+  },
 ]
 
 const templateMap = new Map(EMAIL_TEMPLATES.map((t) => [t.key, t]))

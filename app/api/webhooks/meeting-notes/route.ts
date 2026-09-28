@@ -188,13 +188,13 @@ export async function POST(request: Request) {
     }
 
     // ── Find the meeting row ──
-    let row: { id: string } | null = null
+    let row: { id: string; status: string } | null = null
     if (notes.meetingId) {
-      const { data } = await supabase.from("lead_meetings").select("id").eq("id", notes.meetingId).maybeSingle()
+      const { data } = await supabase.from("lead_meetings").select("id, status").eq("id", notes.meetingId).maybeSingle()
       row = data
     }
     if (!row && notes.customerToken) {
-      const { data } = await supabase.from("lead_meetings").select("id").eq("customer_token", notes.customerToken).maybeSingle()
+      const { data } = await supabase.from("lead_meetings").select("id, status").eq("customer_token", notes.customerToken).maybeSingle()
       row = data
     }
     if (!row && notes.meetingLink) {
@@ -202,7 +202,7 @@ export async function POST(request: Request) {
       if (code) {
         const { data } = await supabase
           .from("lead_meetings")
-          .select("id")
+          .select("id, status")
           .ilike("meeting_link", `%${code}%`)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -223,6 +223,8 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString()
+    // A transcript means the call happened — mark it completed automatically.
+    const statusPatch = row.status === "SCHEDULED" ? { status: "COMPLETED" } : {}
     const { error } = await supabase
       .from("lead_meetings")
       .update({
@@ -234,6 +236,7 @@ export async function POST(request: Request) {
         notes_provider: notes.provider,
         notes_received_at: now,
         updated_at: now,
+        ...statusPatch,
       })
       .eq("id", row.id)
 

@@ -108,6 +108,7 @@ interface Meeting {
   transcriptUrl: string | null
   recordingUrl: string | null
   notesProvider: string | null
+  summarySentAt: string | null
 }
 
 const MEETING_STATUS_COLORS: Record<Meeting["status"], string> = {
@@ -385,7 +386,7 @@ export function LeadDetailModal({
     }
   }
 
-  const handleMeetingAction = async (m: Meeting, action: "cancel" | "resend_invite" | "set_status", status?: Meeting["status"]) => {
+  const handleMeetingAction = async (m: Meeting, action: "cancel" | "resend_invite" | "set_status" | "email_summary", status?: Meeting["status"]) => {
     if (action === "cancel" && !confirm("Cancel this meeting? The lead's calendar invite will be removed.")) return
     setMeetingActionId(m.id)
     setMeetingMessage("")
@@ -399,6 +400,7 @@ export function LeadDetailModal({
       if (data.success && data.meeting) {
         setMeetings((prev) => prev.map((x) => (x.id === m.id ? data.meeting : x)))
         if (action === "resend_invite") setMeetingMessage(data.emailSent ? "Invitation re-sent." : "Could not send the invitation email.")
+        if (action === "email_summary") setMeetingMessage(data.emailSent ? "Summary sent to the lead." : "Could not send the summary email.")
       } else {
         setMeetingMessage(data.error || "Action failed")
       }
@@ -1418,6 +1420,19 @@ export function LeadDetailModal({
                                 <summary className="cursor-pointer text-muted-foreground select-none">Transcript</summary>
                                 <p className="mt-1 whitespace-pre-wrap max-h-48 overflow-y-auto">{m.transcript}</p>
                               </details>
+                            )}
+                            {m.summary && lead.email && (
+                              <div className="flex items-center gap-2 pt-1">
+                                <Button size="sm" variant="outline" disabled={busy} onClick={() => handleMeetingAction(m, "email_summary")}>
+                                  {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Mail className="w-3.5 h-3.5 mr-1" />}
+                                  {m.summarySentAt ? "Resend to lead" : "Share with lead"}
+                                </Button>
+                                {m.summarySentAt && (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    Sent {new Date(m.summarySentAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                         )}

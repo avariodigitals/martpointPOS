@@ -10,7 +10,7 @@
 
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { sendEmail, type EmailAttachment } from "./email"
-import { sendLeadEmail } from "./lead-email-outbound"
+import { sendLeadEmail, escapeHtml } from "./lead-email-outbound"
 import { renderEmailTemplate } from "./email-templates"
 import { getBaseUrl } from "./marketing"
 import {
@@ -49,6 +49,7 @@ export interface MeetingRecord {
   recordingUrl: string | null
   notesProvider: string | null
   notesReceivedAt: string | null
+  summarySentAt: string | null
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -87,6 +88,7 @@ export function mapMeeting(row: Record<string, unknown>): MeetingRecord {
     recordingUrl: (row.recording_url as string) ?? null,
     notesProvider: (row.notes_provider as string) ?? null,
     notesReceivedAt: (row.notes_received_at as string) ?? null,
+    summarySentAt: (row.summary_sent_at as string) ?? null,
     createdBy: (row.created_by as string) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -320,6 +322,53 @@ export async function sendMeetingConfirmationEmails(
       `Admin: ${getBaseUrl()}/admin/calendar`,
     ].join("\n"),
   })
+}
+
+/** Share the AI-generated recap + action items with the lead. */
+export async function sendMeetingSummaryEmail(meeting: MeetingRecord): Promise<boolean> {
+  if (!meeting.leadEmail || !meeting.summary) return false
+  const when = meeting.scheduledAt ? ` on ${formatWhen(meeting.scheduledAt, meeting.leadTimezone || meeting.timezone)}` : ""
+
+  const items = meeting.actionItems ?? []
+  const actionItemsText = items.length ? `Action items:\n${items.map((i) => `• ${i}`).join("\n")}` : ""
+  const actionItemsBlock = items.length
+    ? `<p style="font-size:14px; color:#6b7280; margin:0 0 6px;">Action items</p>
+              <ul style="font-size:14px; line-height:1.7; color:#111827; margin:0 0 24px; padding-left:20px;">
+                ${items.map((i) => `<li>${escapeHtml(i)}</li>`).join("\n                ")}
+              </ul>`
+    : ""
+
+  const links: { label: string; url: string }[] = []
+  if (meeting.transcriptUrl) links.push({ label: "Full transcript", url: meeting.transcriptUrl })
+  if (meeting.recordingUrl) links.push({ label: "Recording", url: meeting.recordingUrl })
+  const linksText = links.map((l) => `${l.label}: ${l.url}`).join("\n")
+  const linksBlock = links.length
+    ? `<p style="font-size:13px; line-height:1.6; margin:0 0 24px; color:#374151;">${links
+        .map((l) => `<a href="${escapeHtml(l.url)}" style="color:#0057FF; text-decoration:underline;">${escapeHtml(l.label)}</a>`)
+        .join(" &nbsp;·&nbsp; ")}</p>`
+    : ""
+
+  const tpl = await renderEmailTemplate("meeting_summary", {
+    fullName: firstName(meeting.leadFullName),
+    title: meeting.title,
+    when,
+    summary: meeting.summary,
+    summaryHtml: escapeHtml(meeting.summary).replace(/\n/g, "<br>"),
+    actionItemsText,
+    actionItemsBlock,
+    linksText,
+    linksBlock,
+  })
+
+  const result = await sendLeadEmail({
+    leadId: meeting.leadId,
+    to: meeting.leadEmail,
+    subject: tpl.subject,
+    body: tpl.text,
+    html: tpl.html,
+    metadata: { meeting_id: meeting.id, kind: "meeting_summary" },
+  })
+  return result.sent
 }
 
 /* ─── Create the Google Meet event for a meeting (best effort) ─── */

@@ -2,10 +2,10 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { MEETING_SELECT, mapMeeting, cancelMeeting, sendMeetingInviteEmail, computeAvailableSlots } from "@/lib/meeting-booking"
+import { MEETING_SELECT, mapMeeting, cancelMeeting, sendMeetingInviteEmail, sendMeetingSummaryEmail, computeAvailableSlots } from "@/lib/meeting-booking"
 
 const patchSchema = z.object({
-  action: z.enum(["cancel", "resend_invite", "set_status", "save_notes"]),
+  action: z.enum(["cancel", "resend_invite", "set_status", "save_notes", "email_summary"]),
   status: z.enum(["COMPLETED", "NO_SHOW", "SCHEDULED"]).optional(),
   summary: z.string().nullable().optional(),
   actionItems: z.array(z.string()).nullable().optional(),
@@ -85,6 +85,16 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       .single()
     if (error || !data) return NextResponse.json({ error: "Failed to save notes" }, { status: 500 })
     return NextResponse.json({ success: true, meeting: mapMeeting(data as Record<string, unknown>) })
+  }
+
+  if (parsed.data.action === "email_summary") {
+    if (!meeting.summary) return NextResponse.json({ error: "No notes on this meeting yet" }, { status: 400 })
+    if (!meeting.leadEmail) return NextResponse.json({ error: "Lead has no email address" }, { status: 400 })
+    const sent = await sendMeetingSummaryEmail(meeting)
+    if (sent) {
+      await supabase.from("lead_meetings").update({ summary_sent_at: new Date().toISOString() }).eq("id", meeting.id)
+    }
+    return NextResponse.json({ success: true, emailSent: sent, meeting: await loadMeeting(id, meetingId) })
   }
 
   // set_status

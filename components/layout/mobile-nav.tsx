@@ -146,13 +146,17 @@ export function MobileNav({ logo }: MobileNavProps) {
                     className="w-full bg-retail hover:bg-retail/90 text-white"
                     onClick={() => setOpen(false)}
                   >
-                    <a
-                      href={ctaNav.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {ctaNav.label}
-                    </a>
+                    {ctaNav.href.startsWith("http") ? (
+                      <a
+                        href={ctaNav.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {ctaNav.label}
+                      </a>
+                    ) : (
+                      <Link href={ctaNav.href}>{ctaNav.label}</Link>
+                    )}
                   </Button>
                 </div>
               </div>

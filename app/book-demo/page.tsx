@@ -1,8 +1,8 @@
-export const revalidate = 86400
 import type { Metadata } from "next"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
-import { LeadForm } from "@/components/shared/lead-form"
+import { DemoBooking } from "@/components/shared/demo-booking"
+import { getPublicPartnerByPartnerId } from "@/lib/partners"
 
 export const metadata: Metadata = {
   title: "Book a Free Demo — See MartPoint POS in Action",
@@ -18,7 +18,16 @@ export const metadata: Metadata = {
   },
 }
 
-export default function BookDemoPage() {
+export default async function BookDemoPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const sp = await searchParams
+  const partnerCode = typeof sp.partner === "string" ? sp.partner.toUpperCase().trim() : ""
+  const partner = partnerCode ? await getPublicPartnerByPartnerId(partnerCode) : null
+  const validPartner = partner && partner.status === "ACTIVE" ? partner : null
+
   return (
     <>
       <Header />
@@ -26,7 +35,12 @@ export default function BookDemoPage() {
         <section className="w-full bg-background border-b border-border">
           <div className="container-martpoint py-12 md:py-16">
             <div className="max-w-2xl mx-auto">
-              <LeadForm pageType="demo" />
+              {validPartner && (
+                <div className="mb-6 rounded-lg border border-retail/20 bg-retail/5 p-4 text-sm text-center">
+                  Referred by <span className="font-medium">{validPartner.businessName}</span> — your demo will be linked to them.
+                </div>
+              )}
+              <DemoBooking partnerCode={validPartner?.partnerId} />
             </div>
           </div>
         </section>

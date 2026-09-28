@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { authorizeAdmin } from "@/lib/admin-auth"
 import { exchangeGoogleCode, getGoogleSettings, saveGoogleSettings } from "@/lib/google-calendar"
 import { googleRedirectUri, GOOGLE_OAUTH_STATE_COOKIE } from "@/lib/google-oauth-redirect"
 
@@ -11,11 +10,13 @@ function back(request: Request, params: Record<string, string>) {
   return NextResponse.redirect(url)
 }
 
-/* ─── GET OAuth redirect target ─── */
+/* ─── GET OAuth redirect target ───
+ * Google redirects here cross-site, so the SameSite=Strict admin cookie is not
+ * sent. Auth is instead enforced by the state cookie issued in /connect (which
+ * already required an authorized admin session) — a valid matching state proves
+ * the flow was started by that admin in this browser.
+ */
 export async function GET(request: Request) {
-  const auth = await authorizeAdmin("settings")
-  if (auth.denied) return auth.denied
-
   const { searchParams } = new URL(request.url)
   const code = searchParams.get("code")
   const state = searchParams.get("state")

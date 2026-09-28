@@ -9,7 +9,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from "./supabase"
-import { sendEmail } from "./email"
+import { sendEmail, type EmailAttachment } from "./email"
 import { sendLeadEmail } from "./lead-email-outbound"
 import { renderEmailTemplate } from "./email-templates"
 import { getBaseUrl } from "./marketing"
@@ -163,6 +163,61 @@ export function formatWhen(iso: string, tz: string): string {
   })
 }
 
+/* ─── Calendar (.ics) attachment ───
+ * Sent inside our branded confirmation email so the lead gets an
+ * "Add to Calendar" card instead of Google's bare invite from an
+ * address they don't know.
+ */
+function icsDate(d: Date): string {
+  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")
+}
+
+function icsEscape(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n")
+}
+
+export function buildMeetingIcs(meeting: MeetingRecord): EmailAttachment | null {
+  if (!meeting.scheduledAt) return null
+  const start = new Date(meeting.scheduledAt)
+  const end = new Date(start.getTime() + meeting.durationMinutes * 60_000)
+  const description = [
+    meeting.meetingLink ? `Join: ${meeting.meetingLink}` : "",
+    `Details: ${meetingPageUrl(meeting.customerToken)}`,
+  ]
+    .filter(Boolean)
+    .join("\n")
+
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//MartPoint//Meeting Booking//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:REQUEST",
+    "BEGIN:VEVENT",
+    `UID:${meeting.googleEventId || meeting.id}@martpoint.com.ng`,
+    `DTSTAMP:${icsDate(new Date())}`,
+    `DTSTART:${icsDate(start)}`,
+    `DTEND:${icsDate(end)}`,
+    `SUMMARY:${icsEscape(meeting.title)}`,
+    "ORGANIZER;CN=MartPoint:mailto:hello@martpoint.com.ng",
+    meeting.leadEmail
+      ? `ATTENDEE;CN=${icsEscape(meeting.leadFullName || meeting.leadEmail)};RSVP=TRUE:mailto:${meeting.leadEmail}`
+      : null,
+    meeting.meetingLink ? `LOCATION:${icsEscape(meeting.meetingLink)}` : null,
+    `DESCRIPTION:${icsEscape(description)}`,
+    "STATUS:CONFIRMED",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ]
+    .filter((l): l is string => Boolean(l))
+    .join("\r\n")
+
+  return {
+    filename: "invite.ics",
+    content: Buffer.from(`${lines}\r\n`).toString("base64"),
+  }
+}
+
 function firstName(full?: string | null): string {
   return (full || "").trim().split(/\s+/)[0] || "there"
 }
@@ -192,7 +247,10 @@ export async function sendMeetingInviteEmail(meeting: MeetingRecord): Promise<bo
   return result.sent
 }
 
-export async function sendMeetingConfirmationEmails(meeting: MeetingRecord): Promise<void> {
+export async function sendMeetingConfirmationEmails(
+  meeting: MeetingRecord,
+  opts: { notifyTeam?: boolean } = {},
+): Promise<void> {
   if (!meeting.scheduledAt) return
   const leadTz = meeting.leadTimezone || meeting.timezone
   const whenLead = formatWhen(meeting.scheduledAt, leadTz)
@@ -219,17 +277,21 @@ export async function sendMeetingConfirmationEmails(meeting: MeetingRecord): Pro
       detailsUrl: url,
     })
 
+    const ics = buildMeetingIcs(meeting)
+
     await sendLeadEmail({
       leadId: meeting.leadId,
       to: meeting.leadEmail,
       subject: tpl.subject,
       body: tpl.text,
       html: tpl.html,
+      attachments: ics ? [ics] : undefined,
       metadata: { meeting_id: meeting.id, kind: "meeting_confirmation" },
     })
   }
 
   // Heads-up to the sales team (route-configured recipients).
+  if (opts.notifyTeam === false) return
   await sendEmail({
     route: "lead_submission",
     subject: `Meeting booked: ${meeting.leadFullName || meeting.leadEmail || "Lead"} — ${whenTeam}`,
@@ -248,7 +310,10 @@ export async function sendMeetingConfirmationEmails(meeting: MeetingRecord): Pro
 
 /* ─── Create the Google Meet event for a meeting (best effort) ─── */
 
-export async function attachGoogleMeet(meeting: MeetingRecord): Promise<{ meetingLink: string; eventId: string } | null> {
+export async function attachGoogleMeet(
+  meeting: MeetingRecord,
+  opts: { sendUpdates?: boolean } = {},
+): Promise<{ meetingLink: string; eventId: string } | null> {
   if (!meeting.scheduledAt) return null
   const g = await getGoogleSettings()
   if (!isGoogleConnected(g)) return null
@@ -257,6 +322,7 @@ export async function attachGoogleMeet(meeting: MeetingRecord): Promise<{ meetin
   const end = new Date(start.getTime() + meeting.durationMinutes * 60_000)
   const who = [meeting.leadFullName, meeting.leadBusinessName].filter(Boolean).join(" · ")
   const event = await createMeetEvent({
+    sendUpdates: opts.sendUpdates,
     summary: who ? `${meeting.title} — ${who}` : meeting.title,
     description: [
       meeting.leadFullName ? `Lead: ${meeting.leadFullName}` : null,
@@ -309,7 +375,9 @@ export async function confirmMeetingSlot(
   let meetError: string | undefined
   let meet: { meetingLink: string; eventId: string } | null = null
   try {
-    meet = await attachGoogleMeet(scheduled)
+    // Suppress Google's own invite — our branded confirmation email (with .ics)
+    // is sent below instead, so the lead doesn't get an "unknown sender" invite.
+    meet = await attachGoogleMeet(scheduled, { sendUpdates: false })
   } catch (err) {
     meetError = err instanceof Error ? err.message : "Failed to create Google Meet"
     console.error("[meetings] Google Meet creation failed:", meetError)

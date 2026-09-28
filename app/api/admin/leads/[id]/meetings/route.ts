@@ -10,6 +10,7 @@ import {
   mapMeeting,
   attachGoogleMeet,
   sendMeetingInviteEmail,
+  sendMeetingConfirmationEmails,
   getSchedulingSettings,
 } from "@/lib/meeting-booking"
 
@@ -161,7 +162,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     if (body.createMeet && !body.meetingLink) {
       try {
-        const meet = await attachGoogleMeet(meeting)
+        // Lead gets our branded confirmation email (+ .ics) instead of
+        // Google's bare invite from an address they don't know.
+        const meet = await attachGoogleMeet(meeting, { sendUpdates: false })
         if (meet) {
           const g = await getGoogleSettings()
           const { data: upd } = await supabase
@@ -185,6 +188,11 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         console.error("[Lead Meetings POST] Meet:", meetError)
       }
     }
+
+    // Branded confirmation (+ .ics calendar file) is the lead-facing notification.
+    await sendMeetingConfirmationEmails(meeting, { notifyTeam: false }).catch((err) =>
+      console.error("[Lead Meetings POST] confirmation email failed:", err),
+    )
 
     return NextResponse.json({ success: true, meeting, meetError })
   } catch (err) {

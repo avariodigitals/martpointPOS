@@ -198,6 +198,9 @@ export interface CreateMeetEventInput {
   timezone: string
   attendeeEmail?: string
   attendeeName?: string
+  /** When false, Google does not email the attendee its own (bare) invite —
+   *  we send a branded confirmation with an .ics attachment instead. */
+  sendUpdates?: boolean
 }
 
 export interface MeetEvent {
@@ -230,7 +233,10 @@ export async function createMeetEvent(input: CreateMeetEventInput): Promise<Meet
     {
       method: "POST",
       body: JSON.stringify(body),
-      query: { conferenceDataVersion: "1", sendUpdates: input.attendeeEmail ? "all" : "none" },
+      query: {
+        conferenceDataVersion: "1",
+        sendUpdates: input.attendeeEmail && input.sendUpdates !== false ? "all" : "none",
+      },
     },
   )
 

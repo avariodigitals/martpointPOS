@@ -5,7 +5,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from "./supabase"
-import { sendEmail, getEmailSettings, isSmtpConfigured, REPLY_TO } from "./email"
+import { sendEmail, getEmailSettings, isSmtpConfigured, REPLY_TO, type EmailAttachment } from "./email"
 import { sendEmailViaSmtp } from "./email-smtp"
 
 export interface LeadEmailRecord {
@@ -52,6 +52,8 @@ export interface SendLeadEmailInput {
   html?: string
   /** Skip appending the mailbox signature. */
   noSignature?: boolean
+  /** File attachments — e.g. an .ics calendar invite. */
+  attachments?: EmailAttachment[]
   metadata?: Record<string, unknown>
 }
 
@@ -66,9 +68,11 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
   // Lead threads go through the admin's own mailbox (SMTP) when configured,
   // so replies land in the real inbox and are picked up by the IMAP sync.
   const useMailbox = isSmtpConfigured(settings)
-  const from = useMailbox
+  const rawFrom = useMailbox
     ? settings.smtp.fromEmail || settings.smtp.user
     : settings.fromEmail || process.env.RESEND_FROM_EMAIL || "MartPoint <hello@martpoint.com.ng>"
+  // Bare addresses get a display name so mail clients don't show an anonymous sender.
+  const from = rawFrom.includes("<") ? rawFrom : `MartPoint <${rawFrom}>`
 
   const signature = settings.signature.trim()
   const textBody = signature && !input.noSignature ? `${input.body}\n\n-- \n${signature}` : input.body
@@ -77,8 +81,20 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
     `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#111827;white-space:pre-wrap;">${escapeHtml(textBody)}</div>`
 
   const sent = useMailbox
-    ? await sendEmailViaSmtp({ subject: input.subject, text: textBody, html, replyTo: from }, settings, from, [input.to])
-    : await sendEmail({ to: input.to, subject: input.subject, text: textBody, html, replyTo: REPLY_TO.sales })
+    ? await sendEmailViaSmtp(
+        { subject: input.subject, text: textBody, html, replyTo: from, attachments: input.attachments },
+        settings,
+        from,
+        [input.to],
+      )
+    : await sendEmail({
+        to: input.to,
+        subject: input.subject,
+        text: textBody,
+        html,
+        replyTo: REPLY_TO.sales,
+        attachments: input.attachments,
+      })
 
   if (!isSupabaseConfigured()) return { sent, email: null }
 

@@ -13,7 +13,7 @@ interface CalendarMeeting {
   timezone: string
   meetingLink: string | null
   provider: string | null
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"
+  status: "PENDING" | "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"
   notes: string | null
   leadFullName: string
   leadBusinessName: string
@@ -61,6 +61,7 @@ export async function GET(request: Request) {
     .from("lead_meetings")
     .select("*, leads(full_name, business_name, email, phone)")
     .neq("status", "CANCELLED")
+    .not("scheduled_at", "is", null)
     .order("scheduled_at", { ascending: true })
 
   if (from) query = query.gte("scheduled_at", new Date(from).toISOString())

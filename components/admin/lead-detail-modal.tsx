@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { businessTypeOptions } from "@/lib/industries"
+import type { StoredEstimate } from "@/lib/estimate-calculator"
 import {
   X,
   Mail,
@@ -44,6 +45,7 @@ export interface Lead {
   branches: string
   staffSize: string
   challenge?: string
+  estimate?: StoredEstimate | null
   message?: string
   source: string
   status: "New" | "Contacted" | "Qualified" | "Proposal" | "Won" | "Lost"
@@ -88,12 +90,25 @@ interface Meeting {
   id: string
   customerToken: string
   title: string
-  scheduledAt: string
+  scheduledAt: string | null
   durationMinutes: number
   timezone: string
   meetingLink: string | null
   provider: string | null
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"
+  status: "PENDING" | "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"
+  proposedSlots: string[] | null
+  leadTimezone: string | null
+  inviteSentAt: string | null
+  expiresAt: string | null
+  googleEventId: string | null
+}
+
+const MEETING_STATUS_COLORS: Record<Meeting["status"], string> = {
+  PENDING: "bg-amber-50 text-amber-700",
+  SCHEDULED: "bg-blue-50 text-blue-700",
+  COMPLETED: "bg-green-50 text-green-700",
+  CANCELLED: "bg-red-50 text-red-700",
+  NO_SHOW: "bg-gray-100 text-gray-700",
 }
 
 const PIPELINE_STAGES: Lead["status"][] = ["New", "Contacted", "Qualified", "Proposal", "Won", "Lost"]
@@ -170,6 +185,7 @@ export function LeadDetailModal({
   const [emailForm, setEmailForm] = useState({ subject: "", body: "" })
   const [sendingEmail, setSendingEmail] = useState(false)
   const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null)
+  const [meetingMode, setMeetingMode] = useState<"invite" | "direct">("invite")
   const [meetingForm, setMeetingForm] = useState({
     title: "MartPoint Demo",
     scheduledAt: "",
@@ -178,7 +194,13 @@ export function LeadDetailModal({
     meetingLink: "",
     provider: "",
     notes: "",
+    createMeet: true,
   })
+  const [proposedSlots, setProposedSlots] = useState<string[]>([])
+  const [newSlot, setNewSlot] = useState("")
+  const [googleConnected, setGoogleConnected] = useState(false)
+  const [meetingMessage, setMeetingMessage] = useState("")
+  const [meetingActionId, setMeetingActionId] = useState<string | null>(null)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -198,7 +220,9 @@ export function LeadDetailModal({
     fetch(`/api/admin/leads/${lead.id}/meetings`)
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled) setMeetings(data.meetings || [])
+        if (cancelled) return
+        setMeetings(data.meetings || [])
+        setGoogleConnected(Boolean(data.googleConnected))
       })
       .catch(() => {
         if (!cancelled) setMeetings([])
@@ -298,40 +322,82 @@ export function LeadDetailModal({
   }
 
   const handleScheduleMeeting = async () => {
-    if (!meetingForm.scheduledAt) return
+    if (meetingMode === "direct" && !meetingForm.scheduledAt) return
     setMeetingLoading(true)
+    setMeetingMessage("")
     try {
+      const common = {
+        title: meetingForm.title,
+        durationMinutes: Number(meetingForm.durationMinutes) || 30,
+        timezone: meetingForm.timezone,
+        notes: meetingForm.notes,
+      }
+      const payload =
+        meetingMode === "invite"
+          ? { mode: "invite", ...common, proposedSlots: proposedSlots.map((s) => new Date(s).toISOString()) }
+          : {
+              mode: "direct",
+              ...common,
+              scheduledAt: new Date(meetingForm.scheduledAt).toISOString(),
+              meetingLink: meetingForm.meetingLink,
+              provider: meetingForm.meetingLink ? meetingForm.provider : "",
+              createMeet: meetingForm.createMeet && !meetingForm.meetingLink,
+            }
       const res = await fetch(`/api/admin/leads/${lead.id}/meetings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: meetingForm.title,
-          scheduledAt: meetingForm.scheduledAt,
-          durationMinutes: Number(meetingForm.durationMinutes) || 30,
-          timezone: meetingForm.timezone,
-          meetingLink: meetingForm.meetingLink,
-          provider: meetingForm.provider,
-          notes: meetingForm.notes,
-        }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (data.success && data.meeting) {
         setMeetings((prev) => [data.meeting, ...prev])
-        setMeetingForm({
-          title: "MartPoint Demo",
-          scheduledAt: "",
-          durationMinutes: 30,
-          timezone: "Africa/Lagos",
-          meetingLink: "",
-          provider: "",
-          notes: "",
-        })
+        setMeetingForm((p) => ({ ...p, scheduledAt: "", meetingLink: "", provider: "", notes: "" }))
+        setProposedSlots([])
+        if (meetingMode === "invite") {
+          setMeetingMessage(data.emailSent ? "Invitation sent — the lead can now pick a time." : "Invitation created, but the email could not be sent. Copy the link below and share it manually.")
+        } else if (data.meetError) {
+          setMeetingMessage(`Meeting saved. Google Meet: ${data.meetError}`)
+        } else {
+          setMeetingMessage(data.meeting.meetingLink ? "Meeting scheduled with a Google Meet link." : "Meeting scheduled.")
+        }
+      } else {
+        setMeetingMessage(data.error || "Failed to schedule meeting")
       }
     } catch {
-      // ignore
+      setMeetingMessage("Failed to schedule meeting")
     } finally {
       setMeetingLoading(false)
     }
+  }
+
+  const handleMeetingAction = async (m: Meeting, action: "cancel" | "resend_invite" | "set_status", status?: Meeting["status"]) => {
+    if (action === "cancel" && !confirm("Cancel this meeting? The lead's calendar invite will be removed.")) return
+    setMeetingActionId(m.id)
+    setMeetingMessage("")
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/meetings/${m.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, status }),
+      })
+      const data = await res.json()
+      if (data.success && data.meeting) {
+        setMeetings((prev) => prev.map((x) => (x.id === m.id ? data.meeting : x)))
+        if (action === "resend_invite") setMeetingMessage(data.emailSent ? "Invitation re-sent." : "Could not send the invitation email.")
+      } else {
+        setMeetingMessage(data.error || "Action failed")
+      }
+    } catch {
+      setMeetingMessage("Action failed")
+    } finally {
+      setMeetingActionId(null)
+    }
+  }
+
+  const addProposedSlot = () => {
+    if (!newSlot || Number.isNaN(new Date(newSlot).getTime())) return
+    setProposedSlots((prev) => (prev.includes(newSlot) ? prev : [...prev, newSlot].sort()))
+    setNewSlot("")
   }
 
   const copyMeetingLink = (token: string) => {
@@ -382,7 +448,9 @@ export function LeadDetailModal({
 
   const { sourceLabel, sourcePartner } = formatSource(lead.source)
 
-  const estimate = lead.source.includes("estimate") ? parseEstimate(lead.challenge) : null
+  const estimate =
+    normalizeEstimate(lead.estimate) ??
+    (lead.source.includes("estimate") ? parseEstimate(lead.challenge) : null)
 
   const selectTab = (t: Tab) => {
     setTab(t)
@@ -517,11 +585,43 @@ export function LeadDetailModal({
                       <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Retail Recommendation</p>
                       <p className="text-sm font-semibold text-foreground">{estimate.retailPlan}</p>
                       <p className="text-xl font-extrabold text-retail mt-1">{estimate.retailRange}</p>
+                      {estimate.retailTier && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">License tier: {estimate.retailTier}</p>
+                      )}
+                      {estimate.retailRationale && (
+                        <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{estimate.retailRationale}</p>
+                      )}
+                      {estimate.retailInclusions && estimate.retailInclusions.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {estimate.retailInclusions.map((inc) => (
+                            <li key={inc} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                              <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0 text-retail" />
+                              {inc}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     <div className="rounded-lg border border-erp/10 bg-background p-4">
                       <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">ERP Recommendation</p>
                       <p className="text-sm font-semibold text-foreground">{estimate.erpPlan}</p>
                       <p className="text-xl font-extrabold text-erp mt-1">{estimate.erpRange}</p>
+                      {estimate.erpTier && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">License tier: {estimate.erpTier}</p>
+                      )}
+                      {estimate.erpRationale && (
+                        <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{estimate.erpRationale}</p>
+                      )}
+                      {estimate.erpInclusions && estimate.erpInclusions.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {estimate.erpInclusions.map((inc) => (
+                            <li key={inc} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                              <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0 text-erp" />
+                              {inc}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -536,7 +636,7 @@ export function LeadDetailModal({
                 <InfoCard icon={<Calendar className="w-4 h-4" />} label="Submitted" value={new Date(lead.submittedAt).toLocaleString()} />
               </div>
 
-              {lead.challenge && !estimate && (
+              {lead.challenge && !lead.challenge.startsWith("Estimate —") && (
                 <div>
                   <p className={labelClass}>Challenge / Pain Point</p>
                   <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-foreground leading-relaxed">
@@ -995,6 +1095,32 @@ export function LeadDetailModal({
           {/* ─── Meeting ─── */}
           {tab === "meeting" && (
             <div className="space-y-5">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="inline-flex rounded-lg border border-border p-0.5 bg-muted/40">
+                  {(["invite", "direct"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setMeetingMode(mode)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                        meetingMode === mode ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {mode === "invite" ? "Let lead pick a time" : "Schedule directly"}
+                    </button>
+                  ))}
+                </div>
+                <span className={`inline-flex items-center gap-1.5 text-xs ${googleConnected ? "text-green-700" : "text-amber-700"}`}>
+                  <Video className="w-3.5 h-3.5" />
+                  {googleConnected ? "Google Meet connected" : "Google Meet not connected"}
+                  {!googleConnected && (
+                    <a href="/admin/settings#google-meet" className="underline ml-1" target="_blank" rel="noreferrer">
+                      Connect
+                    </a>
+                  )}
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Title</label>
@@ -1007,18 +1133,11 @@ export function LeadDetailModal({
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>Scheduled At *</label>
-                  <input
-                    type="datetime-local"
-                    value={meetingForm.scheduledAt}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, scheduledAt: e.target.value }))}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
                   <label className={labelClass}>Duration (minutes)</label>
                   <input
                     type="number"
+                    min={10}
+                    max={240}
                     value={meetingForm.durationMinutes}
                     onChange={(e) => setMeetingForm((p) => ({ ...p, durationMinutes: Number(e.target.value) }))}
                     className={inputClass}
@@ -1033,31 +1152,92 @@ export function LeadDetailModal({
                     className={inputClass}
                   />
                 </div>
-                <div>
-                  <label className={labelClass}>Meeting Link</label>
-                  <input
-                    type="url"
-                    value={meetingForm.meetingLink}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, meetingLink: e.target.value }))}
-                    className={inputClass}
-                    placeholder="https://meet.google.com/... or Zoom link"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Provider</label>
-                  <select
-                    value={meetingForm.provider}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, provider: e.target.value }))}
-                    className={inputClass}
-                  >
-                    <option value="">Select...</option>
-                    <option value="Google Meet">Google Meet</option>
-                    <option value="Zoom">Zoom</option>
-                    <option value="Microsoft Teams">Microsoft Teams</option>
-                    <option value="WhatsApp">WhatsApp</option>
-                    <option value="Custom">Custom</option>
-                  </select>
-                </div>
+
+                {meetingMode === "direct" ? (
+                  <>
+                    <div>
+                      <label className={labelClass}>Scheduled At *</label>
+                      <input
+                        type="datetime-local"
+                        value={meetingForm.scheduledAt}
+                        onChange={(e) => setMeetingForm((p) => ({ ...p, scheduledAt: e.target.value }))}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-border p-3">
+                      <input
+                        id="create-meet"
+                        type="checkbox"
+                        checked={meetingForm.createMeet && !meetingForm.meetingLink}
+                        disabled={!googleConnected || Boolean(meetingForm.meetingLink)}
+                        onChange={(e) => setMeetingForm((p) => ({ ...p, createMeet: e.target.checked }))}
+                        className="h-4 w-4"
+                      />
+                      <label htmlFor="create-meet" className="text-sm">
+                        Generate a Google Meet link and send the lead a calendar invite
+                        {!googleConnected && <span className="text-muted-foreground"> (connect Google first)</span>}
+                      </label>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Or paste a meeting link</label>
+                      <input
+                        type="url"
+                        value={meetingForm.meetingLink}
+                        onChange={(e) => setMeetingForm((p) => ({ ...p, meetingLink: e.target.value }))}
+                        className={inputClass}
+                        placeholder="https://meet.google.com/... or Zoom link"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Provider</label>
+                      <select
+                        value={meetingForm.provider}
+                        onChange={(e) => setMeetingForm((p) => ({ ...p, provider: e.target.value }))}
+                        className={inputClass}
+                        disabled={!meetingForm.meetingLink}
+                      >
+                        <option value="">Select...</option>
+                        <option value="Google Meet">Google Meet</option>
+                        <option value="Zoom">Zoom</option>
+                        <option value="Microsoft Teams">Microsoft Teams</option>
+                        <option value="WhatsApp">WhatsApp</option>
+                        <option value="Custom">Custom</option>
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  <div className="sm:col-span-2 rounded-lg border border-border p-3 space-y-3">
+                    <div>
+                      <p className="text-sm font-medium">Time options</p>
+                      <p className="text-xs text-muted-foreground">
+                        Leave empty to let the lead choose from your weekly availability (Settings → Meeting Availability), or hand-pick a few slots below.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="datetime-local"
+                        value={newSlot}
+                        onChange={(e) => setNewSlot(e.target.value)}
+                        className={inputClass}
+                      />
+                      <Button type="button" size="sm" variant="outline" onClick={addProposedSlot} disabled={!newSlot}>
+                        Add
+                      </Button>
+                    </div>
+                    {proposedSlots.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {proposedSlots.map((s) => (
+                          <span key={s} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs">
+                            {new Date(s).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                            <button type="button" onClick={() => setProposedSlots((p) => p.filter((x) => x !== s))} aria-label="Remove slot">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Internal Notes</label>
@@ -1069,56 +1249,99 @@ export function LeadDetailModal({
                   placeholder="Agenda, talking points, preparation..."
                 />
               </div>
-              <div className="flex justify-end">
-                <Button size="sm" onClick={handleScheduleMeeting} disabled={meetingLoading || !meetingForm.scheduledAt}>
-                  {meetingLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Video className="w-4 h-4 mr-1.5" />}
-                  Schedule Meeting
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                {meetingMessage ? <p className="text-xs text-muted-foreground">{meetingMessage}</p> : <span />}
+                <Button
+                  size="sm"
+                  onClick={handleScheduleMeeting}
+                  disabled={meetingLoading || (meetingMode === "direct" ? !meetingForm.scheduledAt : !lead.email)}
+                  title={meetingMode === "invite" && !lead.email ? "Lead has no email address" : undefined}
+                >
+                  {meetingLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : meetingMode === "invite" ? <Mail className="w-4 h-4 mr-1.5" /> : <Video className="w-4 h-4 mr-1.5" />}
+                  {meetingMode === "invite" ? "Send Invitation" : "Schedule Meeting"}
                 </Button>
               </div>
 
               {meetings.length > 0 && (
                 <div className="space-y-3 pt-4 border-t border-border">
-                  <p className={labelClass}>Scheduled Meetings</p>
-                  {meetings.map((m) => (
-                    <div key={m.id} className="rounded-lg border border-border p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-sm">{m.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(m.scheduledAt).toLocaleString("en-GB", {
-                              dateStyle: "medium",
-                              timeStyle: "short",
-                            })}
-                            {" "}·{" "}
-                            {m.durationMinutes} mins · {m.timezone}
-                          </p>
+                  <p className={labelClass}>Meetings</p>
+                  {meetings.map((m) => {
+                    const busy = meetingActionId === m.id
+                    const active = m.status === "PENDING" || m.status === "SCHEDULED"
+                    return (
+                      <div key={m.id} className="rounded-lg border border-border p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-sm">{m.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {m.scheduledAt
+                                ? `${new Date(m.scheduledAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: m.timezone })} · ${m.durationMinutes} mins · ${m.timezone}`
+                                : m.proposedSlots?.length
+                                ? `Awaiting lead — ${m.proposedSlots.length} proposed slot${m.proposedSlots.length === 1 ? "" : "s"}`
+                                : "Awaiting lead — choosing from weekly availability"}
+                            </p>
+                            {m.status === "PENDING" && (
+                              <p className="text-[11px] text-muted-foreground">
+                                {m.inviteSentAt ? `Invite sent ${new Date(m.inviteSentAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}` : "Invite email not sent"}
+                                {m.expiresAt ? ` · expires ${new Date(m.expiresAt).toLocaleDateString("en-GB", { dateStyle: "medium" })}` : ""}
+                              </p>
+                            )}
+                          </div>
+                          <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${MEETING_STATUS_COLORS[m.status]}`}>
+                            {m.status === "PENDING" ? "Awaiting lead" : m.status.replace("_", " ")}
+                          </span>
                         </div>
-                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
-                          {m.status}
-                        </span>
+                        {m.meetingLink ? (
+                          <a href={m.meetingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-retail hover:underline">
+                            <Video className="w-3.5 h-3.5" />
+                            {m.provider || "Meeting link"} · {m.meetingLink}
+                          </a>
+                        ) : m.status === "SCHEDULED" ? (
+                          <p className="text-xs text-amber-700">No meeting link yet.</p>
+                        ) : null}
+                        <div className="flex items-center gap-2">
+                          <input
+                            readOnly
+                            value={`${typeof window !== "undefined" ? window.location.origin : ""}/meeting/${m.customerToken}`}
+                            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
+                          />
+                          <Button size="sm" variant="outline" onClick={() => copyMeetingLink(m.customerToken)}>
+                            <Copy className="w-3.5 h-3.5 mr-1" />
+                            Copy
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => window.open(`/meeting/${m.customerToken}`, "_blank")}>
+                            <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                            Open
+                          </Button>
+                        </div>
+                        {active && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {m.status === "PENDING" && (
+                              <Button size="sm" variant="outline" disabled={busy} onClick={() => handleMeetingAction(m, "resend_invite")}>
+                                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Mail className="w-3.5 h-3.5 mr-1" />}
+                                Resend invite
+                              </Button>
+                            )}
+                            {m.status === "SCHEDULED" && (
+                              <>
+                                <Button size="sm" variant="outline" disabled={busy} onClick={() => handleMeetingAction(m, "set_status", "COMPLETED")}>
+                                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                  Completed
+                                </Button>
+                                <Button size="sm" variant="outline" disabled={busy} onClick={() => handleMeetingAction(m, "set_status", "NO_SHOW")}>
+                                  No-show
+                                </Button>
+                              </>
+                            )}
+                            <Button size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={() => handleMeetingAction(m, "cancel")}>
+                              <Trash2 className="w-3.5 h-3.5 mr-1" />
+                              Cancel
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      {m.meetingLink ? (
-                        <a href={m.meetingLink} target="_blank" rel="noopener noreferrer" className="text-xs text-retail hover:underline">
-                          {m.provider || "Meeting link"}
-                        </a>
-                      ) : null}
-                      <div className="flex items-center gap-2">
-                        <input
-                          readOnly
-                          value={`${typeof window !== "undefined" ? window.location.origin : ""}/meeting/${m.customerToken}`}
-                          className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
-                        />
-                        <Button size="sm" variant="outline" onClick={() => copyMeetingLink(m.customerToken)}>
-                          <Copy className="w-3.5 h-3.5 mr-1" />
-                          Copy
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => window.open(`/meeting/${m.customerToken}`, "_blank")}>
-                          <ExternalLink className="w-3.5 h-3.5 mr-1" />
-                          Open
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -1308,7 +1531,37 @@ function sourceIcon(source: string): React.ReactNode {
   return <ArrowUpRight className="w-3 h-3" />
 }
 
-function parseEstimate(challenge?: string): { retailPlan: string; retailRange: string; erpPlan: string; erpRange: string } | null {
+interface EstimateView {
+  retailPlan: string
+  retailRange: string
+  retailTier?: string
+  retailInclusions?: string[]
+  retailRationale?: string
+  erpPlan: string
+  erpRange: string
+  erpTier?: string
+  erpInclusions?: string[]
+  erpRationale?: string
+}
+
+function normalizeEstimate(estimate?: StoredEstimate | null): EstimateView | null {
+  if (!estimate?.retail?.planName || !estimate?.erp?.planName) return null
+  return {
+    retailPlan: estimate.retail.planName,
+    retailRange: estimate.retail.range,
+    retailTier: estimate.retail.tier,
+    retailInclusions: estimate.retail.inclusions,
+    retailRationale: estimate.retail.rationale,
+    erpPlan: estimate.erp.planName,
+    erpRange: estimate.erp.range,
+    erpTier: estimate.erp.tier,
+    erpInclusions: estimate.erp.inclusions,
+    erpRationale: estimate.erp.rationale,
+  }
+}
+
+// Legacy rows stored the estimate as a formatted string in `challenge`.
+function parseEstimate(challenge?: string): EstimateView | null {
   if (!challenge || !challenge.startsWith("Estimate —")) return null
   try {
     const body = challenge.replace("Estimate —", "").trim()

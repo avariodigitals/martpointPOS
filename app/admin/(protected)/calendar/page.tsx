@@ -15,7 +15,7 @@ interface CalendarMeeting {
   timezone: string
   meetingLink: string | null
   provider: string | null
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"
+  status: "PENDING" | "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"
   notes: string | null
   leadFullName: string
   leadBusinessName: string

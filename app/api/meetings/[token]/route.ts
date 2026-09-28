@@ -1,54 +1,81 @@
 import { NextResponse } from "next/server"
+import { z } from "zod"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { isValidTimeZone } from "@/lib/scheduling"
+import { MEETING_SELECT, mapMeeting, computeAvailableSlots, confirmMeetingSlot, type MeetingRecord } from "@/lib/meeting-booking"
 
 interface PublicMeeting {
   title: string
-  scheduledAt: string
+  scheduledAt: string | null
   durationMinutes: number
   timezone: string
   meetingLink: string | null
   provider: string | null
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"
+  status: MeetingRecord["status"]
   leadFullName: string
   leadBusinessName: string
-  leadEmail: string
   leadPhone: string
+  leadTimezone: string | null
+  expiresAt: string | null
+  hasProposedSlots: boolean
 }
 
-function mapPublic(row: Record<string, unknown>): PublicMeeting {
-  const lead = (row.leads as Record<string, unknown> | undefined) || {}
+function toPublic(m: MeetingRecord): PublicMeeting {
   return {
-    title: row.title as string,
-    scheduledAt: row.scheduled_at as string,
-    durationMinutes: row.duration_minutes as number,
-    timezone: row.timezone as string,
-    meetingLink: row.meeting_link as string | null,
-    provider: row.provider as string | null,
-    status: row.status as PublicMeeting["status"],
-    leadFullName: lead.full_name as string,
-    leadBusinessName: lead.business_name as string,
-    leadEmail: lead.email as string,
-    leadPhone: lead.phone as string,
+    title: m.title,
+    scheduledAt: m.scheduledAt,
+    durationMinutes: m.durationMinutes,
+    timezone: m.timezone,
+    meetingLink: m.meetingLink,
+    provider: m.provider,
+    status: m.status,
+    leadFullName: m.leadFullName || "",
+    leadBusinessName: m.leadBusinessName || "",
+    leadPhone: m.leadPhone || "",
+    leadTimezone: m.leadTimezone,
+    expiresAt: m.expiresAt,
+    hasProposedSlots: Boolean(m.proposedSlots?.length),
   }
 }
 
-/* ─── GET public meeting by customer token ─── */
-export async function GET(request: Request, props: { params: Promise<{ token: string }> }) {
+async function loadByToken(token: string): Promise<MeetingRecord | null> {
+  const { data } = await supabase.from("lead_meetings").select(MEETING_SELECT).eq("customer_token", token).single()
+  return data ? mapMeeting(data as Record<string, unknown>) : null
+}
+
+/* ─── GET public meeting by customer token (+ open slots when pending) ─── */
+export async function GET(_: Request, props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params
+  if (!isSupabaseConfigured()) return NextResponse.json({ error: "Not configured" }, { status: 500 })
 
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Not configured" }, { status: 500 })
-  }
+  const meeting = await loadByToken(token)
+  if (!meeting) return NextResponse.json({ error: "Meeting not found" }, { status: 404 })
 
-  const { data, error } = await supabase
-    .from("lead_meetings")
-    .select("title, scheduled_at, duration_minutes, timezone, meeting_link, provider, status, leads(full_name, business_name, email, phone)")
-    .eq("customer_token", token)
-    .single()
+  const expired = meeting.status === "PENDING" && meeting.expiresAt ? new Date(meeting.expiresAt) < new Date() : false
+  const availableSlots = meeting.status === "PENDING" && !expired ? await computeAvailableSlots(meeting) : []
 
-  if (error || !data) {
-    return NextResponse.json({ error: "Meeting not found" }, { status: 404 })
-  }
+  return NextResponse.json({ meeting: toPublic(meeting), availableSlots, expired })
+}
 
-  return NextResponse.json({ meeting: mapPublic(data as Record<string, unknown>) })
+const bookSchema = z.object({
+  slot: z.string().min(1),
+  timezone: z.string().optional(),
+})
+
+/* ─── POST lead confirms a slot ─── */
+export async function POST(request: Request, props: { params: Promise<{ token: string }> }) {
+  const { token } = await props.params
+  if (!isSupabaseConfigured()) return NextResponse.json({ error: "Not configured" }, { status: 500 })
+
+  const parsed = bookSchema.safeParse(await request.json().catch(() => ({})))
+  if (!parsed.success) return NextResponse.json({ error: "Please choose a time slot." }, { status: 400 })
+
+  const meeting = await loadByToken(token)
+  if (!meeting) return NextResponse.json({ error: "Meeting not found" }, { status: 404 })
+
+  const tz = parsed.data.timezone && isValidTimeZone(parsed.data.timezone) ? parsed.data.timezone : null
+  const result = await confirmMeetingSlot(meeting, parsed.data.slot, tz)
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+
+  return NextResponse.json({ success: true, meeting: toPublic(result.meeting), meetPending: Boolean(result.meetError) })
 }

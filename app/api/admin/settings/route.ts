@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { getIntegrationDefaults } from "@/lib/integrations"
+import { DEFAULT_SCHEDULING } from "@/lib/scheduling"
 
 async function readSettings(): Promise<Record<string, unknown>> {
   if (!isSupabaseConfigured()) {
@@ -56,6 +57,9 @@ function getDefaultSettings() {
       brevoApiKey: "",
       fromEmail: "MartPoint Partners <hello@martpoint.com.ng>",
       notifyEmail: "",
+      signature: "",
+      smtp: { host: "", port: 465, secure: true, user: "", pass: "", fromEmail: "" },
+      imap: { host: "", port: 993, secure: true, user: "", pass: "", mailbox: "INBOX" },
       routes: {
         lead_submission: "sales@martpoint.com.ng",
         career_application: "careers@martpoint.com.ng",
@@ -243,6 +247,14 @@ function getDefaultSettings() {
         },
       ],
     },
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      calendarId: "primary",
+      email: "",
+      connectedAt: "",
+    },
+    scheduling: DEFAULT_SCHEDULING,
     ...getIntegrationDefaults(),
   }
 }
@@ -277,7 +289,12 @@ export async function GET() {
   }
 
   const settings = await readSettings()
-  return NextResponse.json(settings)
+  // Never ship the Google refresh token to the browser; the UI only needs to know it exists.
+  const google = (settings.google as Record<string, unknown> | undefined) || {}
+  return NextResponse.json({
+    ...settings,
+    google: { ...google, refreshToken: undefined, connected: Boolean(google.refreshToken) },
+  })
 }
 
 export async function POST(request: Request) {
@@ -293,6 +310,12 @@ export async function POST(request: Request) {
     }
     const current = await readSettings()
     const updated = { ...current }
+    if (body.google && typeof body.google === "object") {
+      // Refresh token is only ever written by the OAuth callback.
+      const { refreshToken: _rt, connected: _c, ...rest } = body.google as Record<string, unknown>
+      void _rt; void _c
+      body.google = rest
+    }
     for (const [key, value] of Object.entries(body)) {
       const existing = updated[key]
       updated[key] =

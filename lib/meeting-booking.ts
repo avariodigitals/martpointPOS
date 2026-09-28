@@ -338,16 +338,6 @@ export async function sendMeetingSummaryEmail(meeting: MeetingRecord): Promise<b
               </ul>`
     : ""
 
-  const links: { label: string; url: string }[] = []
-  if (meeting.transcriptUrl) links.push({ label: "Full transcript", url: meeting.transcriptUrl })
-  if (meeting.recordingUrl) links.push({ label: "Recording", url: meeting.recordingUrl })
-  const linksText = links.map((l) => `${l.label}: ${l.url}`).join("\n")
-  const linksBlock = links.length
-    ? `<p style="font-size:13px; line-height:1.6; margin:0 0 24px; color:#374151;">${links
-        .map((l) => `<a href="${escapeHtml(l.url)}" style="color:#0057FF; text-decoration:underline;">${escapeHtml(l.label)}</a>`)
-        .join(" &nbsp;·&nbsp; ")}</p>`
-    : ""
-
   const tpl = await renderEmailTemplate("meeting_summary", {
     fullName: firstName(meeting.leadFullName),
     title: meeting.title,
@@ -356,8 +346,8 @@ export async function sendMeetingSummaryEmail(meeting: MeetingRecord): Promise<b
     summaryHtml: escapeHtml(meeting.summary).replace(/\n/g, "<br>"),
     actionItemsText,
     actionItemsBlock,
-    linksText,
-    linksBlock,
+    linksText: "",
+    linksBlock: "",
   })
 
   const result = await sendLeadEmail({

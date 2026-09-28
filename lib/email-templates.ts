@@ -51,9 +51,10 @@ export function statusPillHtml(label: string, tone: StatusTone): string {
  * header, white card, grey footer). {{variable}} placeholders inside `body`
  * are substituted at send time.
  */
-function brandedEmailHtml(body: string, opts: { eyebrow?: string; title?: string } = {}): string {
+function brandedEmailHtml(body: string, opts: { eyebrow?: string; title?: string; signoff?: string } = {}): string {
   const eyebrow = opts.eyebrow || "Partner Programme"
   const title = opts.title || "MartPoint"
+  const signoff = opts.signoff || "MartPoint Partner Team"
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -79,7 +80,7 @@ ${body}
           </tr>
           <tr>
             <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
-              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>MartPoint Partner Team</strong></p>
+              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>${signoff}</strong></p>
             </td>
           </tr>
         </table>
@@ -1303,6 +1304,99 @@ Ratings:
 {{ratingsList}}
 
 Comment: {{comment}}`,
+  },
+  {
+    key: "meeting_invite",
+    label: "Meeting / Demo Invite (lead)",
+    description: "Sent to a lead when an admin invites them to pick a time for a call or demo.",
+    variables: ["fullName", "businessNameBlock", "title", "durationMinutes", "bookingUrl"],
+    subject: "{{title}} — pick a time that suits you",
+    text: `Hi {{fullName}},
+
+Thanks for your interest in MartPoint{{businessNameBlock}}. We'd love to walk you through it on a short {{durationMinutes}}-minute video call (Google Meet).
+
+Pick a time that works best for you:
+{{bookingUrl}}
+
+Once you confirm, you'll get a calendar invite with the Google Meet link.
+
+If none of the times work, just reply to this email and we'll sort something out.
+
+Best regards,
+MartPoint Sales Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Thanks for your interest in MartPoint{{businessNameBlock}}. We'd love to walk you through it on a short <strong>{{durationMinutes}}-minute</strong> video call (Google Meet).
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Meeting</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{title}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:12px 0 4px;">Length</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{durationMinutes}} minutes · Google Meet</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Pick a time that works best for you:
+              </p>
+              <p style="margin:0 0 24px; text-align:center;">
+                <a href="{{bookingUrl}}" style="display:inline-block; background-color:#0057FF; color:#ffffff; text-decoration:none; padding:14px 28px; border-radius:8px; font-size:15px; font-weight:600;">Choose a time</a>
+              </p>
+              <p style="font-size:12px; line-height:1.6; margin:0 0 24px; color:#6b7280;">
+                Or copy this link: <a href="{{bookingUrl}}" style="color:#0057FF; text-decoration:underline;">{{bookingUrl}}</a>
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 8px; color:#374151;">
+                Once you confirm, you'll get a calendar invite with the Google Meet link.
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                If none of the times work, just reply to this email and we'll sort something out.
+              </p>`,
+      { eyebrow: "Sales", title: "Meeting invitation", signoff: "MartPoint Sales Team" },
+    ),
+  },
+  {
+    key: "meeting_confirmation",
+    label: "Meeting Confirmation (lead)",
+    description: "Sent to a lead once a meeting time is confirmed — by the lead picking a slot or by self-booking a demo.",
+    variables: ["fullName", "title", "when", "durationMinutes", "joinLine", "joinBlock", "detailsUrl"],
+    subject: "Confirmed: {{title}} — {{when}}",
+    text: `Hi {{fullName}},
+
+You're booked! Here are the details:
+
+{{title}}
+{{when}}
+{{durationMinutes}} minutes
+
+{{joinLine}}
+
+You can revisit the details anytime at {{detailsUrl}}. Need to change the time? Just reply to this email.
+
+Best regards,
+MartPoint Sales Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                You're booked! Here are the details:
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 8px;">{{title}}</p>
+                    <p style="font-size:15px; color:#111827; margin:0 0 4px;">{{when}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:0;">{{durationMinutes}} minutes · Google Meet</p>
+                  </td>
+                </tr>
+              </table>
+              {{joinBlock}}
+              <p style="font-size:12px; line-height:1.6; margin:0; color:#6b7280;">
+                Details: <a href="{{detailsUrl}}" style="color:#0057FF; text-decoration:underline;">{{detailsUrl}}</a> — need to change the time? Just reply to this email.
+              </p>`,
+      { eyebrow: "Sales", title: "Meeting confirmed", signoff: "MartPoint Sales Team" },
+    ),
   },
 ]
 

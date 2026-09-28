@@ -195,6 +195,7 @@ export function LeadDetailModal({
     provider: "",
     notes: "",
     createMeet: true,
+    expiresInDays: 7,
   })
   const [proposedSlots, setProposedSlots] = useState<string[]>([])
   const [newSlot, setNewSlot] = useState("")
@@ -334,7 +335,12 @@ export function LeadDetailModal({
       }
       const payload =
         meetingMode === "invite"
-          ? { mode: "invite", ...common, proposedSlots: proposedSlots.map((s) => new Date(s).toISOString()) }
+          ? {
+              mode: "invite",
+              ...common,
+              proposedSlots: proposedSlots.map((s) => new Date(s).toISOString()),
+              expiresInDays: Number(meetingForm.expiresInDays) || 7,
+            }
           : {
               mode: "direct",
               ...common,
@@ -1210,8 +1216,19 @@ export function LeadDetailModal({
                     <div>
                       <p className="text-sm font-medium">Time options</p>
                       <p className="text-xs text-muted-foreground">
-                        Leave empty to let the lead choose from your weekly availability (Settings → Meeting Availability), or hand-pick a few slots below.
+                        Leave empty to let the lead choose from your weekly availability (Settings → Meeting Availability), or hand-pick a few slots below — hand-picked slots can be any future time, including same-day for urgent leads.
                       </p>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Invite expires after (days)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={meetingForm.expiresInDays}
+                        onChange={(e) => setMeetingForm((p) => ({ ...p, expiresInDays: Number(e.target.value) }))}
+                        className={`${inputClass} max-w-[120px]`}
+                      />
                     </div>
                     <div className="flex items-center gap-2">
                       <input

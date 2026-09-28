@@ -10,7 +10,8 @@
 
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { sendEmail } from "./email"
-import { sendLeadEmail, escapeHtml } from "./lead-email-outbound"
+import { sendLeadEmail } from "./lead-email-outbound"
+import { renderEmailTemplate } from "./email-templates"
 import { getBaseUrl } from "./marketing"
 import {
   normalizeScheduling,
@@ -171,39 +172,21 @@ function firstName(full?: string | null): string {
 export async function sendMeetingInviteEmail(meeting: MeetingRecord): Promise<boolean> {
   if (!meeting.leadEmail) return false
   const url = meetingPageUrl(meeting.customerToken)
-  const hasProposed = Boolean(meeting.proposedSlots?.length)
-  const body = [
-    `Hi ${firstName(meeting.leadFullName)},`,
-    ``,
-    `Thanks for your interest in MartPoint${meeting.leadBusinessName ? ` for ${meeting.leadBusinessName}` : ""}. We'd love to walk you through it on a short ${meeting.durationMinutes}-minute video call (Google Meet).`,
-    ``,
-    hasProposed
-      ? `We've put together a few time options — pick whichever works best for you:`
-      : `Pick a time that works best for you:`,
-    url,
-    ``,
-    `Once you confirm, you'll get a calendar invite with the Google Meet link.`,
-    ``,
-    `If none of the times work, just reply to this email and we'll sort something out.`,
-  ].join("\n")
 
-  const html = `
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#111827;">
-  <p>Hi ${escapeHtml(firstName(meeting.leadFullName))},</p>
-  <p>Thanks for your interest in MartPoint${meeting.leadBusinessName ? ` for <strong>${escapeHtml(meeting.leadBusinessName)}</strong>` : ""}. We'd love to walk you through it on a short ${meeting.durationMinutes}-minute video call (Google Meet).</p>
-  <p>${hasProposed ? "We've put together a few time options — pick whichever works best for you:" : "Pick a time that works best for you:"}</p>
-  <p style="margin:20px 0;"><a href="${url}" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">Choose a time</a></p>
-  <p style="font-size:12px;color:#6b7280;">Or copy this link: <a href="${url}">${url}</a></p>
-  <p>Once you confirm, you'll get a calendar invite with the Google Meet link.</p>
-  <p>If none of the times work, just reply to this email and we'll sort something out.</p>
-</div>`
+  const tpl = await renderEmailTemplate("meeting_invite", {
+    fullName: firstName(meeting.leadFullName),
+    businessNameBlock: meeting.leadBusinessName ? ` for ${meeting.leadBusinessName}` : "",
+    title: meeting.title,
+    durationMinutes: meeting.durationMinutes,
+    bookingUrl: url,
+  })
 
   const result = await sendLeadEmail({
     leadId: meeting.leadId,
     to: meeting.leadEmail,
-    subject: `${meeting.title} — pick a time that suits you`,
-    body,
-    html,
+    subject: tpl.subject,
+    body: tpl.text,
+    html: tpl.html,
     metadata: { meeting_id: meeting.id, kind: "meeting_invite" },
   })
   return result.sent
@@ -220,43 +203,28 @@ export async function sendMeetingConfirmationEmails(meeting: MeetingRecord): Pro
     const joinLine = meeting.meetingLink
       ? `Join with Google Meet: ${meeting.meetingLink}`
       : `Your meeting details and join link: ${url}`
-    const body = [
-      `Hi ${firstName(meeting.leadFullName)},`,
-      ``,
-      `You're booked! Here are the details:`,
-      ``,
-      `${meeting.title}`,
-      `${whenLead}`,
-      `${meeting.durationMinutes} minutes`,
-      ``,
-      joinLine,
-      ``,
-      `You can revisit the details anytime at ${url}. Need to change the time? Just reply to this email.`,
-    ].join("\n")
+    const joinBlock = `<p style="margin:0 0 24px; text-align:center;"><a href="${
+      meeting.meetingLink || url
+    }" style="display:inline-block; background-color:#0057FF; color:#ffffff; text-decoration:none; padding:14px 28px; border-radius:8px; font-size:15px; font-weight:600;">${
+      meeting.meetingLink ? "Join Google Meet" : "View meeting details"
+    }</a></p>`
 
-    const html = `
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#111827;">
-  <p>Hi ${escapeHtml(firstName(meeting.leadFullName))},</p>
-  <p>You're booked! Here are the details:</p>
-  <div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin:16px 0;">
-    <p style="margin:0 0 6px;font-weight:600;">${escapeHtml(meeting.title)}</p>
-    <p style="margin:0 0 4px;">${escapeHtml(whenLead)}</p>
-    <p style="margin:0;color:#6b7280;">${meeting.durationMinutes} minutes · Google Meet</p>
-  </div>
-  ${
-    meeting.meetingLink
-      ? `<p style="margin:20px 0;"><a href="${meeting.meetingLink}" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">Join Google Meet</a></p>`
-      : `<p style="margin:20px 0;"><a href="${url}" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">View meeting details</a></p>`
-  }
-  <p style="font-size:12px;color:#6b7280;">Details: <a href="${url}">${url}</a>. Need to change the time? Just reply to this email.</p>
-</div>`
+    const tpl = await renderEmailTemplate("meeting_confirmation", {
+      fullName: firstName(meeting.leadFullName),
+      title: meeting.title,
+      when: whenLead,
+      durationMinutes: meeting.durationMinutes,
+      joinLine,
+      joinBlock,
+      detailsUrl: url,
+    })
 
     await sendLeadEmail({
       leadId: meeting.leadId,
       to: meeting.leadEmail,
-      subject: `Confirmed: ${meeting.title} — ${whenLead}`,
-      body,
-      html,
+      subject: tpl.subject,
+      body: tpl.text,
+      html: tpl.html,
       metadata: { meeting_id: meeting.id, kind: "meeting_confirmation" },
     })
   }

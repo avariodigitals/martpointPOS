@@ -137,6 +137,26 @@ function meetCode(link: string): string {
   return m ? m[1] : ""
 }
 
+function isAuthorized(request: Request, secrets: string[]): boolean {
+  const provided = request.headers.get("x-webhook-secret") || new URL(request.url).searchParams.get("secret")
+  return secrets.length > 0 && Boolean(provided) && secrets.includes(provided as string)
+}
+
+/* ─── GET — browser health check ─── */
+export async function GET(request: Request) {
+  const cfg = await getMeetingNotesSettings()
+  const secrets = [process.env.MEETING_NOTES_WEBHOOK_SECRET, cfg.webhookSecret].filter(Boolean) as string[]
+  if (!isAuthorized(request, secrets)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  return NextResponse.json({
+    ok: true,
+    endpoint: "meeting-notes",
+    provider: cfg.provider,
+    hint: "Send meeting notes here via POST with the same secret.",
+  })
+}
+
 export async function POST(request: Request) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ ok: true })
@@ -144,9 +164,8 @@ export async function POST(request: Request) {
 
   const cfg = await getMeetingNotesSettings()
 
-  const provided = request.headers.get("x-webhook-secret") || new URL(request.url).searchParams.get("secret")
-  const valid = [process.env.MEETING_NOTES_WEBHOOK_SECRET, cfg.webhookSecret].filter(Boolean)
-  if (!valid.length || !provided || !valid.includes(provided)) {
+  const secrets = [process.env.MEETING_NOTES_WEBHOOK_SECRET, cfg.webhookSecret].filter(Boolean) as string[]
+  if (!isAuthorized(request, secrets)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

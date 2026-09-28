@@ -15,6 +15,11 @@ interface CalendarMeeting {
   provider: string | null
   status: "PENDING" | "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"
   notes: string | null
+  summary: string | null
+  actionItems: string[] | null
+  transcriptUrl: string | null
+  recordingUrl: string | null
+  notesProvider: string | null
   leadFullName: string
   leadBusinessName: string
   leadEmail: string
@@ -35,6 +40,11 @@ function mapCalendarRow(row: Record<string, unknown>): CalendarMeeting {
     provider: row.provider as string | null,
     status: row.status as CalendarMeeting["status"],
     notes: row.notes as string | null,
+    summary: row.summary as string | null,
+    actionItems: Array.isArray(row.action_items) ? (row.action_items as string[]) : null,
+    transcriptUrl: row.transcript_url as string | null,
+    recordingUrl: row.recording_url as string | null,
+    notesProvider: row.notes_provider as string | null,
     leadFullName: lead.full_name as string,
     leadBusinessName: lead.business_name as string,
     leadEmail: lead.email as string,

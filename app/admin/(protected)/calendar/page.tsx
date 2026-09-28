@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, ChevronLeft, ChevronRight, Video, Calendar, Clock } from "lucide-react"
+import { Loader2, ChevronLeft, ChevronRight, Video, Calendar, Clock, FileText } from "lucide-react"
 
 interface CalendarMeeting {
   id: string
@@ -17,6 +17,11 @@ interface CalendarMeeting {
   provider: string | null
   status: "PENDING" | "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"
   notes: string | null
+  summary: string | null
+  actionItems: string[] | null
+  transcriptUrl: string | null
+  recordingUrl: string | null
+  notesProvider: string | null
   leadFullName: string
   leadBusinessName: string
   leadEmail: string
@@ -45,7 +50,6 @@ export default function AdminCalendarPage() {
   const [selected, setSelected] = useState<Date | null>(null)
 
   useEffect(() => {
-    setLoading(true)
     const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1)
     const end = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0, 23, 59, 59)
     fetch(`/api/admin/calendar?from=${start.toISOString()}&to=${end.toISOString()}`)
@@ -90,8 +94,14 @@ export default function AdminCalendarPage() {
 
   const selectedMeetings = selected ? meetingsByDate.get(dateKey(selected)) || [] : []
 
-  const nextMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))
-  const prevMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))
+  const nextMonth = () => {
+    setLoading(true)
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))
+  }
+  const prevMonth = () => {
+    setLoading(true)
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))
+  }
 
   return (
     <div className="space-y-6">
@@ -195,6 +205,34 @@ export default function AdminCalendarPage() {
                       {m.provider || "Join"}
                     </a>
                   ) : null}
+                  {(m.summary || m.actionItems?.length || m.transcriptUrl || m.recordingUrl) && (
+                    <div className="rounded-md bg-muted/40 p-2 space-y-1.5">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground flex items-center gap-1">
+                        <FileText className="w-3 h-3" />
+                        Notes{m.notesProvider && m.notesProvider !== "manual" ? ` · ${m.notesProvider}` : ""}
+                      </p>
+                      {m.summary && <p className="text-xs whitespace-pre-wrap">{m.summary}</p>}
+                      {m.actionItems && m.actionItems.length > 0 && (
+                        <ul className="text-xs list-disc pl-4 space-y-0.5">
+                          {m.actionItems.map((a, i) => (
+                            <li key={i}>{a}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className="flex items-center gap-3 text-xs">
+                        {m.transcriptUrl && (
+                          <a href={m.transcriptUrl} target="_blank" rel="noopener noreferrer" className="text-retail hover:underline">
+                            Transcript
+                          </a>
+                        )}
+                        {m.recordingUrl && (
+                          <a href={m.recordingUrl} target="_blank" rel="noopener noreferrer" className="text-retail hover:underline">
+                            Recording
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             )}

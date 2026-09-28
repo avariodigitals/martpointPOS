@@ -5,8 +5,13 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { MEETING_SELECT, mapMeeting, cancelMeeting, sendMeetingInviteEmail, computeAvailableSlots } from "@/lib/meeting-booking"
 
 const patchSchema = z.object({
-  action: z.enum(["cancel", "resend_invite", "set_status"]),
+  action: z.enum(["cancel", "resend_invite", "set_status", "save_notes"]),
   status: z.enum(["COMPLETED", "NO_SHOW", "SCHEDULED"]).optional(),
+  summary: z.string().nullable().optional(),
+  actionItems: z.array(z.string()).nullable().optional(),
+  transcript: z.string().nullable().optional(),
+  transcriptUrl: z.string().nullable().optional(),
+  recordingUrl: z.string().nullable().optional(),
 })
 
 async function loadMeeting(leadId: string, meetingId: string) {
@@ -59,6 +64,27 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       await supabase.from("lead_meetings").update({ invite_sent_at: new Date().toISOString() }).eq("id", meeting.id)
     }
     return NextResponse.json({ success: true, emailSent: sent, meeting: await loadMeeting(id, meetingId) })
+  }
+
+  if (parsed.data.action === "save_notes") {
+    const { summary, actionItems, transcript, transcriptUrl, recordingUrl } = parsed.data
+    const { data, error } = await supabase
+      .from("lead_meetings")
+      .update({
+        summary: summary ?? null,
+        action_items: actionItems ?? null,
+        transcript: transcript ?? null,
+        transcript_url: transcriptUrl ?? null,
+        recording_url: recordingUrl ?? null,
+        notes_provider: "manual",
+        notes_received_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", meeting.id)
+      .select(MEETING_SELECT)
+      .single()
+    if (error || !data) return NextResponse.json({ error: "Failed to save notes" }, { status: 500 })
+    return NextResponse.json({ success: true, meeting: mapMeeting(data as Record<string, unknown>) })
   }
 
   // set_status

@@ -101,6 +101,13 @@ interface Meeting {
   inviteSentAt: string | null
   expiresAt: string | null
   googleEventId: string | null
+  notes: string | null
+  summary: string | null
+  actionItems: string[] | null
+  transcript: string | null
+  transcriptUrl: string | null
+  recordingUrl: string | null
+  notesProvider: string | null
 }
 
 const MEETING_STATUS_COLORS: Record<Meeting["status"], string> = {
@@ -202,6 +209,8 @@ export function LeadDetailModal({
   const [googleConnected, setGoogleConnected] = useState(false)
   const [meetingMessage, setMeetingMessage] = useState("")
   const [meetingActionId, setMeetingActionId] = useState<string | null>(null)
+  const [notesOpenId, setNotesOpenId] = useState<string | null>(null)
+  const [notesDraft, setNotesDraft] = useState({ summary: "", actionItems: "", transcriptUrl: "", recordingUrl: "" })
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -395,6 +404,50 @@ export function LeadDetailModal({
       }
     } catch {
       setMeetingMessage("Action failed")
+    } finally {
+      setMeetingActionId(null)
+    }
+  }
+
+  const toggleNotesEditor = (m: Meeting) => {
+    if (notesOpenId === m.id) {
+      setNotesOpenId(null)
+      return
+    }
+    setNotesDraft({
+      summary: m.summary ?? "",
+      actionItems: (m.actionItems ?? []).join("\n"),
+      transcriptUrl: m.transcriptUrl ?? "",
+      recordingUrl: m.recordingUrl ?? "",
+    })
+    setNotesOpenId(m.id)
+  }
+
+  const saveMeetingNotes = async (m: Meeting) => {
+    setMeetingActionId(m.id)
+    setMeetingMessage("")
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/meetings/${m.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_notes",
+          summary: notesDraft.summary.trim() || null,
+          actionItems: notesDraft.actionItems.split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
+          transcriptUrl: notesDraft.transcriptUrl.trim() || null,
+          recordingUrl: notesDraft.recordingUrl.trim() || null,
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.meeting) {
+        setMeetings((prev) => prev.map((x) => (x.id === m.id ? data.meeting : x)))
+        setNotesOpenId(null)
+        setMeetingMessage("Notes saved.")
+      } else {
+        setMeetingMessage(data.error || "Failed to save notes")
+      }
+    } catch {
+      setMeetingMessage("Failed to save notes")
     } finally {
       setMeetingActionId(null)
     }
@@ -1331,6 +1384,90 @@ export function LeadDetailModal({
                             Open
                           </Button>
                         </div>
+                        {(m.summary || m.actionItems?.length || m.transcript || m.transcriptUrl || m.recordingUrl) && (
+                          <div className="rounded-md bg-muted/40 p-3 space-y-2">
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                              Meeting notes{m.notesProvider && m.notesProvider !== "manual" ? ` · ${m.notesProvider}` : ""}
+                            </p>
+                            {m.summary && <p className="text-xs whitespace-pre-wrap">{m.summary}</p>}
+                            {m.actionItems && m.actionItems.length > 0 && (
+                              <ul className="text-xs list-disc pl-4 space-y-0.5">
+                                {m.actionItems.map((a, i) => (
+                                  <li key={i}>{a}</li>
+                                ))}
+                              </ul>
+                            )}
+                            {(m.transcriptUrl || m.recordingUrl) && (
+                              <div className="flex items-center gap-3 text-xs">
+                                {m.transcriptUrl && (
+                                  <a href={m.transcriptUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-retail hover:underline">
+                                    <FileText className="w-3 h-3" />
+                                    Transcript
+                                  </a>
+                                )}
+                                {m.recordingUrl && (
+                                  <a href={m.recordingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-retail hover:underline">
+                                    <Video className="w-3 h-3" />
+                                    Recording
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                            {m.transcript && (
+                              <details className="text-xs">
+                                <summary className="cursor-pointer text-muted-foreground select-none">Transcript</summary>
+                                <p className="mt-1 whitespace-pre-wrap max-h-48 overflow-y-auto">{m.transcript}</p>
+                              </details>
+                            )}
+                          </div>
+                        )}
+                        {notesOpenId === m.id ? (
+                          <div className="rounded-md border border-border p-3 space-y-2">
+                            <p className={labelClass}>Meeting Notes</p>
+                            <textarea
+                              rows={3}
+                              value={notesDraft.summary}
+                              onChange={(e) => setNotesDraft((p) => ({ ...p, summary: e.target.value }))}
+                              className={`${inputClass} resize-none`}
+                              placeholder="Summary of the discussion..."
+                            />
+                            <textarea
+                              rows={3}
+                              value={notesDraft.actionItems}
+                              onChange={(e) => setNotesDraft((p) => ({ ...p, actionItems: e.target.value }))}
+                              className={`${inputClass} resize-none`}
+                              placeholder="Action items — one per line"
+                            />
+                            <input
+                              type="url"
+                              value={notesDraft.transcriptUrl}
+                              onChange={(e) => setNotesDraft((p) => ({ ...p, transcriptUrl: e.target.value }))}
+                              className={inputClass}
+                              placeholder="Transcript URL (optional)"
+                            />
+                            <input
+                              type="url"
+                              value={notesDraft.recordingUrl}
+                              onChange={(e) => setNotesDraft((p) => ({ ...p, recordingUrl: e.target.value }))}
+                              className={inputClass}
+                              placeholder="Recording URL (optional)"
+                            />
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" disabled={busy} onClick={() => saveMeetingNotes(m)}>
+                                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                                Save notes
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => setNotesOpenId(null)}>
+                                Close
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="ghost" className="px-0 h-auto text-xs text-muted-foreground hover:text-foreground" onClick={() => toggleNotesEditor(m)}>
+                            <FileText className="w-3.5 h-3.5 mr-1" />
+                            {m.summary || m.actionItems?.length ? "Edit notes" : "Add notes"}
+                          </Button>
+                        )}
                         {active && (
                           <div className="flex items-center gap-2 flex-wrap">
                             {m.status === "PENDING" && (

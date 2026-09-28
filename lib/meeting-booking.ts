@@ -42,6 +42,13 @@ export interface MeetingRecord {
   inviteSentAt: string | null
   expiresAt: string | null
   googleEventId: string | null
+  summary: string | null
+  actionItems: string[] | null
+  transcript: string | null
+  transcriptUrl: string | null
+  recordingUrl: string | null
+  notesProvider: string | null
+  notesReceivedAt: string | null
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -73,6 +80,13 @@ export function mapMeeting(row: Record<string, unknown>): MeetingRecord {
     inviteSentAt: (row.invite_sent_at as string) ?? null,
     expiresAt: (row.expires_at as string) ?? null,
     googleEventId: (row.google_event_id as string) ?? null,
+    summary: (row.summary as string) ?? null,
+    actionItems: Array.isArray(row.action_items) ? (row.action_items as string[]) : null,
+    transcript: (row.transcript as string) ?? null,
+    transcriptUrl: (row.transcript_url as string) ?? null,
+    recordingUrl: (row.recording_url as string) ?? null,
+    notesProvider: (row.notes_provider as string) ?? null,
+    notesReceivedAt: (row.notes_received_at as string) ?? null,
     createdBy: (row.created_by as string) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,

@@ -212,7 +212,14 @@ export async function POST(request: Request) {
     }
 
     if (!row) {
-      return NextResponse.json({ ok: false, error: "No matching meeting" }, { status: 404 })
+      // Vendors treat 4xx as a failed delivery and retry/disable the webhook —
+      // acknowledge receipt and log for debugging instead.
+      console.warn("[meeting-notes] no matching meeting", {
+        meetingId: notes.meetingId,
+        customerToken: notes.customerToken,
+        meetingLink: notes.meetingLink,
+      })
+      return NextResponse.json({ ok: true, matched: false, reason: "no_matching_meeting" })
     }
 
     const now = new Date().toISOString()

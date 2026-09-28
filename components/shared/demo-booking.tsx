@@ -409,6 +409,9 @@ export function DemoBooking({ partnerCode }: { partnerCode?: string }) {
             "Confirm Booking"
           )}
         </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          Calls may be recorded and transcribed for notes.
+        </p>
       </form>
     </div>
   )

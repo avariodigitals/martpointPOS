@@ -1320,6 +1320,8 @@ Pick a time that works best for you:
 
 Once you confirm, you'll get a calendar invite with the Google Meet link.
 
+Note: our calls may be recorded and transcribed for notes.
+
 If none of the times work, just reply to this email and we'll sort something out.
 
 Best regards,
@@ -1351,6 +1353,9 @@ MartPoint Sales Team`,
               <p style="font-size:15px; line-height:1.6; margin:0 0 8px; color:#374151;">
                 Once you confirm, you'll get a calendar invite with the Google Meet link.
               </p>
+              <p style="font-size:12px; line-height:1.6; margin:0 0 8px; color:#6b7280;">
+                Note: our calls may be recorded and transcribed for notes.
+              </p>
               <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
                 If none of the times work, just reply to this email and we'll sort something out.
               </p>`,
@@ -1373,6 +1378,8 @@ You're booked! Here are the details:
 
 {{joinLine}}
 
+Our call may be recorded and transcribed for notes.
+
 You can revisit the details anytime at {{detailsUrl}}. Need to change the time? Just reply to this email.
 
 Best regards,
@@ -1392,6 +1399,9 @@ MartPoint Sales Team`,
                 </tr>
               </table>
               {{joinBlock}}
+              <p style="font-size:12px; line-height:1.6; margin:0 0 16px; color:#6b7280;">
+                Our call may be recorded and transcribed for notes.
+              </p>
               <p style="font-size:12px; line-height:1.6; margin:0; color:#6b7280;">
                 Details: <a href="{{detailsUrl}}" style="color:#0057FF; text-decoration:underline;">{{detailsUrl}}</a> — need to change the time? Just reply to this email.
               </p>`,

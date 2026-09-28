@@ -10,6 +10,7 @@ import {
   buildEstimate,
   buildPricingFromSettings,
   formatRange,
+  toStoredEstimate,
   type EstimateSubmission,
 } from "@/lib/estimate-calculator"
 
@@ -102,7 +103,8 @@ export async function POST(request: Request) {
         product_interest: productInterest,
         branches,
         staff_size: staffSize,
-        challenge: `Estimate — Retail: ${result.retail.planName} (${formatRange(result.retail)}); ERP: ${result.erp.planName} (${formatRange(result.erp)})`,
+        challenge: "",
+        estimate: toStoredEstimate(result),
         message: notes || "",
         source: referringPartnerCode ? `estimate-calculator:partner:${referringPartnerCode}` : "estimate-calculator",
         referring_partner_code: referringPartnerCode,

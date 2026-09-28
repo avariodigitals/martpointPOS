@@ -3,6 +3,7 @@ import crypto from "crypto"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import type { StoredEstimate } from "@/lib/estimate-calculator"
 
 interface LeadRecord {
   id: string
@@ -15,6 +16,7 @@ interface LeadRecord {
   branches: string
   staffSize: string
   challenge?: string
+  estimate?: StoredEstimate | null
   message?: string
   source: string
   status: "New" | "Contacted" | "Qualified" | "Proposal" | "Won" | "Lost"
@@ -67,6 +69,7 @@ export async function GET() {
     branches: row.branches,
     staffSize: row.staff_size,
     challenge: row.challenge,
+    estimate: row.estimate ?? null,
     message: row.message,
     source: row.source,
     status: row.status,
@@ -163,6 +166,7 @@ export async function PUT(request: Request) {
       branches: data.branches,
       staffSize: data.staff_size,
       challenge: data.challenge,
+      estimate: data.estimate ?? null,
       message: data.message,
       source: data.source,
       status: data.status,

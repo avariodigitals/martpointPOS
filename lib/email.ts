@@ -16,7 +16,7 @@
 
 import { supabase, isSupabaseConfigured } from "./supabase"
 
-export type EmailProvider = "resend" | "brevo"
+export type EmailProvider = "resend" | "brevo" | "smtp"
 
 /** Standard Reply-To addresses for outbound mail, by department. */
 export const REPLY_TO = {
@@ -47,16 +47,37 @@ export interface EmailMessage {
   headers?: Record<string, string>
 }
 
+export interface SmtpSettings {
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  pass: string
+  fromEmail: string
+}
+
+export interface ImapSettings {
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  pass: string
+  mailbox: string
+}
+
 export interface EmailSettings {
   provider: EmailProvider
   resendApiKey: string
   brevoApiKey: string
   fromEmail: string
   notifyEmail: string
+  signature: string
+  smtp: SmtpSettings
+  imap: ImapSettings
   routes: Record<string, string>
 }
 
-interface EmailLogInsert {
+export interface EmailLogInsert {
   from: string
   to: string
   subject: string
@@ -88,6 +109,33 @@ let cachedSettings: EmailSettings | null = null
 let cachedAt = 0
 const CACHE_TTL_MS = 10_000
 
+function toPort(value: unknown, fallback: number): number {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
+function loadSmtpSettings(raw: Record<string, unknown>): SmtpSettings {
+  return {
+    host: String(raw.host || process.env.SMTP_HOST || ""),
+    port: toPort(raw.port, toPort(process.env.SMTP_PORT, 465)),
+    secure: raw.secure !== undefined ? Boolean(raw.secure) : process.env.SMTP_SECURE !== "false",
+    user: String(raw.user || process.env.SMTP_USER || ""),
+    pass: String(raw.pass || process.env.SMTP_PASS || ""),
+    fromEmail: String(raw.fromEmail || process.env.SMTP_FROM_EMAIL || ""),
+  }
+}
+
+function loadImapSettings(raw: Record<string, unknown>): ImapSettings {
+  return {
+    host: String(raw.host || process.env.IMAP_HOST || ""),
+    port: toPort(raw.port, toPort(process.env.IMAP_PORT, 993)),
+    secure: raw.secure !== undefined ? Boolean(raw.secure) : process.env.IMAP_SECURE !== "false",
+    user: String(raw.user || process.env.IMAP_USER || ""),
+    pass: String(raw.pass || process.env.IMAP_PASS || ""),
+    mailbox: String(raw.mailbox || process.env.IMAP_MAILBOX || "INBOX"),
+  }
+}
+
 async function loadEmailSettingsFromDb(): Promise<EmailSettings> {
   const empty: EmailSettings = {
     provider: "resend",
@@ -95,6 +143,9 @@ async function loadEmailSettingsFromDb(): Promise<EmailSettings> {
     brevoApiKey: "",
     fromEmail: "",
     notifyEmail: "",
+    signature: "",
+    smtp: loadSmtpSettings({}),
+    imap: loadImapSettings({}),
     routes: { ...DEFAULT_ROUTES },
   }
 
@@ -117,6 +168,8 @@ async function loadEmailSettingsFromDb(): Promise<EmailSettings> {
     const settingsData = (data.data as Record<string, unknown> | undefined) || {}
     const email = (settingsData.email as Record<string, unknown> | undefined) || {}
     const routes = (email.routes as Record<string, unknown> | undefined) || {}
+    const smtp = (email.smtp as Record<string, unknown> | undefined) || {}
+    const imap = (email.imap as Record<string, unknown> | undefined) || {}
 
     const rawProvider = String(email.provider || process.env.EMAIL_PROVIDER || "resend").toLowerCase()
     const provider: EmailProvider = rawProvider === "brevo" ? "brevo" : "resend"
@@ -127,6 +180,9 @@ async function loadEmailSettingsFromDb(): Promise<EmailSettings> {
       brevoApiKey: String(email.brevoApiKey || ""),
       fromEmail: String(email.fromEmail || ""),
       notifyEmail: String(email.notifyEmail || ""),
+      signature: String(email.signature || ""),
+      smtp: loadSmtpSettings(smtp),
+      imap: loadImapSettings(imap),
       routes: { ...DEFAULT_ROUTES, ...Object.fromEntries(Object.entries(routes).map(([k, v]) => [k, String(v)])) },
     }
   } catch (err) {
@@ -162,7 +218,7 @@ export async function getEmailRoute(route: string): Promise<string[]> {
     .filter((s) => s.includes("@"))
 }
 
-async function writeEmailLog(log: EmailLogInsert): Promise<void> {
+export async function writeEmailLog(log: EmailLogInsert): Promise<void> {
   if (!isSupabaseConfigured()) return
   try {
     const { error } = await supabase.from("email_logs").insert(log)
@@ -185,6 +241,9 @@ function normalizeRecipients(value?: string | string[]): string[] {
 export async function sendEmail(message: EmailMessage): Promise<boolean> {
   const settings = await getEmailSettings()
 
+  // "smtp" is only reachable via sendEmailViaSmtp (lib/email-smtp.ts) — this
+  // module is also bundled into client components so it must stay free of
+  // Node-only imports like nodemailer.
   const provider: EmailProvider =
     message.provider === "brevo" || message.provider === "resend"
       ? message.provider
@@ -415,4 +474,13 @@ async function sendViaBrevo(
     })
     return false
   }
+}
+
+/** True when the admin has configured a mailbox (SMTP) for lead thread sending. */
+export function isSmtpConfigured(settings: EmailSettings): boolean {
+  return Boolean(settings.smtp.host && settings.smtp.user)
+}
+
+export function isImapConfigured(settings: EmailSettings): boolean {
+  return Boolean(settings.imap.host && settings.imap.user)
 }

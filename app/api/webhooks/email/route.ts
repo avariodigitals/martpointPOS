@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { isSupabaseConfigured } from "@/lib/supabase"
+import { fileInboundLeadEmail } from "@/lib/lead-emails-inbound"
 
 /* ───────────────────────────  Inbound email webhook  ───────────────────────────
  * Receives inbound email from the provider's inbound-parse service and files it
@@ -98,40 +99,7 @@ export async function POST(request: Request) {
 
     let matched = 0
     for (const email of emails) {
-      if (!email.from) continue
-
-      const { data: lead } = await supabase
-        .from("leads")
-        .select("id")
-        .ilike("email", email.from)
-        .limit(1)
-        .maybeSingle()
-
-      if (!lead) continue
-
-      if (email.messageId) {
-        const { data: existing } = await supabase
-          .from("lead_emails")
-          .select("id")
-          .eq("lead_id", lead.id)
-          .eq("provider_message_id", email.messageId)
-          .limit(1)
-          .maybeSingle()
-        if (existing) continue
-      }
-
-      await supabase.from("lead_emails").insert({
-        lead_id: lead.id,
-        direction: "inbound",
-        from_email: email.from,
-        to_email: email.to || null,
-        subject: email.subject,
-        body_text: email.text || null,
-        body_html: email.html || null,
-        status: "received",
-        provider_message_id: email.messageId,
-      })
-      matched++
+      if (await fileInboundLeadEmail(email)) matched++
     }
 
     return NextResponse.json({ ok: true, matched })

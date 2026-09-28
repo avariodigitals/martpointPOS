@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
+  serverExternalPackages: ["nodemailer", "imapflow", "mailparser"],
   images: {
     unoptimized: true,
     formats: ["image/webp", "image/avif"],

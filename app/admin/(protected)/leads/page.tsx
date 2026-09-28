@@ -23,6 +23,7 @@ import { LeadDetailModal } from "@/components/admin/lead-detail-modal"
 import { COUNTRIES, STATES, CITIES } from "@/lib/locations"
 import { businessTypeOptions } from "@/lib/industries"
 import { ADVANCED_QUESTIONNAIRE_FIELDS } from "@/lib/questionnaire-catalog"
+import type { StoredEstimate } from "@/lib/estimate-calculator"
 
 const COUNTRY_OPTIONS = COUNTRIES.map((c) => c.name)
 const STATE_OPTIONS = [...new Set(Object.values(STATES).flat())].sort()
@@ -51,6 +52,7 @@ interface Lead {
   branches: string
   staffSize: string
   challenge?: string
+  estimate?: StoredEstimate | null
   message?: string
   source: string
   status: "New" | "Contacted" | "Qualified" | "Proposal" | "Won" | "Lost"

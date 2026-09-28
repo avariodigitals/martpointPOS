@@ -109,6 +109,31 @@ export interface EstimateResult {
   erp: Recommendation
 }
 
+/* ─── Stored estimate (persisted on the lead record for admin review) ─── */
+export interface StoredEstimateLeg {
+  planName: string
+  range: string
+  tier: PlanTierLimits["tier"]
+  inclusions: string[]
+  rationale: string
+}
+
+export interface StoredEstimate {
+  retail: StoredEstimateLeg
+  erp: StoredEstimateLeg
+}
+
+export function toStoredEstimate(result: EstimateResult): StoredEstimate {
+  const leg = (rec: Recommendation): StoredEstimateLeg => ({
+    planName: rec.planName,
+    range: formatRange(rec),
+    tier: rec.internalTier,
+    inclusions: rec.inclusions,
+    rationale: rec.rationale,
+  })
+  return { retail: leg(result.retail), erp: leg(result.erp) }
+}
+
 /* ─── Option metadata (labels + values) shared by the UI ─── */
 export const BRANCH_OPTIONS = [
   { value: "1", label: "1 branch" },

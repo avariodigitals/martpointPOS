@@ -6,13 +6,37 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import { Loader2, Save, Mail, ArrowLeft } from "lucide-react"
 
+interface SmtpForm {
+  host: string
+  port: string
+  secure: boolean
+  user: string
+  pass: string
+  fromEmail: string
+}
+
+interface ImapForm {
+  host: string
+  port: string
+  secure: boolean
+  user: string
+  pass: string
+  mailbox: string
+}
+
 interface EmailSettingsForm {
   provider: "resend" | "brevo"
   resendApiKey: string
   brevoApiKey: string
   fromEmail: string
   notifyEmail: string
+  signature: string
+  smtp: SmtpForm
+  imap: ImapForm
 }
+
+const emptySmtp: SmtpForm = { host: "", port: "465", secure: true, user: "", pass: "", fromEmail: "" }
+const emptyImap: ImapForm = { host: "", port: "993", secure: true, user: "", pass: "", mailbox: "INBOX" }
 
 export default function EmailSettingsPage() {
   const [settings, setSettings] = useState<EmailSettingsForm>({
@@ -21,6 +45,9 @@ export default function EmailSettingsPage() {
     brevoApiKey: "",
     fromEmail: "",
     notifyEmail: "",
+    signature: "",
+    smtp: { ...emptySmtp },
+    imap: { ...emptyImap },
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -32,17 +59,41 @@ export default function EmailSettingsPage() {
       .then((data) => {
         if (data.email) {
           const provider = data.email.provider === "brevo" ? "brevo" : "resend"
+          const smtp = data.email.smtp || {}
+          const imap = data.email.imap || {}
           setSettings({
             provider,
             resendApiKey: data.email.resendApiKey || "",
             brevoApiKey: data.email.brevoApiKey || "",
             fromEmail: data.email.fromEmail || "",
             notifyEmail: data.email.notifyEmail || "",
+            signature: data.email.signature || "",
+            smtp: {
+              host: smtp.host || "",
+              port: String(smtp.port || "465"),
+              secure: smtp.secure !== false,
+              user: smtp.user || "",
+              pass: smtp.pass || "",
+              fromEmail: smtp.fromEmail || "",
+            },
+            imap: {
+              host: imap.host || "",
+              port: String(imap.port || "993"),
+              secure: imap.secure !== false,
+              user: imap.user || "",
+              pass: imap.pass || "",
+              mailbox: imap.mailbox || "INBOX",
+            },
           })
         }
       })
       .finally(() => setLoading(false))
   }, [])
+
+  const setSmtp = (patch: Partial<SmtpForm>) =>
+    setSettings((s) => ({ ...s, smtp: { ...s.smtp, ...patch } }))
+  const setImap = (patch: Partial<ImapForm>) =>
+    setSettings((s) => ({ ...s, imap: { ...s.imap, ...patch } }))
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,7 +104,13 @@ export default function EmailSettingsPage() {
       const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: settings }),
+        body: JSON.stringify({
+          email: {
+            ...settings,
+            smtp: { ...settings.smtp, port: Number(settings.smtp.port) || 465 },
+            imap: { ...settings.imap, port: Number(settings.imap.port) || 993 },
+          },
+        }),
       })
       const data = await res.json()
       if (res.ok && data.success) {
@@ -209,6 +266,182 @@ export default function EmailSettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Changes take effect within 10 seconds due to caching.
               </p>
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Email Settings
+              </Button>
+            </CardFooter>
+          </Card>
+
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Email Signature</CardTitle>
+              <CardDescription>
+                Appended to emails sent from a lead&apos;s Email tab. Leave empty for no signature.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <textarea
+                rows={5}
+                value={settings.signature}
+                onChange={(e) => setSettings({ ...settings, signature: e.target.value })}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                placeholder={"Best regards,\nRalph\nMartPoint — sales@martpoint.com.ng"}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Lead Thread Mailbox (SMTP + IMAP)</CardTitle>
+              <CardDescription>
+                When an SMTP host and user are set, emails sent from a lead&apos;s Email tab go out through this
+                mailbox instead of Resend/Brevo, and replies are pulled back in over IMAP by the
+                <code className="text-xs bg-muted px-1 py-0.5 rounded mx-1">/api/cron/email-sync</code>
+                job — a true two-way thread on your own email. All other system email keeps using the provider above.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <p className="text-sm font-semibold">Outgoing — SMTP</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">SMTP Host</label>
+                    <input
+                      type="text"
+                      value={settings.smtp.host}
+                      onChange={(e) => setSmtp({ host: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="smtp.yourprovider.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Port</label>
+                    <input
+                      type="number"
+                      value={settings.smtp.port}
+                      onChange={(e) => setSmtp({ port: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="465"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Username</label>
+                    <input
+                      type="text"
+                      value={settings.smtp.user}
+                      onChange={(e) => setSmtp({ user: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="you@martpoint.com.ng"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Password / App Password</label>
+                    <input
+                      type="password"
+                      value={settings.smtp.pass}
+                      onChange={(e) => setSmtp({ pass: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-6">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={settings.smtp.secure}
+                      onChange={(e) => setSmtp({ secure: e.target.checked })}
+                      className="accent-retail"
+                    />
+                    SSL/TLS (port 465 — uncheck for STARTTLS on 587)
+                  </label>
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-sm font-medium mb-1">From Email (optional)</label>
+                    <input
+                      type="text"
+                      value={settings.smtp.fromEmail}
+                      onChange={(e) => setSmtp({ fromEmail: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="Your Name <you@martpoint.com.ng> — defaults to username"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 border-t border-border pt-4">
+                <p className="text-sm font-semibold">Incoming — IMAP</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">IMAP Host</label>
+                    <input
+                      type="text"
+                      value={settings.imap.host}
+                      onChange={(e) => setImap({ host: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="imap.yourprovider.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Port</label>
+                    <input
+                      type="number"
+                      value={settings.imap.port}
+                      onChange={(e) => setImap({ port: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="993"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Username</label>
+                    <input
+                      type="text"
+                      value={settings.imap.user}
+                      onChange={(e) => setImap({ user: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="you@martpoint.com.ng"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Password / App Password</label>
+                    <input
+                      type="password"
+                      value={settings.imap.pass}
+                      onChange={(e) => setImap({ pass: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Mailbox Folder</label>
+                    <input
+                      type="text"
+                      value={settings.imap.mailbox}
+                      onChange={(e) => setImap({ mailbox: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="INBOX"
+                    />
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={settings.imap.secure}
+                        onChange={(e) => setImap({ secure: e.target.checked })}
+                        className="accent-retail"
+                      />
+                      SSL/TLS (port 993)
+                    </label>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  New unread mail in this folder is matched to leads by sender address and added to their
+                  email thread every cron run. Fetched messages are marked as read. Test it any time at
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded mx-1">/api/cron/email-sync?secret=…</code>.
+                </p>
+              </div>
+            </CardContent>
+            <CardFooter className="border-t pt-4 flex items-center justify-end">
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Email Settings

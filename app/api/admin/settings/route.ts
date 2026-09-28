@@ -4,6 +4,7 @@ import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { getIntegrationDefaults } from "@/lib/integrations"
 import { DEFAULT_SCHEDULING } from "@/lib/scheduling"
+import { DEFAULT_MEETING_NOTES } from "@/lib/meeting-notes"
 
 async function readSettings(): Promise<Record<string, unknown>> {
   if (!isSupabaseConfigured()) {
@@ -255,6 +256,7 @@ function getDefaultSettings() {
       connectedAt: "",
     },
     scheduling: DEFAULT_SCHEDULING,
+    meetingNotes: DEFAULT_MEETING_NOTES,
     ...getIntegrationDefaults(),
   }
 }

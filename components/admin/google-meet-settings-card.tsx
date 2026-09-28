@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, Video, CheckCircle2, Unplug, Plus, X, CalendarClock } from "lucide-react"
+import { Loader2, Save, Video, CheckCircle2, Unplug, Plus, X, CalendarClock, Bot, Copy, RefreshCw } from "lucide-react"
 import {
   DEFAULT_SCHEDULING,
   WEEKDAYS,
@@ -12,6 +12,12 @@ import {
   type SchedulingSettings,
   type Weekday,
 } from "@/lib/scheduling"
+import {
+  DEFAULT_MEETING_NOTES,
+  normalizeMeetingNotes,
+  type MeetingNotesProvider,
+  type MeetingNotesSettings,
+} from "@/lib/meeting-notes"
 
 interface GoogleForm {
   clientId: string
@@ -41,13 +47,30 @@ function readOAuthResult(): string {
 const inputClass = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const smallInput = "rounded-md border border-input bg-background px-2 py-1.5 text-sm"
 
+const PROVIDER_HINTS: Record<MeetingNotesProvider, string> = {
+  disabled: "Automated notes are off. You can still add notes manually on each meeting.",
+  fireflies:
+    "Fireflies needs an API key — their webhook only sends a ping; we fetch the transcript from their API. In Fireflies: Settings → Developer Settings → Webhook URL.",
+  fathom:
+    "In Fathom: Settings → API Access → Webhooks → add the URL below and enable summary, action items and transcript.",
+  generic:
+    "Point any tool at the URL below — tl;dv via Zapier/Make, or a custom script. Send meetingLink (the Meet URL) plus summary / actionItems / transcript fields.",
+}
+
+function generateSecret(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(24)))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+}
+
 export function GoogleMeetSettingsCard({ className = "" }: { className?: string }) {
   const [loading, setLoading] = useState(true)
   const [google, setGoogle] = useState<GoogleForm>({ clientId: "", clientSecret: "", calendarId: "primary" })
   const [status, setStatus] = useState<GoogleStatus | null>(null)
   const [scheduling, setScheduling] = useState<SchedulingSettings>(DEFAULT_SCHEDULING)
-  const [saving, setSaving] = useState<"google" | "scheduling" | "disconnect" | null>(null)
-  const [message, setMessage] = useState<{ google?: string; scheduling?: string }>(() => {
+  const [notes, setNotes] = useState<MeetingNotesSettings>(DEFAULT_MEETING_NOTES)
+  const [saving, setSaving] = useState<"google" | "scheduling" | "notes" | "disconnect" | null>(null)
+  const [message, setMessage] = useState<{ google?: string; scheduling?: string; notes?: string }>(() => {
     const google = readOAuthResult()
     return google ? { google } : {}
   })
@@ -72,6 +95,7 @@ export function GoogleMeetSettingsCard({ className = "" }: { className?: string 
           })
         }
         setScheduling(normalizeScheduling(data.scheduling))
+        setNotes(normalizeMeetingNotes(data.meetingNotes))
       })
       .finally(() => setLoading(false))
 
@@ -85,7 +109,7 @@ export function GoogleMeetSettingsCard({ className = "" }: { className?: string 
     }
   }, [])
 
-  const save = async (section: "google" | "scheduling", body: Record<string, unknown>) => {
+  const save = async (section: "google" | "scheduling" | "notes", body: Record<string, unknown>) => {
     setSaving(section)
     setMessage((m) => ({ ...m, [section]: "" }))
     try {
@@ -299,6 +323,107 @@ export function GoogleMeetSettingsCard({ className = "" }: { className?: string 
           <Button type="button" onClick={() => save("scheduling", { scheduling: normalizeScheduling(scheduling) })} disabled={saving === "scheduling" || loading}>
             {saving === "scheduling" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             Save Availability
+          </Button>
+        </CardFooter>
+      </Card>
+
+      <Card className={className}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bot className="w-5 h-5 text-retail" />
+            AI Meeting Notes
+          </CardTitle>
+          <CardDescription>
+            Connect a notetaker (Fireflies, Fathom, or any tool via webhook). Its bot joins your Meet calls and the summary, action items and transcript land on each meeting&apos;s log.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loading ? (
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">Notetaker provider</label>
+                <select
+                  value={notes.provider}
+                  onChange={(e) => setNotes({ ...notes, provider: e.target.value as MeetingNotesProvider })}
+                  className={inputClass}
+                >
+                  <option value="disabled">Off — manual notes only</option>
+                  <option value="fireflies">Fireflies.ai</option>
+                  <option value="fathom">Fathom</option>
+                  <option value="generic">Other / Zapier / custom</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">{PROVIDER_HINTS[notes.provider]}</p>
+              </div>
+
+              {notes.provider === "fireflies" && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Fireflies API key</label>
+                  <input
+                    type="password"
+                    value={notes.apiKey}
+                    onChange={(e) => setNotes({ ...notes, apiKey: e.target.value })}
+                    className={inputClass}
+                    placeholder="ff_xxxxxxxxxxxxxxxx"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Fireflies → Settings → API → copy your API key.</p>
+                </div>
+              )}
+
+              {notes.provider !== "disabled" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Webhook secret</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={notes.webhookSecret}
+                        onChange={(e) => setNotes({ ...notes, webhookSecret: e.target.value })}
+                        className={`${inputClass} font-mono text-xs`}
+                        placeholder="Generate or paste a secret"
+                      />
+                      <Button type="button" size="sm" variant="outline" onClick={() => setNotes({ ...notes, webhookSecret: generateSecret() })}>
+                        <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                        Generate
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Save before copying the URL below. If a MEETING_NOTES_WEBHOOK_SECRET env var is also set, either secret is accepted.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Webhook URL — paste this into the notetaker&apos;s settings</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        readOnly
+                        value={`${typeof window !== "undefined" ? window.location.origin : ""}/api/webhooks/meeting-notes${notes.webhookSecret ? `?secret=${notes.webhookSecret}` : ""}`}
+                        className={`${inputClass} font-mono text-xs bg-muted/40`}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          navigator.clipboard.writeText(
+                            `${window.location.origin}/api/webhooks/meeting-notes${notes.webhookSecret ? `?secret=${notes.webhookSecret}` : ""}`,
+                          )
+                        }
+                      >
+                        <Copy className="w-3.5 h-3.5 mr-1" />
+                        Copy
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">If your MEETING_NOTES_WEBHOOK_SECRET env var is set, <code>?secret=&lt;that value&gt;</code> also works.</p>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </CardContent>
+        <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+          {message.notes && <span className={msgClass(message.notes)}>{message.notes}</span>}
+          <Button type="button" onClick={() => save("notes", { meetingNotes: normalizeMeetingNotes(notes) })} disabled={saving === "notes" || loading}>
+            {saving === "notes" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Save Notetaker
           </Button>
         </CardFooter>
       </Card>

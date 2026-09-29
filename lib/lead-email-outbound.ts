@@ -7,6 +7,9 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { sendEmail, getEmailSettings, isSmtpConfigured, REPLY_TO, type EmailAttachment } from "./email"
 import { sendEmailViaSmtp } from "./email-smtp"
+import { escapeHtml, htmlToText, bodyTextToHtml, buildSignatureHtml, appendSignatureToHtml } from "./email-html"
+
+export { escapeHtml }
 
 export interface LeadEmailRecord {
   id: string
@@ -36,10 +39,6 @@ export function mapLeadEmail(row: Record<string, unknown>): LeadEmailRecord {
     provider: (row.provider as string) ?? null,
     createdAt: row.created_at as string,
   }
-}
-
-export function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!))
 }
 
 export interface SendLeadEmailInput {
@@ -74,11 +73,19 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
   // Bare addresses get a display name so mail clients don't show an anonymous sender.
   const from = rawFrom.includes("<") ? rawFrom : `MartPoint <${rawFrom}>`
 
-  const signature = settings.signature.trim()
-  const textBody = signature && !input.noSignature ? `${input.body}\n\n-- \n${signature}` : input.body
-  const html =
-    input.html ||
-    `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#111827;white-space:pre-wrap;">${escapeHtml(textBody)}</div>`
+  // HTML signature (rich editor) wins; the plain-text field is the legacy
+  // fallback. The text part always gets a derived plain-text version, like a
+  // normal mail client signature.
+  const signatureHtml = settings.signatureHtml.trim()
+  const signatureText = (signatureHtml ? htmlToText(signatureHtml) : settings.signature).trim()
+  const hasSignature =
+    !input.noSignature && Boolean(signatureText || /<img\b/i.test(signatureHtml))
+
+  const textBody = hasSignature ? `${input.body}\n\n-- \n${signatureText}` : input.body
+  const signatureBlock = hasSignature ? buildSignatureHtml(signatureHtml, signatureText) : ""
+  const html = input.html
+    ? appendSignatureToHtml(input.html, signatureBlock)
+    : `${bodyTextToHtml(input.body)}${signatureBlock}`
 
   const sent = useMailbox
     ? await sendEmailViaSmtp(

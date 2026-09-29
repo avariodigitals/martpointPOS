@@ -4,7 +4,9 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, Mail, ArrowLeft } from "lucide-react"
+import EmailRichEditor from "@/components/admin/email-rich-editor"
+import { htmlToText, textToHtml } from "@/lib/email-html"
+import { Loader2, Save, Mail, ArrowLeft, Code2 } from "lucide-react"
 
 interface SmtpForm {
   host: string
@@ -31,6 +33,7 @@ interface EmailSettingsForm {
   fromEmail: string
   notifyEmail: string
   signature: string
+  signatureHtml: string
   smtp: SmtpForm
   imap: ImapForm
 }
@@ -46,12 +49,14 @@ export default function EmailSettingsPage() {
     fromEmail: "",
     notifyEmail: "",
     signature: "",
+    signatureHtml: "",
     smtp: { ...emptySmtp },
     imap: { ...emptyImap },
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
+  const [sigEditSource, setSigEditSource] = useState(false)
 
   useEffect(() => {
     fetch("/api/admin/settings", { cache: "no-store" })
@@ -68,6 +73,8 @@ export default function EmailSettingsPage() {
             fromEmail: data.email.fromEmail || "",
             notifyEmail: data.email.notifyEmail || "",
             signature: data.email.signature || "",
+            // Migrate a legacy plain-text signature into the rich editor.
+            signatureHtml: data.email.signatureHtml || textToHtml(data.email.signature || ""),
             smtp: {
               host: smtp.host || "",
               port: String(smtp.port || "465"),
@@ -90,6 +97,26 @@ export default function EmailSettingsPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  const uploadSignatureImage = async (file: File): Promise<string | null> => {
+    try {
+      const content = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader()
+        r.onload = () => resolve(String(r.result).split(",")[1] || "")
+        r.onerror = reject
+        r.readAsDataURL(file)
+      })
+      const res = await fetch("/api/admin/marketing/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, mimeType: file.type, content }),
+      })
+      const data = await res.json()
+      return (data.url as string) || null
+    } catch {
+      return null
+    }
+  }
+
   const setSmtp = (patch: Partial<SmtpForm>) =>
     setSettings((s) => ({ ...s, smtp: { ...s.smtp, ...patch } }))
   const setImap = (patch: Partial<ImapForm>) =>
@@ -107,6 +134,8 @@ export default function EmailSettingsPage() {
         body: JSON.stringify({
           email: {
             ...settings,
+            // Keep the plain-text field in sync — it backs the text/plain part.
+            signature: settings.signatureHtml ? htmlToText(settings.signatureHtml) : settings.signature,
             smtp: { ...settings.smtp, port: Number(settings.smtp.port) || 465 },
             imap: { ...settings.imap, port: Number(settings.imap.port) || 993 },
           },
@@ -277,17 +306,40 @@ export default function EmailSettingsPage() {
             <CardHeader>
               <CardTitle>Email Signature</CardTitle>
               <CardDescription>
-                Appended to emails sent from a lead&apos;s Email tab. Leave empty for no signature.
+                Appended under a <code className="text-xs bg-muted px-1 py-0.5 rounded">--</code> separator to emails
+                sent from a lead&apos;s Email tab and meeting emails — just like a normal email signature.
+                A plain-text version is generated automatically for mail clients that don&apos;t render HTML.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <textarea
-                rows={5}
-                value={settings.signature}
-                onChange={(e) => setSettings({ ...settings, signature: e.target.value })}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-                placeholder={"Best regards,\nRalph\nMartPoint — sales@martpoint.com.ng"}
-              />
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSigEditSource((v) => !v)}
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                >
+                  <Code2 className="w-3 h-3" /> {sigEditSource ? "Visual editor" : "Edit HTML"}
+                </button>
+              </div>
+              {sigEditSource ? (
+                <textarea
+                  rows={6}
+                  value={settings.signatureHtml}
+                  onChange={(e) => setSettings({ ...settings, signatureHtml: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                  placeholder={'<p><strong>Ralph</strong><br>MartPoint — <a href="mailto:sales@martpoint.com.ng">sales@martpoint.com.ng</a></p>'}
+                />
+              ) : (
+                <EmailRichEditor
+                  value={settings.signatureHtml}
+                  onChange={(html) => setSettings((s) => ({ ...s, signatureHtml: html }))}
+                  onUploadImage={uploadSignatureImage}
+                  minHeight={120}
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Formatting, links and images (e.g. your logo) are preserved in the email. Leave empty for no signature.
+              </p>
             </CardContent>
           </Card>
 

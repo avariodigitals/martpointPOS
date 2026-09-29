@@ -59,6 +59,7 @@ function getDefaultSettings() {
       fromEmail: "MartPoint Partners <hello@martpoint.com.ng>",
       notifyEmail: "",
       signature: "",
+      signatureHtml: "",
       smtp: { host: "", port: 465, secure: true, user: "", pass: "", fromEmail: "" },
       imap: { host: "", port: 993, secure: true, user: "", pass: "", mailbox: "INBOX" },
       routes: {

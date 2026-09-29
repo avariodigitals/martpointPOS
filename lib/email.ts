@@ -72,6 +72,8 @@ export interface EmailSettings {
   fromEmail: string
   notifyEmail: string
   signature: string
+  /** HTML signature (from the rich editor). Takes precedence over `signature`. */
+  signatureHtml: string
   smtp: SmtpSettings
   imap: ImapSettings
   routes: Record<string, string>
@@ -144,6 +146,7 @@ async function loadEmailSettingsFromDb(): Promise<EmailSettings> {
     fromEmail: "",
     notifyEmail: "",
     signature: "",
+    signatureHtml: "",
     smtp: loadSmtpSettings({}),
     imap: loadImapSettings({}),
     routes: { ...DEFAULT_ROUTES },
@@ -181,6 +184,7 @@ async function loadEmailSettingsFromDb(): Promise<EmailSettings> {
       fromEmail: String(email.fromEmail || ""),
       notifyEmail: String(email.notifyEmail || ""),
       signature: String(email.signature || ""),
+      signatureHtml: String(email.signatureHtml || ""),
       smtp: loadSmtpSettings(smtp),
       imap: loadImapSettings(imap),
       routes: { ...DEFAULT_ROUTES, ...Object.fromEntries(Object.entries(routes).map(([k, v]) => [k, String(v)])) },

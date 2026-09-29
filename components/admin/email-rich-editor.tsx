@@ -29,6 +29,8 @@ interface EmailRichEditorProps {
   onChange: (html: string) => void
   /** Upload an image, return the public URL to insert. */
   onUploadImage: (file: File) => Promise<string | null>
+  /** Minimum height of the editable area in px. */
+  minHeight?: number
 }
 
 function ToolbarButton({
@@ -59,7 +61,7 @@ function ToolbarButton({
   )
 }
 
-export default function EmailRichEditor({ value, onChange, onUploadImage }: EmailRichEditorProps) {
+export default function EmailRichEditor({ value, onChange, onUploadImage, minHeight = 220 }: EmailRichEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
@@ -74,7 +76,8 @@ export default function EmailRichEditor({ value, onChange, onUploadImage }: Emai
     editorProps: {
       attributes: {
         class:
-          "prose-sm max-w-none min-h-[220px] px-3 py-2 outline-none text-sm [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:my-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:my-2 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_a]:text-retail [&_a]:underline [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded",
+          "prose-sm max-w-none px-3 py-2 outline-none text-sm [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:my-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:my-2 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_a]:text-retail [&_a]:underline [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded",
+        style: `min-height:${minHeight}px`,
       },
     },
   })

@@ -15,10 +15,12 @@ const ALLOWED_MIME: Record<string, string> = {
 
 const MAX_SIZE = 4 * 1024 * 1024
 
-/* ─── POST: upload a campaign image → public URL ─── */
+/* ─── POST: upload a campaign/signature image → public URL ─── */
 export async function POST(request: Request) {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "marketing")) {
+  const role = session?.role as UserRole | undefined
+  // Also used by Email Settings (signature logos), so settings admins may upload.
+  if (!role || (!hasPermission(role, "marketing") && !hasPermission(role, "settings"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

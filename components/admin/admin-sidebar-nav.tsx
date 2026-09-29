@@ -40,6 +40,9 @@ import {
   BookOpen,
   Scale,
   ArrowLeftRight,
+  Briefcase,
+  UserCheck,
+  MapPin,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -95,6 +98,16 @@ const navItems: NavItem[] = [
   // OPERATIONS
   { href: "/admin/incidents", label: "Incidents", icon: Shield, page: "support", section: "Operations" },
   { href: "/admin/status", label: "Status Page", icon: Activity, page: "status", section: "Operations" },
+
+  // CAREERS
+  { href: "/admin/careers", label: "Careers", icon: Briefcase, page: "careers.dashboard.view", section: "Careers" },
+  { href: "/admin/careers/vacancies", label: "Vacancies", icon: FileText, page: "careers.vacancies.view", section: "Careers" },
+  { href: "/admin/careers/applications", label: "Job Applications", icon: Users, page: "careers.applications.view", section: "Careers" },
+  { href: "/admin/careers/talent-pool", label: "Talent Pool", icon: UserCheck, page: "careers.talent_pool.view", section: "Careers" },
+  { href: "/admin/careers/assessments", label: "Assessments", icon: ClipboardCheck, page: "careers.assessments.manage", section: "Careers" },
+  { href: "/admin/careers/deployments", label: "Deployments", icon: MapPin, page: "careers.deployments.view", section: "Careers" },
+  { href: "/admin/careers/reports", label: "Reports", icon: BarChart3, page: "careers.dashboard.view", section: "Careers" },
+  { href: "/admin/careers/settings", label: "Careers Settings", icon: Settings, page: "careers.settings.manage", section: "Careers" },
 
   // MARKETING
   { href: "/admin/marketing", label: "Campaigns", icon: Megaphone, page: "marketing", section: "Marketing" },

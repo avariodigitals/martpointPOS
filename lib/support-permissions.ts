@@ -30,6 +30,10 @@ const SUPPORT_ADMIN_PERMISSIONS: Record<UserRole, SupportAdminAction[]> = {
   Sales: ["support:view", "customer_success:view", "customer_success:manage"],
   Tech: ["support:view", "support:create", "support:update", "support:resolve", "support:sla_manage"],
   Editor: [],
+  "HR Manager": [],
+  "Hiring Manager": [],
+  Reviewer: [],
+  "Deployment Supervisor": [],
 }
 
 export function hasSupportAdminAction(role: UserRole, action: SupportAdminAction): boolean {

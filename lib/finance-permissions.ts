@@ -46,6 +46,10 @@ const FINANCE_PERMISSIONS: Record<UserRole, FinanceAction[]> = {
   Sales: ["finance:view", "finance:quotes:create"],
   Tech: ["finance:view"],
   Editor: [],
+  "HR Manager": [],
+  "Hiring Manager": [],
+  Reviewer: [],
+  "Deployment Supervisor": [],
 }
 
 export function hasFinanceAction(role: UserRole, action: FinanceAction): boolean {

@@ -1,4 +1,4 @@
-export const revalidate = 86400
+export const revalidate = 60
 import type { Metadata } from "next"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
@@ -14,13 +14,15 @@ import {
   GraduationCap,
   Clock,
   Check,
+  MapPin,
 } from "lucide-react"
-import { CareersApplicationForm } from "@/components/careers-application-form"
+import { listPublicVacancies } from "@/lib/careers"
+import { VacancyBoard } from "./vacancy-board"
 
 export const metadata: Metadata = {
   title: "Careers — Join the MartPoint Team",
   description:
-    "Build the future of African business software. Explore open roles, culture and benefits at MartPoint.",
+    "Build the future of African business software. Explore open roles, field deployments and the MartPoint talent pool.",
   alternates: {
     canonical: "/careers",
   },
@@ -34,31 +36,51 @@ const values = [
 ]
 
 const benefits = [
-  "Competitive salary and performance bonuses",
-  "Remote-first with flexible working hours",
-  "Health insurance for you and dependents",
-  "Learning budget for courses and conferences",
-  "Equity participation for key roles",
-  "Team retreats and off-site bonding events",
-  "Latest equipment and software allowance",
-  "Mentorship and clear growth pathways",
+  "Compensation and benefits vary by role and engagement type — each vacancy lists what applies",
+  "Field and project roles may include daily rates, transport allowance and on-site meals",
+  "Remote-friendly collaboration for eligible roles",
+  "Learning and mentorship opportunities",
+  "Real ownership of work that reaches thousands of businesses",
+  "Clear, transparent hiring process with defined stages",
 ]
 
 const process = [
-  { step: "01", title: "Apply", desc: "Send your CV and a short note about why MartPoint interests you." },
-  { step: "02", title: "Interview", desc: "Conversation with the hiring manager about your experience and aspirations." },
-  { step: "03", title: "Task", desc: "A short, relevant task so we can see how you think and work." },
-  { step: "04", title: "Offer", desc: "If it is a fit, we move fast. Most offers are extended within one week." },
+  { step: "01", title: "Apply", desc: "Complete the vacancy-specific application form — it only takes a few minutes." },
+  { step: "02", title: "Review", desc: "Our team reviews your application against the role requirements." },
+  { step: "03", title: "Assessment", desc: "Shortlisted candidates may be invited to an interview or practical task." },
+  { step: "04", title: "Decision", desc: "Selected candidates receive an offer; others are notified or added to our reserve list." },
 ]
 
-const openRoles: { title: string; team: string; location: string; type: string }[] = [
-  // Uncomment and edit when hiring
-  // { title: "Senior Frontend Engineer", team: "Engineering", location: "Remote (Africa)", type: "Full-time" },
-  // { title: "Customer Success Manager", team: "Operations", location: "Lagos, Nigeria", type: "Full-time" },
-  // { title: "Product Designer", team: "Design", location: "Remote (Africa)", type: "Full-time" },
+const faqs = [
+  {
+    q: "How do I apply for a role?",
+    a: "Open a vacancy under Current Opportunities, read the details and click Apply. Each vacancy has its own application form — you never need to type the job title yourself.",
+  },
+  {
+    q: "Can I apply if there is no open vacancy for me?",
+    a: "Yes. Join our Talent Pool and we will contact you when a role matching your skills and location opens up. Joining is optional and requires your consent.",
+  },
+  {
+    q: "How do I check my application status?",
+    a: "Use the Application Status page with your application reference and the email you applied with. You will see a safe, simplified status — internal review notes are never shared.",
+  },
+  {
+    q: "What are field roles like?",
+    a: "Field roles such as inventory projects are short-term, on-site engagements. Pay is typically daily, with transport allowance and meals where stated on the vacancy. Compensation and benefits always depend on the specific role and engagement type.",
+  },
+  {
+    q: "Do I need a LinkedIn profile to apply?",
+    a: "No. LinkedIn is always optional. Some vacancies ask for a CV or other documents — the form shows exactly what is required for that role.",
+  },
+  {
+    q: "Will I hear back about my application?",
+    a: "You can check your application status at any time using your reference number. If you consent to notifications, we will also email you when your status changes.",
+  },
 ]
 
-export default function CareersPage() {
+export default async function CareersPage() {
+  const vacancies = await listPublicVacancies()
+
   return (
     <>
       <Header />
@@ -74,15 +96,24 @@ export default function CareersPage() {
                 Build Software That Powers African Business
               </h1>
               <p className="mt-6 text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-                MartPoint is building the operating system for African retail and growing enterprises. We are looking for people who want their work to matter.
+                MartPoint is building the operating system for African retail and growing enterprises — and the field network that powers it. Explore open roles and project deployments.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
-                  <Link href="#apply">Apply Now</Link>
+                  <Link href="#opportunities">View Open Roles</Link>
                 </Button>
                 <Button asChild variant="outline" size="lg">
-                  <Link href="/about">About MartPoint</Link>
+                  <Link href="/careers/talent-pool">Join Our Talent Pool</Link>
                 </Button>
+              </div>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+                <Link href="/careers/application-status" className="underline underline-offset-4 hover:text-foreground">
+                  Check application status
+                </Link>
+                <span aria-hidden>·</span>
+                <Link href="/careers/privacy" className="underline underline-offset-4 hover:text-foreground">
+                  Recruitment privacy notice
+                </Link>
               </div>
             </div>
           </div>
@@ -115,13 +146,13 @@ export default function CareersPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center max-w-5xl mx-auto">
               <div>
                 <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-3">
-                  Perks
+                  What To Expect
                 </span>
                 <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
                   Benefits That Matter
                 </h2>
                 <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                  We invest in our people because they are the reason we build great products.
+                  Compensation and benefits depend on the role and engagement type — permanent, contract, temporary, internship or project-based field work. Every vacancy page states exactly what that role offers.
                 </p>
                 <div className="mt-8 space-y-5">
                   {benefits.map((text, i) => (
@@ -135,23 +166,23 @@ export default function CareersPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="rounded-xl border border-border bg-card p-6 text-center">
                   <GraduationCap className="w-8 h-8 text-retail mx-auto mb-3" />
-                  <div className="text-sm font-semibold text-foreground">Continuous Learning</div>
-                  <div className="text-xs text-muted-foreground mt-1">Budget for courses, books and conferences</div>
+                  <div className="text-sm font-semibold text-foreground">Grow With Us</div>
+                  <div className="text-xs text-muted-foreground mt-1">Learning and mentorship opportunities across teams</div>
                 </div>
                 <div className="rounded-xl border border-border bg-card p-6 text-center">
                   <Clock className="w-8 h-8 text-retail mx-auto mb-3" />
-                  <div className="text-sm font-semibold text-foreground">Flexible Hours</div>
-                  <div className="text-xs text-muted-foreground mt-1">Work when you are most productive</div>
+                  <div className="text-sm font-semibold text-foreground">Flexible Engagements</div>
+                  <div className="text-xs text-muted-foreground mt-1">Permanent, contract, temporary and project roles</div>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-6 text-center">
+                  <MapPin className="w-8 h-8 text-retail mx-auto mb-3" />
+                  <div className="text-sm font-semibold text-foreground">Field Network</div>
+                  <div className="text-xs text-muted-foreground mt-1">On-call inventory deployments across Nigeria</div>
                 </div>
                 <div className="rounded-xl border border-border bg-card p-6 text-center">
                   <Users className="w-8 h-8 text-retail mx-auto mb-3" />
                   <div className="text-sm font-semibold text-foreground">Inclusive Team</div>
                   <div className="text-xs text-muted-foreground mt-1">Diverse perspectives build better products</div>
-                </div>
-                <div className="rounded-xl border border-border bg-card p-6 text-center">
-                  <Briefcase className="w-8 h-8 text-retail mx-auto mb-3" />
-                  <div className="text-sm font-semibold text-foreground">Real Ownership</div>
-                  <div className="text-xs text-muted-foreground mt-1">Equity and autonomy for key contributors</div>
                 </div>
               </div>
             </div>
@@ -164,7 +195,7 @@ export default function CareersPage() {
             <SectionHeader
               label="How We Hire"
               headline="Our Hiring Process"
-              description="Transparent, respectful and fast. We value your time as much as ours."
+              description="Transparent and respectful. Track your application status anytime with your reference number."
             />
             <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
               {process.map((step) => (
@@ -180,53 +211,57 @@ export default function CareersPage() {
           </div>
         </section>
 
-        {/* Open Positions */}
-        <section className="w-full bg-background py-16 md:py-24">
-          <div className="container-martpoint max-w-3xl">
+        {/* Current Opportunities */}
+        <section id="opportunities" className="w-full bg-background py-16 md:py-24 scroll-mt-8">
+          <div className="container-martpoint max-w-4xl">
             <SectionHeader
               label="Open Positions"
               headline="Current Opportunities"
+              description={vacancies.length > 0 ? `${vacancies.length} open ${vacancies.length === 1 ? "role" : "roles"}` : undefined}
             />
-            {openRoles.length > 0 ? (
-              <div className="mt-10 space-y-4">
-                {openRoles.map((role) => (
-                  <div key={role.title} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:border-retail/30">
-                    <div>
-                      <h3 className="text-sm font-semibold text-foreground">{role.title}</h3>
-                      <p className="text-xs text-muted-foreground mt-1">{role.team} · {role.location} · {role.type}</p>
-                    </div>
-                    <Button asChild variant="retail" size="sm">
-                      <Link href="#apply">Apply</Link>
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-10 rounded-xl border border-border bg-card p-8 text-center">
-                <Briefcase className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">No Current Vacancies</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto mb-6">
-                  We are not actively hiring right now, but we always welcome exceptional talent. Send us your details and we will reach out when a fitting role opens.
-                </p>
-                <Button asChild variant="outline">
-                  <Link href="#apply">Send Your CV</Link>
-                </Button>
-              </div>
-            )}
+            <VacancyBoard vacancies={vacancies} />
           </div>
         </section>
 
-        {/* Application Form */}
-        <section id="apply" className="w-full bg-muted py-16 md:py-24">
-          <div className="container-martpoint max-w-2xl">
-            <div className="text-center mb-10">
-              <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-3">Apply</span>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">Join the MartPoint Team</h2>
-              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                All fields are required. We review every application personally and respond within one week.
+        {/* Talent Pool CTA */}
+        <section className="w-full bg-muted py-16 md:py-24">
+          <div className="container-martpoint max-w-3xl">
+            <div className="rounded-2xl border border-border bg-background p-8 md:p-12 text-center">
+              <div className="w-14 h-14 rounded-full bg-retail-soft flex items-center justify-center mx-auto mb-5">
+                <Briefcase className="w-7 h-7 text-retail" />
+              </div>
+              <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Join Our Talent Pool</h2>
+              <p className="mt-4 text-muted-foreground leading-relaxed max-w-xl mx-auto">
+                No suitable opening right now? Join the MartPoint Talent Pool and we will reach out when a role matches your skills, location and availability — including short-notice field deployments.
+              </p>
+              <div className="mt-8">
+                <Button asChild size="lg" variant="retail">
+                  <Link href="/careers/talent-pool">Join Our Talent Pool</Link>
+                </Button>
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground">
+                Optional and consent-based. Your details are handled under our{" "}
+                <Link href="/careers/privacy" className="underline underline-offset-2">recruitment privacy notice</Link>.
               </p>
             </div>
-            <CareersApplicationForm />
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section className="w-full bg-background py-16 md:py-24">
+          <div className="container-martpoint max-w-3xl">
+            <SectionHeader label="FAQ" headline="Careers FAQ" />
+            <div className="mt-10 space-y-4">
+              {faqs.map((f) => (
+                <details key={f.q} className="group rounded-xl border border-border bg-card p-5">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-foreground">
+                    {f.q}
+                    <span className="text-retail transition-transform group-open:rotate-45">+</span>
+                  </summary>
+                  <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{f.a}</p>
+                </details>
+              ))}
+            </div>
           </div>
         </section>
       </main>

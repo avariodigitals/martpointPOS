@@ -1,4 +1,14 @@
-export type UserRole = "Admin" | "Finance" | "Digital Marketer" | "Sales" | "Tech" | "Editor"
+export type UserRole =
+  | "Admin"
+  | "Finance"
+  | "Digital Marketer"
+  | "Sales"
+  | "Tech"
+  | "Editor"
+  | "HR Manager"
+  | "Hiring Manager"
+  | "Reviewer"
+  | "Deployment Supervisor"
 
 export interface User {
   id: string
@@ -30,7 +40,37 @@ export const ALL_ROLES: UserRole[] = [
   "Sales",
   "Tech",
   "Editor",
+  "HR Manager",
+  "Hiring Manager",
+  "Reviewer",
+  "Deployment Supervisor",
 ]
+
+/* Careers module granular permissions. These strings double as the `page`
+ * argument to authorize()/authorizeAdmin() — hasPermission() checks them
+ * literally against the role's list. */
+export const CAREERS_PERMISSIONS = [
+  "careers.dashboard.view",
+  "careers.vacancies.view",
+  "careers.vacancies.create",
+  "careers.vacancies.edit",
+  "careers.vacancies.publish",
+  "careers.vacancies.close",
+  "careers.applications.view",
+  "careers.applications.review",
+  "careers.applications.export",
+  "careers.applications.delete",
+  "careers.assessments.manage",
+  "careers.talent_pool.view",
+  "careers.talent_pool.manage",
+  "careers.deployments.view",
+  "careers.deployments.manage",
+  "careers.settings.manage",
+] as const
+
+const CAREERS_HR_PERMISSIONS = CAREERS_PERMISSIONS.filter(
+  (p) => p !== "careers.settings.manage"
+)
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   Admin: "Full access to all Control Centre features",
@@ -39,6 +79,10 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   Sales: "Tracker, analytics, leads, customers, finance, onboarding",
   Tech: "Settings, SEO, blog, FAQs, customers",
   Editor: "Blog & FAQs content only",
+  "HR Manager": "Full Careers access — vacancies, applicants, talent pool, assessments, deployments",
+  "Hiring Manager": "Assigned vacancies and their applicants — review and scoring",
+  Reviewer: "Candidate review and scoring only",
+  "Deployment Supervisor": "Assigned deployments, attendance and performance",
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
@@ -48,7 +92,31 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   Sales: ["tracker", "analytics", "leads", "quotations", "customers", "finance", "onboarding", "businesses", "partners", "customer_success", "marketing"],
   Tech: ["settings", "integrations", "seo", "blog", "faqs", "customers", "businesses", "support", "customer_success", "compliance", "tasks", "status"],
   Editor: ["blog", "faqs"],
+  "HR Manager": [...CAREERS_HR_PERMISSIONS, "dashboard"],
+  "Hiring Manager": [
+    "dashboard",
+    "careers.dashboard.view",
+    "careers.vacancies.view",
+    "careers.applications.view",
+    "careers.applications.review",
+    "careers.talent_pool.view",
+  ],
+  Reviewer: [
+    "dashboard",
+    "careers.dashboard.view",
+    "careers.applications.view",
+    "careers.applications.review",
+  ],
+  "Deployment Supervisor": [
+    "dashboard",
+    "careers.dashboard.view",
+    "careers.deployments.view",
+    "careers.deployments.manage",
+  ],
 }
+
+// Finance also sees deployment compensation summaries.
+ROLE_PERMISSIONS.Finance = [...ROLE_PERMISSIONS.Finance, "careers.deployments.view"]
 
 export function hasPermission(role: UserRole, page: string): boolean {
   return ROLE_PERMISSIONS[role]?.includes(page) ?? false

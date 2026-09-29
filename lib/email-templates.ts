@@ -1449,6 +1449,429 @@ MartPoint Sales Team`,
       { eyebrow: "Sales", title: "Meeting notes", signoff: "MartPoint Sales Team" },
     ),
   },
+  {
+    key: "career_application_received",
+    label: "Careers: Application Received",
+    description: "Confirmation sent to an applicant right after submitting a vacancy application.",
+    variables: ["fullName", "reference", "vacancyTitle", "statusUrl", "confirmationMessage"],
+    subject: "Application received — {{vacancyTitle}} ({{reference}})",
+    text: `Hi {{fullName}},
+
+Thank you for applying for {{vacancyTitle}} at MartPoint. Your application has been received.
+
+Application reference: {{reference}}
+{{confirmationMessage}}
+You can check your application status anytime at:
+{{statusUrl}}
+
+You will need your application reference and the email you applied with.
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Thank you for applying for <strong>{{vacancyTitle}}</strong> at MartPoint. Your application has been received and will be reviewed by our team.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Application reference</p>
+                    <p style="font-size:17px; font-weight:700; color:#111827; margin:0; letter-spacing:0.5px;">{{reference}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:12px 0 0;">{{confirmationMessage}}</p>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{statusUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Check Application Status</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280;">
+                You will need your application reference and the email you applied with.
+              </p>`,
+      { eyebrow: "Careers", title: "Application received", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_application_admin",
+    label: "Careers: Application Received (internal)",
+    description: "Internal notification to the careers team when a new application arrives.",
+    variables: ["fullName", "reference", "email", "vacancyTitle"],
+    subject: "New application — {{vacancyTitle}} ({{reference}})",
+    text: `A new careers application was submitted.
+
+Vacancy: {{vacancyTitle}}
+Reference: {{reference}}
+Applicant: {{fullName}}
+Email: {{email}}
+
+Review it in the Control Centre under Careers → Applications.`,
+  },
+  {
+    key: "career_shortlisted",
+    label: "Careers: Shortlisted",
+    description: "Sent when an applicant is shortlisted for a vacancy.",
+    variables: ["fullName", "reference", "vacancyTitle", "statusUrl"],
+    subject: "You have been shortlisted — {{vacancyTitle}}",
+    text: `Hi {{fullName}},
+
+Good news — your application for {{vacancyTitle}} (reference {{reference}}) has been shortlisted.
+
+Our team will contact you with next steps. You can check your status anytime at:
+{{statusUrl}}
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 16px; color:#374151;">
+                Good news — your application for <strong>{{vacancyTitle}}</strong> ({{reference}}) has been shortlisted.
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Our team will contact you with next steps.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{statusUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Check Status</a>
+                  </td>
+                </tr>
+              </table>`,
+      { eyebrow: "Careers", title: "Shortlisted", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_assessment_invite",
+    label: "Careers: Assessment Invitation",
+    description: "Sent when an applicant is invited to an assessment.",
+    variables: ["fullName", "reference", "vacancyTitle", "assessmentName", "assessmentDetails"],
+    subject: "Assessment invitation — {{vacancyTitle}}",
+    text: `Hi {{fullName}},
+
+You have been invited to complete an assessment for {{vacancyTitle}} (reference {{reference}}).
+
+Assessment: {{assessmentName}}
+{{assessmentDetails}}
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                You have been invited to complete an assessment for <strong>{{vacancyTitle}}</strong> ({{reference}}).
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Assessment</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{assessmentName}}</p>
+                    <p style="font-size:14px; line-height:1.6; color:#374151; margin:12px 0 0;">{{assessmentDetails}}</p>
+                  </td>
+                </tr>
+              </table>`,
+      { eyebrow: "Careers", title: "Assessment invitation", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_selected",
+    label: "Careers: Selection Notification",
+    description: "Sent when an applicant is selected for a role.",
+    variables: ["fullName", "reference", "vacancyTitle", "nextSteps"],
+    subject: "Congratulations — {{vacancyTitle}}",
+    text: `Hi {{fullName}},
+
+Congratulations — you have been selected for {{vacancyTitle}} (reference {{reference}}).
+
+{{nextSteps}}
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 16px; color:#374151;">
+                Congratulations — you have been selected for <strong>{{vacancyTitle}}</strong> ({{reference}}).
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">{{nextSteps}}</p>`,
+      { eyebrow: "Careers", title: "Selected", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_reserve",
+    label: "Careers: Reserve List",
+    description: "Sent when an applicant is placed on the reserve list.",
+    variables: ["fullName", "reference", "vacancyTitle"],
+    subject: "Application update — {{vacancyTitle}}",
+    text: `Hi {{fullName}},
+
+Thank you for applying for {{vacancyTitle}} (reference {{reference}}).
+
+You have been placed on our reserve list. We may contact you if a place opens up or a similar role becomes available.
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 16px; color:#374151;">
+                Thank you for applying for <strong>{{vacancyTitle}}</strong> ({{reference}}).
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                You have been placed on our reserve list. We may contact you if a place opens up or a similar role becomes available.
+              </p>`,
+      { eyebrow: "Careers", title: "Application update", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_rejection",
+    label: "Careers: Rejection / Closure",
+    description: "Sent when an application is not taken forward.",
+    variables: ["fullName", "reference", "vacancyTitle"],
+    subject: "Application update — {{vacancyTitle}}",
+    text: `Hi {{fullName}},
+
+Thank you for your interest in {{vacancyTitle}} (reference {{reference}}) and for the time you invested in applying.
+
+After careful review, we will not be moving forward with your application for this role. We encourage you to join our Talent Pool and apply for future openings.
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 16px; color:#374151;">
+                Thank you for your interest in <strong>{{vacancyTitle}}</strong> ({{reference}}) and for the time you invested in applying.
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                After careful review, we will not be moving forward with your application for this role. We encourage you to join our Talent Pool and apply for future openings.
+              </p>`,
+      { eyebrow: "Careers", title: "Application update", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_deployment_invite",
+    label: "Careers: Deployment Invitation",
+    description: "Sent when a field worker is invited to a deployment.",
+    variables: ["fullName", "deploymentName", "location", "dates", "details"],
+    subject: "Deployment invitation — {{deploymentName}}",
+    text: `Hi {{fullName}},
+
+You have been invited to a MartPoint field deployment: {{deploymentName}}.
+
+Location: {{location}}
+Dates: {{dates}}
+{{details}}
+
+Please confirm your availability by replying to this email.
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                You have been invited to a MartPoint field deployment: <strong>{{deploymentName}}</strong>.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Location</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 12px;">{{location}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Dates</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 12px;">{{dates}}</p>
+                    <p style="font-size:14px; line-height:1.6; color:#374151; margin:0;">{{details}}</p>
+                  </td>
+                </tr>
+              </table>`,
+      { eyebrow: "Careers", title: "Deployment invitation", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_deployment_reminder",
+    label: "Careers: Deployment Reminder",
+    description: "Reminder sent before a deployment starts.",
+    variables: ["fullName", "deploymentName", "location", "dates"],
+    subject: "Reminder — {{deploymentName}}",
+    text: `Hi {{fullName}},
+
+This is a reminder about your upcoming deployment: {{deploymentName}}.
+
+Location: {{location}}
+Dates: {{dates}}
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                This is a reminder about your upcoming deployment: <strong>{{deploymentName}}</strong>.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Location</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 12px;">{{location}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Dates</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{dates}}</p>
+                  </td>
+                </tr>
+              </table>`,
+      { eyebrow: "Careers", title: "Deployment reminder", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_talent_pool_welcome",
+    label: "Careers: Talent Pool Welcome",
+    description: "Sent when a candidate joins the talent pool.",
+    variables: ["fullName", "reference"],
+    subject: "You are in the MartPoint Talent Pool",
+    text: `Hi {{fullName}},
+
+Thank you for joining the MartPoint Talent Pool (reference {{reference}}).
+
+We will contact you when a role matching your skills and location opens up.
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 16px; color:#374151;">
+                Thank you for joining the MartPoint Talent Pool.
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                Your talent pool reference is <strong>{{reference}}</strong>. We will contact you when a role matching your skills and location opens up.
+              </p>`,
+      { eyebrow: "Careers", title: "Talent pool", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_under_review",
+    label: "Careers: Under Review",
+    description: "Sent when an application moves into active review.",
+    variables: ["fullName", "reference", "vacancyTitle", "statusUrl"],
+    subject: "Application update — {{vacancyTitle}}",
+    text: `Hi {{fullName}},
+
+Your application for {{vacancyTitle}} (reference {{reference}}) is now under active review by our hiring team.
+
+You can check your status anytime at:
+{{statusUrl}}
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Your application for <strong>{{vacancyTitle}}</strong> ({{reference}}) is now under active review by our hiring team.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{statusUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Check Status</a>
+                  </td>
+                </tr>
+              </table>`,
+      { eyebrow: "Careers", title: "Application update", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_interview_invite",
+    label: "Careers: Interview Invitation",
+    description: "Interview invitation. Includes a join button when a video meeting link is set, or the venue when in person. An .ics calendar file is attached automatically.",
+    variables: ["fullName", "reference", "vacancyTitle", "assessmentName", "interviewWhen", "durationMinutes", "joinLine", "joinBlock", "locationLine", "locationBlock", "notes", "statusUrl"],
+    subject: "Interview invitation — {{vacancyTitle}}",
+    text: `Hi {{fullName}},
+
+You are invited to an interview for {{vacancyTitle}} (reference {{reference}}).
+
+Interview: {{assessmentName}}
+When: {{interviewWhen}}
+Duration: {{durationMinutes}} minutes
+{{joinLine}}{{locationLine}}
+{{notes}}
+
+If the time does not work for you, reply to this email and we will reschedule.
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                You are invited to an interview for <strong>{{vacancyTitle}}</strong> ({{reference}}).
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Interview</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 12px;">{{assessmentName}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">When</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 12px;">{{interviewWhen}} · {{durationMinutes}} minutes</p>
+                    {{locationBlock}}
+                  </td>
+                </tr>
+              </table>
+              {{joinBlock}}
+              <p style="font-size:14px; line-height:1.6; color:#374151; margin:0 0 16px;">{{notes}}</p>
+              <p style="font-size:13px; line-height:1.5; color:#6b7280; margin:0;">
+                A calendar invite is attached to this email. If the time does not work for you, reply to this email and we will reschedule.
+              </p>`,
+      { eyebrow: "Careers", title: "Interview invitation", signoff: "MartPoint Careers Team" }
+    ),
+  },
+  {
+    key: "career_offer_letter",
+    label: "Careers: Offer Letter",
+    description: "Formal offer letter sent to a selected candidate. Sent from the application detail page with role terms.",
+    variables: ["fullName", "reference", "vacancyTitle", "employmentType", "location", "compensation", "startDate", "workScheduleLine", "workScheduleRow", "benefitsLine", "benefitsBlock", "termsText", "termsBlock", "responseNote", "statusUrl"],
+    subject: "Your offer — {{vacancyTitle}} at MartPoint",
+    text: `Hi {{fullName}},
+
+Following your application for {{vacancyTitle}} (reference {{reference}}), we are pleased to offer you the role at MartPoint.
+
+ROLE DETAILS
+Position: {{vacancyTitle}}
+Employment type: {{employmentType}}
+Location: {{location}}
+Compensation: {{compensation}}
+Start date: {{startDate}}
+{{workScheduleLine}}{{benefitsLine}}
+{{termsText}}
+{{responseNote}}
+
+To accept this offer, reply to this email. If you have any questions about the terms, we are happy to discuss them.
+
+Congratulations — we look forward to working with you.
+
+Best regards,
+MartPoint Careers Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Following your application for <strong>{{vacancyTitle}}</strong> ({{reference}}), we are pleased to offer you the role at MartPoint.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#6b7280; margin:0 0 12px;">Role details</p>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                      <tr><td style="font-size:14px; color:#6b7280; padding:2px 16px 2px 0;">Position</td><td style="font-size:14px; font-weight:600; color:#111827; padding:2px 0;">{{vacancyTitle}}</td></tr>
+                      <tr><td style="font-size:14px; color:#6b7280; padding:2px 16px 2px 0;">Employment type</td><td style="font-size:14px; color:#111827; padding:2px 0;">{{employmentType}}</td></tr>
+                      <tr><td style="font-size:14px; color:#6b7280; padding:2px 16px 2px 0;">Location</td><td style="font-size:14px; color:#111827; padding:2px 0;">{{location}}</td></tr>
+                      <tr><td style="font-size:14px; color:#6b7280; padding:2px 16px 2px 0;">Compensation</td><td style="font-size:14px; color:#111827; padding:2px 0;">{{compensation}}</td></tr>
+                      <tr><td style="font-size:14px; color:#6b7280; padding:2px 16px 2px 0;">Start date</td><td style="font-size:14px; color:#111827; padding:2px 0;">{{startDate}}</td></tr>
+                      {{workScheduleRow}}
+                    </table>
+                    {{benefitsBlock}}
+                  </td>
+                </tr>
+              </table>
+              {{termsBlock}}
+              <p style="font-size:15px; line-height:1.6; margin:0 0 8px; color:#374151;">{{responseNote}}</p>
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                Congratulations — we look forward to working with you.
+              </p>`,
+      { eyebrow: "Careers", title: "Offer of engagement", signoff: "MartPoint Careers Team" }
+    ),
+  },
 ]
 
 const templateMap = new Map(EMAIL_TEMPLATES.map((t) => [t.key, t]))

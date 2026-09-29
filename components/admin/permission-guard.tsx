@@ -25,15 +25,28 @@ const pageMap: Record<string, string> = {
   "/admin/reports": "analytics",
   "/admin/audit": "admin",
   "/admin/marketing": "marketing",
+  "/admin/careers": "careers.dashboard.view",
+  "/admin/careers/vacancies": "careers.vacancies.view",
+  "/admin/careers/applications": "careers.applications.view",
+  "/admin/careers/talent-pool": "careers.talent_pool.view",
+  "/admin/careers/assessments": "careers.assessments.manage",
+  "/admin/careers/deployments": "careers.deployments.view",
+  "/admin/careers/reports": "careers.dashboard.view",
+  "/admin/careers/settings": "careers.settings.manage",
 }
 
 function matchPage(pathname: string): string | undefined {
-  // Exact match first, then prefix match for dynamic routes.
+  // Exact match first, then longest-prefix match for dynamic routes.
   if (pageMap[pathname]) return pageMap[pathname]
+  let best: string | undefined
+  let bestLen = 0
   for (const [path, page] of Object.entries(pageMap)) {
-    if (path !== "/admin" && pathname.startsWith(`${path}/`)) return page
+    if (path !== "/admin" && pathname.startsWith(`${path}/`) && path.length > bestLen) {
+      best = page
+      bestLen = path.length
+    }
   }
-  return undefined
+  return best
 }
 
 export function PermissionGuard({

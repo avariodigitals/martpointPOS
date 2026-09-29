@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
+import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 
 export default function PartnerLoginPage() {
   const [email, setEmail] = useState("")
@@ -13,16 +14,24 @@ export default function PartnerLoginPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const captchaRef = useRef<CaptchaFieldHandle>(null)
+  const [captcha, setCaptcha] = useState<CaptchaState>({ configured: false, token: null })
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
     setLoading(true)
+    const captchaToken = (await captchaRef.current?.execute()) ?? null
+    if (captcha.configured && !captchaToken) {
+      setError("Security check failed — please try again.")
+      setLoading(false)
+      return
+    }
     try {
       const res = await fetch("/api/partner/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, captchaToken }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -56,6 +65,7 @@ export default function PartnerLoginPage() {
               <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
             </div>
             {error && <p className="text-sm text-red-500">{error}</p>}
+            <CaptchaField ref={captchaRef} onChange={setCaptcha} className="flex justify-center" />
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Sign In

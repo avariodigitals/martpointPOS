@@ -7,6 +7,7 @@ import {
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { verifyCaptchaToken } from "@/lib/captcha"
 
 function err(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status })
@@ -29,6 +30,11 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const email = (body.email || "").toString().trim()
+
+    const captcha = await verifyCaptchaToken(body.captchaToken ?? null, request)
+    if (!captcha.success) {
+      return err(captcha.error || "Verification failed", 403)
+    }
     if (!email || !email.includes("@")) {
       // Uniform response — do not reveal whether the email is registered.
       return NextResponse.json({ success: true, message: UNIFORM_MESSAGE })

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { verifyCaptchaToken } from "@/lib/captcha"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { PARTNER_TYPE_LABELS, APPLICATION_STATUS_LABELS, type ApplicationStatus } from "@/lib/partners"
 
@@ -24,6 +25,11 @@ export async function POST(request: Request) {
     const body = await request.json()
     const reference = String(body.reference || "").trim().toUpperCase()
     const email = String(body.email || "").trim().toLowerCase()
+
+    const captcha = await verifyCaptchaToken(body.captchaToken ?? null, request)
+    if (!captcha.success) {
+      return NextResponse.json({ error: captcha.error }, { status: 403 })
+    }
 
     if (!reference || !email) {
       return NextResponse.json({ error: "Reference number and email are required" }, { status: 400 })

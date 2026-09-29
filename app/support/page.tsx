@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Loader2, LifeBuoy, Mail, AlertCircle, Check } from "lucide-react"
+import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing_token: "The sign-in link is incomplete. Please request a new one.",
@@ -15,11 +16,15 @@ export default function CustomerSupportLoginPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [devLink, setDevLink] = useState("")
+  const captchaRef = useRef<CaptchaFieldHandle>(null)
+  const [captcha, setCaptcha] = useState<CaptchaState>({ configured: false, token: null })
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const code = params.get("error")
-    if (code && ERROR_MESSAGES[code]) setError(ERROR_MESSAGES[code])
+    const code = new URLSearchParams(window.location.search).get("error")
+    const message = code ? ERROR_MESSAGES[code] : undefined
+    if (!message) return
+    const t = setTimeout(() => setError(message), 0)
+    return () => clearTimeout(t)
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -29,11 +34,18 @@ export default function CustomerSupportLoginPage() {
     setDevLink("")
     setLoading(true)
 
+    const captchaToken = (await captchaRef.current?.execute()) ?? null
+    if (captcha.configured && !captchaToken) {
+      setError("Security check failed — please try again.")
+      setLoading(false)
+      return
+    }
+
     try {
       const res = await fetch("/api/support/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), captchaToken }),
       })
       const json = await res.json()
       if (json.success) {
@@ -120,6 +132,8 @@ export default function CustomerSupportLoginPage() {
                   <p className="text-sm text-red-700">{error}</p>
                 </div>
               )}
+
+              <CaptchaField ref={captchaRef} onChange={setCaptcha} className="flex justify-center" />
 
               <Button type="submit" size="lg" variant="retail" className="w-full" disabled={loading || !email.trim()}>
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}

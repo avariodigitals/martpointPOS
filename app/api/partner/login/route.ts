@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { authenticatePartner, createPartnerSession } from "@/lib/partner-auth"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { verifyCaptchaToken } from "@/lib/captcha"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromPartnerSession } from "@/lib/audit"
 
 export async function POST(request: Request) {
@@ -13,7 +14,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { email, password } = await request.json()
+    const { email, password, captchaToken } = await request.json()
+
+    const captcha = await verifyCaptchaToken(captchaToken ?? null, request)
+    if (!captcha.success) {
+      return NextResponse.json({ error: captcha.error }, { status: 403 })
+    }
 
     if (!email || !password) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 400 })

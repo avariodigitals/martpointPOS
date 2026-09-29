@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Loader2, Search, Check, X, AlertCircle } from "lucide-react"
+import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 
@@ -27,6 +28,8 @@ export function ApplicationStatusLookup() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [result, setResult] = useState<Result | null>(null)
+  const captchaRef = useRef<CaptchaFieldHandle>(null)
+  const [captcha, setCaptcha] = useState<CaptchaState>({ configured: false, token: null })
 
   const lookup = async () => {
     if (!reference.trim() || !email.trim()) {
@@ -36,11 +39,17 @@ export function ApplicationStatusLookup() {
     setLoading(true)
     setError("")
     setResult(null)
+    const captchaToken = (await captchaRef.current?.execute()) ?? null
+    if (captcha.configured && !captchaToken) {
+      setError("Security check failed — please try again.")
+      setLoading(false)
+      return
+    }
     try {
       const res = await fetch("/api/partners/application-status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference: reference.trim(), email: email.trim() }),
+        body: JSON.stringify({ reference: reference.trim(), email: email.trim(), captchaToken }),
       })
       const data = await res.json()
       if (res.ok && data.application) {
@@ -66,6 +75,7 @@ export function ApplicationStatusLookup() {
           <label className="block text-sm font-medium mb-1">Email used to apply</label>
           <input type="email" className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
         </div>
+        <CaptchaField ref={captchaRef} onChange={setCaptcha} className="flex justify-center" />
         <Button onClick={lookup} disabled={loading} className="w-full">
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
           Check Status

@@ -29,6 +29,7 @@ import {
   postPayoutJournal,
   voidEntriesForSource,
 } from "@/lib/finance-ledger"
+import { issuePayoutStatement } from "@/lib/partner-generated-docs"
 
 type Action = string
 
@@ -638,6 +639,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await supabase.from("partner_payout_requests").update({ status: "PAID", updated_at: now() }).eq("payout_id", id)
         await logFinanceAudit("ADMIN", actor.id, "COMMISSION_PAYOUT_PAID", "COMMISSION_PAYOUT", id)
         try { await postPayoutJournal(id) } catch (e) { console.error("[payouts.mark_paid] ledger", e) }
+        try { await issuePayoutStatement(id, actor.id) } catch (e) { console.error("[payouts.mark_paid] statement", e) }
         return ok(p)
       }
     }

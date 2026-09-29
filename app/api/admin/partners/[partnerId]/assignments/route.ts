@@ -6,6 +6,7 @@ import {
   revokePartnerCustomerAssignment,
 } from "@/lib/partner-service"
 import type { AccessLevel } from "@/lib/partner-auth"
+import { issueCustomerAssignmentDocument } from "@/lib/partner-generated-docs"
 
 export async function GET(
   _request: Request,
@@ -50,7 +51,15 @@ export async function POST(
     })
 
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 })
-    return NextResponse.json({ success: true, assignment: result.assignment })
+
+    // Issue the Customer Assignment document (best-effort — assignment stands either way).
+    try {
+      const doc = await issueCustomerAssignmentDocument(result.assignment!.id as string, session!.userId)
+      return NextResponse.json({ success: true, assignment: result.assignment, document: doc.document ?? null })
+    } catch (e) {
+      console.error("[assignments] document generation failed:", e)
+      return NextResponse.json({ success: true, assignment: result.assignment })
+    }
   } catch {
     return NextResponse.json({ error: "Failed to create assignment" }, { status: 500 })
   }

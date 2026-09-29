@@ -3,6 +3,7 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { createCommissionPayout } from "@/lib/finance-commercial"
+import { issueCommissionStatement } from "@/lib/partner-generated-docs"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate, escapeHtml } from "@/lib/email-templates"
 import { z } from "zod"
@@ -99,6 +100,13 @@ export async function POST(request: Request) {
     }
 
     const payout = await createCommissionPayout(req.partner_id as string, ids, session.userId)
+
+    // Issue the commission statement covering the earnings in this batch.
+    try {
+      await issueCommissionStatement(req.partner_id as string, { commissionIds: ids }, session.userId)
+    } catch (e) {
+      console.error("[payout-requests] commission statement failed:", e)
+    }
 
     await supabase
       .from("partner_payout_requests")

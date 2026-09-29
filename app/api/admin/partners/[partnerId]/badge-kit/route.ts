@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { createPartnerResource, updatePartnerResource, deletePartnerResource } from "@/lib/partner-service"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "@/lib/audit"
 import { isPartnerBadgeTier, PARTNER_BADGE_TIER_LABELS } from "@/lib/partner-badges"
+import { issueGradeConfirmation } from "@/lib/partner-generated-docs"
 
 /* Admin endpoint for issuing a partner's badge kit.
  * "Generate" sets partners.badge_tier and upserts a private partner_resources
@@ -120,6 +121,17 @@ export async function POST(
     entityId: partnerId,
     metadata: { badgeTier: tier, previousBadgeTier: partner.badge_tier ?? null },
   })
+
+  // Grade & Certification Confirmation document (best-effort).
+  try {
+    await issueGradeConfirmation(
+      partnerId,
+      { newGrade: tier, previousGrade: (partner.badge_tier as string | null) ?? null },
+      { id: session!.userId, name: session!.name || session!.username }
+    )
+  } catch (e) {
+    console.error("[badge-kit] grade confirmation failed:", e)
+  }
 
   return NextResponse.json({ success: true, tier })
 }

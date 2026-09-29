@@ -8,6 +8,7 @@ import {
   listPartnerProfileUpdateRequests,
 } from "@/lib/partner-service"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
+import { issueActivationConfirmation, issueFormalNotice } from "@/lib/partner-generated-docs"
 
 /* ─── GET: partner overview for admin detail ─── */
 export async function GET(
@@ -132,6 +133,25 @@ export async function PATCH(
         current.status as PartnerStatus,
         body.reason || null
       )
+
+      // Generated records: activation confirmation on activation; a formal
+      // notice documents suspension or termination decisions.
+      try {
+        if (body.status === "ACTIVE" && current.status !== "ACTIVE") {
+          await issueActivationConfirmation(partnerId, session!.userId)
+        } else if (body.status === "SUSPENDED" || body.status === "TERMINATED") {
+          await issueFormalNotice(
+            partnerId,
+            {
+              decision: body.status === "SUSPENDED" ? "SUSPENSION" : "TERMINATION",
+              reason: body.reason || null,
+            },
+            { id: session!.userId, name: session!.name || session!.username }
+          )
+        }
+      } catch (e) {
+        console.error("[partner status] generated document failed:", e)
+      }
     } else {
       await recordAudit(ctx, {
         action: AUDIT_ACTIONS.PARTNER_UPDATED,

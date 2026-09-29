@@ -7,7 +7,8 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordStatusHistory, sendApplicationStatusEmail, PARTNER_TYPE_LABELS, type ApplicationStatus } from "@/lib/partners"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 import { uploadPartnerDocument, createSignedDocUrl } from "@/lib/partner-documents"
-import { readSettings } from "@/lib/settings"
+import { getMartPointEntity } from "@/lib/martpoint-entity"
+import { registerAgreementDocument } from "@/lib/partner-generated-docs"
 import {
   generatePartnerAgreementPdf,
   earningBasesFor,
@@ -33,25 +34,8 @@ import {
 const GENERATABLE_STATUSES = ["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"]
 const GENERATED_DOC_TYPE = "Partner Agreement (Generated)"
 
-/** MartPoint contracting entity: admin Settings → "MartPoint Legal Entity" wins,
- * then MARTPOINT_* env vars, then hardcoded fallbacks. */
-async function martpointDefaults() {
-  const stored = ((await readSettings())?.martpointEntity || {}) as Record<string, string>
-  const pick = (key: string, env: string, fallback = "") =>
-    (stored[key] || "").trim() || process.env[env] || fallback
-  return {
-    legalName: pick("legalName", "MARTPOINT_LEGAL_NAME", "MartPoint"),
-    registrationNo: pick("registrationNo", "MARTPOINT_REGISTRATION_NO"),
-    registeredAddress: pick("registeredAddress", "MARTPOINT_REGISTERED_ADDRESS"),
-    noticeEmail: pick("noticeEmail", "MARTPOINT_NOTICE_EMAIL", "partners@martpoint.com.ng"),
-    signatoryName: pick("signatoryName", "MARTPOINT_SIGNATORY_NAME"),
-    signatoryTitle: pick("signatoryTitle", "MARTPOINT_SIGNATORY_TITLE"),
-    signatoryEmail: pick("signatoryEmail", "MARTPOINT_SIGNATORY_EMAIL"),
-    ownerName: pick("ownerName", "MARTPOINT_OWNER_NAME"),
-    ownerEmail: pick("ownerEmail", "MARTPOINT_OWNER_EMAIL"),
-    liabilityFloor: pick("liabilityFloor", "MARTPOINT_LIABILITY_FLOOR"),
-  }
-}
+/* MartPoint contracting entity is resolved by lib/martpoint-entity.ts
+ * (admin Settings → MARTPOINT_* env vars → fallbacks). */
 
 function partnerAddress(app: Record<string, unknown>): string {
   return [app.business_address, app.city, app.state, app.country].filter(Boolean).join(", ")
@@ -80,7 +64,7 @@ export async function GET(
   }
 
   const partnerType = app.requested_partner_type as string
-  const mp = await martpointDefaults()
+  const mp = await getMartPointEntity()
   const earningBases = earningBasesFor(partnerType).map((b) => ({
     ...b,
     defaults: { ...commercialFieldDefaults(b.earningCategory), trigger: defaultTrigger(b.earningCategory) },
@@ -176,7 +160,7 @@ export async function POST(
     }
 
     const partnerType = app.requested_partner_type as string
-    const mpEntity = await martpointDefaults()
+    const mpEntity = await getMartPointEntity()
     const mp = {
       legalName: mpEntity.legalName,
       registrationNo: mpEntity.registrationNo,
@@ -309,6 +293,20 @@ export async function POST(
         fileName: generated.fileName,
       },
     })
+
+    // Mirror the agreement into the generated-documents registry so partners
+    // see it alongside other portal-issued records.
+    await registerAgreementDocument({
+      partnerId: (partnerRow?.id as string) || null,
+      applicationId: id,
+      agreementId: input.agreementId,
+      storagePath: upload.doc.storagePath,
+      fileName: generated.fileName,
+      fileSize: generated.bytes.length,
+      checksum: docHash,
+      templateVersion: String(AGREEMENT_TEMPLATE_VERSION),
+      generatedBy: session!.userId,
+    }).catch((e) => console.error("[agreement] registry insert failed:", e))
 
     // First generation off an approved application moves it to AGREEMENT_PENDING.
     if (app.status === "APPROVED") {

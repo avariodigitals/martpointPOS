@@ -3,6 +3,7 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { generatePartnerId, recordStatusHistory, sendApplicationStatusEmail, type PartnerType, type PartnerStatus, type ApplicationStatus } from "@/lib/partners"
 import { seedPartnerCapabilities, createPartnerInvitation } from "@/lib/partner-service"
+import { issueActivationConfirmation, linkApplicationGeneratedDocs } from "@/lib/partner-generated-docs"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession, type AuditContext } from "@/lib/audit"
 
 /* ─── POST: activate a partner from an approved application ───
@@ -101,6 +102,12 @@ export async function POST(
       })
       await seedPartnerCapabilities(existing.id, existing.partner_type as PartnerType, session!.userId)
       await supabase.from("partner_documents").update({ partner_id: existing.id, updated_at: now }).eq("application_id", id)
+      await linkApplicationGeneratedDocs(id, existing.id)
+      try {
+        await issueActivationConfirmation(existing.id, session!.userId)
+      } catch (e) {
+        console.error("[activate] activation confirmation failed:", e)
+      }
       // Also mark application ACTIVE
       await supabase.from("partner_applications").update({ status: "ACTIVE", updated_at: now }).eq("id", id)
       // Notify the applicant that the application is now ACTIVE
@@ -166,6 +173,12 @@ export async function POST(
 
     // Link all application documents to the new partner so they appear in the partner portal.
     await supabase.from("partner_documents").update({ partner_id: partner.id, updated_at: now }).eq("application_id", id)
+    await linkApplicationGeneratedDocs(id, partner.id)
+    try {
+      await issueActivationConfirmation(partner.id, session!.userId)
+    } catch (e) {
+      console.error("[activate] activation confirmation failed:", e)
+    }
 
     // Mark application ACTIVE
     await supabase.from("partner_applications").update({ status: "ACTIVE", updated_at: now }).eq("id", id)

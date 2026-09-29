@@ -107,6 +107,7 @@ export default async function ApplyPage({
                   .filter(Boolean)
                   .join(", ") || null
               }
+              consentText={v.consent_text || null}
             />
           </div>
         </div>

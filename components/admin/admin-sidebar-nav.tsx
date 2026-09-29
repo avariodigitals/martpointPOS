@@ -108,6 +108,10 @@ const navItems: NavItem[] = [
   { href: "/admin/careers/talent-pool", label: "Talent Pool", icon: UserCheck, page: "careers.talent_pool.view", section: "Careers" },
   { href: "/admin/careers/assessments", label: "Assessments", icon: ClipboardCheck, page: "careers.assessments.manage", section: "Careers" },
   { href: "/admin/careers/deployments", label: "Deployments", icon: MapPin, page: "careers.deployments.view", section: "Careers" },
+  { href: "/admin/careers/role-templates", label: "Role Templates", icon: FileText, page: "careers.role_templates.view", section: "Careers" },
+  { href: "/admin/careers/commissions", label: "Commissions", icon: TrendingUp, page: "careers.commissions.view", section: "Careers" },
+  { href: "/admin/careers/pipeline", label: "Pipeline", icon: Route, page: "careers.performance.view", section: "Careers" },
+  { href: "/admin/careers/performance", label: "Performance", icon: Activity, page: "careers.performance.view", section: "Careers" },
   { href: "/admin/careers/reports", label: "Reports", icon: BarChart3, page: "careers.dashboard.view", section: "Careers" },
   { href: "/admin/careers/settings", label: "Careers Settings", icon: Settings, page: "careers.settings.manage", section: "Careers" },
 

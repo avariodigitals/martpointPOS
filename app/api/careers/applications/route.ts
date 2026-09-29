@@ -99,6 +99,10 @@ export async function POST(request: Request) {
     if (fields.consentAccuracy !== true || fields.consentPrivacy !== true) {
       errors.consent = "Please confirm accuracy and accept the privacy notice"
     }
+    // Vacancy-specific consent: required only when the vacancy sets consent_text.
+    if (v.consent_text && fields.consentVacancy !== true) {
+      errors.consent = "Please accept the role-specific terms"
+    }
 
     const cvFile = formData.get("cv") as File | null
     if (v.cv_required && (!cvFile || cvFile.size === 0)) {
@@ -193,6 +197,8 @@ export async function POST(request: Request) {
       consent_privacy: true,
       consent_talent_pool: fields.consentTalentPool === true,
       consent_notifications: fields.consentNotifications === true,
+      consent_vacancy: v.consent_text ? fields.consentVacancy === true : false,
+      consent_vacancy_text: v.consent_text ? v.consent_text : null,
       privacy_version: PRIVACY_VERSION,
       consent_at: new Date().toISOString(),
       ip_address: ip,

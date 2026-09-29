@@ -12,6 +12,7 @@ import {
   DEFAULT_APPLICATION_CONFIRMATION, CONFIRMATION_MESSAGE_VARS,
   type CareerVacancy,
 } from "@/lib/careers"
+import type { TemplateVacancyPrefill } from "@/lib/careers-role-templates"
 import { STATES } from "@/lib/locations"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -49,16 +50,41 @@ function fromLines(s: string): string[] {
   return s.split("\n").map((l) => l.trim()).filter(Boolean)
 }
 
+function rulesToForm(rules: Record<string, unknown> | undefined) {
+  const r = (rules || {}) as Record<string, unknown>
+  const list = (v: unknown) => (Array.isArray(v) ? (v as string[]).join(", ") : "")
+  return {
+    eligible_categories: list(r.eligible_categories),
+    excluded_categories: list(r.excluded_categories),
+    include_overrides: list(r.include_overrides),
+    basis: (r.basis as string) || "PERCENTAGE",
+    percentage: r.percentage != null ? String(r.percentage) : "",
+    fixed_amount: r.fixed_amount_kobo != null ? String(Number(r.fixed_amount_kobo) / 100) : "",
+    self_lead_rate: r.self_lead_rate != null ? String(r.self_lead_rate) : "",
+    company_lead_rate: r.company_lead_rate != null ? String(r.company_lead_rate) : "",
+    minimum_payout: r.minimum_payout_kobo != null ? String(Number(r.minimum_payout_kobo) / 100) : "",
+    clawback_on_refund: r.clawback_on_refund !== false,
+  }
+}
+
+function scorecardToLines(list: { criterion: string; max_score: number }[] | undefined): string {
+  return (list || []).map((s) => `${s.criterion}|${s.max_score}`).join("\n")
+}
+
 export function VacancyForm({
   vacancy,
   departments,
   categories,
   admins,
+  prefill,
+  templateName,
 }: {
   vacancy?: CareerVacancy
   departments: Lookup[]
   categories: Lookup[]
   admins: AdminUser[]
+  prefill?: TemplateVacancyPrefill
+  templateName?: string
 }) {
   const router = useRouter()
   const isEdit = Boolean(vacancy)
@@ -67,35 +93,38 @@ export function VacancyForm({
   const [saved, setSaved] = useState(false)
 
   const [f, setF] = useState({
-    title: vacancy?.title || "",
+    title: vacancy?.title || prefill?.title || "",
     slug: vacancy?.slug || "",
-    department_id: vacancy?.department_id || "",
-    job_category_id: vacancy?.job_category_id || "",
-    short_summary: vacancy?.short_summary || "",
-    description: vacancy?.description || "",
-    responsibilities: toLines(vacancy?.responsibilities),
-    requirements: toLines(vacancy?.requirements),
-    openings: vacancy?.openings ?? 1,
+    department_id: vacancy?.department_id || prefill?.department_id || "",
+    job_category_id: vacancy?.job_category_id || prefill?.job_category_id || "",
+    short_summary: vacancy?.short_summary || prefill?.short_summary || "",
+    description: vacancy?.description || prefill?.description || "",
+    responsibilities: toLines(vacancy?.responsibilities || prefill?.responsibilities),
+    requirements: toLines(vacancy?.requirements || prefill?.requirements),
+    openings: vacancy?.openings ?? prefill?.openings ?? 1,
     show_openings: vacancy?.show_openings !== false,
     hiring_manager_id: vacancy?.hiring_manager_id || "",
     featured: vacancy?.featured === true,
     urgent: vacancy?.urgent === true,
-    employment_type: vacancy?.employment_type || "PROJECT_BASED",
-    work_arrangement: vacancy?.work_arrangement || "ON_SITE",
-    working_days: vacancy?.working_days || "",
-    work_start_time: vacancy?.work_start_time || "",
-    work_end_time: vacancy?.work_end_time || "",
+    employment_type: vacancy?.employment_type || prefill?.employment_type || "PROJECT_BASED",
+    work_arrangement: vacancy?.work_arrangement || prefill?.work_arrangement || "ON_SITE",
+    working_days: vacancy?.working_days || prefill?.working_days || "",
+    work_start_time: vacancy?.work_start_time || prefill?.work_start_time || "",
+    work_end_time: vacancy?.work_end_time || prefill?.work_end_time || "",
     project_start_date: vacancy?.project_start_date || "",
     project_end_date: vacancy?.project_end_date || "",
     duration_description: vacancy?.duration_description || "",
-    compensation_type: vacancy?.compensation_type || "DAILY",
-    compensation_min: vacancy?.compensation_min_kobo != null ? vacancy.compensation_min_kobo / 100 : "",
-    compensation_max: vacancy?.compensation_max_kobo != null ? vacancy.compensation_max_kobo / 100 : "",
-    show_compensation: vacancy?.show_compensation === true,
-    transport_allowance: vacancy?.transport_allowance_kobo != null ? vacancy.transport_allowance_kobo / 100 : "",
-    lunch_provided: vacancy?.lunch_provided === true,
+    compensation_type: vacancy?.compensation_type || prefill?.compensation_type || "DAILY",
+    compensation_min: vacancy?.compensation_min_kobo != null ? vacancy.compensation_min_kobo / 100
+      : prefill?.compensation_min_kobo != null ? prefill.compensation_min_kobo / 100 : "",
+    compensation_max: vacancy?.compensation_max_kobo != null ? vacancy.compensation_max_kobo / 100
+      : prefill?.compensation_max_kobo != null ? prefill.compensation_max_kobo / 100 : "",
+    show_compensation: vacancy ? vacancy.show_compensation === true : prefill?.show_compensation === true,
+    transport_allowance: vacancy?.transport_allowance_kobo != null ? vacancy.transport_allowance_kobo / 100
+      : prefill?.transport_allowance_kobo != null ? prefill.transport_allowance_kobo / 100 : "",
+    lunch_provided: vacancy ? vacancy.lunch_provided === true : prefill?.lunch_provided === true,
     accommodation_provided: vacancy?.accommodation_provided === true,
-    other_benefits: vacancy?.other_benefits || "",
+    other_benefits: vacancy?.other_benefits || prefill?.other_benefits || "",
     application_opens_at: vacancy?.application_opens_at ? vacancy.application_opens_at.slice(0, 16) : "",
     application_closes_at: vacancy?.application_closes_at ? vacancy.application_closes_at.slice(0, 16) : "",
     max_applications: vacancy?.max_applications ?? "",
@@ -107,7 +136,9 @@ export function VacancyForm({
     auto_close_on_deadline: vacancy?.auto_close_on_deadline !== false,
     auto_close_on_max_applications: vacancy?.auto_close_on_max_applications === true,
   })
-  const [equipment, setEquipment] = useState<Record<string, boolean>>(vacancy?.equipment_fields || {})
+  const [equipment, setEquipment] = useState<Record<string, boolean>>(
+    vacancy?.equipment_fields || (prefill?.equipment_fields as Record<string, boolean>) || {}
+  )
   const [locations, setLocations] = useState<LocationInput[]>(
     vacancy?.locations?.length
       ? vacancy.locations.map((l) => ({
@@ -115,7 +146,13 @@ export function VacancyForm({
           area_site: l.area_site || "", full_address: l.full_address || "",
           public_description: l.public_description || "", nearby_preferred: l.nearby_preferred,
         }))
-      : [{ ...emptyLocation }]
+      : prefill?.locations?.length
+        ? prefill.locations.map((l) => ({
+            state: l.state || "", lga: l.lga || "", city: l.city || "",
+            area_site: l.area_site || "", full_address: "",
+            public_description: l.public_description || "", nearby_preferred: l.nearby_preferred === true,
+          }))
+        : [{ ...emptyLocation }]
   )
   const [questions, setQuestions] = useState<QuestionInput[]>(
     vacancy?.questions?.map((q) => ({
@@ -125,8 +162,37 @@ export function VacancyForm({
       knockout: q.knockout,
       correct_answer: q.correct_answer || "",
       options: (q.options || []).map((o) => o.option_text).join("\n"),
+    })) || prefill?.questions.map((q) => ({
+      question_text: q.question_text,
+      answer_type: q.answer_type,
+      required: q.required,
+      knockout: q.knockout,
+      correct_answer: q.correct_answer || "",
+      options: (q.options || []).join("\n"),
     })) || []
   )
+
+  // Internal workforce fields (mirrored from the role template; never public).
+  const [internal, setInternal] = useState({
+    role_template_id: vacancy?.role_template_id || prefill?.role_template_id || "",
+    role_purpose: vacancy?.role_purpose || prefill?.role_purpose || "",
+    probation_period: vacancy?.probation_period || prefill?.probation_period || "",
+    reporting_line: vacancy?.reporting_line || prefill?.reporting_line || "",
+    performance_indicators: toLines(vacancy?.performance_indicators || prefill?.performance_indicators),
+    feeding_arrangement: vacancy?.feeding_arrangement || prefill?.feeding_arrangement || "",
+    data_call_allowance: vacancy?.data_call_allowance_kobo != null ? vacancy.data_call_allowance_kobo / 100
+      : prefill?.data_call_allowance_kobo != null ? prefill.data_call_allowance_kobo / 100 : "",
+    performance_bonus: vacancy?.performance_bonus || prefill?.performance_bonus || "",
+    assessment_type: vacancy?.assessment_type || prefill?.assessment_type || "",
+    consent_text: vacancy?.consent_text || prefill?.consent_text || "",
+    interview_scorecard: scorecardToLines(vacancy?.interview_scorecard || prefill?.interview_scorecard),
+  })
+  const [commissionEligible, setCommissionEligible] = useState(
+    vacancy ? vacancy.commission_eligible === true : prefill?.commission_eligible === true
+  )
+  const [cr, setCr] = useState(() => rulesToForm(vacancy?.commission_rules || prefill?.commission_rules))
+  const setI = <K extends keyof typeof internal>(k: K, v: (typeof internal)[K]) => { setInternal((p) => ({ ...p, [k]: v })); setSaved(false) }
+  const setCrField = <K extends keyof typeof cr>(k: K, v: (typeof cr)[K]) => { setCr((p) => ({ ...p, [k]: v })); setSaved(false) }
 
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => { setF((p) => ({ ...p, [k]: v })); setSaved(false) }
   const setLoc = (i: number, k: keyof LocationInput, v: string | boolean) =>
@@ -184,6 +250,34 @@ export function VacancyForm({
         auto_close_on_max_applications: f.auto_close_on_max_applications,
         equipment_fields: equipment,
         locations,
+        role_template_id: internal.role_template_id || null,
+        role_purpose: internal.role_purpose || null,
+        probation_period: internal.probation_period || null,
+        reporting_line: internal.reporting_line || null,
+        performance_indicators: fromLines(internal.performance_indicators),
+        feeding_arrangement: internal.feeding_arrangement || null,
+        data_call_allowance_kobo: toKobo(internal.data_call_allowance),
+        commission_eligible: commissionEligible,
+        commission_rules: {
+          basis: cr.basis,
+          eligible_categories: cr.eligible_categories.split(",").map((s) => s.trim()).filter(Boolean),
+          excluded_categories: cr.excluded_categories.split(",").map((s) => s.trim()).filter(Boolean),
+          include_overrides: cr.include_overrides.split(",").map((s) => s.trim()).filter(Boolean),
+          percentage: cr.percentage === "" ? null : Number(cr.percentage),
+          fixed_amount_kobo: toKobo(cr.fixed_amount),
+          self_lead_rate: cr.self_lead_rate === "" ? null : Number(cr.self_lead_rate),
+          company_lead_rate: cr.company_lead_rate === "" ? null : Number(cr.company_lead_rate),
+          minimum_payout_kobo: toKobo(cr.minimum_payout),
+          clawback_on_refund: cr.clawback_on_refund,
+        },
+        performance_bonus: internal.performance_bonus || null,
+        required_equipment: equipment,
+        assessment_type: internal.assessment_type || null,
+        interview_scorecard: fromLines(internal.interview_scorecard).map((line) => {
+          const [criterion, max] = line.split("|").map((s) => s.trim())
+          return { criterion, max_score: Number(max) || 10 }
+        }).filter((s) => s.criterion),
+        consent_text: internal.consent_text || null,
       }
 
       const url = isEdit ? `/api/admin/careers/vacancies/${vacancy!.id}` : "/api/admin/careers/vacancies"
@@ -256,6 +350,11 @@ export function VacancyForm({
 
   return (
     <div className="space-y-6">
+      {templateName && !isEdit && (
+        <div className="rounded-lg border border-retail/30 bg-retail/5 p-3 text-sm text-foreground">
+          Prefilled from role template: <strong>{templateName}</strong>. All fields remain editable before publication.
+        </div>
+      )}
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 flex items-start gap-2 text-sm text-red-700">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
@@ -617,6 +716,126 @@ export function VacancyForm({
               </div>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      {/* Internal workforce fields — never rendered publicly */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Internal — workforce &amp; commission details</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <p className="md:col-span-3 text-xs text-muted-foreground">
+            Internal only — these fields are never shown on the public vacancy page.
+            {internal.role_template_id && " Prefilled from the selected role template."}
+          </p>
+          <div className="md:col-span-3">
+            <label className={labelCls}>Role purpose</label>
+            <textarea rows={2} className={inputCls} value={internal.role_purpose} onChange={(e) => setI("role_purpose", e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Reporting line</label>
+            <input className={inputCls} value={internal.reporting_line} onChange={(e) => setI("reporting_line", e.target.value)} placeholder="e.g. Sales & Conversion Lead" />
+          </div>
+          <div>
+            <label className={labelCls}>Probation period</label>
+            <input className={inputCls} value={internal.probation_period} onChange={(e) => setI("probation_period", e.target.value)} placeholder="e.g. 3 months" />
+          </div>
+          <div>
+            <label className={labelCls}>Assessment type</label>
+            <select className={inputCls} value={internal.assessment_type} onChange={(e) => setI("assessment_type", e.target.value)}>
+              <option value="">None</option>
+              {["WRITTEN", "PRACTICAL", "PRODUCT_CAPTURE", "INTERVIEW", "OTHER"].map((t) => (
+                <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Feeding arrangement</label>
+            <input className={inputCls} value={internal.feeding_arrangement} onChange={(e) => setI("feeding_arrangement", e.target.value)} placeholder="e.g. Lunch and water provided" />
+          </div>
+          <div>
+            <label className={labelCls}>Data/call allowance (₦)</label>
+            <input type="number" min={0} className={inputCls} value={internal.data_call_allowance} onChange={(e) => setI("data_call_allowance", e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Performance bonus</label>
+            <input className={inputCls} value={internal.performance_bonus} onChange={(e) => setI("performance_bonus", e.target.value)} placeholder="e.g. Retention bonus after 90 days" />
+          </div>
+          <div className="md:col-span-3">
+            <label className={labelCls}>Performance indicators / KPIs (one per line, internal)</label>
+            <textarea rows={4} className={inputCls} value={internal.performance_indicators} onChange={(e) => setI("performance_indicators", e.target.value)} />
+          </div>
+          <div className="md:col-span-3">
+            <label className={labelCls}>Interview scorecard (one per line: criterion|max score)</label>
+            <textarea rows={4} className={`${inputCls} font-mono text-xs`} value={internal.interview_scorecard} onChange={(e) => setI("interview_scorecard", e.target.value)} placeholder={"Pipeline leadership|10\nCommunication|10"} />
+          </div>
+          <div className="md:col-span-3">
+            <label className={labelCls}>Vacancy-specific consent text</label>
+            <textarea rows={3} className={inputCls} value={internal.consent_text} onChange={(e) => setI("consent_text", e.target.value)}
+              placeholder="If set, applicants must tick an extra consent checkbox with this text before submitting." />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Commission rules */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Commission rules (internal)</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <label className="flex items-start gap-2 text-sm md:col-span-3">
+            <input type="checkbox" className="mt-0.5 accent-retail" checked={commissionEligible} onChange={(e) => { setCommissionEligible(e.target.checked); setSaved(false) }} />
+            <span>Role is commission eligible — commission is calculated only from qualifying collected revenue.</span>
+          </label>
+          {commissionEligible && (
+            <>
+              <div>
+                <label className={labelCls}>Basis</label>
+                <select className={inputCls} value={cr.basis} onChange={(e) => setCrField("basis", e.target.value)}>
+                  <option value="PERCENTAGE">Percentage of collected revenue</option>
+                  <option value="FIXED">Fixed amount per qualifying payment</option>
+                </select>
+              </div>
+              {cr.basis === "PERCENTAGE" ? (
+                <>
+                  <div>
+                    <label className={labelCls}>Self-generated lead rate (%)</label>
+                    <input type="number" min={0} step="0.1" className={inputCls} value={cr.self_lead_rate} onChange={(e) => setCrField("self_lead_rate", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Company lead rate (%)</label>
+                    <input type="number" min={0} step="0.1" className={inputCls} value={cr.company_lead_rate} onChange={(e) => setCrField("company_lead_rate", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Fallback rate (%)</label>
+                    <input type="number" min={0} step="0.1" className={inputCls} value={cr.percentage} onChange={(e) => setCrField("percentage", e.target.value)} />
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label className={labelCls}>Fixed amount (₦)</label>
+                  <input type="number" min={0} className={inputCls} value={cr.fixed_amount} onChange={(e) => setCrField("fixed_amount", e.target.value)} />
+                </div>
+              )}
+              <div>
+                <label className={labelCls}>Minimum payout threshold (₦)</label>
+                <input type="number" min={0} className={inputCls} value={cr.minimum_payout} onChange={(e) => setCrField("minimum_payout", e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Eligible revenue categories (comma-separated — empty = all except excluded)</label>
+                <input className={inputCls} value={cr.eligible_categories} onChange={(e) => setCrField("eligible_categories", e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Excluded categories (comma-separated)</label>
+                <input className={inputCls} value={cr.excluded_categories} onChange={(e) => setCrField("excluded_categories", e.target.value)} placeholder="Taxes, Refunds, Logistics, Hardware" />
+              </div>
+              <div>
+                <label className={labelCls}>Re-include categories (management override)</label>
+                <input className={inputCls} value={cr.include_overrides} onChange={(e) => setCrField("include_overrides", e.target.value)} />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-retail" checked={cr.clawback_on_refund} onChange={(e) => setCrField("clawback_on_refund", e.target.checked)} />
+                Reverse commission when the payment is refunded
+              </label>
+            </>
+          )}
         </CardContent>
       </Card>
 

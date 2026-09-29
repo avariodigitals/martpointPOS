@@ -65,11 +65,24 @@ export const CAREERS_PERMISSIONS = [
   "careers.talent_pool.manage",
   "careers.deployments.view",
   "careers.deployments.manage",
+  "careers.role_templates.view",
+  "careers.role_templates.create",
+  "careers.role_templates.edit",
+  "careers.role_templates.archive",
+  "careers.compensation.view",
+  "careers.compensation.manage",
+  "careers.commissions.view",
+  "careers.commissions.approve",
+  "careers.commissions.pay",
+  "careers.performance.view",
+  "careers.performance.manage",
   "careers.settings.manage",
 ] as const
 
+/* HR Manager gets the full careers surface except careers settings and
+ * commission payout execution — paying out is a Finance/Admin action. */
 const CAREERS_HR_PERMISSIONS = CAREERS_PERMISSIONS.filter(
-  (p) => p !== "careers.settings.manage"
+  (p) => p !== "careers.settings.manage" && p !== "careers.commissions.pay"
 )
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
@@ -115,8 +128,17 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   ],
 }
 
-// Finance also sees deployment compensation summaries.
-ROLE_PERMISSIONS.Finance = [...ROLE_PERMISSIONS.Finance, "careers.deployments.view"]
+// Finance also sees deployment compensation summaries and owns commission
+// payout. Sensitive compensation is limited to Admin, HR and Finance.
+ROLE_PERMISSIONS.Finance = [
+  ...ROLE_PERMISSIONS.Finance,
+  "careers.deployments.view",
+  "careers.compensation.view",
+  "careers.commissions.view",
+  "careers.commissions.approve",
+  "careers.commissions.pay",
+  "careers.performance.view",
+]
 
 export function hasPermission(role: UserRole, page: string): boolean {
   // Admin has full access — mirrors the bypass in authorize(). The literal

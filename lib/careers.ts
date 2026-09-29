@@ -22,7 +22,17 @@ export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number]
 export const WORK_ARRANGEMENTS = ["ON_SITE", "REMOTE", "HYBRID", "FIELD_BASED"] as const
 export type WorkArrangement = (typeof WORK_ARRANGEMENTS)[number]
 
-export const COMPENSATION_TYPES = ["DAILY", "WEEKLY", "MONTHLY", "PROJECT_FEE", "NEGOTIABLE"] as const
+export const COMPENSATION_TYPES = [
+  "DAILY",
+  "WEEKLY",
+  "MONTHLY",
+  "PROJECT_FEE",
+  "COMMISSION_ONLY",
+  "RETAINER",
+  "SALARY_PLUS_COMMISSION",
+  "DAILY_PLUS_TRANSPORT",
+  "NEGOTIABLE",
+] as const
 export type CompensationType = (typeof COMPENSATION_TYPES)[number]
 
 export const APPLICATION_STATUSES = [
@@ -99,6 +109,10 @@ export const COMPENSATION_TYPE_LABELS: Record<CompensationType, string> = {
   WEEKLY: "per week",
   MONTHLY: "per month",
   PROJECT_FEE: "project fee",
+  COMMISSION_ONLY: "commission only",
+  RETAINER: "retainer",
+  SALARY_PLUS_COMMISSION: "per month + commission",
+  DAILY_PLUS_TRANSPORT: "per day + transport",
   NEGOTIABLE: "Negotiable",
 }
 
@@ -289,6 +303,22 @@ export interface CareerVacancy {
   closed_at: string | null
   closed_reason: string | null
   archived_at: string | null
+  // Role-template fields (mirrored from career_role_templates on creation).
+  // These are internal — never rendered on public vacancy pages.
+  role_template_id?: string | null
+  role_purpose?: string | null
+  probation_period?: string | null
+  reporting_line?: string | null
+  performance_indicators?: string[]
+  feeding_arrangement?: string | null
+  data_call_allowance_kobo?: number | null
+  commission_eligible?: boolean
+  commission_rules?: Record<string, unknown>
+  performance_bonus?: string | null
+  required_equipment?: Record<string, unknown>
+  assessment_type?: string | null
+  interview_scorecard?: { criterion: string; max_score: number }[]
+  consent_text?: string | null
   created_by: string | null
   updated_by: string | null
   created_at: string

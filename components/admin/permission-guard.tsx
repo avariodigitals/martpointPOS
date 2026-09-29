@@ -31,6 +31,10 @@ const pageMap: Record<string, string> = {
   "/admin/careers/talent-pool": "careers.talent_pool.view",
   "/admin/careers/assessments": "careers.assessments.manage",
   "/admin/careers/deployments": "careers.deployments.view",
+  "/admin/careers/role-templates": "careers.role_templates.view",
+  "/admin/careers/commissions": "careers.commissions.view",
+  "/admin/careers/pipeline": "careers.performance.view",
+  "/admin/careers/performance": "careers.performance.view",
   "/admin/careers/reports": "careers.dashboard.view",
   "/admin/careers/settings": "careers.settings.manage",
 }

@@ -69,6 +69,21 @@ export interface VacancyInput {
   auto_close_on_max_applications?: boolean
   equipment_fields?: Record<string, boolean>
   locations?: VacancyLocationInput[]
+  // Role-template mirror fields (internal — never rendered publicly)
+  role_template_id?: string | null
+  role_purpose?: string | null
+  probation_period?: string | null
+  reporting_line?: string | null
+  performance_indicators?: string[]
+  feeding_arrangement?: string | null
+  data_call_allowance_kobo?: number | null
+  commission_eligible?: boolean
+  commission_rules?: Record<string, unknown>
+  performance_bonus?: string | null
+  required_equipment?: Record<string, unknown>
+  assessment_type?: string | null
+  interview_scorecard?: { criterion: string; max_score: number }[]
+  consent_text?: string | null
 }
 
 /** Validate + normalize admin vacancy input. Returns row or error string. */
@@ -141,6 +156,20 @@ export function buildVacancyRow(input: VacancyInput): { row?: Record<string, unk
     auto_close_on_deadline: input.auto_close_on_deadline !== false,
     auto_close_on_max_applications: input.auto_close_on_max_applications === true,
     equipment_fields: input.equipment_fields && typeof input.equipment_fields === "object" ? input.equipment_fields : {},
+    role_template_id: input.role_template_id || null,
+    role_purpose: input.role_purpose || null,
+    probation_period: input.probation_period || null,
+    reporting_line: input.reporting_line || null,
+    performance_indicators: Array.isArray(input.performance_indicators) ? input.performance_indicators.filter(Boolean) : [],
+    feeding_arrangement: input.feeding_arrangement || null,
+    data_call_allowance_kobo: num(input.data_call_allowance_kobo),
+    commission_eligible: input.commission_eligible === true,
+    commission_rules: input.commission_rules && typeof input.commission_rules === "object" ? input.commission_rules : {},
+    performance_bonus: input.performance_bonus || null,
+    required_equipment: input.required_equipment && typeof input.required_equipment === "object" ? input.required_equipment : {},
+    assessment_type: input.assessment_type || null,
+    interview_scorecard: Array.isArray(input.interview_scorecard) ? input.interview_scorecard : [],
+    consent_text: input.consent_text || null,
     updated_at: new Date().toISOString(),
   }
   return { row }

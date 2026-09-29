@@ -30,6 +30,7 @@ interface Props {
   workingHoursLabel: string | null
   durationLabel: string | null
   locationLabel: string | null
+  consentText?: string | null
 }
 
 type YesNo = "yes" | "no" | ""
@@ -70,6 +71,7 @@ interface FormState {
   consentPrivacy: boolean
   consentTalentPool: boolean
   consentNotifications: boolean
+  consentVacancy: boolean
 }
 
 const initialForm: FormState = {
@@ -82,6 +84,7 @@ const initialForm: FormState = {
   ownsAndroid: "", smartphoneModel: "", hasMobileData: "", ownsLaptop: "", ownsPowerBank: "", transportation: "",
   linkedin: "", portfolioUrl: "",
   consentAccuracy: false, consentPrivacy: false, consentTalentPool: false, consentNotifications: false,
+  consentVacancy: false,
 }
 
 interface AnswerValue {
@@ -184,6 +187,7 @@ function FilePicker({ file, onPick, label, required, error, onError }: {
 export function ApplicationForm({
   vacancyId, vacancySlug, cvRequired, coverLetterRequired, portfolioEnabled,
   equipmentFields, questions, workingHoursLabel, durationLabel, locationLabel,
+  consentText,
 }: Props) {
   const [form, setForm] = useState<FormState>(initialForm)
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({})
@@ -267,6 +271,7 @@ export function ApplicationForm({
     if (name === "Consent") {
       if (!form.consentAccuracy) e.consentAccuracy = "Please confirm your information is accurate"
       if (!form.consentPrivacy) e.consentPrivacy = "Please accept the recruitment privacy notice"
+      if (consentText && !form.consentVacancy) e.consentVacancy = "Please accept the role-specific terms"
     }
 
     setErrors(e)
@@ -318,6 +323,7 @@ export function ApplicationForm({
         linkedinUrl: form.linkedin, portfolioUrl: form.portfolioUrl,
         consentAccuracy: form.consentAccuracy, consentPrivacy: form.consentPrivacy,
         consentTalentPool: form.consentTalentPool, consentNotifications: form.consentNotifications,
+        consentVacancy: consentText ? form.consentVacancy : null,
       }
       payload.append("fields", JSON.stringify(fields))
 
@@ -698,6 +704,17 @@ export function ApplicationForm({
               </span>
             </label>
             {errors.consentPrivacy && <p className={errCls}>{errors.consentPrivacy}</p>}
+
+            {consentText && (
+              <>
+                <label className="flex items-start gap-3 text-sm text-foreground">
+                  <input type="checkbox" className="mt-0.5 accent-retail" checked={form.consentVacancy}
+                    onChange={(e) => set("consentVacancy", e.target.checked)} />
+                  <span>{consentText} <span className="text-red-500">*</span></span>
+                </label>
+                {errors.consentVacancy && <p className={errCls}>{errors.consentVacancy}</p>}
+              </>
+            )}
 
             <label className="flex items-start gap-3 text-sm text-muted-foreground">
               <input type="checkbox" className="mt-0.5 accent-retail" checked={form.consentTalentPool}

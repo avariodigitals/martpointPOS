@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { recalculateQuote, buildQuotePublicUrl, buildQuoteEmailHtml } from "@/lib/quotations"
+import { recalculateQuote, buildQuotePublicUrl, buildQuoteEmailHtml, mapQuotation } from "@/lib/quotations"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
-import type { Quotation, QuotationItem } from "@/lib/quotations"
+import type { Quotation } from "@/lib/quotations"
 
 async function guardQuotationsAccess() {
   return authorizeAdmin("quotations")
@@ -255,61 +255,4 @@ function buildPlainTextEmail(
     : "Not specified"
 
   return `Hello ${lead.full_name},\n\nPlease find your MartPoint quotation below.\n\nQuote: ${quote.quote_number}${quote.title ? `\nTitle: ${quote.title}` : ""}\nBusiness: ${lead.business_name}\nTotal: ₦${quote.total_amount.toLocaleString("en-NG", { minimumFractionDigits: 2 })}\nValid until: ${validUntil}\n\n${quote.notes_public || ""}\n\nView your quotation here:\n${publicUrl}\n\nIf you have any questions, reply to this email.`
-}
-
-function mapQuotation(row: Record<string, unknown>): Quotation {
-  const leadRawMaybe = row.lead as Record<string, unknown> | Record<string, unknown>[] | undefined
-  const leadRaw = Array.isArray(leadRawMaybe) ? leadRawMaybe[0] : leadRawMaybe
-  const itemsRaw = Array.isArray(row.items) ? (row.items as unknown as Record<string, unknown>[]) : []
-
-  return {
-    id: row.id as string,
-    lead_id: row.lead_id as string,
-    quote_number: row.quote_number as string,
-    title: (row.title as string) || "",
-    status: row.status as Quotation["status"],
-    currency: (row.currency as string) || "NGN",
-    subtotal: Number(row.subtotal) || 0,
-    discount_amount: Number(row.discount_amount) || 0,
-    discount_type: (row.discount_type as string) || "none",
-    discount_value: Number(row.discount_value) || 0,
-    tax_amount: Number(row.tax_amount) || 0,
-    total_amount: Number(row.total_amount) || 0,
-    valid_until: (row.valid_until as string | null) || null,
-    notes_public: (row.notes_public as string | null) || null,
-    notes_internal: (row.notes_internal as string | null) || null,
-    payment_terms: (row.payment_terms as string | null) || null,
-    converted_business_id: (row.converted_business_id as string | null) || null,
-    converted_invoice_id: (row.converted_invoice_id as string | null) || null,
-    public_token: row.public_token as string,
-    token_expires_at: (row.token_expires_at as string | null) || null,
-    viewed_at: (row.viewed_at as string | null) || null,
-    sent_at: (row.sent_at as string | null) || null,
-    created_by: (row.created_by as string | null) || null,
-    created_at: row.created_at as string,
-    updated_at: row.updated_at as string,
-    allow_changes: Boolean(row.allow_changes),
-    allow_counter_offer: Boolean(row.allow_counter_offer),
-    lead: leadRaw
-      ? {
-          id: row.lead_id as string,
-          fullName: leadRaw.full_name as string,
-          businessName: leadRaw.business_name as string,
-          email: leadRaw.email as string,
-          phone: leadRaw.phone as string,
-          productInterest: leadRaw.product_interest as string,
-        }
-      : undefined,
-    items: itemsRaw.map((it) => ({
-      id: it.id as string,
-      quotation_id: it.quotation_id as string,
-      description: it.description as string,
-      quantity: Number(it.quantity) || 0,
-      unit_price: Number(it.unit_price) || 0,
-      discount: Number(it.discount) || 0,
-      tax: Number(it.tax) || 0,
-      tax_rate: it.tax_rate != null ? Number(it.tax_rate) : null,
-      line_total: Number(it.line_total) || 0,
-    })) as QuotationItem[],
-  }
 }

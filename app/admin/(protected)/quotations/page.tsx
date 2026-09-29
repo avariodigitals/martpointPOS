@@ -20,6 +20,7 @@ import {
   MessageSquare,
   Eye,
   Pencil,
+  Copy,
 } from "lucide-react"
 import { formatNgnFull, recalculateQuote, buildWhatsAppLink, buildQuoteWhatsAppMessage, buildQuotePublicUrl } from "@/lib/quotations"
 import { generateQuotationPdf } from "@/lib/quotation-pdf"
@@ -100,6 +101,7 @@ export default function QuotationsPage() {
 
   const [showShare, setShowShare] = useState<Quotation | null>(null)
   const [sendingId, setSendingId] = useState<string | null>(null)
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
   const [showConvert, setShowConvert] = useState<Quotation | null>(null)
   const [convertDueDate, setConvertDueDate] = useState("")
   const [convertPaymentTerms, setConvertPaymentTerms] = useState("")
@@ -317,6 +319,25 @@ export default function QuotationsPage() {
       setMessage(`Failed to ${editingId ? "update" : "create"} quotation`)
     } finally {
       setCreating(false)
+    }
+  }
+
+  const duplicateQuote = async (qt: Quotation) => {
+    setDuplicatingId(qt.id)
+    setMessage("")
+    try {
+      const res = await fetch(`/api/admin/quotations/${qt.id}/duplicate`, { method: "POST" })
+      const data = await res.json()
+      if (data.success && data.quotation) {
+        setQuotations((prev) => [data.quotation, ...prev])
+        setMessage(`Duplicated as ${data.quotation.quote_number} (draft).`)
+      } else {
+        setMessage(data.error || "Failed to duplicate quotation")
+      }
+    } catch {
+      setMessage("Failed to duplicate quotation")
+    } finally {
+      setDuplicatingId(null)
     }
   }
 
@@ -611,6 +632,14 @@ export default function QuotationsPage() {
                             title="Edit"
                           >
                             <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => duplicateQuote(qt)}
+                            disabled={duplicatingId === qt.id}
+                            className="p-1 rounded-md text-muted-foreground hover:text-violet-600 hover:bg-violet-50 transition-colors disabled:opacity-40"
+                            title="Duplicate as draft"
+                          >
+                            {duplicatingId === qt.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
                           <button
                             onClick={() => setShowShare(qt)}

@@ -5,7 +5,9 @@ import { useState, useEffect } from "react"
 
 interface AnalyticsIds {
   gaId: string
+  gtmId: string
   fbPixelId: string
+  tiktokPixelId: string
   clarityId: string
   hotjarId: string
 }
@@ -61,23 +63,57 @@ export function ConsentTrackingScripts({ ids }: { ids: AnalyticsIds }) {
     consent?.consent === "accepted" ||
     (consent?.consent === "custom" && consent?.preferences?.marketing)
 
+  // Enable GA4 DebugView via ?debug_mode / ?ga_debug URL param or localStorage
+  // ga_debug=1 (persists across navigations).
+  let gaDebug = false
+  try {
+    gaDebug =
+      new URLSearchParams(window.location.search).has("debug_mode") ||
+      new URLSearchParams(window.location.search).has("ga_debug") ||
+      localStorage.getItem("ga_debug") === "1"
+  } catch {
+    // ignore
+  }
+  const debugConfig = gaDebug ? ", { debug_mode: true }" : ""
+
+  // gtmId doubles as an optional secondary GA4 measurement ID (G-...) —
+  // an extra gtag('config') reuses the already-loaded Google tag.
+  const gaIds = [ids.gaId, ids.gtmId].filter(
+    (id): id is string => !!id && id.startsWith("G-")
+  )
+  const isGtmContainer = ids.gtmId?.startsWith("GTM-")
+
+  const gaInit = `
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    ${gaIds.map((id) => `gtag('config', '${id}'${debugConfig});`).join("\n    ")}
+  `
+
   return (
     <>
-      {allowAnalytics && ids.gaId && ids.gaId.startsWith("G-") && (
+      {allowAnalytics && gaIds.length > 0 && (
         <>
           <Script
-            src={`https://www.googletagmanager.com/gtag/js?id=${ids.gaId}`}
+            src={`https://www.googletagmanager.com/gtag/js?id=${gaIds[0]}`}
             strategy="afterInteractive"
           />
           <Script id="google-analytics" strategy="afterInteractive">
-            {`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', '${ids.gaId}');
-            `}
+            {gaInit}
           </Script>
         </>
+      )}
+
+      {(allowAnalytics || allowMarketing) && isGtmContainer && (
+        <Script id="google-tag-manager" strategy="afterInteractive">
+          {`
+            (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer','${ids.gtmId}');
+          `}
+        </Script>
       )}
 
       {allowMarketing && ids.fbPixelId && (
@@ -93,6 +129,21 @@ export function ConsentTrackingScripts({ ids }: { ids: AnalyticsIds }) {
             'https://connect.facebook.net/en_US/fbevents.js');
             fbq('init', '${ids.fbPixelId}');
             fbq('track', 'PageView');
+          `}
+        </Script>
+      )}
+
+      {allowMarketing && ids.tiktokPixelId && (
+        <Script id="tiktok-pixel" strategy="afterInteractive">
+          {`
+            !function (w, d, t) {
+              w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(
+              var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._i[e]._partner=o||'GoogleTagManagerClient',ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{},ttq._partner=ttq._partner||'GoogleTagManagerClient';n=document.createElement("script")
+              ;n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
+
+              ttq.load('${ids.tiktokPixelId}');
+              ttq.page();
+            }(window, document, 'ttq');
           `}
         </Script>
       )}

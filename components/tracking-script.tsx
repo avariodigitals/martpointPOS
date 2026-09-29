@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+import { gaEvent, ttqEvent } from "@/lib/analytics"
 
 const CTA_PATHS = [
   "/pricing",
@@ -84,6 +85,14 @@ export function TrackingScript() {
 
       const text = el.textContent?.trim() || el.getAttribute("aria-label") || "Unknown"
       const href = el.getAttribute("href") || window.location.pathname
+
+      const eventParams = {
+        link_text: text.slice(0, 100),
+        link_url: href,
+        page_path: window.location.pathname,
+      }
+      gaEvent("cta_click", eventParams)
+      ttqEvent("ClickButton", eventParams)
 
       const data = JSON.stringify({
         text: text.slice(0, 100),

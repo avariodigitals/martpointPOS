@@ -9,6 +9,7 @@ interface AnalyticsSettings {
   ga4MeasurementId: string
   gtmId: string
   fbPixelId: string
+  tiktokPixelId: string
   clarityId: string
   hotjarId: string
 }
@@ -18,6 +19,7 @@ export default function AdminAnalyticsPage() {
     ga4MeasurementId: "",
     gtmId: "",
     fbPixelId: "",
+    tiktokPixelId: "",
     clarityId: "",
     hotjarId: "",
   })
@@ -74,6 +76,7 @@ export default function AdminAnalyticsPage() {
 
   const gaActive = settings.ga4MeasurementId && settings.ga4MeasurementId.startsWith("G-")
   const fbActive = settings.fbPixelId && settings.fbPixelId.length > 0
+  const tiktokActive = settings.tiktokPixelId && settings.tiktokPixelId.length > 0
   const clarityActive = settings.clarityId && settings.clarityId.length > 0
   const hotjarActive = settings.hotjarId && settings.hotjarId.length > 0
 
@@ -117,14 +120,17 @@ export default function AdminAnalyticsPage() {
 
               {/* GTM */}
               <div className="space-y-2">
-                <span className="text-sm font-medium">Google Tag Manager (Optional)</span>
+                <span className="text-sm font-medium">Google Tag Manager / 2nd GA4 Property (Optional)</span>
                 <input
                   type="text"
                   value={settings.gtmId}
                   onChange={(e) => setSettings({ ...settings, gtmId: e.target.value })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="GTM-XXXXXXX"
+                  placeholder="GTM-XXXXXXX or G-XXXXXXXXXX"
                 />
+                <p className="text-xs text-muted-foreground">
+                  A GTM-XXXX ID loads the Tag Manager container; a G-XXXX ID sends events to a second GA4 property.
+                </p>
               </div>
 
               {/* Facebook Pixel */}
@@ -140,6 +146,22 @@ export default function AdminAnalyticsPage() {
                   onChange={(e) => setSettings({ ...settings, fbPixelId: e.target.value })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="123456789012345"
+                />
+              </div>
+
+              {/* TikTok Pixel */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2.5 h-2.5 rounded-full ${tiktokActive ? "bg-green-500" : "bg-amber-500"}`} />
+                  <span className="text-sm font-medium">TikTok Pixel</span>
+                  <span className="text-xs text-muted-foreground">{tiktokActive ? "Active" : "Not Configured"}</span>
+                </div>
+                <input
+                  type="text"
+                  value={settings.tiktokPixelId}
+                  onChange={(e) => setSettings({ ...settings, tiktokPixelId: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="DAU3P8JC77U88MSOCJD0"
                 />
               </div>
 

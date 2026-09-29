@@ -21,7 +21,8 @@
   },
   "analytics": {
     "ga4MeasurementId": "G-CPKJNXBXJ5",
-    "gtmId": "G-4BD1LP717X"
+    "gtmId": "G-4BD1LP717X",
+    "tiktokPixelId": "DAU3P8JC77U88MSOCJD0"
   },
   "general": {
     "contactEmail": "support@martpoint.com.ng",

@@ -42,6 +42,7 @@ function getDefaultSettings() {
       ga4MeasurementId: "",
       gtmId: "",
       fbPixelId: "",
+      tiktokPixelId: "",
       clarityId: "",
       hotjarId: "",
     },

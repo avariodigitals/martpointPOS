@@ -7,6 +7,7 @@ import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Loader2 } from "lucide-react"
 import { businessTypeOptions } from "@/lib/industries"
+import { gaEvent, ttqEvent } from "@/lib/analytics"
 import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 
 const leadSchema = z.object({
@@ -105,6 +106,9 @@ export function LeadForm({ pageType, productDefault = "not-sure", partnerCode }:
       if (!response.ok) {
         throw new Error("Failed to submit. Please try again.")
       }
+
+      gaEvent("generate_lead", { form_type: pageType })
+      ttqEvent("SubmitForm", { form_type: pageType })
 
       // Open WhatsApp with pre-filled message
       const message = buildWhatsAppMessage(data)

@@ -13,7 +13,7 @@ export async function POST(
 ) {
   const session = await getPartnerSession()
   const auth = await authorizePartner({ session, permission: "workorders:manage_own", capability: "IMPLEMENTATION" })
-  if (!auth.authorized) return auth.response
+  if (!auth.authorized) return auth.response!
 
   // Accepting a work order is a principal-level act.
   const body = await request.json().catch(() => ({}))

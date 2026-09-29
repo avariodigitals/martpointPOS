@@ -6,7 +6,7 @@ import { createQuoteRequest, listPartnerQuoteRequests } from "@/lib/partner-quot
 export async function GET() {
   const session = await getPartnerSession()
   const auth = await authorizePartner({ session, permission: "quotes:request_own" })
-  if (!auth.authorized) return auth.response
+  if (!auth.authorized) return auth.response!
 
   const requests = await listPartnerQuoteRequests(auth.partner!.id)
   return NextResponse.json({ requests })
@@ -16,7 +16,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getPartnerSession()
   const auth = await authorizePartner({ session, permission: "quotes:request_own" })
-  if (!auth.authorized) return auth.response
+  if (!auth.authorized) return auth.response!
 
   const body = await request.json().catch(() => ({}))
   if (!body?.partnerLeadId) {

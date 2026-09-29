@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, FileText, Plus, ExternalLink } from "lucide-react"
-import { VACANCY_STATUS_LABELS, EMPLOYMENT_TYPE_LABELS, type CareerVacancy, type VacancyStatus } from "@/lib/careers"
+import { Loader2, FileText, Plus, ExternalLink, Copy } from "lucide-react"
+import { VACANCY_STATUS_LABELS, EMPLOYMENT_TYPE_LABELS, type CareerVacancy } from "@/lib/careers"
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: "bg-gray-100 text-gray-700",
@@ -17,10 +18,23 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function VacanciesPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [vacancies, setVacancies] = useState<CareerVacancy[]>([])
   const [status, setStatus] = useState("")
   const [q, setQ] = useState("")
+  const [duplicating, setDuplicating] = useState<string | null>(null)
+
+  async function duplicateVacancy(id: string) {
+    setDuplicating(id)
+    try {
+      const res = await fetch(`/api/admin/careers/vacancies/${id}/duplicate`, { method: "POST" })
+      const d = await res.json()
+      if (d.id) router.push(`/admin/careers/vacancies/${d.id}`)
+    } finally {
+      setDuplicating(null)
+    }
+  }
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -102,11 +116,22 @@ export default function VacanciesPage() {
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          {(v.status === "PUBLISHED" || v.status === "PAUSED" || v.status === "CLOSED") && (
-                            <Link href={`/careers/jobs/${v.slug}`} target="_blank" className="text-xs text-muted-foreground hover:text-retail inline-flex items-center gap-1">
-                              <ExternalLink className="w-3 h-3" /> View
-                            </Link>
-                          )}
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => duplicateVacancy(v.id)}
+                              disabled={duplicating === v.id}
+                              className="text-xs text-muted-foreground hover:text-retail inline-flex items-center gap-1 disabled:opacity-50"
+                              title="Duplicate as a new draft"
+                            >
+                              {duplicating === v.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Copy className="w-3 h-3" />}
+                              Duplicate
+                            </button>
+                            {(v.status === "PUBLISHED" || v.status === "PAUSED" || v.status === "CLOSED") && (
+                              <Link href={`/careers/jobs/${v.slug}`} target="_blank" className="text-xs text-muted-foreground hover:text-retail inline-flex items-center gap-1">
+                                <ExternalLink className="w-3 h-3" /> View
+                              </Link>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )

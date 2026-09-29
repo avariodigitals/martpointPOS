@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Plus, Settings } from "lucide-react"
+import { DEFAULT_APPLICATION_CONFIRMATION, CONFIRMATION_MESSAGE_VARS } from "@/lib/careers"
 
 interface Lookup { id: string; name: string; description: string | null; active: boolean; sort_order: number }
 
@@ -13,6 +14,8 @@ export default function CareersSettingsPage() {
   const [categories, setCategories] = useState<Lookup[]>([])
   const [settings, setSettings] = useState<Record<string, unknown>>({})
   const [newName, setNewName] = useState<Record<"department" | "category", string>>({ department: "", category: "" })
+  const [confirmMsg, setConfirmMsg] = useState(DEFAULT_APPLICATION_CONFIRMATION)
+  const [savingMsg, setSavingMsg] = useState(false)
   const [msg, setMsg] = useState("")
 
   const load = useCallback(() => {
@@ -20,6 +23,9 @@ export default function CareersSettingsPage() {
       setDepartments(d.departments || [])
       setCategories(d.categories || [])
       setSettings(d.settings || {})
+      if (typeof d.settings?.default_confirmation_message === "string" && d.settings.default_confirmation_message.trim()) {
+        setConfirmMsg(d.settings.default_confirmation_message)
+      }
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
@@ -77,6 +83,35 @@ export default function CareersSettingsPage() {
         {renderLookupEditor("Departments", "department", departments)}
         {renderLookupEditor("Job categories", "category", categories)}
       </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Default confirmation message</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Sent to applicants after they submit — shown on the post-submit screen and inside the
+            &quot;application received&quot; email. A vacancy can override this with its own message.
+            Placeholders: {CONFIRMATION_MESSAGE_VARS.map((v) => `{{${v}}}`).join(", ")}
+          </p>
+          <textarea
+            rows={12}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-xs"
+            value={confirmMsg}
+            onChange={(e) => setConfirmMsg(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button size="sm" disabled={savingMsg} onClick={async () => {
+              setSavingMsg(true)
+              await post({ type: "setting", key: "default_confirmation_message", value: confirmMsg })
+              setSavingMsg(false)
+            }}>
+              {savingMsg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Save message
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setConfirmMsg(DEFAULT_APPLICATION_CONFIRMATION)}>
+              Reset to built-in template
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Notifications</CardTitle></CardHeader>

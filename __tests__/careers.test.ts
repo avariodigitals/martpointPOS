@@ -6,6 +6,8 @@ import {
   deriveEffectiveStatus,
   validateScreeningAnswers,
   scoreScreeningAnswers,
+  renderConfirmationMessage,
+  DEFAULT_APPLICATION_CONFIRMATION,
   generateApplicationReference,
   generateVacancyReference,
   slugify,
@@ -211,6 +213,27 @@ describe("screening answers", () => {
     )
     expect(score).toBe(50)
     expect(passed).toBe(false)
+  })
+})
+
+describe("confirmation message", () => {
+  it("substitutes placeholders and leaves unknown ones empty", () => {
+    const out = renderConfirmationMessage(DEFAULT_APPLICATION_CONFIRMATION, {
+      applicant_name: "Amina Bello",
+      vacancy_title: "Inventory Officer",
+      application_reference: "MPA-2026-123456",
+      vacancy_location: "Ilobu, Osun State",
+      status_url: "https://martpoint.com.ng/careers/application-status",
+    })
+    expect(out).toContain("Thank you, Amina Bello")
+    expect(out).toContain("Inventory Officer")
+    expect(out).toContain("MPA-2026-123456")
+    expect(out).toContain("Ilobu, Osun State")
+    expect(out).not.toContain("{{")
+  })
+
+  it("renders missing vars as empty strings", () => {
+    expect(renderConfirmationMessage("Ref: {{application_reference}} — {{unknown}}", {})).toBe("Ref:  — ")
   })
 })
 

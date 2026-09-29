@@ -9,7 +9,8 @@ import {
   EMPLOYMENT_TYPES, WORK_ARRANGEMENTS, COMPENSATION_TYPES, ANSWER_TYPES,
   EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS, COMPENSATION_TYPE_LABELS,
   EQUIPMENT_FIELD_KEYS,
-  type CareerVacancy, type ScreeningQuestion,
+  DEFAULT_APPLICATION_CONFIRMATION, CONFIRMATION_MESSAGE_VARS,
+  type CareerVacancy,
 } from "@/lib/careers"
 import { STATES } from "@/lib/locations"
 
@@ -523,9 +524,21 @@ export function VacancyForm({
             <label className={labelCls}>Screening pass score (%)</label>
             <input type="number" min={0} max={100} className={inputCls} value={f.pass_score} onChange={(e) => set("pass_score", e.target.value)} placeholder="Optional" />
           </div>
-          <div className="md:col-span-2">
-            <label className={labelCls}>Confirmation message shown to applicants</label>
-            <input className={inputCls} value={f.confirmation_message} onChange={(e) => set("confirmation_message", e.target.value)} />
+          <div className="md:col-span-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-sm font-medium">Confirmation message shown to applicants</label>
+              <button type="button" className="text-xs text-retail hover:underline"
+                onClick={() => set("confirmation_message", DEFAULT_APPLICATION_CONFIRMATION)}>
+                Insert default template
+              </button>
+            </div>
+            <textarea rows={10} className={`${inputCls} font-mono text-xs`} value={f.confirmation_message}
+              onChange={(e) => set("confirmation_message", e.target.value)}
+              placeholder="Leave empty to use the default confirmation template (Careers Settings)." />
+            <p className="text-xs text-muted-foreground mt-1">
+              Shown on the post-submit screen and inside the &quot;application received&quot; email.
+              Placeholders: {CONFIRMATION_MESSAGE_VARS.map((v) => `{{${v}}}`).join(", ")}
+            </p>
           </div>
           <div className="md:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
             {checkField("CV required", "cv_required")}

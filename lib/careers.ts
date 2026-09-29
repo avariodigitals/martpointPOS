@@ -584,6 +584,56 @@ export function scoreScreeningAnswers(
   return { score: pct, max, passed: passScore == null ? null : pct >= passScore }
 }
 
+/* ─── Application confirmation message ───
+ * Shown on the post-submit screen and sent inside the
+ * career_application_received email. Supports {{placeholders}}. */
+
+export const CONFIRMATION_MESSAGE_VARS = [
+  "applicant_name",
+  "vacancy_title",
+  "application_reference",
+  "vacancy_location",
+  "status_url",
+] as const
+
+export const DEFAULT_APPLICATION_CONFIRMATION = `Thank you, {{applicant_name}}. Your application for the position of {{vacancy_title}} has been received successfully.
+
+Application Reference: {{application_reference}}
+Location: {{vacancy_location}}
+
+Our recruitment team will review your application against the requirements of the role. If you are shortlisted, we will contact you using the email address or phone number provided in your application.
+
+Please save your application reference, as you may need it to check your application status.
+
+Submitting an application does not guarantee selection. MartPoint does not request payment for job applications, assessments, training or recruitment consideration.
+
+MartPoint Careers
+Building the team powering African businesses.`
+
+/** Substitute {{placeholders}} in a confirmation message template. */
+export function renderConfirmationMessage(
+  template: string,
+  vars: Record<string, string | null | undefined>
+): string {
+  return template.replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, name: string) => vars[name] ?? "")
+}
+
+/**
+ * Resolve the default confirmation message — the editable
+ * career_settings.default_confirmation_message value, else the built-in template.
+ */
+export async function getDefaultConfirmationMessage(): Promise<string> {
+  if (isSupabaseConfigured()) {
+    const { data } = await supabase
+      .from("career_settings")
+      .select("value")
+      .eq("key", "default_confirmation_message")
+      .maybeSingle()
+    if (typeof data?.value === "string" && data.value.trim()) return data.value
+  }
+  return DEFAULT_APPLICATION_CONFIRMATION
+}
+
 /* ─── Vacancy queries ─── */
 
 const VACANCY_SELECT = "*, career_departments(name), career_job_categories(name)"

@@ -1453,32 +1453,27 @@ MartPoint Sales Team`,
     key: "career_application_received",
     label: "Careers: Application Received",
     description: "Confirmation sent to an applicant right after submitting a vacancy application.",
-    variables: ["fullName", "reference", "vacancyTitle", "statusUrl", "confirmationMessage"],
+    variables: ["fullName", "reference", "vacancyTitle", "statusUrl", "confirmationMessage", "confirmationMessageHtml"],
     subject: "Application received — {{vacancyTitle}} ({{reference}})",
     text: `Hi {{fullName}},
 
-Thank you for applying for {{vacancyTitle}} at MartPoint. Your application has been received.
+{{confirmationMessage}}
 
 Application reference: {{reference}}
-{{confirmationMessage}}
+
 You can check your application status anytime at:
 {{statusUrl}}
-
-You will need your application reference and the email you applied with.
 
 Best regards,
 MartPoint Careers Team`,
     html: brandedEmailHtml(
       `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
-              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
-                Thank you for applying for <strong>{{vacancyTitle}}</strong> at MartPoint. Your application has been received and will be reviewed by our team.
-              </p>
+              {{confirmationMessageHtml}}
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
                 <tr>
                   <td style="padding:16px;">
                     <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Application reference</p>
                     <p style="font-size:17px; font-weight:700; color:#111827; margin:0; letter-spacing:0.5px;">{{reference}}</p>
-                    <p style="font-size:14px; color:#6b7280; margin:12px 0 0;">{{confirmationMessage}}</p>
                   </td>
                 </tr>
               </table>

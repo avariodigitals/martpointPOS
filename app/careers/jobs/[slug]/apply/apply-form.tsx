@@ -94,6 +94,93 @@ const EMPLOYMENT_STATUSES = ["Employed", "Self-employed", "Unemployed", "Student
 const QUALIFICATIONS = ["SSCE/WAEC", "OND/NCE", "HND", "Bachelor's Degree", "Master's Degree", "Doctorate", "Other"]
 const EXCEL_LEVELS = ["None", "Basic", "Intermediate", "Advanced"]
 
+function validateFile(file: File | null): string | null {
+  if (!file) return null
+  if (file.size > 5 * 1024 * 1024) return "File must be under 5MB"
+  const ok = [
+    "application/pdf", "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/png", "image/jpeg", "image/webp",
+  ]
+  if (!ok.includes(file.type)) return "PDF, Word or image files only"
+  return null
+}
+
+/* Field components live at module scope — defining them inside the form
+ * makes React remount them on every keystroke, losing input focus. */
+function Field({ label, required, error, children, hint }: {
+  label: string; required?: boolean; error?: string; children: React.ReactNode; hint?: string
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1.5">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      {children}
+      {hint && !error && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
+      {error && <p className={errCls}>{error}</p>}
+    </div>
+  )
+}
+
+function YesNoField({ name, value, onChange, label, error }: {
+  name: string; value: YesNo; onChange: (v: YesNo) => void; label: string; error?: string
+}) {
+  return (
+    <div>
+      <p className="text-sm font-medium text-foreground mb-1.5">{label}</p>
+      <div className="flex gap-4">
+        {(["yes", "no"] as const).map((opt) => (
+          <label key={opt} className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="radio" name={name} checked={value === opt}
+              onChange={() => onChange(opt)} className="accent-retail"
+            />
+            {opt === "yes" ? "Yes" : "No"}
+          </label>
+        ))}
+      </div>
+      {error && <p className={errCls}>{error}</p>}
+    </div>
+  )
+}
+
+function FilePicker({ file, onPick, label, required, error, onError }: {
+  file: File | null; onPick: (f: File | null) => void; label: string; required?: boolean
+  error?: string; onError: (msg: string) => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  return (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1.5">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        ref={ref} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0] || null
+          const ferr = validateFile(f)
+          if (ferr) { onError(ferr); return }
+          onError("")
+          onPick(f)
+        }}
+      />
+      <button
+        type="button" onClick={() => ref.current?.click()}
+        className={`w-full rounded-lg border border-dashed px-4 py-3 text-sm flex items-center justify-center gap-2 transition-colors ${
+          error ? "border-red-300 bg-red-50 text-red-600"
+          : file ? "border-retail bg-retail-soft text-retail"
+          : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+        }`}
+      >
+        <Upload className="w-4 h-4" />
+        {file?.name || "Upload PDF, Word or image (max 5MB)"}
+      </button>
+      {error && <p className={errCls}>{error}</p>}
+    </div>
+  )
+}
+
 export function ApplicationForm({
   vacancyId, vacancySlug, cvRequired, coverLetterRequired, portfolioEnabled,
   equipmentFields, questions, workingHoursLabel, durationLabel, locationLabel,
@@ -106,6 +193,7 @@ export function ApplicationForm({
   const [coverLetterFile, setCoverLetterFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submittedRef, setSubmittedRef] = useState<string | null>(null)
+  const [submittedMsg, setSubmittedMsg] = useState("")
   const [submitError, setSubmitError] = useState("")
   const [copied, setCopied] = useState(false)
   const captchaRef = useRef<CaptchaFieldHandle>(null)
@@ -123,10 +211,11 @@ export function ApplicationForm({
     return s
   }, [anyEquipment, questions.length])
 
-  const stepIndex = (name: string) => steps.indexOf(name)
-
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
+
+  const setFieldError = (id: string, msg: string) =>
+    setErrors((p) => ({ ...p, [id]: msg }))
 
   const setAnswer = (qid: string, patch: Partial<AnswerValue>) =>
     setAnswers((a) => {
@@ -135,18 +224,6 @@ export function ApplicationForm({
     })
 
   const yn = (v: YesNo): boolean | null => (v === "yes" ? true : v === "no" ? false : null)
-
-  function validateFile(file: File | null): string | null {
-    if (!file) return null
-    if (file.size > 5 * 1024 * 1024) return "File must be under 5MB"
-    const ok = [
-      "application/pdf", "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "image/png", "image/jpeg", "image/webp",
-    ]
-    if (!ok.includes(file.type)) return "PDF, Word or image files only"
-    return null
-  }
 
   function validateStep(idx: number): boolean {
     const e: Record<string, string> = {}
@@ -264,6 +341,7 @@ export function ApplicationForm({
         throw new Error(data.error || "Submission failed")
       }
       setSubmittedRef(data.reference)
+      setSubmittedMsg(typeof data.confirmationMessage === "string" ? data.confirmationMessage : "")
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Something went wrong. Please try again.")
     } finally {
@@ -278,9 +356,9 @@ export function ApplicationForm({
         <div className="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
           <Check className="w-7 h-7 text-green-600" />
         </div>
-        <h3 className="text-lg font-semibold text-foreground mb-2">Application Submitted</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-2">Application Submitted Successfully</h3>
         <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-          Thank you for applying. Your application reference is:
+          Your application reference is:
         </p>
         <div className="inline-flex items-center gap-2 rounded-lg bg-muted px-4 py-2.5 font-mono text-base font-semibold text-foreground">
           {submittedRef}
@@ -293,9 +371,15 @@ export function ApplicationForm({
             {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
           </button>
         </div>
-        <p className="mt-4 text-sm text-muted-foreground">
-          Keep this reference safe. A confirmation email is on its way if your address is reachable.
-        </p>
+        {submittedMsg ? (
+          <div className="mt-5 rounded-lg border border-border bg-muted/40 p-5 text-left text-sm text-foreground leading-relaxed whitespace-pre-line">
+            {submittedMsg}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Keep this reference safe. A confirmation email is on its way if your address is reachable.
+          </p>
+        )}
         <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
           <Button asChild variant="retail">
             <Link href="/careers/application-status">Check Application Status</Link>
@@ -304,75 +388,6 @@ export function ApplicationForm({
             <Link href={`/careers/jobs/${vacancySlug}`}>Back to vacancy</Link>
           </Button>
         </div>
-      </div>
-    )
-  }
-
-  /* ─── Field helpers ─── */
-  const Field = ({ id, label, required, children, hint }: {
-    id: string; label: string; required?: boolean; children: React.ReactNode; hint?: string
-  }) => (
-    <div>
-      <label className="block text-sm font-medium text-foreground mb-1.5">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      {children}
-      {hint && !errors[id] && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
-      {errors[id] && <p className={errCls}>{errors[id]}</p>}
-    </div>
-  )
-
-  const YesNo = ({ id, value, onChange, label }: {
-    id: string; value: YesNo; onChange: (v: YesNo) => void; label: string
-  }) => (
-    <div>
-      <p className="text-sm font-medium text-foreground mb-1.5">{label}</p>
-      <div className="flex gap-4">
-        {(["yes", "no"] as const).map((opt) => (
-          <label key={opt} className="inline-flex items-center gap-2 text-sm">
-            <input
-              type="radio" name={id} checked={value === opt}
-              onChange={() => onChange(opt)} className="accent-retail"
-            />
-            {opt === "yes" ? "Yes" : "No"}
-          </label>
-        ))}
-      </div>
-      {errors[id] && <p className={errCls}>{errors[id]}</p>}
-    </div>
-  )
-
-  const FilePicker = ({ id, file, onPick, label, required }: {
-    id: string; file: File | null; onPick: (f: File | null) => void; label: string; required?: boolean
-  }) => {
-    const ref = useRef<HTMLInputElement>(null)
-    return (
-      <div>
-        <label className="block text-sm font-medium text-foreground mb-1.5">
-          {label} {required && <span className="text-red-500">*</span>}
-        </label>
-        <input
-          ref={ref} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0] || null
-            const ferr = validateFile(f)
-            if (ferr) { setErrors((p) => ({ ...p, [id]: ferr })); return }
-            setErrors((p) => ({ ...p, [id]: "" }))
-            onPick(f)
-          }}
-        />
-        <button
-          type="button" onClick={() => ref.current?.click()}
-          className={`w-full rounded-lg border border-dashed px-4 py-3 text-sm flex items-center justify-center gap-2 transition-colors ${
-            errors[id] ? "border-red-300 bg-red-50 text-red-600"
-            : file ? "border-retail bg-retail-soft text-retail"
-            : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
-          }`}
-        >
-          <Upload className="w-4 h-4" />
-          {file?.name || "Upload PDF, Word or image (max 5MB)"}
-        </button>
-        {errors[id] && <p className={errCls}>{errors[id]}</p>}
       </div>
     )
   }
@@ -486,7 +501,7 @@ export function ApplicationForm({
         )
       case "FILE":
         return (
-          <FilePicker key={q.id} id={eid} file={a.file}
+          <FilePicker key={q.id} file={a.file} error={errors[eid]} onError={(m) => setFieldError(eid, m)}
             onPick={(f) => setAnswer(q.id, { file: f })} label={q.question_text} required={q.required} />
         )
       case "LOCATION":
@@ -509,36 +524,36 @@ export function ApplicationForm({
       case "Personal":
         return (
           <div className="space-y-5">
-            <Field id="fullName" label="Full name" required>
+            <Field label="Full name" required error={errors.fullName}>
               <input className={inputCls} value={form.fullName} onChange={(e) => set("fullName", e.target.value)} placeholder="e.g. Adaeze Okafor" />
             </Field>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <Field id="email" label="Email address" required>
+              <Field label="Email address" required error={errors.email}>
                 <input type="email" className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="you@example.com" />
               </Field>
-              <Field id="phone" label="Phone number" required>
+              <Field label="Phone number" required error={errors.phone}>
                 <input type="tel" className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+234 ..." />
               </Field>
             </div>
-            <Field id="whatsapp" label="WhatsApp number" hint="Optional — if different from your phone number.">
+            <Field label="WhatsApp number" hint="Optional — if different from your phone number." error={errors.whatsapp}>
               <input type="tel" className={inputCls} value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} />
             </Field>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <Field id="state" label="State of residence" required>
+              <Field label="State of residence" required error={errors.state}>
                 <select className={inputCls} value={form.state} onChange={(e) => set("state", e.target.value)}>
                   <option value="">Select state</option>
                   {STATES["Nigeria"].map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
-              <Field id="lga" label="LGA">
+              <Field label="LGA" error={errors.lga}>
                 <input className={inputCls} value={form.lga} onChange={(e) => set("lga", e.target.value)} placeholder="Local government area" />
               </Field>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <Field id="city" label="City / town" required>
+              <Field label="City / town" required error={errors.city}>
                 <input className={inputCls} value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="e.g. Ilobu" />
               </Field>
-              <Field id="residentialArea" label="Residential area">
+              <Field label="Residential area" error={errors.residentialArea}>
                 <input className={inputCls} value={form.residentialArea} onChange={(e) => set("residentialArea", e.target.value)} placeholder="Area / street" />
               </Field>
             </div>
@@ -547,29 +562,29 @@ export function ApplicationForm({
       case "Availability":
         return (
           <div className="space-y-5">
-            <Field id="employmentStatus" label="Current employment status" required>
+            <Field label="Current employment status" required error={errors.employmentStatus}>
               <select className={inputCls} value={form.employmentStatus} onChange={(e) => set("employmentStatus", e.target.value)}>
                 <option value="">Select</option>
                 {EMPLOYMENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>
-            <Field id="earliestAvailableDate" label="Earliest date you can start">
+            <Field label="Earliest date you can start" error={errors.earliestAvailableDate}>
               <input type="date" className={inputCls} value={form.earliestAvailableDate} onChange={(e) => set("earliestAvailableDate", e.target.value)} />
             </Field>
-            <YesNo id="availableWorkingHours" value={form.availableWorkingHours}
+            <YesNoField name="availableWorkingHours" value={form.availableWorkingHours} error={errors.availableWorkingHours}
               onChange={(v) => set("availableWorkingHours", v)}
               label={workingHoursLabel ? `Are you available for the stated working hours (${workingHoursLabel})?` : "Are you available for the stated working hours?"} />
             {durationLabel && (
-              <YesNo id="availableFullDuration" value={form.availableFullDuration}
+              <YesNoField name="availableFullDuration" value={form.availableFullDuration} error={errors.availableFullDuration}
                 onChange={(v) => set("availableFullDuration", v)}
                 label={`Can you commit to the full duration (${durationLabel})?`} />
             )}
-            <YesNo id="canTravel" value={form.canTravel}
+            <YesNoField name="canTravel" value={form.canTravel} error={errors.canTravel}
               onChange={(v) => set("canTravel", v)}
               label={locationLabel ? `Can you travel to the job location (${locationLabel})?` : "Can you travel to the job location?"} />
-            <YesNo id="requiresAccommodation" value={form.requiresAccommodation}
+            <YesNoField name="requiresAccommodation" value={form.requiresAccommodation} error={errors.requiresAccommodation}
               onChange={(v) => set("requiresAccommodation", v)} label="Do you require accommodation?" />
-            <Field id="otherCities" label="Other cities/towns where you can work">
+            <Field label="Other cities/towns where you can work" error={errors.otherCities}>
               <input className={inputCls} value={form.otherCities} onChange={(e) => set("otherCities", e.target.value)} placeholder="e.g. Osogbo, Ede" />
             </Field>
           </div>
@@ -578,38 +593,38 @@ export function ApplicationForm({
         return (
           <div className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <Field id="highestQualification" label="Highest qualification" required>
+              <Field label="Highest qualification" required error={errors.highestQualification}>
                 <select className={inputCls} value={form.highestQualification} onChange={(e) => set("highestQualification", e.target.value)}>
                   <option value="">Select</option>
                   {QUALIFICATIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
-              <Field id="fieldOfStudy" label="Field of study">
+              <Field label="Field of study" error={errors.fieldOfStudy}>
                 <input className={inputCls} value={form.fieldOfStudy} onChange={(e) => set("fieldOfStudy", e.target.value)} />
               </Field>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <Field id="currentOccupation" label="Current occupation">
+              <Field label="Current occupation" error={errors.currentOccupation}>
                 <input className={inputCls} value={form.currentOccupation} onChange={(e) => set("currentOccupation", e.target.value)} />
               </Field>
-              <Field id="yearsExperience" label="Years of relevant experience">
+              <Field label="Years of relevant experience" error={errors.yearsExperience}>
                 <input type="number" min="0" step="0.5" className={inputCls} value={form.yearsExperience} onChange={(e) => set("yearsExperience", e.target.value)} />
               </Field>
             </div>
-            <Field id="workHistory" label="Relevant work history" hint="Briefly describe work relevant to this role.">
+            <Field label="Relevant work history" hint="Briefly describe work relevant to this role." error={errors.workHistory}>
               <textarea rows={4} className={inputCls} value={form.workHistory} onChange={(e) => set("workHistory", e.target.value)} />
             </Field>
-            <Field id="skills" label="Skills" hint="Separate skills with commas, e.g. inventory counting, data entry, Excel">
+            <Field label="Skills" hint="Separate skills with commas, e.g. inventory counting, data entry, Excel" error={errors.skills}>
               <input className={inputCls} value={form.skills} onChange={(e) => set("skills", e.target.value)} />
             </Field>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <Field id="excelProficiency" label="Excel proficiency">
+              <Field label="Excel proficiency" error={errors.excelProficiency}>
                 <select className={inputCls} value={form.excelProficiency} onChange={(e) => set("excelProficiency", e.target.value)}>
                   <option value="">Select</option>
                   {EXCEL_LEVELS.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
-              <Field id="inventorySoftwareExperience" label="Inventory software experience">
+              <Field label="Inventory software experience" error={errors.inventorySoftwareExperience}>
                 <input className={inputCls} value={form.inventorySoftwareExperience} onChange={(e) => set("inventorySoftwareExperience", e.target.value)} placeholder="e.g. MartPoint Retail" />
               </Field>
             </div>
@@ -619,24 +634,24 @@ export function ApplicationForm({
         return (
           <div className="space-y-5">
             {equipmentOn("owns_android") && (
-              <YesNo id="ownsAndroid" value={form.ownsAndroid} onChange={(v) => set("ownsAndroid", v)} label="Do you own an Android smartphone?" />
+              <YesNoField name="ownsAndroid" value={form.ownsAndroid} error={errors.ownsAndroid} onChange={(v) => set("ownsAndroid", v)} label="Do you own an Android smartphone?" />
             )}
             {equipmentOn("smartphone_model") && (
-              <Field id="smartphoneModel" label="Smartphone model">
+              <Field label="Smartphone model" error={errors.smartphoneModel}>
                 <input className={inputCls} value={form.smartphoneModel} onChange={(e) => set("smartphoneModel", e.target.value)} placeholder="e.g. Tecno Spark 10" />
               </Field>
             )}
             {equipmentOn("has_mobile_data") && (
-              <YesNo id="hasMobileData" value={form.hasMobileData} onChange={(v) => set("hasMobileData", v)} label="Do you have reliable mobile data?" />
+              <YesNoField name="hasMobileData" value={form.hasMobileData} error={errors.hasMobileData} onChange={(v) => set("hasMobileData", v)} label="Do you have reliable mobile data?" />
             )}
             {equipmentOn("owns_laptop") && (
-              <YesNo id="ownsLaptop" value={form.ownsLaptop} onChange={(v) => set("ownsLaptop", v)} label="Do you own a laptop?" />
+              <YesNoField name="ownsLaptop" value={form.ownsLaptop} error={errors.ownsLaptop} onChange={(v) => set("ownsLaptop", v)} label="Do you own a laptop?" />
             )}
             {equipmentOn("owns_power_bank") && (
-              <YesNo id="ownsPowerBank" value={form.ownsPowerBank} onChange={(v) => set("ownsPowerBank", v)} label="Do you own a power bank?" />
+              <YesNoField name="ownsPowerBank" value={form.ownsPowerBank} error={errors.ownsPowerBank} onChange={(v) => set("ownsPowerBank", v)} label="Do you own a power bank?" />
             )}
             {equipmentOn("transportation") && (
-              <Field id="transportation" label="Means of transportation">
+              <Field label="Means of transportation" error={errors.transportation}>
                 <input className={inputCls} value={form.transportation} onChange={(e) => set("transportation", e.target.value)} placeholder="e.g. personal bike, public transport" />
               </Field>
             )}
@@ -645,15 +660,17 @@ export function ApplicationForm({
       case "Documents":
         return (
           <div className="space-y-5">
-            <FilePicker id="cvFile" file={cvFile} onPick={setCvFile} label="CV / Résumé" required={cvRequired} />
+            <FilePicker file={cvFile} onPick={setCvFile} label="CV / Résumé" required={cvRequired}
+              error={errors.cvFile} onError={(m) => setFieldError("cvFile", m)} />
             {coverLetterRequired && (
-              <FilePicker id="coverLetterFile" file={coverLetterFile} onPick={setCoverLetterFile} label="Cover letter" required />
+              <FilePicker file={coverLetterFile} onPick={setCoverLetterFile} label="Cover letter" required
+                error={errors.coverLetterFile} onError={(m) => setFieldError("coverLetterFile", m)} />
             )}
-            <Field id="linkedin" label="LinkedIn profile" hint="Optional.">
+            <Field label="LinkedIn profile" hint="Optional." error={errors.linkedin}>
               <input type="url" className={inputCls} value={form.linkedin} onChange={(e) => set("linkedin", e.target.value)} placeholder="https://linkedin.com/in/..." />
             </Field>
             {portfolioEnabled && (
-              <Field id="portfolioUrl" label="Portfolio URL" hint="Optional — link to work samples.">
+              <Field label="Portfolio URL" hint="Optional — link to work samples." error={errors.portfolioUrl}>
                 <input type="url" className={inputCls} value={form.portfolioUrl} onChange={(e) => set("portfolioUrl", e.target.value)} placeholder="https://..." />
               </Field>
             )}

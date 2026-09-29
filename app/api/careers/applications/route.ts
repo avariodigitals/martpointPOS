@@ -5,6 +5,7 @@ import { verifyCaptchaToken } from "@/lib/captcha"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { recordAudit, auditContextFromSession, AUDIT_ACTIONS } from "@/lib/audit"
 import { sendCareerNotification } from "@/lib/careers-notifications"
+import { escapeHtml } from "@/lib/email-html"
 import { uploadCareerDocument, validateCareerFile } from "@/lib/careers-storage"
 import {
   generateApplicationReference,
@@ -12,6 +13,8 @@ import {
   vacancyAcceptsApplications,
   validateScreeningAnswers,
   scoreScreeningAnswers,
+  renderConfirmationMessage,
+  getDefaultConfirmationMessage,
   PRIVACY_VERSION,
   type ScreeningQuestion,
   type ScreeningAnswerInput,
@@ -336,6 +339,36 @@ export async function POST(request: Request) {
 
     // Notifications (status stored in career_notification_log by the sender)
     const statusUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "https://martpoint.com.ng"}/careers/application-status`
+
+    // Confirmation message: per-vacancy override → careers default → built-in template.
+    const { data: locRows } = await supabase
+      .from("career_vacancy_locations")
+      .select("public_description, city, state, is_primary")
+      .eq("vacancy_id", v.id)
+      .order("sort_order")
+    const primaryLoc =
+      (locRows || []).find((l) => l.is_primary) || (locRows || [])[0] || null
+    const vacancyLocation = primaryLoc
+      ? primaryLoc.public_description || [primaryLoc.city, primaryLoc.state].filter(Boolean).join(", ")
+      : ""
+    const messageTemplate = v.confirmation_message?.trim() || (await getDefaultConfirmationMessage())
+    const confirmationMessage = renderConfirmationMessage(messageTemplate, {
+      applicant_name: str("fullName"),
+      vacancy_title: v.title,
+      application_reference: reference,
+      vacancy_location: vacancyLocation,
+      status_url: statusUrl,
+    })
+    const confirmationMessageHtml = confirmationMessage
+      ? confirmationMessage
+          .split(/\n{2,}/)
+          .map(
+            (p) =>
+              `<p style="font-size:15px; line-height:1.6; margin:0 0 12px; color:#374151;">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`
+          )
+          .join("")
+      : ""
+
     void sendCareerNotification({
       template: "career_application_received",
       to: email,
@@ -345,7 +378,8 @@ export async function POST(request: Request) {
         reference,
         vacancyTitle: v.title,
         statusUrl,
-        confirmationMessage: v.confirmation_message || "",
+        confirmationMessage,
+        confirmationMessageHtml,
       },
     })
     void sendCareerNotification({
@@ -363,7 +397,7 @@ export async function POST(request: Request) {
       metadata: { reference, vacancyId: v.id, vacancy: v.title },
     })
 
-    return NextResponse.json({ success: true, reference })
+    return NextResponse.json({ success: true, reference, confirmationMessage })
   } catch (err) {
     console.error("[careers] application error:", err)
     return NextResponse.json({ error: "Failed to process application" }, { status: 500 })

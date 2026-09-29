@@ -7,6 +7,7 @@ import {
   Building2,
   Users,
   FileCheck,
+  FileText,
   FolderOpen,
   LogOut,
   Target,
@@ -16,6 +17,8 @@ import {
   BadgeCheck,
   Palette,
   Wallet,
+  FileQuestion,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react"
 import { partnerUserHasPermission, type PartnerUserRole, type PartnerOrgCapability, type PartnerPermission } from "@/lib/partner-permissions"
@@ -31,11 +34,14 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/partner", label: "Dashboard", icon: LayoutDashboard },
   { href: "/partner/leads", label: "Leads", icon: Target, permission: "leads:view", capabilities: ["SALES", "REFERRALS", "IMPLEMENTATION", "CUSTOMER_ONBOARDING"] },
+  { href: "/partner/quotes", label: "Quotes", icon: FileQuestion, permission: "quotes:request_own", capabilities: ["SALES", "REFERRALS"] },
+  { href: "/partner/work-orders", label: "Work Orders", icon: ClipboardList, permission: "workorders:view_own", capabilities: ["IMPLEMENTATION", "CUSTOMER_ONBOARDING"] },
   { href: "/partner/commissions", label: "Earnings", icon: Wallet, permission: "commissions:view_own" },
   { href: "/partner/customers", label: "Customers", icon: Briefcase, permission: "customers:view_assigned" },
   { href: "/partner/profile", label: "Profile", icon: Building2, permission: "partner:profile:view" },
   { href: "/partner/team", label: "Team", icon: Users, permission: "partner:users:view" },
   { href: "/partner/compliance", label: "Compliance", icon: FileCheck, permission: "partner:compliance:view" },
+  { href: "/partner/documents", label: "Documents", icon: FileText, permission: "partner:resources:view" },
   { href: "/partner/training", label: "Training", icon: GraduationCap, permission: "partner:resources:view" },
   { href: "/partner/certification", label: "Certification", icon: Award, permission: "partner:resources:view" },
   { href: "/partner/branded-materials", label: "Branded Materials", icon: Palette, permission: "partner:resources:view" },

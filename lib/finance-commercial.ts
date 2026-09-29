@@ -852,8 +852,20 @@ export async function evaluateCommissionsForPayment(paymentId: string, actorId?:
     .lte("effective_from", new Date().toISOString().split("T")[0])
     .or(`effective_until.is.null,effective_until.gte.${new Date().toISOString().split("T")[0]}`)
 
+  // Skip plans that already produced a commission for this payment
+  // (webhook retries / re-confirmation must not double-book). The
+  // partner_commissions_payment_plan_uidx unique index is the hard guard;
+  // this pre-check keeps it quiet.
+  const { data: existingRows } = await supabase
+    .from("partner_commissions")
+    .select("commission_plan_id")
+    .eq("payment_id", p.id)
+  const alreadyBooked = new Set(((existingRows || []) as { commission_plan_id: string }[]).map((r) => r.commission_plan_id))
+
   const matching = (plans as CommissionPlan[] | null) || []
   for (const plan of matching) {
+    if (alreadyBooked.has(plan.id)) continue
+
     const basisKobo = toKobo(p.amount)
     let commissionKobo = 0
 
@@ -865,6 +877,10 @@ export async function evaluateCommissionsForPayment(paymentId: string, actorId?:
 
     if (commissionKobo <= 0) continue
 
+    // Blueprint earnings gate: commissions start PENDING. The scheduled
+    // partner-ops sweep promotes them to ELIGIBLE only after the holding
+    // period (clawback_days) has elapsed and the payment/business checks
+    // still pass. Finance approval remains a separate step.
     const { data, error } = await supabase.from("partner_commissions").insert({
       partner_id: partnerId,
       business_id: p.business_id,
@@ -875,7 +891,7 @@ export async function evaluateCommissionsForPayment(paymentId: string, actorId?:
       fixed_amount: plan.fixed_amount,
       commission_amount: fromKobo(commissionKobo),
       currency: p.currency,
-      status: "ELIGIBLE",
+      status: "PENDING",
       earned_at: new Date().toISOString(),
       attribution_type: "ORIGINATING",
       created_at: new Date().toISOString(),
@@ -884,7 +900,6 @@ export async function evaluateCommissionsForPayment(paymentId: string, actorId?:
 
     if (!error && data) {
       await logFinanceAudit("SYSTEM", actorId, "COMMISSION_CREATED", "PARTNER_COMMISSION", (data as PartnerCommission).id, { plan_id: plan.id })
-      await logFinanceAudit("SYSTEM", actorId, "COMMISSION_ELIGIBLE", "PARTNER_COMMISSION", (data as PartnerCommission).id)
     }
   }
 }

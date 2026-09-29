@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
+import { issueGoLiveDecisionDocument, issueTrainingRecordDocument } from "./partner-generated-docs"
 
 export interface OnboardingTaskInput {
   businessId: string
@@ -155,7 +156,7 @@ export async function submitOnboardingComplete(
 
   const { error } = await supabase
     .from("businesses")
-    .update({ status: "PARTNER_COMPLETED" as any, updated_at: new Date().toISOString() })
+    .update({ status: "PARTNER_COMPLETED", updated_at: new Date().toISOString() })
     .eq("id", businessId)
 
   if (error) return { ok: false, error: "Failed to submit onboarding" }
@@ -178,7 +179,7 @@ export async function adminApproveGoLive(
   if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
   const { error } = await supabase
     .from("businesses")
-    .update({ status: "GO_LIVE_APPROVED" as any, updated_at: new Date().toISOString() })
+    .update({ status: "GO_LIVE_APPROVED", updated_at: new Date().toISOString() })
     .eq("id", businessId)
   if (error) return { ok: false, error: "Failed to approve" }
 
@@ -188,6 +189,17 @@ export async function adminApproveGoLive(
     entityId: businessId,
     metadata: { adminId, status: "GO_LIVE_APPROVED" },
   })
+
+  // Issue the Go Live Decision record (best-effort — approval stands regardless).
+  try {
+    await issueGoLiveDecisionDocument(
+      businessId,
+      { decision: "APPROVED" },
+      { id: adminId }
+    )
+  } catch (e) {
+    console.error("[onboarding] go-live decision document failed:", e)
+  }
 
   return { ok: true }
 }
@@ -224,6 +236,13 @@ export async function createTrainingRecord(
     entityId: data.id as string,
     metadata: { businessId: input.businessId, trainingType: input.trainingType },
   })
+
+  // Issue the Training Attendance and Completion Record (best-effort).
+  try {
+    await issueTrainingRecordDocument(data.id as string, ctx.actorId || "system")
+  } catch (e) {
+    console.error("[onboarding] training record document failed:", e)
+  }
 
   return { ok: true, record: data }
 }

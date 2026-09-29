@@ -20,6 +20,7 @@ const TAB_LABELS: Record<string, string> = {
   leads: "Leads",
   customers: "Customers",
   onboarding: "Onboarding",
+  workorders: "Work Orders",
   support: "Support",
   compliance: "Compliance",
   guides: "Guides",
@@ -66,6 +67,16 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
   const [badgeTierSel, setBadgeTierSel] = useState<PartnerBadgeTier>("SILVER")
   const [badgeSaving, setBadgeSaving] = useState(false)
   const [badgeLoadError, setBadgeLoadError] = useState("")
+  const [genDocs, setGenDocs] = useState<Record<string, unknown>[]>([])
+  const [genDocBusy, setGenDocBusy] = useState(false)
+  const [stmtPeriod, setStmtPeriod] = useState({ from: "", to: "" })
+  const [workOrders, setWorkOrders] = useState<Record<string, unknown>[]>([])
+  const [woBusy, setWoBusy] = useState(false)
+  const [woForm, setWoForm] = useState({ title: "", scope: "", assignmentId: "", feeTotal: "", dueAt: "", milestones: "" })
+  const [certifications, setCertifications] = useState<Record<string, unknown>[]>([])
+  const [certForm, setCertForm] = useState({ status: "CERTIFIED", score: "", assessor: "", restrictions: "", expiresAt: "" })
+  const [quoteRequests, setQuoteRequests] = useState<Record<string, unknown>[]>([])
+  const [quoteDecisions, setQuoteDecisions] = useState<Record<string, { ref: string; reason: string }>>({})
   const [editingDetails, setEditingDetails] = useState(false)
 
   // Forms
@@ -148,6 +159,117 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
     setPersonalDocs(data.personal || [])
   }
 
+  async function fetchGeneratedDocs() {
+    const res = await fetch(`/api/admin/partners/${partnerId}/documents`)
+    const data = await res.json()
+    setGenDocs(data.documents || [])
+  }
+
+  async function fetchWorkOrders() {
+    const res = await fetch(`/api/admin/partners/${partnerId}/work-orders`)
+    const data = await res.json()
+    setWorkOrders(data.workOrders || [])
+  }
+
+  async function fetchCertifications() {
+    const res = await fetch(`/api/admin/partners/${partnerId}/certifications`)
+    const data = await res.json()
+    setCertifications(data.certifications || [])
+  }
+
+  async function fetchQuoteRequests() {
+    const res = await fetch(`/api/admin/partner-quote-requests?partnerId=${partnerId}`)
+    const data = await res.json()
+    setQuoteRequests(data.requests || [])
+  }
+
+  async function workOrderAction(body: Record<string, unknown>) {
+    setWoBusy(true)
+    setMessage("")
+    try {
+      const res = await fetch(`/api/admin/partners/${partnerId}/work-orders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      setMessage(data.success ? "Done." : data.error || "Action failed.")
+      if (data.success) await fetchWorkOrders()
+    } finally {
+      setWoBusy(false)
+    }
+  }
+
+  async function submitWorkOrder(e: React.FormEvent) {
+    e.preventDefault()
+    const assignment = assignments.find((a) => a.id === woForm.assignmentId)
+    const milestones = woForm.milestones
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [title, dueDate, fee] = line.split("|").map((s) => s.trim())
+        return { title, dueDate: dueDate || null, feeAmount: fee ? Number(fee) : null }
+      })
+    await workOrderAction({
+      action: "create",
+      title: woForm.title,
+      scope: woForm.scope,
+      assignmentId: woForm.assignmentId || null,
+      businessId: (assignment?.business_id as string) || null,
+      feeTotal: woForm.feeTotal === "" ? null : Number(woForm.feeTotal),
+      dueAt: woForm.dueAt || null,
+      milestones,
+    })
+    setWoForm({ title: "", scope: "", assignmentId: "", feeTotal: "", dueAt: "", milestones: "" })
+  }
+
+  async function decideQuoteRequest(id: string, decision: string) {
+    const d = quoteDecisions[id] || { ref: "", reason: "" }
+    const res = await fetch("/api/admin/partner-quote-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quoteRequestId: id, decision, issuedQuoteRef: d.ref || null, decisionReason: d.reason || null }),
+    })
+    const data = await res.json()
+    setMessage(data.success ? "Quote request updated." : data.error || "Failed.")
+    if (data.success) fetchQuoteRequests()
+  }
+
+  async function saveCertification(e: React.FormEvent) {
+    e.preventDefault()
+    const res = await fetch(`/api/admin/partners/${partnerId}/certifications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: certForm.status,
+        score: certForm.score === "" ? null : Number(certForm.score),
+        assessor: certForm.assessor || null,
+        restrictions: certForm.restrictions || null,
+        expiresAt: certForm.expiresAt || null,
+      }),
+    })
+    const data = await res.json()
+    setMessage(data.success ? "Certification recorded." : data.error || "Failed.")
+    if (data.success) fetchCertifications()
+  }
+
+  async function generateDoc(type: string, extra: Record<string, unknown> = {}) {
+    setGenDocBusy(true)
+    try {
+      const res = await fetch(`/api/admin/partners/${partnerId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, ...extra }),
+      })
+      const data = await res.json()
+      if (!data.success) setMessage(data.error || "Document generation failed.")
+      await fetchGeneratedDocs()
+    } finally {
+      setGenDocBusy(false)
+    }
+  }
+
   useEffect(() => {
     if (tab === "users") fetchUsers()
     if (tab === "capabilities") fetchCapabilities()
@@ -156,6 +278,10 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
     if (tab === "activity") fetchActivity()
     if (tab === "guides" || tab === "docs") fetchResources()
     if (tab === "docs") fetchBadgeKit()
+    if (tab === "docs") fetchGeneratedDocs()
+    if (tab === "workorders") { fetchWorkOrders(); fetchAssignments() }
+    if (tab === "capabilities") fetchCertifications()
+    if (tab === "leads") fetchQuoteRequests()
     if (["leads", "onboarding", "support", "commissions", "performance"].includes(tab)) fetch360()
   }, [tab])
 
@@ -688,6 +814,41 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
         </Card>
       )}
 
+      {tab === "capabilities" && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><BadgeCheck className="w-4 h-4" /> Certifications</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={saveCertification} className="space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <select value={certForm.status} onChange={(e) => setCertForm({ ...certForm, status: e.target.value })} className="rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  {["CANDIDATE", "TRAINING", "ASSESSMENT", "SUPERVISED", "CERTIFIED", "EXPIRED", "REVOKED"].map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <input className="rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Score %" value={certForm.score} onChange={(e) => setCertForm({ ...certForm, score: e.target.value })} />
+                <input className="rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Assessor" value={certForm.assessor} onChange={(e) => setCertForm({ ...certForm, assessor: e.target.value })} />
+                <input className="rounded-md border border-input bg-background px-3 py-2 text-sm" type="date" value={certForm.expiresAt} onChange={(e) => setCertForm({ ...certForm, expiresAt: e.target.value })} />
+              </div>
+              <input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Restrictions (optional)" value={certForm.restrictions} onChange={(e) => setCertForm({ ...certForm, restrictions: e.target.value })} />
+              <Button size="sm" type="submit">Record certification</Button>
+            </form>
+            <div className="space-y-2">
+              {certifications.length === 0 ? <p className="text-sm text-muted-foreground">No certification records.</p> : certifications.map((c) => (
+                <div key={c.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
+                  <span>
+                    {c.programme as string}
+                    <span className="text-muted-foreground">
+                      {c.score != null ? ` · ${c.score}%` : ""}
+                      {c.expires_at ? ` · expires ${new Date(c.expires_at as string).toLocaleDateString()}` : ""}
+                      {c.restrictions ? ` · ${c.restrictions as string}` : ""}
+                    </span>
+                  </span>
+                  <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${c.status === "CERTIFIED" ? "bg-green-100 text-green-800" : c.status === "EXPIRED" || c.status === "REVOKED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{c.status as string}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {tab === "compliance" && (
         <Card>
           <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><FileText className="w-4 h-4" /> Compliance</CardTitle></CardHeader>
@@ -900,10 +1061,70 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
             )}
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2"><FileText className="w-4 h-4" /> Generated Records</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Controlled documents issued from portal records — activation confirmations, customer assignments,
+              statements and notices. Each carries a document ID, template version and checksum. Partners see
+              these in their portal under Documents.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1">Commission statement period (optional)</p>
+                <div className="flex items-center gap-1">
+                  <input type="date" value={stmtPeriod.from} onChange={(e) => setStmtPeriod({ ...stmtPeriod, from: e.target.value })} className="rounded-md border border-input bg-background px-2 py-1.5 text-xs" />
+                  <span className="text-xs text-muted-foreground">to</span>
+                  <input type="date" value={stmtPeriod.to} onChange={(e) => setStmtPeriod({ ...stmtPeriod, to: e.target.value })} className="rounded-md border border-input bg-background px-2 py-1.5 text-xs" />
+                </div>
+              </div>
+              <Button size="sm" variant="outline" disabled={genDocBusy} onClick={() => generateDoc("COMMISSION_STATEMENT", { from: stmtPeriod.from || null, to: stmtPeriod.to || null })}>
+                {genDocBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null} Commission Statement
+              </Button>
+              <Button size="sm" variant="outline" disabled={genDocBusy} onClick={() => generateDoc("IMPLEMENTATION_FEE_STATEMENT")}>
+                Fee Statement
+              </Button>
+              <Button size="sm" variant="outline" disabled={genDocBusy} onClick={() => generateDoc("DATA_PROCESSING_ADDENDUM")}>
+                DPA
+              </Button>
+              <Button size="sm" variant="outline" disabled={genDocBusy} onClick={() => generateDoc("ACTIVATION_CONFIRMATION")}>
+                Reissue Activation Confirmation
+              </Button>
+            </div>
+            {genDocs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No generated records yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {genDocs.map((d) => (
+                  <div key={d.id as string} className="flex items-start justify-between p-3 border-b border-border last:border-0 gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{d.title as string}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {d.documentId as string} · {d.typeLabel as string} · v{d.templateVersion as string} · {new Date(d.generatedAt as string).toLocaleDateString()}
+                        {d.acknowledgedAt ? ` · acknowledged ${new Date(d.acknowledgedAt as string).toLocaleDateString()}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${d.status === "ACCEPTED" || d.status === "SIGNED" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>{d.status as string}</span>
+                      {!!d.signedUrl && (
+                        <a href={d.signedUrl as string} target="_blank" rel="noopener noreferrer">
+                          <Button size="sm" variant="outline"><Download className="w-3.5 h-3.5" /></Button>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
         </div>
       )}
 
       {tab === "leads" && (
+        <div className="space-y-6">
         <Card>
           <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><Target className="w-4 h-4" /> Leads</CardTitle></CardHeader>
           <CardContent>
@@ -933,6 +1154,59 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
             )}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><FileText className="w-4 h-4" /> Quote Requests</CardTitle></CardHeader>
+          <CardContent>
+            {quoteRequests.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No quote requests from this partner.</p>
+            ) : (
+              <div className="space-y-3">
+                {quoteRequests.map((qr) => {
+                  const lead = qr.partner_leads as Record<string, unknown> | null
+                  const open = ["SUBMITTED", "UNDER_REVIEW"].includes(qr.status as string)
+                  const decision = quoteDecisions[qr.id as string] || { ref: "", reason: "" }
+                  return (
+                    <div key={qr.id as string} className="p-3 rounded-lg border border-border">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">{(lead?.company_name as string) || "Opportunity"}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {[qr.plan_name, qr.locations, qr.users_estimate ? `${qr.users_estimate} users` : null].filter(Boolean).join(" · ") || "General quote"}
+                            {qr.services_requested ? ` · ${qr.services_requested as string}` : ""}
+                          </p>
+                          {!!qr.notes && <p className="text-xs text-muted-foreground mt-1">{qr.notes as string}</p>}
+                          {!!qr.issued_quote_ref && <p className="text-xs mt-1">Quote ref: <span className="font-mono">{qr.issued_quote_ref as string}</span></p>}
+                        </div>
+                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${qr.status === "ISSUED" ? "bg-green-100 text-green-800" : qr.status === "DECLINED" || qr.status === "EXPIRED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{qr.status as string}</span>
+                      </div>
+                      {open && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <input
+                            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs w-40"
+                            placeholder="Quote ref (to issue)"
+                            value={decision.ref}
+                            onChange={(e) => setQuoteDecisions({ ...quoteDecisions, [qr.id as string]: { ...decision, ref: e.target.value } })}
+                          />
+                          <input
+                            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs flex-1 min-w-40"
+                            placeholder="Reason / notes"
+                            value={decision.reason}
+                            onChange={(e) => setQuoteDecisions({ ...quoteDecisions, [qr.id as string]: { ...decision, reason: e.target.value } })}
+                          />
+                          <Button size="sm" variant="outline" onClick={() => decideQuoteRequest(qr.id as string, "UNDER_REVIEW")}>Reviewing</Button>
+                          <Button size="sm" variant="outline" onClick={() => decideQuoteRequest(qr.id as string, "ISSUED")}>Issue quote</Button>
+                          <Button size="sm" variant="outline" onClick={() => decideQuoteRequest(qr.id as string, "DECLINED")}>Decline</Button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        </div>
       )}
 
       {tab === "onboarding" && (
@@ -953,6 +1227,115 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {tab === "workorders" && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><Wrench className="w-4 h-4" /> Create Work Order</CardTitle></CardHeader>
+            <CardContent>
+              <form onSubmit={submitWorkOrder} className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Title" required value={woForm.title} onChange={(e) => setWoForm({ ...woForm, title: e.target.value })} />
+                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={woForm.assignmentId} onChange={(e) => setWoForm({ ...woForm, assignmentId: e.target.value })}>
+                    <option value="">No linked customer assignment</option>
+                    {assignments.map((a) => (
+                      <option key={a.id as string} value={a.id as string}>
+                        {((a.businesses as Record<string, unknown>)?.business_name as string) || "Customer"} · {a.relationship_type as string}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} placeholder="Scope of work (required)" required value={woForm.scope} onChange={(e) => setWoForm({ ...woForm, scope: e.target.value })} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Fee total (optional)" value={woForm.feeTotal} onChange={(e) => setWoForm({ ...woForm, feeTotal: e.target.value })} />
+                  <input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" type="date" placeholder="Due date" value={woForm.dueAt} onChange={(e) => setWoForm({ ...woForm, dueAt: e.target.value })} />
+                </div>
+                <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono" rows={3} placeholder={"Milestones — one per line:\nTitle | YYYY-MM-DD | fee amount"} value={woForm.milestones} onChange={(e) => setWoForm({ ...woForm, milestones: e.target.value })} />
+                <Button size="sm" type="submit" disabled={woBusy}>{woBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />} Create draft</Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-medium">Work Orders</CardTitle></CardHeader>
+            <CardContent>
+              {workOrders.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No work orders for this partner.</p>
+              ) : (
+                <div className="space-y-3">
+                  {workOrders.map((wo) => {
+                    const business = wo.businesses as Record<string, unknown> | null
+                    const milestones = ((wo.partner_work_order_milestones as Record<string, unknown>[]) || []).slice().sort((a, b) => (a.order_index as number) - (b.order_index as number))
+                    const pendingChanges = ((wo.partner_change_orders as Record<string, unknown>[]) || []).filter((c) => c.status === "PENDING")
+                    return (
+                      <div key={wo.id as string} className="p-4 rounded-xl border border-border">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold font-mono">{wo.work_order_ref as string}</p>
+                            <p className="text-sm">{wo.title as string}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {(business?.business_name as string) || "No customer"} · Due {wo.due_at ? new Date(wo.due_at as string).toLocaleDateString() : "—"}
+                              {wo.fee_total != null ? ` · Fee ${money(wo.fee_total)}` : ""}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-medium ${wo.status === "COMPLETED" || wo.status === "CLOSED" ? "bg-green-100 text-green-800" : wo.status === "CANCELLED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{wo.status as string}</span>
+                            {wo.status === "DRAFT" && <Button size="sm" variant="outline" disabled={woBusy} onClick={() => workOrderAction({ action: "issue", workOrderId: wo.id })}>Issue</Button>}
+                            {["ACCEPTED", "IN_PROGRESS", "COMPLETED"].includes(wo.status as string) && <Button size="sm" variant="outline" disabled={woBusy} onClick={() => workOrderAction({ action: "close", workOrderId: wo.id })}>Close</Button>}
+                          </div>
+                        </div>
+                        {milestones.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {milestones.map((m) => (
+                              <div key={m.id as string} className="flex items-center justify-between text-sm p-2 rounded-lg bg-muted/40">
+                                <span>
+                                  {m.title as string}
+                                  <span className="text-muted-foreground"> · due {m.due_date ? new Date(m.due_date as string).toLocaleDateString() : "—"}{m.fee_amount != null ? ` · ${money(m.fee_amount)}` : ""}</span>
+                                  {m.status === "SUBMITTED" && !!m.evidence_text && <span className="block text-xs text-muted-foreground mt-1">Evidence: {m.evidence_text as string}{m.evidence_url ? ` — ${m.evidence_url as string}` : ""}</span>}
+                                </span>
+                                <span className="flex items-center gap-2">
+                                  <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${m.status === "ACCEPTED" ? "bg-green-100 text-green-800" : m.status === "REJECTED" ? "bg-red-50 text-red-700" : m.status === "SUBMITTED" ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-600"}`}>{m.status as string}</span>
+                                  {m.status === "SUBMITTED" && (
+                                    <>
+                                      <Button size="sm" variant="outline" disabled={woBusy} onClick={() => workOrderAction({ action: "review-milestone", milestoneId: m.id, decision: "ACCEPTED" })}>Accept</Button>
+                                      <Button size="sm" variant="outline" disabled={woBusy} onClick={() => { const notes = window.prompt("Rejection reason (required):"); if (notes) workOrderAction({ action: "review-milestone", milestoneId: m.id, decision: "REJECTED", notes }) }}>Reject</Button>
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {pendingChanges.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pending change orders</p>
+                            {pendingChanges.map((co) => (
+                              <div key={co.id as string} className="flex items-center justify-between text-sm p-2 rounded-lg border border-amber-200 bg-amber-50/50">
+                                <span>
+                                  {co.description as string}
+                                  <span className="text-muted-foreground">
+                                    {" "}· by {co.requested_by_type === "PARTNER" ? "partner" : "MartPoint"}
+                                    {co.impact_fee != null ? ` · fee impact ${money(co.impact_fee)}` : ""}
+                                    {co.impact_schedule ? ` · ${co.impact_schedule as string}` : ""}
+                                  </span>
+                                </span>
+                                <span className="flex items-center gap-2">
+                                  <Button size="sm" variant="outline" disabled={woBusy} onClick={() => workOrderAction({ action: "decide-change", changeOrderId: co.id, decision: "APPROVED" })}>Approve</Button>
+                                  <Button size="sm" variant="outline" disabled={woBusy} onClick={() => { const reason = window.prompt("Reason:"); workOrderAction({ action: "decide-change", changeOrderId: co.id, decision: "REJECTED", reason }) }}>Reject</Button>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {tab === "support" && (

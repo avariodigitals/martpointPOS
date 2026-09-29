@@ -55,6 +55,9 @@ export const PARTNER_PERMISSIONS = [
   "support:view_assigned",
   "support:manage_assigned",
   "commissions:view_own",
+  "workorders:view_own",
+  "workorders:manage_own",
+  "quotes:request_own",
 ] as const
 
 export type PartnerPermission = (typeof PARTNER_PERMISSIONS)[number]
@@ -78,6 +81,9 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "support:view_assigned",
     "support:manage_assigned",
     "commissions:view_own",
+    "workorders:view_own",
+    "workorders:manage_own",
+    "quotes:request_own",
   ],
   PARTNER_MANAGER: [
     "partner:profile:view",
@@ -86,6 +92,8 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "partner:compliance:view",
     "partner:compliance:submit",
     "partner:resources:view",
+    "workorders:view_own",
+    "quotes:request_own",
   ],
   PARTNER_SALES: [
     "partner:profile:view",
@@ -93,6 +101,7 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "leads:view",
     "leads:create",
     "leads:update",
+    "quotes:request_own",
   ],
   PARTNER_IMPLEMENTATION: [
     "partner:profile:view",
@@ -103,6 +112,8 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "customers:view_assigned",
     "onboarding:view_assigned",
     "onboarding:manage_assigned",
+    "workorders:view_own",
+    "workorders:manage_own",
   ],
   PARTNER_SUPPORT: [
     "partner:profile:view",
@@ -176,6 +187,7 @@ export const PARTNER_360_TABS = [
   "leads",
   "customers",
   "onboarding",
+  "workorders",
   "support",
   "compliance",
   "guides",
@@ -200,6 +212,7 @@ export function relevantPartnerTabs(capabilities: PartnerOrgCapability[]): Partn
       case "customers":
         return flags.hasCustomerCapability
       case "onboarding":
+      case "workorders":
         return flags.hasImplementationCapability
       case "support":
         return flags.hasSupportCapability

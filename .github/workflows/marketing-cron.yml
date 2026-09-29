@@ -19,5 +19,5 @@ jobs:
     steps:
       - name: Trigger scheduled campaign send
         run: |
-          curl -fsS -X POST "${{ vars.APP_BASE_URL || 'https://www.martpoint.com.ng' }}/api/admin/marketing/send-due" \
+          curl -fsS -X POST "${{ vars.APP_BASE_URL || 'https://martpoint.com.ng' }}/api/admin/marketing/send-due" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

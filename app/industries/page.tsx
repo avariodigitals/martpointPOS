@@ -13,7 +13,7 @@ import {
 } from "@/lib/industries"
 
 export const metadata: Metadata = {
-  title: "Industries We Serve — POS Software for 30+ Business Types",
+  title: "Industries We Serve — POS Software in Nigeria for 30+ Business Types",
   description:
     "MartPoint POS and inventory software for supermarkets, restaurants, pharmacies, electronics stores, fashion boutiques, distributors, and 30+ more industries across Nigeria and Africa.",
   keywords: [
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     canonical: "/industries",
   },
   openGraph: {
-    title: "Industries We Serve — POS Software for 30+ Business Types",
+    title: "Industries We Serve — POS Software in Nigeria for 30+ Business Types",
     description:
       "POS and inventory software for supermarkets, restaurants, pharmacies, fashion stores & 30+ more industries in Nigeria.",
     url: "https://martpoint.com.ng/industries",

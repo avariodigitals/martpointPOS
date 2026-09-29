@@ -13,9 +13,10 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Mini Mart POS & Stock Software — MartPoint Retail",
+  title: "Mini Mart POS & Stock Software in Nigeria — MartPoint Retail",
   description:
     "Run your neighbourhood mini mart without manual stock counts or missed sales. Real-time inventory, fast checkout, simple reordering and daily profit reports built for African convenience stores.",
+  alternates: { canonical: "/industries/mini-marts" },
 }
 
 const painPoints = [

@@ -6,7 +6,7 @@ import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { z } from "zod"
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng"
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
 
 const createSchema = z.object({
   source: z.string().optional().nullable(),

@@ -6,6 +6,7 @@ import { autoParts } from "@/lib/industries"
 export const metadata: Metadata = {
   title: autoParts.seo.title,
   description: autoParts.seo.description,
+  alternates: { canonical: "/industries/auto-parts" },
 }
 
 export default function AutoPartsPage() {

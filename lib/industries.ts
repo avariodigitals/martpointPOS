@@ -12,6 +12,7 @@ import {
   EyeOff, Puzzle, Gauge, PackageOpen, HandCoins, TrendingUp, WifiOff,
   Cloud, Lock, ClipboardCheck, History, HeadphonesIcon,
   Snowflake, Flame, Fish, Zap, MonitorPlay,
+  Wine,
 } from "lucide-react"
 
 export interface IndustryData {
@@ -57,7 +58,7 @@ export const supermarkets: IndustryData = {
   navVisible: true,
   description: "Manage thousands of SKUs, fast checkout lanes, and multiple branches with real-time stock visibility.",
   seo: {
-    title: "Supermarket POS & Inventory Software — MartPoint Retail",
+    title: "Supermarket POS & Inventory Software in Nigeria — MartPoint Retail",
     description: "Run your supermarket without stockouts, long queues or manual counting. MartPoint Retail gives you real-time inventory, fast checkout and multi-branch control.",
   },
   hero: {
@@ -119,7 +120,7 @@ export const restaurants: IndustryData = {
   navVisible: true,
   description: "Handle table orders, kitchen tickets, split payments, and track ingredient inventory per outlet.",
   seo: {
-    title: "Restaurant POS & Kitchen Software — MartPoint Retail",
+    title: "Restaurant POS & Kitchen Software in Nigeria — MartPoint Retail",
     description: "Take orders faster, manage kitchen flow and track ingredient inventory. MartPoint Retail is built for African restaurants, fast-food outlets and cafes.",
   },
   hero: {
@@ -181,7 +182,7 @@ export const pharmacies: IndustryData = {
   navVisible: true,
   description: "Manage batch tracking, expiry dates, prescription sales, and regulated inventory with full audit trails.",
   seo: {
-    title: "Pharmacy Inventory & POS Software — MartPoint Retail",
+    title: "Pharmacy Inventory & POS Software in Nigeria — MartPoint Retail",
     description: "Never run out of essential medicines. Track batches, monitor expiry dates and manage prescription sales with MartPoint Retail built for African pharmacies.",
   },
   hero: {
@@ -243,7 +244,7 @@ export const electronicsStores: IndustryData = {
   navVisible: true,
   description: "Track serial numbers, warranty periods, and high-value stock across showroom and warehouse.",
   seo: {
-    title: "Electronics Store POS & Inventory — MartPoint Retail",
+    title: "Electronics Store POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track serial numbers, warranties and high-value stock across showroom and warehouse. MartPoint Retail is built for African electronics retailers.",
   },
   hero: {
@@ -305,7 +306,7 @@ export const fashionStores: IndustryData = {
   navVisible: true,
   description: "Manage sizes, colors, seasons, and styles. See what sells by branch and optimize your stock mix.",
   seo: {
-    title: "Fashion Retail POS & Inventory — MartPoint Retail",
+    title: "Fashion Retail POS & Inventory in Nigeria — MartPoint Retail",
     description: "Manage sizes, colours, seasons and styles with real-time sales visibility. MartPoint Retail is built for African fashion boutiques and retailers.",
   },
   hero: {
@@ -367,7 +368,7 @@ export const beautyAndSalons: IndustryData = {
   navVisible: true,
   description: "Manage appointments, product sales and inventory for your salon or beauty business.",
   seo: {
-    title: "Salon & Beauty Business Software — MartPoint Retail",
+    title: "Salon & Beauty Business Software in Nigeria — MartPoint Retail",
     description: "Manage appointments, product sales and inventory for your salon or beauty business. MartPoint Retail is built for African beauty entrepreneurs.",
   },
   hero: {
@@ -429,7 +430,7 @@ export const multiBranchRetail: IndustryData = {
   navVisible: true,
   description: "Centralise management for your retail chain or franchise. Compare sales, transfer stock and manage staff across every location from one dashboard.",
   seo: {
-    title: "Multi-Branch Retail Software — MartPoint Retail",
+    title: "Multi-Branch Retail Software in Nigeria — MartPoint Retail",
     description: "Centralise management for your retail chain or franchise. Compare sales, transfer stock and manage staff across every location from one dashboard.",
   },
   hero: {
@@ -490,7 +491,7 @@ export const miniMarts: IndustryData = {
   product: "retail",
   description: "Track daily sales, monitor fast-moving items, and reorder before you run out of stock.",
   seo: {
-    title: "Mini Mart POS & Stock Software — MartPoint Retail",
+    title: "Mini Mart POS & Stock Software in Nigeria — MartPoint Retail",
     description: "Run your mini mart without manual stock counts or missed sales. Real-time inventory, fast checkout and simple reordering.",
   },
   hero: {
@@ -545,7 +546,7 @@ export const groceryStores: IndustryData = {
   product: "retail",
   description: "Track fresh produce, packaged goods and household items with real-time stock and expiry management.",
   seo: {
-    title: "Grocery Store POS & Inventory — MartPoint Retail",
+    title: "Grocery Store POS & Inventory in Nigeria — MartPoint Retail",
     description: "Manage fresh produce, packaged goods and daily sales with real-time stock tracking and expiry alerts built for African grocery stores.",
   },
   hero: {
@@ -600,7 +601,7 @@ export const provisionStores: IndustryData = {
   product: "retail",
   description: "Simple, reliable stock tracking and sales recording for neighbourhood provision stores.",
   seo: {
-    title: "Provision Store POS Software — MartPoint Retail",
+    title: "Provision Store POS Software in Nigeria — MartPoint Retail",
     description: "Track stock, record sales and monitor profit for your provision store. Simple, affordable and built for neighbourhood retail.",
   },
   hero: {
@@ -655,7 +656,7 @@ export const convenienceStores: IndustryData = {
   product: "retail",
   description: "Fast checkout, real-time stock alerts and expiry tracking for 24-hour convenience retail.",
   seo: {
-    title: "Convenience Store POS Software — MartPoint Retail",
+    title: "Convenience Store POS Software in Nigeria — MartPoint Retail",
     description: "Run your convenience store with fast checkout, automatic stock alerts and expiry tracking. MartPoint Retail is built for round-the-clock neighbourhood retail.",
   },
   hero: {
@@ -710,7 +711,7 @@ export const fastFood: IndustryData = {
   product: "retail",
   description: "Speed up order taking, track combo sales and manage ingredient stock for quick-service outlets.",
   seo: {
-    title: "Fast Food POS & Kitchen Software — MartPoint Retail",
+    title: "Fast Food POS & Kitchen Software in Nigeria — MartPoint Retail",
     description: "Speed up service, track combo meals and manage ingredient stock for your fast food outlet. Built for African quick-service restaurants.",
   },
   hero: {
@@ -765,7 +766,7 @@ export const bakeries: IndustryData = {
   product: "retail",
   description: "Track daily baking output, manage ingredient inventory and reduce waste with production planning.",
   seo: {
-    title: "Bakery POS & Production Software — MartPoint Retail",
+    title: "Bakery POS & Production Software in Nigeria — MartPoint Retail",
     description: "Track daily baking, manage ingredient inventory and reduce waste with production planning. Built for African bakeries and bread producers.",
   },
   hero: {
@@ -820,7 +821,7 @@ export const cakeShops: IndustryData = {
   product: "retail",
   description: "Manage custom orders, track ingredient inventory and plan production for cakes and pastries.",
   seo: {
-    title: "Cake Shop POS & Order Software — MartPoint Retail",
+    title: "Cake Shop POS & Order Software in Nigeria — MartPoint Retail",
     description: "Manage custom cake orders, track ingredient stock and plan production. MartPoint Retail is built for African cake shops and pastry businesses.",
   },
   hero: {
@@ -875,7 +876,7 @@ export const cafes: IndustryData = {
   product: "retail",
   description: "Manage coffee stock, track pastries and simplify checkout for relaxed café environments.",
   seo: {
-    title: "Café POS & Stock Software — MartPoint Retail",
+    title: "Café POS & Stock Software in Nigeria — MartPoint Retail",
     description: "Manage coffee stock, track pastries and simplify checkout for your café. MartPoint Retail is built for African coffee shops and cafés.",
   },
   hero: {
@@ -930,7 +931,7 @@ export const pizzaShops: IndustryData = {
   product: "retail",
   description: "Manage toppings inventory, track order times and simplify delivery coordination for pizza businesses.",
   seo: {
-    title: "Pizza Shop POS & Delivery Software — MartPoint Retail",
+    title: "Pizza Shop POS & Delivery Software in Nigeria — MartPoint Retail",
     description: "Manage toppings, track order times and coordinate delivery for your pizza shop. MartPoint Retail is built for African pizza businesses.",
   },
   hero: {
@@ -985,7 +986,7 @@ export const shawarma: IndustryData = {
   product: "retail",
   description: "Track meat portions, manage wrap ingredients and speed up service for shawarma and grill businesses.",
   seo: {
-    title: "Shawarma POS & Grill Software — MartPoint Retail",
+    title: "Shawarma POS & Grill Software in Nigeria — MartPoint Retail",
     description: "Track meat portions, manage wrap ingredients and speed up service for your shawarma or grill business. Built for African quick-service grill outlets.",
   },
   hero: {
@@ -1040,7 +1041,7 @@ export const juiceBars: IndustryData = {
   product: "retail",
   description: "Track fresh fruit stock, manage smoothie ingredients and simplify checkout for health-focused beverage businesses.",
   seo: {
-    title: "Juice Bar POS & Stock Software — MartPoint Retail",
+    title: "Juice Bar POS & Stock Software in Nigeria — MartPoint Retail",
     description: "Track fresh fruit stock, manage smoothie ingredients and speed up checkout for your juice bar. Built for African health beverage businesses.",
   },
   hero: {
@@ -1088,6 +1089,67 @@ export const juiceBars: IndustryData = {
   ],
 }
 
+export const barsAndLounges: IndustryData = {
+  name: "Bars & Lounges",
+  slug: "bars-and-lounges",
+  category: "Restaurants & Food",
+  product: "retail",
+  description: "Control bottle stock, manage open tabs and reconcile late-night sales for your bar, lounge or nightclub.",
+  seo: {
+    title: "Bar & Lounge POS Software in Nigeria — MartPoint Retail",
+    description: "Track every bottle, manage open tabs and reconcile late-night sales with confidence. MartPoint Retail is built for African bars, lounges and nightclubs.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Every Bottle Counted. Every Tab Settled.",
+    paragraph: "Bars and lounges run on speed, trust and tight margins — often late into the night. MartPoint Retail tracks bottle-level stock, manages open tabs and reconciles every shift so nothing slips through when the lights are low.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a bar/lounge and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: Wine, title: "Disappearing Bottles", desc: "Spirits and premium drinks vanish between delivery and the shelf. Shrinkage quietly eats your margin." },
+    { icon: Receipt, title: "Unsettled Tabs", desc: "Open tabs run all night and some never get paid. Paper tracking means money is forgotten." },
+    { icon: Users, title: "Late-Night Cashier Leakage", desc: "Unrecorded sales and fake discounts peak when you are not watching the floor." },
+    { icon: Timer, title: "Slow Service at Peak Hours", desc: "Friday-night queues cost sales. Every second a customer waits is money walking out." },
+    { icon: Package, title: "Stock-Outs of Best Sellers", desc: "The drinks that sell most run out first — and you only find out when a customer asks." },
+    { icon: BarChart3, title: "No Idea What the Night Made", desc: "End-of-night reconciliation is guesswork. You close without knowing real profit per shift." },
+  ],
+  solutions: [
+    { icon: Package, title: "Bottle-Level Stock Control", desc: "Every bottle in and out is tracked. Variance reports flag shrinkage before it grows." },
+    { icon: Receipt, title: "Open Tab Management", desc: "Run tabs per table or customer, then settle everything at once. Nothing forgotten at 2 AM." },
+    { icon: Users, title: "Per-Shift Accountability", desc: "Each bartender and cashier has a login. Sales, voids and discounts are tracked per staff member." },
+    { icon: ShoppingCart, title: "Fast Night Checkout", desc: "Quick keys, barcode scanning and split payments keep service moving even at peak hours." },
+    { icon: AlertTriangle, title: "Low-Stock Alerts", desc: "Get notified before your best-selling drinks run out — not after the weekend rush." },
+    { icon: BarChart3, title: "Per-Night Profit Reports", desc: "See sales, profit and variance per shift or per night. Know exactly what Friday earned you." },
+  ],
+  capabilities: [
+    { icon: Wine, title: "Drink-Level Inventory", desc: "Track bottles, crates and kegs with real-time deduction on every sale." },
+    { icon: Receipt, title: "Tabs & Table Billing", desc: "Open, merge and settle tabs across tables without losing track of a single order." },
+    { icon: Users, title: "Staff Sales Tracking", desc: "Attribute every sale, void and discount to a named staff member." },
+    { icon: Timer, title: "Rush-Hour Speed", desc: "Quick-select buttons for top sellers keep the bar moving on busy nights." },
+    { icon: Building2, title: "Multi-Outlet Control", desc: "Running a bar chain or attached grill? Compare every location from one dashboard." },
+    { icon: WifiOff, title: "Works Offline", desc: "Network down at midnight? Keep selling — everything syncs when it comes back." },
+  ],
+  whyMartPoint: [
+    "Built for nightlife businesses: tabs, bottle tracking and per-shift reconciliation included.",
+    "Works offline so sales never stop during network outages at night.",
+    "Every transaction is tied to a staff login — closing the gaps where money leaks.",
+    "Local support that understands bar and lounge operations, not a generic help desk.",
+  ],
+  testimonial: {
+    quote: "We could never explain where bottles went between Friday and Monday. With MartPoint every sale and every bottle is accounted for, and I see the night's profit before I lock up.",
+    author: "Emeka N.",
+    role: "Owner, Lounge Operator in Lekki",
+    initials: "EN",
+  },
+  faqs: [
+    { q: "Can MartPoint track bottles and drinks individually?", a: "Yes. Stock is tracked per item — bottles, crates and kegs — and deducted automatically with every sale, so variance reports expose shrinkage." },
+    { q: "Does it support open tabs for customers?", a: "Yes. Open a tab per table or customer, keep adding orders all night, and settle everything in one payment at closing." },
+    { q: "Can I see which staff member made each sale?", a: "Yes. Every sale, void and discount is tied to a staff login, so you can reconcile each bartender's shift." },
+    { q: "Does it work late at night when internet is unreliable?", a: "Yes. MartPoint works offline — sales, tabs and stock updates keep running and sync automatically when connection returns." },
+  ],
+}
+
 export const medicalStores: IndustryData = {
   name: "Medical Stores",
   slug: "medical-stores",
@@ -1095,7 +1157,7 @@ export const medicalStores: IndustryData = {
   product: "retail",
   description: "Track medical supplies, equipment and consumables with batch tracking and expiry alerts.",
   seo: {
-    title: "Medical Store Inventory Software — MartPoint Retail",
+    title: "Medical Store Inventory Software in Nigeria — MartPoint Retail",
     description: "Track medical supplies, equipment and consumables with batch tracking and expiry alerts. Built for African medical stores and healthcare suppliers.",
   },
   hero: {
@@ -1150,7 +1212,7 @@ export const clinics: IndustryData = {
   product: "retail",
   description: "Manage patient supplies, track consumables and streamline dispensary sales for outpatient clinics.",
   seo: {
-    title: "Clinic Inventory & Dispensary Software — MartPoint Retail",
+    title: "Clinic Inventory & Dispensary Software in Nigeria — MartPoint Retail",
     description: "Manage patient supplies, track consumables and streamline dispensary sales for your clinic. Built for African outpatient healthcare.",
   },
   hero: {
@@ -1205,7 +1267,7 @@ export const hospitals: IndustryData = {
   product: "erp",
   description: "Coordinate pharmacy, stores, procurement and billing across hospital departments with enterprise-grade control.",
   seo: {
-    title: "Hospital Inventory & ERP Software — MartPoint Enterprise",
+    title: "Hospital Inventory & ERP Software in Nigeria — MartPoint Enterprise",
     description: "Coordinate pharmacy, stores, procurement and billing across hospital departments. MartPoint Enterprise is built for African healthcare institutions.",
   },
   hero: {
@@ -1260,7 +1322,7 @@ export const diagnosticCentres: IndustryData = {
   product: "retail",
   description: "Manage test consumables, track reagent stock and simplify patient billing for diagnostic labs.",
   seo: {
-    title: "Diagnostic Lab Inventory Software — MartPoint Retail",
+    title: "Diagnostic Lab Inventory Software in Nigeria — MartPoint Retail",
     description: "Manage test consumables, track reagent stock and simplify billing for your diagnostic centre. Built for African medical laboratories.",
   },
   hero: {
@@ -1315,7 +1377,7 @@ export const boutiques: IndustryData = {
   product: "retail",
   description: "Curate collections, track limited stock and personalise the shopping experience for boutique customers.",
   seo: {
-    title: "Boutique POS & Inventory Software — MartPoint Retail",
+    title: "Boutique POS & Inventory Software in Nigeria — MartPoint Retail",
     description: "Curate collections, track limited stock and personalise the shopping experience. MartPoint Retail is built for African fashion boutiques.",
   },
   hero: {
@@ -1370,7 +1432,7 @@ export const shoeStores: IndustryData = {
   product: "retail",
   description: "Track sizes, colours and styles across men, women and children footwear with real-time stock visibility.",
   seo: {
-    title: "Shoe Store POS & Inventory Software — MartPoint Retail",
+    title: "Shoe Store POS & Inventory Software in Nigeria — MartPoint Retail",
     description: "Track sizes, colours and styles across footwear ranges. MartPoint Retail is built for African shoe retailers and boutiques.",
   },
   hero: {
@@ -1425,7 +1487,7 @@ export const cosmeticsStores: IndustryData = {
   product: "retail",
   description: "Track beauty products, monitor expiry dates and manage shades and variants for cosmetics retail.",
   seo: {
-    title: "Cosmetics Store POS & Inventory — MartPoint Retail",
+    title: "Cosmetics Store POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track beauty products, monitor expiry dates and manage shades for your cosmetics store. Built for African beauty retailers.",
   },
   hero: {
@@ -1480,7 +1542,7 @@ export const perfumeShops: IndustryData = {
   product: "retail",
   description: "Track fragrance stock, manage tester bottles and protect high-value inventory for perfume retailers.",
   seo: {
-    title: "Perfume Shop POS & Inventory — MartPoint Retail",
+    title: "Perfume Shop POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track fragrance stock, manage testers and protect high-value inventory for your perfume shop. Built for African fragrance retailers.",
   },
   hero: {
@@ -1535,7 +1597,7 @@ export const barbershops: IndustryData = {
   product: "retail",
   description: "Manage appointments, track product sales and simplify commission tracking for barbershops.",
   seo: {
-    title: "Barbershop POS & Management Software — MartPoint Retail",
+    title: "Barbershop POS & Management Software in Nigeria — MartPoint Retail",
     description: "Manage appointments, track product sales and simplify commission tracking for your barbershop. Built for African barbers and grooming businesses.",
   },
   hero: {
@@ -1590,7 +1652,7 @@ export const jewelleryStores: IndustryData = {
   product: "retail",
   description: "Track high-value pieces, manage karat variants and protect inventory with detailed sales records.",
   seo: {
-    title: "Jewellery Store POS & Inventory — MartPoint Retail",
+    title: "Jewellery Store POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track high-value pieces, manage karat variants and protect inventory for your jewellery store. Built for African jewellery retailers.",
   },
   hero: {
@@ -1645,7 +1707,7 @@ export const phoneShops: IndustryData = {
   product: "retail",
   description: "Track IMEI numbers, manage accessories and protect high-value mobile stock.",
   seo: {
-    title: "Phone Shop POS & Inventory — MartPoint Retail",
+    title: "Phone Shop POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track IMEI numbers, manage accessories and protect high-value mobile stock. MartPoint Retail is built for African phone retailers.",
   },
   hero: {
@@ -1700,7 +1762,7 @@ export const computerStores: IndustryData = {
   product: "retail",
   description: "Track serial numbers, manage components and protect high-value computer inventory.",
   seo: {
-    title: "Computer Store POS & Inventory — MartPoint Retail",
+    title: "Computer Store POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track serial numbers, manage components and protect high-value computer inventory. MartPoint Retail is built for African computer retailers.",
   },
   hero: {
@@ -1755,7 +1817,7 @@ export const gadgetStores: IndustryData = {
   product: "retail",
   description: "Track small electronics, manage accessories and protect high-turnover gadget inventory.",
   seo: {
-    title: "Gadget Store POS & Inventory — MartPoint Retail",
+    title: "Gadget Store POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track small electronics, manage accessories and protect high-turnover gadget inventory. MartPoint Retail is built for African gadget retailers.",
   },
   hero: {
@@ -1810,7 +1872,7 @@ export const applianceStores: IndustryData = {
   product: "retail",
   description: "Track large appliances, manage warranties and coordinate delivery for home appliance retail.",
   seo: {
-    title: "Appliance Store POS & Inventory — MartPoint Retail",
+    title: "Appliance Store POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track large appliances, manage warranties and coordinate delivery for your appliance store. Built for African home appliance retailers.",
   },
   hero: {
@@ -1865,7 +1927,7 @@ export const hardwareStores: IndustryData = {
   product: "retail",
   description: "Track building supplies, manage bulk orders and simplify checkout for construction retail.",
   seo: {
-    title: "Hardware Store POS & Inventory — MartPoint Retail",
+    title: "Hardware Store POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track building supplies, manage bulk orders and simplify checkout for your hardware store. Built for African construction material retailers.",
   },
   hero: {
@@ -1920,7 +1982,7 @@ export const paintStores: IndustryData = {
   product: "retail",
   description: "Track paint stock, manage colour mixing records and simplify bulk contractor sales.",
   seo: {
-    title: "Paint Store POS & Inventory — MartPoint Retail",
+    title: "Paint Store POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track paint stock, manage colour mixing records and simplify bulk contractor sales. MartPoint Retail is built for African paint retailers.",
   },
   hero: {
@@ -1975,7 +2037,7 @@ export const plumbingStores: IndustryData = {
   product: "retail",
   description: "Track pipes, fittings and fixtures, manage contractor orders and protect specialised stock.",
   seo: {
-    title: "Plumbing Store POS & Inventory — MartPoint Retail",
+    title: "Plumbing Store POS & Inventory in Nigeria — MartPoint Retail",
     description: "Track pipes, fittings and fixtures, manage contractor orders and protect specialised stock. MartPoint Retail is built for African plumbing material retailers.",
   },
   hero: {
@@ -2030,7 +2092,7 @@ export const agroDealers: IndustryData = {
   product: "retail",
   description: "Track seeds, fertilisers and agrochemicals with batch tracking and seasonal demand management.",
   seo: {
-    title: "Agro Dealer POS & Inventory Software — MartPoint Retail",
+    title: "Agro Dealer POS & Inventory Software in Nigeria — MartPoint Retail",
     description: "Track seeds, fertilisers and agrochemicals with batch tracking and seasonal demand management. Built for African agricultural input retailers.",
   },
   hero: {
@@ -2085,7 +2147,7 @@ export const feedStores: IndustryData = {
   product: "retail",
   description: "Track animal feed stock, manage bulk orders and protect perishable feed inventory.",
   seo: {
-    title: "Feed Store POS & Inventory Software — MartPoint Retail",
+    title: "Feed Store POS & Inventory Software in Nigeria — MartPoint Retail",
     description: "Track animal feed stock, manage bulk orders and protect perishable inventory. MartPoint Retail is built for African animal feed retailers.",
   },
   hero: {
@@ -2140,7 +2202,7 @@ export const autoParts: IndustryData = {
   product: "retail",
   description: "Track spare parts, manage compatibility records and simplify mechanic and garage orders.",
   seo: {
-    title: "Auto Parts POS & Inventory Software — MartPoint Retail",
+    title: "Auto Parts POS & Inventory Software in Nigeria — MartPoint Retail",
     description: "Track spare parts, manage compatibility records and simplify mechanic orders. MartPoint Retail is built for African auto parts retailers.",
   },
   hero: {
@@ -2195,7 +2257,7 @@ export const tyreShops: IndustryData = {
   product: "retail",
   description: "Track tyre stock by size and brand, manage fitting services and protect seasonal inventory.",
   seo: {
-    title: "Tyre Shop POS & Inventory Software — MartPoint Retail",
+    title: "Tyre Shop POS & Inventory Software in Nigeria — MartPoint Retail",
     description: "Track tyre stock by size and brand, manage fitting services and protect seasonal inventory. MartPoint Retail is built for African tyre retailers.",
   },
   hero: {
@@ -2251,7 +2313,7 @@ export const automobile: IndustryData = {
   navVisible: true,
   description: "Manage new and used car inventory, test drives, trade-ins, customer deposits and vehicle sales in one place.",
   seo: {
-    title: "Automobile & Car Sales POS Software — MartPoint Retail",
+    title: "Automobile & Car Sales POS Software in Nigeria — MartPoint Retail",
     description: "Track vehicles, test drives, trade-ins, customer deposits and sales for your car dealership or automobile business. MartPoint Retail is built for African auto retailers.",
   },
   hero: {
@@ -2307,7 +2369,7 @@ export const digitalCreator: IndustryData = {
   navVisible: true,
   description: "Sell online courses, ebooks, templates and digital products with payments, access control and customer tracking.",
   seo: {
-    title: "Digital Creator POS & Sales Software — MartPoint Retail",
+    title: "Digital Creator POS & Sales Software in Nigeria — MartPoint Retail",
     description: "Sell online courses, ebooks, templates and digital products. MartPoint Retail handles payments, access control, coupons and customer tracking for African digital creators.",
   },
   hero: {
@@ -2362,7 +2424,7 @@ export const laundry: IndustryData = {
   product: "retail",
   description: "Track orders, manage pickup and delivery schedules and simplify billing for laundry services.",
   seo: {
-    title: "Laundry POS & Order Software — MartPoint Retail",
+    title: "Laundry POS & Order Software in Nigeria — MartPoint Retail",
     description: "Track orders, manage pickup and delivery and simplify billing for your laundry business. Built for African laundry and dry cleaning services.",
   },
   hero: {
@@ -2417,7 +2479,7 @@ export const printing: IndustryData = {
   product: "retail",
   description: "Track print jobs, manage paper and ink stock and simplify billing for print shops.",
   seo: {
-    title: "Print Shop POS & Job Software — MartPoint Retail",
+    title: "Print Shop POS & Job Software in Nigeria — MartPoint Retail",
     description: "Track print jobs, manage paper and ink stock and simplify billing for your print shop. Built for African printing and design businesses.",
   },
   hero: {
@@ -2472,7 +2534,7 @@ export const tailoring: IndustryData = {
   product: "retail",
   description: "Track orders, manage fabric stock and simplify billing for tailoring and alteration services.",
   seo: {
-    title: "Tailoring POS & Order Software — MartPoint Retail",
+    title: "Tailoring POS & Order Software in Nigeria — MartPoint Retail",
     description: "Track orders, manage fabric stock and simplify billing for your tailoring business. Built for African fashion designers and tailors.",
   },
   hero: {
@@ -2527,7 +2589,7 @@ export const distributors: IndustryData = {
   product: "erp",
   description: "Manage large inventory volumes, coordinate multiple warehouse locations and optimise delivery routes for distribution businesses.",
   seo: {
-    title: "Distribution ERP & Inventory — MartPoint Enterprise",
+    title: "Distribution ERP & Inventory in Nigeria — MartPoint Enterprise",
     description: "Manage large inventory volumes, coordinate multiple warehouses and optimise delivery routes. MartPoint Enterprise is built for African distributors.",
   },
   hero: {
@@ -2582,7 +2644,7 @@ export const wholesalers: IndustryData = {
   product: "erp",
   description: "Manage bulk inventory, track large B2B orders and optimise procurement for wholesale operations.",
   seo: {
-    title: "Wholesale ERP & Inventory — MartPoint Enterprise",
+    title: "Wholesale ERP & Inventory in Nigeria — MartPoint Enterprise",
     description: "Manage bulk inventory, track large B2B orders and optimise procurement. MartPoint Enterprise is built for African wholesale businesses.",
   },
   hero: {
@@ -2637,7 +2699,7 @@ export const manufacturers: IndustryData = {
   product: "erp",
   description: "Coordinate raw materials, production scheduling and finished goods distribution for manufacturing operations.",
   seo: {
-    title: "Manufacturing ERP Software — MartPoint Enterprise",
+    title: "Manufacturing ERP Software in Nigeria — MartPoint Enterprise",
     description: "Coordinate raw materials, production scheduling and finished goods distribution. MartPoint Enterprise is built for African manufacturers.",
   },
   hero: {
@@ -2693,7 +2755,7 @@ export const frozenFoods: IndustryData = {
   navVisible: true,
   description: "POS, inventory and batch tracking for frozen food sellers handling cow, pig, chicken, fish, turkey and seafood across single or multiple cold stores.",
   seo: {
-    title: "Frozen Food POS & Inventory Software — MartPoint Retail",
+    title: "Frozen Food POS & Inventory Software in Nigeria — MartPoint Retail",
     description: "Protect your cold-store stock, track batches by expiry, sell by weight and cut, and see profit per protein. MartPoint Retail is built for frozen food sellers in Nigeria.",
   },
   hero: {
@@ -2751,7 +2813,7 @@ export const bukkaMamaPut: IndustryData = {
   navVisible: true,
   description: "Manage daily menus, ingredient usage, sales and cash flow for local food vendors, bukkas and mama-put kitchens.",
   seo: {
-    title: "Bukka & Mama Put POS Software — MartPoint Retail",
+    title: "Bukka & Mama Put POS Software in Nigeria — MartPoint Retail",
     description: "Run your local food kitchen with menu tracking, ingredient costs and fast checkout. MartPoint Retail is built for bukkas and mama put across Nigeria.",
   },
   hero: {
@@ -2803,7 +2865,7 @@ export const bukkaMamaPut: IndustryData = {
 
 export const allIndustries: IndustryData[] = [
   supermarkets, miniMarts, groceryStores, provisionStores, convenienceStores, frozenFoods,
-  restaurants, fastFood, bukkaMamaPut, bakeries, cakeShops, cafes, pizzaShops, shawarma, juiceBars,
+  restaurants, fastFood, bukkaMamaPut, bakeries, cakeShops, cafes, pizzaShops, shawarma, juiceBars, barsAndLounges,
   pharmacies, medicalStores, clinics, hospitals, diagnosticCentres,
   fashionStores, boutiques, shoeStores, cosmeticsStores, perfumeShops, beautyAndSalons, barbershops, jewelleryStores,
   electronicsStores, phoneShops, computerStores, gadgetStores, applianceStores,

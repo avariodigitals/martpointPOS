@@ -25,9 +25,10 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Cake Shop POS & Order Software — MartPoint Retail",
+  title: "Cake Shop POS & Order Software in Nigeria — MartPoint Retail",
   description:
     "Manage custom cake orders, track ingredient stock and plan production. MartPoint Retail is built for African cake shops and pastry businesses.",
+  alternates: { canonical: "/industries/cake-shops" },
 }
 
 const painPoints = [

@@ -6,6 +6,7 @@ import { printing } from "@/lib/industries"
 export const metadata: Metadata = {
   title: printing.seo.title,
   description: printing.seo.description,
+  alternates: { canonical: "/industries/printing" },
 }
 
 export default function PrintingPage() {

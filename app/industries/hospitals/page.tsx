@@ -6,6 +6,7 @@ import { hospitals } from "@/lib/industries"
 export const metadata: Metadata = {
   title: hospitals.seo.title,
   description: hospitals.seo.description,
+  alternates: { canonical: "/industries/hospitals" },
 }
 
 export default function HospitalsPage() {

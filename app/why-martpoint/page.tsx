@@ -34,7 +34,7 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Why MartPoint — The Operating System for African Retail",
+  title: "Why MartPoint — The Operating System for Nigerian Retail",
   description:
     "Discover why supermarkets, pharmacies, restaurants and retail chains across Africa choose MartPoint. Built for African business realities — not adapted from abroad.",
   keywords: [
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     canonical: "/why-martpoint",
   },
   openGraph: {
-    title: "Why MartPoint — The Operating System for African Retail",
+    title: "Why MartPoint — The Operating System for Nigerian Retail",
     description:
       "Software built around how African businesses actually operate. From offline-first sales to transfer payment tracking and multi-branch management.",
     url: "https://martpoint.com.ng/why-martpoint",

@@ -6,6 +6,7 @@ import { multiBranchRetail } from "@/lib/industries"
 export const metadata: Metadata = {
   title: multiBranchRetail.seo.title,
   description: multiBranchRetail.seo.description,
+  alternates: { canonical: "/industries/multi-branch-retail" },
 }
 
 export default function MultiBranchRetailPage() {

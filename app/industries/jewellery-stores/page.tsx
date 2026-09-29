@@ -6,6 +6,7 @@ import { jewelleryStores } from "@/lib/industries"
 export const metadata: Metadata = {
   title: jewelleryStores.seo.title,
   description: jewelleryStores.seo.description,
+  alternates: { canonical: "/industries/jewellery-stores" },
 }
 
 export default function JewelleryStoresPage() {

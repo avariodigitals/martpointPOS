@@ -65,7 +65,7 @@ export default async function PartnerProfilePage({
   }
 
   const isActive = partner.status === "ACTIVE" && partner.publicProfileEnabled
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng"
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
   const verifyUrl = `${baseUrl}/partners/${partner.partnerId}`
   // QR contains ONLY the public verification URL — no private info.
   const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 240, color: { dark: "#0A0F1C", light: "#ffffff" } })

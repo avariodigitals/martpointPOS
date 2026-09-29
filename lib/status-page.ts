@@ -276,7 +276,7 @@ export async function getStatusPageData(): Promise<StatusPageData> {
 /* ───────────────────────────  Subscriber notifications  ─────────────────────────── */
 
 function baseUrl(): string {
-  return (process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng").replace(/\/$/, "")
+  return (process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
 }
 
 function escapeHtml(s: string): string {

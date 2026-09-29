@@ -6,6 +6,7 @@ import { shawarma } from "@/lib/industries"
 export const metadata: Metadata = {
   title: shawarma.seo.title,
   description: shawarma.seo.description,
+  alternates: { canonical: "/industries/shawarma" },
 }
 
 export default function ShawarmaPage() {

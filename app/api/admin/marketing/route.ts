@@ -110,7 +110,7 @@ export async function POST(request: Request) {
 
     const providerOverride: EmailProvider | undefined =
       provider === "resend" || provider === "brevo" ? provider : undefined
-    const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng").replace(/\/$/, "")
+    const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
 
     // ── Test send: no campaign, no suppression check, fake tracking token ──
     if (testEmail) {

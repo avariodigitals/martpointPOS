@@ -29,7 +29,7 @@ export function isPartnerBadgeTier(value: unknown): value is PartnerBadgeTier {
 }
 
 export function partnerSiteBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng").replace(/\/$/, "")
+  return (process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
 }
 
 /** Static PNG path under /public/assets/partner-badges/. */

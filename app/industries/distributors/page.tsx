@@ -15,9 +15,10 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Distribution Management Platform — MartPoint Enterprise",
+  title: "Distribution Management Platform in Nigeria — MartPoint Enterprise",
   description:
     "Modern ERP for African distributors, wholesalers and FMCG companies. Manage warehouses, sales teams, dealer credit, inventory and logistics from one connected platform.",
+  alternates: { canonical: "/industries/distributors" },
 }
 
 const painPoints = [

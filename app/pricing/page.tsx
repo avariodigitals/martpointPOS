@@ -8,7 +8,7 @@ import { Check, HelpCircle, Calculator } from "lucide-react"
 import { readSettings } from "@/lib/settings"
 
 export const metadata: Metadata = {
-  title: "Pricing — Affordable POS & ERP Software Plans",
+  title: "Pricing — POS Software Plans & Prices in Nigeria",
   description:
     "Transparent pricing for MartPoint Retail POS and ERP software. Starting from ₦99,999/year. Cloud and offline plans for every business size in Nigeria and Africa.",
   keywords: [
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     canonical: "/pricing",
   },
   openGraph: {
-    title: "Pricing — Affordable POS & ERP Software Plans",
+    title: "Pricing — POS Software Plans & Prices in Nigeria",
     description:
       "Transparent pricing for MartPoint Retail and ERP. Starting from ₦99,999/year. Cloud and offline plans.",
     url: "https://martpoint.com.ng/pricing",

@@ -6,6 +6,7 @@ import { juiceBars } from "@/lib/industries"
 export const metadata: Metadata = {
   title: juiceBars.seo.title,
   description: juiceBars.seo.description,
+  alternates: { canonical: "/industries/juice-bars" },
 }
 
 export default function JuiceBarsPage() {

@@ -23,9 +23,10 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Salon & Beauty Business Software — MartPoint Retail",
+  title: "Salon & Beauty Business Software in Nigeria — MartPoint Retail",
   description:
     "Manage appointments, product sales and inventory for your salon or beauty business. MartPoint Retail is built for African beauty entrepreneurs.",
+  alternates: { canonical: "/industries/beauty-and-salons" },
 }
 
 const painPoints = [

@@ -53,7 +53,7 @@ export const PARTNER_STATUS_LABELS: Record<PartnerStatus, string> = {
   TERMINATED: "Terminated",
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng"
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
 
 /* ───────────────────────────  Reference number generation  ───────────────────────────
  * Format: MPA-YYYY-XXXXX  e.g. MPA-2026-00001

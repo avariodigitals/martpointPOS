@@ -42,6 +42,6 @@ export async function GET(
     }
   }
 
-  const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://www.martpoint.com.ng").replace(/\/$/, "")
+  const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
   return NextResponse.redirect(safeTarget || baseUrl, 302)
 }

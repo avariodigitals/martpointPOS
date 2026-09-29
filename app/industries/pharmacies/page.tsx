@@ -23,7 +23,7 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Pharmacy Inventory & POS Software — MartPoint Retail",
+  title: "Pharmacy Inventory & POS Software in Nigeria — MartPoint Retail",
   description:
     "Pharmacy inventory management system for Nigerian pharmacies. Track batches, monitor expiry dates, manage prescription sales and never run out of essential medicines. Built for African pharmacies.",
   keywords: [
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     canonical: "/industries/pharmacies",
   },
   openGraph: {
-    title: "Pharmacy Inventory & POS Software — MartPoint Retail",
+    title: "Pharmacy Inventory & POS Software in Nigeria — MartPoint Retail",
     description:
       "Pharmacy inventory management system. Track batches, expiry dates and prescription sales. Built for Nigerian pharmacies.",
     url: "https://martpoint.com.ng/industries/pharmacies",

@@ -22,7 +22,7 @@ import {
 import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 
 export const metadata: Metadata = {
-  title: "MartPoint ERP — Enterprise Business Management Software",
+  title: "MartPoint ERP — Enterprise Management Software in Nigeria",
   description:
     "Enterprise software for accounting, procurement, HR, CRM, and operations. Built for African distributors, wholesalers, manufacturers, and multi-branch businesses.",
   keywords: [
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     canonical: "/martpoint-erp",
   },
   openGraph: {
-    title: "MartPoint ERP — Enterprise Business Management Software",
+    title: "MartPoint ERP — Enterprise Management Software in Nigeria",
     description:
       "Accounting, procurement, HR, CRM & operations for African distributors, wholesalers and multi-branch businesses.",
     url: "https://martpoint.com.ng/martpoint-erp",

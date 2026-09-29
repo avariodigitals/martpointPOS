@@ -6,6 +6,7 @@ import { feedStores } from "@/lib/industries"
 export const metadata: Metadata = {
   title: feedStores.seo.title,
   description: feedStores.seo.description,
+  alternates: { canonical: "/industries/feed-stores" },
 }
 
 export default function FeedStoresPage() {

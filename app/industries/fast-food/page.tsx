@@ -22,9 +22,10 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Fast Food POS & Kitchen Software — MartPoint Retail",
+  title: "Fast Food POS & Kitchen Software in Nigeria — MartPoint Retail",
   description:
     "Speed up service, track combo meals and manage ingredient stock for your fast food outlet. Built for African quick-service restaurants.",
+  alternates: { canonical: "/industries/fast-food" },
 }
 
 const painPoints = [

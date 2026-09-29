@@ -6,6 +6,7 @@ import { agroDealers } from "@/lib/industries"
 export const metadata: Metadata = {
   title: agroDealers.seo.title,
   description: agroDealers.seo.description,
+  alternates: { canonical: "/industries/agro-dealers" },
 }
 
 export default function AgroDealersPage() {

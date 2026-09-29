@@ -119,6 +119,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
 ROLE_PERMISSIONS.Finance = [...ROLE_PERMISSIONS.Finance, "careers.deployments.view"]
 
 export function hasPermission(role: UserRole, page: string): boolean {
+  // Admin has full access — mirrors the bypass in authorize(). The literal
+  // ROLE_PERMISSIONS.Admin list doesn't enumerate granular permissions like
+  // the careers.* set, so without this an Admin would lose menu items and
+  // fail PermissionGuard/API checks that call hasPermission directly.
+  if (role === "Admin") return true
   return ROLE_PERMISSIONS[role]?.includes(page) ?? false
 }
 

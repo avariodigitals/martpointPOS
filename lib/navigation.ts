@@ -67,6 +67,10 @@ export const mainNav: NavItem[] = [
     ],
   },
   {
+    label: "Features",
+    href: "/features",
+  },
+  {
     label: "Industries",
     children: [
       { label: "Supermarkets", href: "/industries/supermarkets", icon: Store },
@@ -121,6 +125,7 @@ export const footerColumns = {
     title: "Solutions",
     links: [
       { label: "MartPoint Retail", href: "/martpoint-retail" },
+      { label: "Features", href: "/features" },
       { label: "MartPoint Intelligence", href: "/martpoint-intelligence" },
       { label: "Pricing", href: "/pricing" },
       { label: "Cost Estimator", href: "/estimate" },

@@ -355,6 +355,11 @@ export function SiteNavigationSchema() {
         name: "MartPoint Retail",
         url: `${BASE_URL}/martpoint-retail`,
       },
+      {
+        "@type": "SiteNavigationElement",
+        name: "Features",
+        url: `${BASE_URL}/features`,
+      },
 
       {
         "@type": "SiteNavigationElement",

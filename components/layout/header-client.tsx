@@ -139,7 +139,7 @@ export function HeaderClient({ logo }: HeaderClientProps) {
             alt="MartPoint"
             width={280}
             height={72}
-            className="h-9 sm:h-12 lg:h-16 w-auto"
+            className="h-9 sm:h-10 lg:h-12 w-auto"
             priority
           />
         </Link>

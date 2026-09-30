@@ -58,11 +58,11 @@ matrix in the brief; formal sign-off remains **unverified** and is listed as an 
    (Paystack, Moniepoint, Flutterwave) · Grow your store (import/export, bulk editing, payment
    reconciliation, pixels/analytics, abandoned-cart, shipping/pickup/tracking, segmentation,
    campaigns, back-in-stock, reviews, bundles, upsells, quantity rules, coupon limits) · Connect
-   your existing setup (WooCommerce/Shopify/Magento/custom-site migration). **Merchant API and
+   your existing setup ("Existing websites — Woo, Shopify, custom site"). **Merchant API and
    international currencies are marked "Coming soon"** as later priorities, not live features.
-   Owner-set differentiators: **Payment links and site-migration are excluded from Basic**;
-   custom shipping & pickup is on every plan while **third-party shipping and tracking start
-   at Premium**.
+   Owner-set differentiators: **Payment links excluded from Basic; existing-website support starts
+   at Premium**; custom shipping & pickup is on every plan while **third-party shipping and tracking
+   start at Premium**.
 4. **Estimator: ERP stays but is quote-only.** A new "ERP interest" question adds a MartPoint ERP
    "Custom quote" card alongside the priced Retail recommendation — no ERP figure is shown anywhere,
    including the estimator. Selecting offline operation no longer switches products; it is noted in

@@ -232,7 +232,7 @@ export const COMPARISON_GROUPS: ComparisonGroup[] = [
   {
     title: "Connect your existing setup",
     rows: [
-      { label: "Migrate from WooCommerce, Shopify, Magento or a custom site", values: ["no", "yes", "yes", "yes"] },
+      { label: "Existing websites — Woo, Shopify, custom site", values: ["no", "no", "yes", "yes"] },
       { label: "Merchant API", values: ["soon", "soon", "soon", "soon"] },
       { label: "International currencies", values: ["soon", "soon", "soon", "soon"] },
     ],

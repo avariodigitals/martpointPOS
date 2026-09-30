@@ -50,6 +50,7 @@ export async function POST(request: Request) {
       receiptHardware,
       dataMigration,
       offlineOperation,
+      erpInterest,
       trainingPreference,
       notes,
       partnerCode,
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
       receiptHardware: receiptHardware || "",
       dataMigration: dataMigration || "",
       offlineOperation: offlineOperation || "",
+      erpInterest: erpInterest || "",
       trainingPreference: trainingPreference || "",
     }
     const result = buildEstimate(answers, pricing)
@@ -139,6 +141,7 @@ export async function POST(request: Request) {
               product_count: productCount || undefined,
               online_store: onlineStore || undefined,
               offline_operation: offlineOperation || undefined,
+              erp_interest: erpInterest || undefined,
               retail_plan: result.retail.planName,
               retail_tier: result.retail.internalTier,
             },
@@ -167,10 +170,12 @@ export async function POST(request: Request) {
       receiptHardware: receiptHardware || "—",
       dataMigration: dataMigration || "—",
       offlineOperation: offlineOperation || "—",
+      erpInterest: erpInterest || "—",
       trainingPreference: trainingPreference || "—",
       retailPlan: result.retail.planName,
       retailRange: formatRange(result.retail),
       retailTier: result.retail.internalTier,
+      erpBlock: result.erp ? `ERP ALSO REQUESTED\n${result.erp.planName} — ${formatRange(result.erp)}` : "",
       notes: notes || "—",
     })
     await sendEmail({ route: "estimate_submission", subject: tpl.subject, text: tpl.text, html: tpl.html })
@@ -189,7 +194,7 @@ export async function POST(request: Request) {
             to: "+2348036028069",
             type: "text",
             text: {
-              body: `New MartPoint Estimate Request:\n${fullName} — ${businessName || "—"}\nPhone: ${phone}\nRetail: ${result.retail.planName} (${formatRange(result.retail)})\n\nReply to follow up.`,
+              body: `New MartPoint Estimate Request:\n${fullName} — ${businessName || "—"}\nPhone: ${phone}\nRetail: ${result.retail.planName} (${formatRange(result.retail)})${result.erp ? `\nERP: ${result.erp.planName} (${formatRange(result.erp)})` : ""}\n\nReply to follow up.`,
             },
           }),
         })
@@ -203,6 +208,9 @@ export async function POST(request: Request) {
       message: "Estimate submitted successfully",
       recommendation: {
         retail: { planName: result.retail.planName, range: formatRange(result.retail) },
+        ...(result.erp
+          ? { erp: { planName: result.erp.planName, range: formatRange(result.erp) } }
+          : {}),
       },
     })
   } catch {

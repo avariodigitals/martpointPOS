@@ -6,12 +6,9 @@ import {
   Package,
   Receipt,
   Store,
-  WifiOff,
-  Printer,
-  Building2,
-  HardDrive,
   ArrowRight,
 } from "lucide-react"
+import { CLOUD_PLANS, formatNairaAmount } from "@/lib/pricing-plans"
 
 const cloudFeatures = [
   { icon: ShoppingCart, label: "Point of Sale" },
@@ -20,21 +17,14 @@ const cloudFeatures = [
   { icon: Store, label: "Multi-Branch" },
 ]
 
-const offlineFeatures = [
-  { icon: WifiOff, label: "Works Without Internet" },
-  { icon: Printer, label: "Receipt Printing" },
-  { icon: HardDrive, label: "Local Installation" },
-  { icon: Building2, label: "LAN Multi-Branch" },
-]
-
 export function ProductSplit() {
   return (
     <section id="features" className="w-full bg-muted py-16 md:py-24 lg:py-32">
       <div className="container-martpoint">
         <SectionHeader
-          label="Products"
-          headline="MartPoint Retail. Two ways to run it."
-          description="Same retail platform — in the cloud, or installed locally where internet is unreliable."
+          label="MartPoint Retail"
+          headline="One platform. Every way you sell."
+          description="Sell at the counter, online and on WhatsApp — inventory, payments and reports stay in sync across every branch."
         />
 
         <div className="mt-14 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
@@ -102,47 +92,41 @@ export function ProductSplit() {
             </div>
           </div>
 
-          {/* Retail Offline Card */}
+          {/* Retail Cloud Plans teaser Card */}
           <div className="group relative rounded-2xl border border-retail-muted bg-retail-soft p-8 md:p-10 transition-all duration-300 hover:shadow-lg hover:border-retail/30 text-center md:text-left">
             <div className="absolute left-0 top-8 bottom-8 w-1 rounded-r bg-retail hidden md:block" />
 
             <div className="mb-6">
               <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-2">
-                One-Time Licence
+                Annual Plans
               </span>
               <h3 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
-                MartPoint Retail Offline
+                Simple Retail Pricing
               </h3>
             </div>
 
             <p className="text-muted-foreground leading-relaxed mb-8">
-              The full retail system installed locally on your own hardware.
-              Keep selling, printing receipts and managing stock with no
-              internet connection — ideal where connectivity is unreliable.
+              Four annual plans sized to your store. Every plan includes POS,
+              inventory, your online storefront and WhatsApp ordering — pick
+              the capacity that fits today, upgrade when you grow.
             </p>
 
-            <div className="grid grid-cols-2 gap-3 mb-8">
-              {offlineFeatures.map((feature) => (
+            <div className="rounded-xl bg-white/60 divide-y divide-border mb-8 overflow-hidden">
+              {CLOUD_PLANS.map((plan) => (
                 <div
-                  key={feature.label}
-                  className="flex items-center gap-3 bg-white/60 rounded-lg px-3 py-2.5 justify-center md:justify-start"
+                  key={plan.id}
+                  className="flex items-center justify-between px-4 py-3.5"
                 >
-                  <feature.icon className="w-4 h-4 text-retail shrink-0" />
-                  <span className="text-sm font-medium text-foreground">
-                    {feature.label}
-                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{plan.name}</p>
+                    <p className="text-xs text-muted-foreground">{plan.tagline}</p>
+                  </div>
+                  <p className="text-sm font-bold text-retail whitespace-nowrap">
+                    {formatNairaAmount(plan.annualPrice)}
+                    <span className="text-xs font-normal text-muted-foreground">/yr</span>
+                  </p>
                 </div>
               ))}
-            </div>
-
-            <div className="mb-6">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Ideal for
-              </span>
-              <p className="text-sm text-foreground mt-1">
-                Stores with unreliable internet, single-location shops, and
-                businesses that prefer a locally installed system
-              </p>
             </div>
 
             <Button
@@ -151,18 +135,15 @@ export function ProductSplit() {
               className="w-full sm:w-auto mx-auto md:mx-0"
             >
               <Link href="/pricing">
-                See Offline Pricing
+                Compare Plans & Pricing
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
 
-            <div className="mt-4">
-              <Button asChild variant="default" className="w-full sm:w-auto mx-auto md:mx-0">
-                <Link href="/pricing">
-                  ₦250,000 One-Time Licence
-                </Link>
-              </Button>
-            </div>
+            <p className="mt-5 text-xs text-muted-foreground text-center md:text-left">
+              Need to work without internet? MartPoint Retail Offline is a separate
+              one-time licence — pricing on request.
+            </p>
           </div>
         </div>
       </div>

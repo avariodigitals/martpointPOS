@@ -268,11 +268,11 @@ export default async function MartPointRetailPage() {
           },
           {
             question: "How much does MartPoint Retail cost?",
-            answer: "MartPoint Retail Cloud is billed annually in four plans — Basic ₦99,999, Standard ₦249,999, Premium ₦499,999 and Enterprise Retail ₦999,999 — each with included branches, users and catalogue limits. Standard Online Store is included in every plan. MartPoint Retail Offline is a separate one-time licence of ₦250,000 for one branch and five users, with optional Annual Care from year two. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
+            answer: "MartPoint Retail Cloud is billed annually in four plans — Basic ₦99,999, Standard ₦249,999, Premium ₦499,999 and Enterprise Retail ₦999,999 — each with included branches, users and catalogue limits. Standard Online Store is included in every plan. MartPoint Retail Offline is a separate one-time licence for one branch and five users, priced per setup on request, with optional Annual Care from year two. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
           },
           {
             question: "Does MartPoint upload my products for me?",
-            answer: "No. You are responsible for preparing, uploading and maintaining your product catalogue, including descriptions, images, prices and stock quantities. MartPoint does not provide product-upload or catalogue-data-entry services. During onboarding, please supply a maximum of 20 sample products for system testing only.",
+            answer: "No. You are responsible for the accuracy and ongoing maintenance of your product catalogue, including descriptions, images, prices and stock quantities. If you need assistance preparing or uploading your catalogue, MartPoint can arrange this through approved implementation partners as a separately quoted service. Standard onboarding includes up to 20 client-supplied sample products for system testing; full catalogue upload is included only when expressly stated in your agreed service package.",
           },
           {
             question: "What are MartPoint's support hours?",
@@ -629,11 +629,11 @@ export default async function MartPointRetailPage() {
                   </span>
                 </div>
                 <h3 className="text-xl font-bold text-foreground mt-2">{offline.name || "MartPoint Retail Offline"}</h3>
-                <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Starting from</p>
+                <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">One-time licence</p>
                 <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-4xl sm:text-5xl font-extrabold text-foreground">{offline.price || "₦250,000"}</span>
+                  <span className="text-4xl sm:text-5xl font-extrabold text-foreground">On request</span>
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground">{offline.period || ""}</p>
+                <p className="mt-2 text-sm text-muted-foreground">Priced per setup — tell us about yours</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {offline.description || "One-time licence for one branch and five users, installed locally. Works without internet. Includes the first 12 months of eligible updates and standard remote support."}
                 </p>
@@ -658,13 +658,13 @@ export default async function MartPointRetailPage() {
                   ))}
                 </ul>
                 <div className="mt-6 rounded-lg bg-muted p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Additional Branch: {offline.branchAddonPrice || "₦100,000 one-time"}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Optional Annual Care from year two: {(offline.supportRenewal as string) || "₦150,000 / Year"} for continued updates and standard remote support.</p>
+                  <p className="text-sm font-semibold text-foreground">Includes 1 branch · 5 users · local installation</p>
+                  <p className="text-xs text-muted-foreground mt-1">Optional Annual Care from year two keeps updates and standard remote support active.</p>
                 </div>
                 <div className="mt-6">
                   <Button asChild size="lg" variant="outline" className="w-full">
-                    <a href={(offline.ctaLink as string) || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20setup.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
-                      {(offline.ctaText as string) || "Request Offline Setup"}
+                    <a href={(offline.ctaLink as string) || "https://wa.me/+2348036028069?text=Hi%2C%20I%27d%20like%20a%20quote%20for%20MartPoint%20Retail%20Offline.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
+                      {(offline.ctaText as string) || "Request Offline Pricing"}
                     </a>
                   </Button>
                 </div>
@@ -685,7 +685,7 @@ export default async function MartPointRetailPage() {
               <div className="rounded-xl border border-border bg-background p-6 md:p-8">
                 <h3 className="text-lg font-semibold text-foreground mb-3">Your Product Catalogue</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  You are responsible for preparing, uploading and maintaining your product catalogue, including descriptions, images, prices and stock quantities. MartPoint does not provide product-upload or catalogue-data-entry services. During onboarding, please supply a maximum of 20 sample products for system testing only.
+                  You are responsible for the accuracy and ongoing maintenance of your product catalogue, including descriptions, images, prices and stock quantities. If you need assistance preparing or uploading your catalogue, MartPoint can arrange this through approved implementation partners as a separately quoted service. Standard onboarding includes up to 20 client-supplied sample products for system testing; full catalogue upload is included only when expressly stated in your agreed service package.
                 </p>
               </div>
             </div>

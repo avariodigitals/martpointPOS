@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import {
   ArrowLeft,
   ArrowRight,
+  Building2,
   Calculator,
   Check,
   CheckCircle2,
@@ -59,6 +60,7 @@ const emptyAnswers: EstimateAnswers = {
   receiptHardware: "",
   dataMigration: "",
   offlineOperation: "",
+  erpInterest: "",
   trainingPreference: "",
 }
 
@@ -93,6 +95,7 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
         return (
           answers.onlineStore &&
           answers.offlineOperation &&
+          answers.erpInterest &&
           answers.hardwareAvailable &&
           answers.trainingPreference
         )
@@ -161,8 +164,11 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
             advisor will review your estimate and reach out shortly.
           </p>
 
-          <div className="mt-8 max-w-sm mx-auto text-left">
+          <div className="mt-8 max-w-sm mx-auto text-left space-y-3">
             <RecSummaryCard rec={result.retail} icon={<Store className="w-5 h-5 text-retail" />} />
+            {result.erp && (
+              <RecSummaryCard rec={result.erp} icon={<Building2 className="w-5 h-5 text-erp" />} />
+            )}
           </div>
 
           <div className="mt-8 rounded-xl border border-retail/20 bg-retail-soft p-5">
@@ -299,7 +305,7 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
               {step === 2 && (
                 <StepWrapper
                   title="What do you need from your system?"
-                  subtitle="These answers shape whether Retail Cloud or Retail Offline fits best."
+                  subtitle="These answers shape whether Retail Cloud or Retail Offline fits best — and whether ERP should be part of the conversation."
                 >
                   <ChoiceGroup
                     label="Do you need an online store?"
@@ -312,6 +318,12 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
                     options={YES_NO_MAYBE}
                     value={answers.offlineOperation}
                     onChange={(v) => update("offlineOperation", v)}
+                  />
+                  <ChoiceGroup
+                    label="Beyond retail, do you need ERP functions (finance, HR, manufacturing)? *"
+                    options={YES_NO_MAYBE}
+                    value={answers.erpInterest}
+                    onChange={(v) => update("erpInterest", v)}
                   />
                   <ChoiceGroup
                     label="Do you already have hardware (POS, computer, tablet)?"
@@ -334,12 +346,24 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
                   title="Your estimated cost range"
                   subtitle="Based on your answers, here is the MartPoint Retail option we'd recommend. Final pricing is confirmed after a quick conversation."
                 >
-                  <div className="max-w-md mx-auto">
+                  <div
+                    className={cn(
+                      "mx-auto grid gap-4",
+                      result.erp ? "max-w-2xl md:grid-cols-2" : "max-w-md",
+                    )}
+                  >
                     <RecommendationCard
                       rec={result.retail}
                       icon={<Store className="w-5 h-5 text-retail" />}
                       accent="retail"
                     />
+                    {result.erp && (
+                      <RecommendationCard
+                        rec={result.erp}
+                        icon={<Building2 className="w-5 h-5 text-erp" />}
+                        accent="erp"
+                      />
+                    )}
                   </div>
                   <div className="mt-6 rounded-xl border border-border bg-muted/60 p-4">
                     <p className="text-xs text-muted-foreground leading-relaxed">

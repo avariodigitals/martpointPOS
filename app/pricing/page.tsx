@@ -1,17 +1,41 @@
 export const revalidate = 86400
+import { Fragment } from "react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
-import { Check, HelpCircle, Calculator, ChevronDown, WifiOff } from "lucide-react"
+import {
+  BadgeCheck,
+  BarChart3,
+  Bot,
+  CalendarClock,
+  Check,
+  ChevronDown,
+  Globe,
+  HandCoins,
+  Heart,
+  HelpCircle,
+  Link2,
+  Calculator,
+  MessageCircle,
+  Minus,
+  MonitorSmartphone,
+  Package,
+  QrCode,
+  ScanFace,
+  ShoppingCart,
+  WifiOff,
+} from "lucide-react"
 import { readSettings } from "@/lib/settings"
 import {
   ADDONS,
+  COMPARISON_GROUPS,
   OFFLINE_PLAN,
   formatNairaAmount,
   resolveCloudPlans,
+  type CellValue,
   type ResolvedCloudPlan,
 } from "@/lib/pricing-plans"
 
@@ -109,34 +133,39 @@ function PlanCard({ plan }: { plan: ResolvedCloudPlan }) {
   )
 }
 
-const COMPARISON_ROWS: { label: string; key: keyof ResolvedCloudPlan["limits"]; suffix?: string }[] = [
-  { label: "Branches", key: "branches" },
-  { label: "Named users", key: "namedUsers" },
-  { label: "Main products", key: "mainProducts" },
-  { label: "Product variations", key: "productVariations" },
-  { label: "Online store products", key: "onlineProducts" },
-  { label: "Services", key: "services" },
-  { label: "Media storage", key: "mediaGb", suffix: " GB" },
-  { label: "Storefronts", key: "storefronts" },
-  { label: "Connected custom domains", key: "customDomains" },
+const COMMON_INCLUSIONS: { icon: typeof ShoppingCart; label: string; desc: string }[] = [
+  { icon: ShoppingCart, label: "POS sales & checkout", desc: "Fast counter sales on desktop or tablet" },
+  { icon: Package, label: "Inventory & stock control", desc: "Live stock levels, transfers and alerts" },
+  { icon: Globe, label: "Online store included", desc: "Your storefront, ready to take orders" },
+  { icon: MessageCircle, label: "WhatsApp ordering & invoices", desc: "Catalogue, orders and invoices on WhatsApp" },
+  { icon: QrCode, label: "QR menu ordering", desc: "Scan-to-order for restaurants and cafés" },
+  { icon: Link2, label: "Payment links", desc: "Get paid remotely by link" },
+  { icon: CalendarClock, label: "PayPlan™ installments", desc: "Deposits and balance collection built in" },
+  { icon: Heart, label: "Loyalty & rewards", desc: "Points and rewards that bring customers back" },
+  { icon: BadgeCheck, label: "Customer verification", desc: "Verify before extending credit or installments" },
+  { icon: HandCoins, label: "Collections tracking", desc: "Who owes what — and when it's due" },
+  { icon: ScanFace, label: "Staff attendance", desc: "Face-capture clock-in for your team" },
+  { icon: BarChart3, label: "Daily reports", desc: "Sales, stock and staff performance at a glance" },
+  { icon: Bot, label: "AI assistant", desc: "Answers and guidance inside the platform" },
+  { icon: MonitorSmartphone, label: "Mobile & desktop access", desc: "Run your store from any device" },
 ]
 
-const COMMON_INCLUSIONS = [
-  "POS sales & checkout",
-  "Inventory & stock control",
-  "Standard Online Store included",
-  "WhatsApp ordering & invoices",
-  "QR menu ordering",
-  "Payment links",
-  "PayPlan™ installment plans",
-  "Loyalty & rewards",
-  "Customer verification",
-  "Collections tracking",
-  "Staff attendance (face capture)",
-  "Daily reports",
-  "AI assistant",
-  "Mobile & desktop access",
-]
+function Cell({ value }: { value: CellValue }) {
+  if (value === "yes") {
+    return <Check className="w-4 h-4 text-retail mx-auto" aria-label="Included" />
+  }
+  if (value === "soon") {
+    return (
+      <span className="inline-block rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+        Coming soon
+      </span>
+    )
+  }
+  if (value === "no") {
+    return <Minus className="w-4 h-4 text-muted-foreground/50 mx-auto" aria-label="Not included" />
+  }
+  return <span className="text-sm font-medium text-foreground whitespace-nowrap">{value}</span>
+}
 
 const INDUSTRY_EXAMPLES = [
   {
@@ -194,7 +223,7 @@ const PRICING_FAQS = [
   },
   {
     q: "Is MartPoint Retail Offline a subscription?",
-    a: `No. Retail Offline is a one-time licence of ${formatNairaAmount(OFFLINE_PLAN.licencePrice)} covering one branch and five users, with the first 12 months of eligible updates and standard remote support included. From year two, optional Annual Care (${formatNairaAmount(OFFLINE_PLAN.annualCarePrice)}/year) keeps updates and standard support active — your licensed software keeps working either way.`,
+    a: "No. Retail Offline is a one-time licence covering one branch and five users, priced per setup on request. The first 12 months of eligible updates and standard remote support are included. From year two, optional Annual Care keeps updates and support active — your licensed software keeps working either way.",
   },
 ]
 
@@ -253,41 +282,49 @@ export default async function PricingPage() {
                 ))}
               </div>
 
-              {/* Capacity comparison */}
+              {/* Plan comparison */}
               <div className="mt-12 max-w-5xl mx-auto">
                 <h3 className="text-lg font-semibold text-foreground mb-4 text-center">
-                  Compare plan capacity
+                  Compare plans in detail
                 </h3>
                 <div className="overflow-x-auto rounded-xl border border-border bg-background">
-                  <table className="w-full min-w-[640px] text-sm">
+                  <table className="w-full min-w-[680px] text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/60">
-                        <th className="text-left px-4 py-3 font-semibold text-foreground">Capacity</th>
+                        <th className="text-left px-4 py-3 font-semibold text-foreground sticky left-0 bg-muted/60 min-w-[200px]">
+                          Feature
+                        </th>
                         {plans.map((p) => (
-                          <th key={p.id} className="text-right px-4 py-3 font-semibold text-foreground whitespace-nowrap">
+                          <th key={p.id} className="text-center px-4 py-3 font-semibold text-foreground whitespace-nowrap">
                             {p.displayName}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="border-b border-border">
-                        <td className="px-4 py-3 text-muted-foreground">Annual licence</td>
-                        {plans.map((p) => (
-                          <td key={p.id} className="px-4 py-3 text-right font-semibold text-foreground whitespace-nowrap">
-                            {p.priceText}
-                          </td>
-                        ))}
-                      </tr>
-                      {COMPARISON_ROWS.map((row) => (
-                        <tr key={row.key} className="border-b border-border last:border-0">
-                          <td className="px-4 py-3 text-muted-foreground">{row.label}</td>
-                          {plans.map((p) => (
-                            <td key={p.id} className="px-4 py-3 text-right text-foreground whitespace-nowrap">
-                              {p.limits[row.key].toLocaleString("en-NG")}{row.suffix || ""}
+                      {COMPARISON_GROUPS.map((group) => (
+                        <Fragment key={group.title}>
+                          <tr className="bg-muted/40 border-b border-border">
+                            <td
+                              colSpan={plans.length + 1}
+                              className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-foreground sticky left-0 bg-muted/40"
+                            >
+                              {group.title}
                             </td>
+                          </tr>
+                          {group.rows.map((row) => (
+                            <tr key={row.label} className="border-b border-border last:border-0">
+                              <td className="px-4 py-3 text-muted-foreground sticky left-0 bg-background">
+                                {row.label}
+                              </td>
+                              {row.values.map((v, i) => (
+                                <td key={i} className="px-4 py-3 text-center">
+                                  <Cell value={v} />
+                                </td>
+                              ))}
+                            </tr>
                           ))}
-                        </tr>
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -298,13 +335,26 @@ export default async function PricingPage() {
               </div>
 
               {/* Common inclusions */}
-              <div className="mt-12 max-w-4xl mx-auto rounded-xl border border-border bg-background p-6 md:p-8">
-                <h3 className="text-lg font-semibold text-foreground mb-4">Every Retail Cloud plan includes</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
+              <div className="mt-12 max-w-4xl mx-auto">
+                <h3 className="text-lg font-semibold text-foreground mb-2 text-center">
+                  Every Retail Cloud plan includes
+                </h3>
+                <p className="text-sm text-muted-foreground text-center mb-6">
+                  One licence. Everything you need to sell — in store, online and on WhatsApp.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {COMMON_INCLUSIONS.map((item) => (
-                    <div key={item} className="flex items-center gap-2 text-sm text-foreground">
-                      <Check className="w-4 h-4 text-retail shrink-0" />
-                      {item}
+                    <div
+                      key={item.label}
+                      className="flex items-start gap-3 rounded-xl border border-border bg-background p-4"
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-retail-soft flex items-center justify-center shrink-0">
+                        <item.icon className="w-4.5 h-4.5 text-retail" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground leading-snug">{item.label}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -350,7 +400,7 @@ export default async function PricingPage() {
                   MartPoint Retail Offline
                 </h2>
                 <p className="mt-2 text-muted-foreground">
-                  Prefer a locally installed system that runs without internet? Retail Offline is a separate one-time licence — not a subscription.
+                  Prefer a locally installed system that runs without internet? Retail Offline is a separate one-time licence — priced per setup, on request.
                 </p>
               </div>
               <div className="max-w-2xl mx-auto">
@@ -364,9 +414,9 @@ export default async function PricingPage() {
                   <h3 className="text-xl font-bold text-foreground mt-2">{offline.name || OFFLINE_PLAN.name}</h3>
                   <div className="mt-4 flex flex-col items-start">
                     <span className="text-4xl sm:text-5xl font-extrabold text-retail">
-                      {formatNairaAmount(OFFLINE_PLAN.licencePrice)}
+                      On request
                     </span>
-                    <span className="text-muted-foreground">one-time licence</span>
+                    <span className="text-muted-foreground">one-time licence — priced per setup</span>
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
                     {offline.description ||
@@ -382,13 +432,10 @@ export default async function PricingPage() {
                   </ul>
                   <div className="mt-6 rounded-lg bg-retail-soft p-4 text-center space-y-1.5">
                     <p className="text-sm font-semibold text-foreground">
-                      Includes {OFFLINE_PLAN.branchesIncluded} branch · {OFFLINE_PLAN.usersIncluded} users
-                    </p>
-                    <p className="text-sm font-bold text-retail">
-                      Additional branch: {formatNairaAmount(OFFLINE_PLAN.extraBranchOneTime)} one-time
+                      Includes {OFFLINE_PLAN.branchesIncluded} branch · {OFFLINE_PLAN.usersIncluded} users · local installation
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Optional Annual Care from year two: {formatNairaAmount(OFFLINE_PLAN.annualCarePrice)}/year for continued updates and standard remote support. Without Annual Care your licensed installation keeps working.
+                      Optional Annual Care from year two keeps updates and standard remote support active. Without it, your licensed installation keeps working.
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Hosted Online Store is not included — it requires Retail Cloud or a separately quoted hosted arrangement.
@@ -397,11 +444,11 @@ export default async function PricingPage() {
                   <div className="mt-6">
                     <Button asChild size="lg" variant="retail" className="w-full">
                       <a
-                        href={offline.ctaLink || "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20licence.%20Can%20we%20talk%3F"}
+                        href={offline.ctaLink || "https://wa.me/+2348036028069?text=Hi%2C%20I%27d%20like%20a%20quote%20for%20MartPoint%20Retail%20Offline.%20Can%20we%20talk%3F"}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        {offline.ctaText || "Request Offline Setup"}
+                        {offline.ctaText || "Request Offline Pricing"}
                       </a>
                     </Button>
                   </div>
@@ -447,7 +494,7 @@ export default async function PricingPage() {
               <div className="rounded-xl border border-border bg-background p-6 md:p-8">
                 <h3 className="text-lg font-semibold text-foreground mb-3">Your Product Catalogue</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  You are responsible for preparing, uploading and maintaining your product catalogue, including descriptions, images, prices and stock quantities. MartPoint does not provide product-upload or catalogue-data-entry services. During onboarding, please supply a maximum of 20 sample products for system testing only.
+                  You are responsible for the accuracy and ongoing maintenance of your product catalogue, including descriptions, images, prices and stock quantities. If you need assistance preparing or uploading your catalogue, MartPoint can arrange this through approved implementation partners as a separately quoted service. Standard onboarding includes up to 20 client-supplied sample products for system testing; full catalogue upload is included only when expressly stated in your agreed service package.
                 </p>
               </div>
             </div>

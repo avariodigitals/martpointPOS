@@ -45,6 +45,31 @@ matrix in the brief; formal sign-off remains **unverified** and is listed as an 
   plan records retained in settings/admin for internal use.
 - Public pricing page now shows all four annual Retail Cloud tiers + capacity comparison + add-ons.
 
+## Addendum — owner-directed updates (post-review pass)
+
+1. **Retail Offline is quote-only.** The ₦250,000 licence, ₦100,000 extra branch and ₦150,000 Annual
+   Care figures are no longer displayed on any public surface (`/pricing`, `/martpoint-retail`, FAQs,
+   homepage, estimator). Public copy reads "priced per setup — on request". The internal baseline
+   stays in `lib/pricing-plans.ts` and admin settings for quoting.
+2. **Storefronts and custom domains = 1 on every plan.** Earlier drafts showing 2/3 on upper tiers
+   were corrected in `CLOUD_PLANS`, `PLAN_TIERS` and the comparison matrix — no surface may show
+   more than one storefront per plan.
+3. **Comparison rebuilt as a grouped feature matrix** — Capacity · Sell everywhere · Payment methods
+   (Paystack, Moniepoint, Flutterwave) · Grow your store (import/export, bulk editing, payment
+   reconciliation, pixels/analytics, abandoned-cart, shipping/pickup/tracking, segmentation,
+   campaigns, back-in-stock, reviews, bundles, upsells, quantity rules, coupon limits) · Connect
+   your existing setup (WooCommerce/Shopify/Magento/custom-site migration). **Merchant API and
+   international currencies are marked "Coming soon"** as later priorities, not live features.
+4. **Estimator: ERP stays but is quote-only.** A new "ERP interest" question adds a MartPoint ERP
+   "Custom quote" card alongside the priced Retail recommendation — no ERP figure is shown anywhere,
+   including the estimator. Selecting offline operation likewise returns a quote-only Retail Offline
+   result.
+5. **Homepage product split** — the "One-Time Licence / MartPoint Retail Offline" card was replaced
+   with a four-plan pricing teaser linking to `/pricing`; the section headline moved from
+   "Two ways to run it" to a Retail-first message.
+6. **"Every Retail Cloud plan includes"** — icon-led grid of shared capabilities on `/pricing`
+   (selling point emphasis).
+
 ## Items deliberately NOT changed
 
 - `plans`/`commercial_products` rows in migration 022 and any live catalogue records.

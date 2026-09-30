@@ -57,7 +57,7 @@ export const CLOUD_PLANS: CloudPlanBaseline[] = [
     annualPrice: 499999,
     badge: "",
     tagline: "For established multi-branch retailers.",
-    limits: { branches: 5, namedUsers: 25, mainProducts: 5000, productVariations: 150000, onlineProducts: 5000, services: 500, mediaGb: 10, storefronts: 2, customDomains: 2 },
+    limits: { branches: 5, namedUsers: 25, mainProducts: 5000, productVariations: 150000, onlineProducts: 5000, services: 500, mediaGb: 10, storefronts: 1, customDomains: 1 },
   },
   {
     id: "enterprise-retail",
@@ -65,7 +65,7 @@ export const CLOUD_PLANS: CloudPlanBaseline[] = [
     annualPrice: 999999,
     badge: "",
     tagline: "Our largest Retail Cloud capacity tier.",
-    limits: { branches: 10, namedUsers: 50, mainProducts: 10000, productVariations: 500000, onlineProducts: 20000, services: 1000, mediaGb: 20, storefronts: 3, customDomains: 3 },
+    limits: { branches: 10, namedUsers: 50, mainProducts: 10000, productVariations: 500000, onlineProducts: 20000, services: 1000, mediaGb: 20, storefronts: 1, customDomains: 1 },
   },
 ]
 
@@ -91,14 +91,19 @@ export const BRANCH_ADDON_ANNUAL = 50000
 export const USER_PACK_ADDON_ANNUAL = 25000 // per 5 named users
 export const PRODUCT_PACK_ADDON_ANNUAL = 15000 // per 500 main products
 
-/* ─── Retail Offline (baseline) ─── */
+/* ─── Retail Offline ───
+ * Owner decision (30 Sep 2026): Offline pricing is quote-only — no public
+ * price is displayed anywhere on the site. The internal baseline figures are
+ * kept here for reference and for the estimator's internal tier calc.
+ */
 export const OFFLINE_PLAN = {
   name: "MartPoint Retail Offline",
-  licencePrice: 250000, // one-time
+  priceOnRequest: true,
+  licencePrice: 250000, // internal baseline — NOT for public display
   branchesIncluded: 1,
   usersIncluded: 5,
   extraBranchOneTime: 100000,
-  annualCarePrice: 150000, // optional, from year two
+  annualCarePrice: 150000,
 } as const
 
 /* ─── Settings merge ───
@@ -142,6 +147,80 @@ const DEFAULT_FEATURES = [
   "Daily Reports",
   "AI Assistant",
   "Mobile & Desktop Access",
+]
+
+/* ─── Plan comparison matrix (public /pricing page) ───
+ * Rows are ordered to match CLOUD_PLANS: [Basic, Standard, Premium, Enterprise Retail].
+ * Cell values: string = shown as-is; "yes" = included check; "soon" = coming-soon badge;
+ * "no" = not included dash.
+ */
+export type CellValue = string | "yes" | "soon" | "no"
+
+export interface ComparisonGroup {
+  title: string
+  rows: { label: string; values: CellValue[] }[]
+}
+
+export const COMPARISON_GROUPS: ComparisonGroup[] = [
+  {
+    title: "Capacity",
+    rows: [
+      { label: "Annual licence", values: ["₦99,999", "₦249,999", "₦499,999", "₦999,999"] },
+      { label: "Branches", values: ["1", "3", "5", "10"] },
+      { label: "Named users", values: ["5", "10", "25", "50"] },
+      { label: "Main products", values: ["500", "2,000", "5,000", "10,000"] },
+      { label: "Product variations", values: ["10,000", "50,000", "150,000", "500,000"] },
+      { label: "Online store products", values: ["500", "2,000", "5,000", "20,000"] },
+      { label: "Services", values: ["100", "300", "500", "1,000"] },
+      { label: "Media storage", values: ["2 GB", "5 GB", "10 GB", "20 GB"] },
+      { label: "Storefront", values: ["1", "1", "1", "1"] },
+      { label: "Custom domain", values: ["1", "1", "1", "1"] },
+    ],
+  },
+  {
+    title: "Sell everywhere",
+    rows: [
+      { label: "POS sales & checkout", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Inventory & stock control", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Online store included", values: ["yes", "yes", "yes", "yes"] },
+      { label: "WhatsApp ordering & invoices", values: ["yes", "yes", "yes", "yes"] },
+      { label: "QR menu ordering", values: ["yes", "yes", "yes", "yes"] },
+      { label: "PayPlan™ installments", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Loyalty & rewards", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Staff attendance (face capture)", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Daily reports & AI assistant", values: ["yes", "yes", "yes", "yes"] },
+    ],
+  },
+  {
+    title: "Payment methods",
+    rows: [
+      { label: "Paystack", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Moniepoint", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Flutterwave", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Payment links", values: ["yes", "yes", "yes", "yes"] },
+    ],
+  },
+  {
+    title: "Grow your store",
+    rows: [
+      { label: "Customer import/export & bulk editing", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Automatic payment reconciliation", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Advertising pixels & analytics", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Abandoned-cart recovery", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Shipping, pickup & tracking", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Segmentation, campaigns & back-in-stock alerts", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Reviews, bundles & checkout upsells", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Order quantity rules & coupon limits", values: ["yes", "yes", "yes", "yes"] },
+    ],
+  },
+  {
+    title: "Connect your existing setup",
+    rows: [
+      { label: "Migrate from WooCommerce, Shopify, Magento or a custom site", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Merchant API", values: ["soon", "soon", "soon", "soon"] },
+      { label: "International currencies", values: ["soon", "soon", "soon", "soon"] },
+    ],
+  },
 ]
 
 const DEFAULT_CTA_LINK =

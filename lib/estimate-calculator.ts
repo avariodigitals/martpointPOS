@@ -44,8 +44,8 @@ export interface PlanTierLimits {
 export const PLAN_TIERS: PlanTierLimits[] = [
   { tier: "Basic", branchLimit: 1, userLimit: 5, productLimit: 500, onlineProductLimit: 500, serviceLimit: 100, mediaStorageMb: 2048, storefrontLimit: 1, customDomainLimit: 1 },
   { tier: "Standard", branchLimit: 3, userLimit: 10, productLimit: 2000, onlineProductLimit: 2000, serviceLimit: 300, mediaStorageMb: 5120, storefrontLimit: 1, customDomainLimit: 1 },
-  { tier: "Premium", branchLimit: 5, userLimit: 25, productLimit: 5000, onlineProductLimit: 5000, serviceLimit: 500, mediaStorageMb: 10240, storefrontLimit: 2, customDomainLimit: 2 },
-  { tier: "Enterprise", branchLimit: 10, userLimit: 50, productLimit: 10000, onlineProductLimit: 20000, serviceLimit: 1000, mediaStorageMb: 20480, storefrontLimit: 3, customDomainLimit: 3 },
+  { tier: "Premium", branchLimit: 5, userLimit: 25, productLimit: 5000, onlineProductLimit: 5000, serviceLimit: 500, mediaStorageMb: 10240, storefrontLimit: 1, customDomainLimit: 1 },
+  { tier: "Enterprise", branchLimit: 10, userLimit: 50, productLimit: 10000, onlineProductLimit: 20000, serviceLimit: 1000, mediaStorageMb: 20480, storefrontLimit: 1, customDomainLimit: 1 },
 ]
 
 /* ─── Normalised numeric pricing (built from admin settings on the server) ─── */
@@ -86,6 +86,10 @@ export interface EstimateAnswers {
   receiptHardware: string
   dataMigration: string
   offlineOperation: string
+  /** Whether the visitor also needs ERP functions (finance, HR/payroll,
+   *  manufacturing). ERP is always scoped and quoted — no public ERP
+   *  pricing is ever shown. */
+  erpInterest: string
   /** Legacy field — retained for stored leads captured before the estimator
    *  became Retail-only. No longer asked in the questionnaire. */
   erpModules?: string
@@ -118,6 +122,9 @@ export interface Recommendation {
 
 export interface EstimateResult {
   retail: Recommendation
+  /** Present when the visitor indicated ERP interest. Always quote-only —
+   *  ERP pricing is not published. */
+  erp?: Recommendation
 }
 
 /* ─── Stored estimate (persisted on the lead record for admin review) ─── */
@@ -131,12 +138,12 @@ export interface StoredEstimateLeg {
 
 export interface StoredEstimate {
   retail: StoredEstimateLeg
-  /** Present only on estimates captured before the estimator went Retail-only. */
+  /** Present when the visitor indicated ERP interest — quote-only. */
   erp?: StoredEstimateLeg
 }
 
 export function toStoredEstimate(result: EstimateResult): StoredEstimate {
-  return {
+  const stored: StoredEstimate = {
     retail: {
       planName: result.retail.planName,
       range: formatRange(result.retail),
@@ -145,6 +152,16 @@ export function toStoredEstimate(result: EstimateResult): StoredEstimate {
       rationale: result.retail.rationale,
     },
   }
+  if (result.erp) {
+    stored.erp = {
+      planName: result.erp.planName,
+      range: formatRange(result.erp),
+      tier: result.erp.internalTier,
+      inclusions: result.erp.inclusions,
+      rationale: result.erp.rationale,
+    }
+  }
+  return stored
 }
 
 /* ─── Option metadata (labels + values) shared by the UI ─── */
@@ -300,31 +317,29 @@ function lowestCostPlan(reqs: Requirements, pricing: EstimatePricing): PlanQuote
 export function recommendRetail(answers: EstimateAnswers, pricing: EstimatePricing): Recommendation {
   const [minExtra, maxExtra] = branchCountBounds(answers.branches)
   const wantsOffline = answers.offlineOperation === "yes"
-  const offline = pricing.retailOffline
 
   const [, staffHigh] = staffBounds(answers.staffSize)
   const [, productsHigh] = productBounds(answers.productCount)
 
   const internalTier = resolveTier(Math.max(1, 1 + maxExtra), staffHigh, productsHigh)
 
-  if (wantsOffline && offline.baseOneTime > 0) {
-    const low = offline.baseOneTime + minExtra * offline.branchAddonOneTime
-    const high = offline.baseOneTime + maxExtra * offline.branchAddonOneTime
+  if (wantsOffline) {
     return {
       line: "retail",
       planName: "MartPoint Retail Offline",
       internalTier,
-      rangeLow: low,
-      rangeHigh: high,
-      period: "one-time",
+      rangeLow: null,
+      rangeHigh: null,
+      period: "one-time licence",
       inclusions: [
         "Works without internet",
         "Local installation & activation",
         "Multi-branch (LAN connected)",
         "First 12 months updates & standard support included",
-        `Optional Annual Care from year two (${formatNaira(offline.supportRenewalAnnual)}/year)`,
+        "Optional Annual Care available from year two",
       ],
-      rationale: "You indicated you need offline operation, so Retail Offline is the right fit.",
+      rationale:
+        "You indicated you need offline operation, so Retail Offline is the right fit. Offline licences are priced per setup — we'll confirm your quote in a quick conversation.",
     }
   }
 
@@ -354,7 +369,31 @@ export function recommendRetail(answers: EstimateAnswers, pricing: EstimatePrici
 }
 
 export function buildEstimate(answers: EstimateAnswers, pricing: EstimatePricing): EstimateResult {
-  return { retail: recommendRetail(answers, pricing) }
+  const retail = recommendRetail(answers, pricing)
+
+  if (answers.erpInterest === "yes" || answers.erpInterest === "maybe") {
+    return {
+      retail,
+      erp: {
+        line: "erp",
+        planName: "MartPoint ERP",
+        internalTier: retail.internalTier,
+        rangeLow: null,
+        rangeHigh: null,
+        period: "",
+        inclusions: [
+          "Finance, HR & operational modules",
+          "Scoped to your workflows and branches",
+          "Works alongside MartPoint Retail",
+          "Quoted after a consultation",
+        ],
+        rationale:
+          "You flagged ERP needs. ERP deployments are scoped and quoted individually after a consultation — pricing is provided on request, never published.",
+      },
+    }
+  }
+
+  return { retail }
 }
 
 /* ─── Range formatting for the UI ─── */
@@ -431,10 +470,12 @@ export function buildEstimateWhatsAppMessage(answers: EstimateAnswers, contact: 
     `Products: ${PRODUCT_COUNT_OPTIONS.find((o) => o.value === answers.productCount)?.label || answers.productCount}`,
     `Online store: ${answers.onlineStore}`,
     `Offline operation: ${answers.offlineOperation}`,
+    `ERP interest: ${answers.erpInterest || "—"}`,
     `Hardware: ${answers.hardwareAvailable}`,
     `Training: ${answers.trainingPreference}`,
     "",
     `Recommended: ${result.retail.planName} — ${formatRange(result.retail)}`,
+    ...(result.erp ? [`ERP: ${result.erp.planName} — ${formatRange(result.erp)}`] : []),
   ]
   if (contact.notes) lines.push("", `Notes: ${contact.notes}`)
   lines.push("", "Can we take this forward?")

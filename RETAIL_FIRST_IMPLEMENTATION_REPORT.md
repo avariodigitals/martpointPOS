@@ -8,8 +8,10 @@ Baseline: Pricing & Quotation Playbook v2.1 (supplied; sign-off unverified).
 ### Retail-first positioning
 - **Navigation & footer** (`lib/navigation.ts`): ERP removed from Solutions menu and footer links.
 - **Homepage** (`app/page.tsx`, `app/layout.tsx`, `components/sections/product-split.tsx`,
-  `components/structured-data.tsx`): Retail-first metadata; product split now Retail Cloud +
-  Retail Offline; structured data no longer exposes ERP entries.
+  `components/structured-data.tsx`): Retail-first metadata; product split is now Retail Cloud +
+  a four-plan pricing teaser card linking to `/pricing` (the Offline card was removed per owner
+  direction; headline rephrased from "Two ways to run it" to a Retail-first message); structured
+  data no longer exposes ERP entries.
 - **Industries index** (`app/industries/page.tsx`): ERP-targeted industries excluded from the
   nav-linked listing (pages remain live, indexable, direct-URL accessible).
 - **Copy sweeps**: `why-martpoint` (growth path rewritten to Retail plan tiers), `about`, `faqs`,
@@ -20,8 +22,10 @@ Baseline: Pricing & Quotation Playbook v2.1 (supplied; sign-off unverified).
 - **`lib/pricing-plans.ts` (new)**: canonical Retail Cloud matrix (Basic ₦99,999 / Standard ₦249,999 /
   Premium ₦499,999 / Enterprise Retail ₦999,999), capacity limits, add-on catalogue, Offline terms,
   `resolveCloudPlans()` settings-merge helper.
-- **`app/pricing/page.tsx`**: rewritten — four annual Cloud cards, capacity comparison table,
-  add-on table, separate Offline card with one-time licence + optional Annual Care terms,
+- **`app/pricing/page.tsx`**: rewritten — four annual Cloud cards, grouped feature-matrix
+  comparison (Capacity / Sell everywhere / Payment methods / Grow your store / Integrations,
+  with Merchant API + international currencies marked "Coming soon"), icon-led "Every plan
+  includes" grid, add-on table, quote-only Offline card (no public price — owner direction),
   activation-vs-implementation copy, pricing FAQs, industry workflow links. **No ERP cards.**
 - **`data/settings.json` + admin defaults** (`app/api/admin/settings/route.ts`): corrected seed
   values (`cloudPlans` array, ₦50,000 branch add-on, Offline one-time terms, ₦150,000 Annual Care,
@@ -30,8 +34,10 @@ Baseline: Pricing & Quotation Playbook v2.1 (supplied; sign-off unverified).
   capacity limits fixed to baseline; ERP editor retained and labelled internal-only.
 
 ### Estimator & forms
-- **`lib/estimate-calculator.ts`**: Retail-only recommendation using lowest-valid plan/add-on cost
-  (`quotePlan`, `lowestCostPlan`); ERP question removed (legacy `erpModules` field retained).
+- **`lib/estimate-calculator.ts`**: Retail recommendation uses lowest-valid plan/add-on cost
+  (`quotePlan`, `lowestCostPlan`). An "ERP interest" question adds a quote-only MartPoint ERP
+  leg ("Custom quote" — no figure ever shown); offline operation returns a quote-only Retail
+  Offline result (owner direction: no public Offline price). Legacy `erpModules` field retained.
 - **`components/estimate/estimate-calculator.tsx`**, **`app/api/estimate/route.ts`**,
   **`lib/email-templates.ts`**, **`components/admin/lead-detail-modal.tsx`**: retail-only
   recommendation end-to-end; historical `estimate.erp` data still rendered when present.
@@ -61,7 +67,7 @@ Baseline: Pricing & Quotation Playbook v2.1 (supplied; sign-off unverified).
 | Indexability | `index, follow` on `/martpoint-erp`; sitemap includes all ERP URLs; robots allows |
 | Form gating | ERP option absent on `/request-quote`, `/book-demo`; present with `?product=erp` |
 | Homepage | Zero ERP links/mentions in rendered HTML |
-| Pricing page | Four tier prices + add-ons + Offline render; no ERP prices |
+| Pricing page | Four tier prices + feature matrix + add-ons render; Offline quote-only; no ERP prices |
 
 ## Approval-dependent / unresolved items
 

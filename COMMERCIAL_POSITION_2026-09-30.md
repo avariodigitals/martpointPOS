@@ -10,8 +10,12 @@ effective 8 September 2026* (supplied in the Retail Pricing brief; signature fie
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Basic | ₦99,999 | 1 | 5 | 500 | 10,000 | 500 | 100 | 2 GB | 1 | 1 |
 | Standard | ₦249,999 | 3 | 10 | 2,000 | 50,000 | 2,000 | 300 | 5 GB | 1 | 1 |
-| Premium | ₦499,999 | 5 | 25 | 5,000 | 150,000 | 5,000 | 500 | 10 GB | 2 | 2 |
-| Enterprise Retail | ₦999,999 | 10 | 50 | 10,000 | 500,000 | 20,000 | 1,000 | 20 GB | 3 | 3 |
+| Premium | ₦499,999 | 5 | 25 | 5,000 | 150,000 | 5,000 | 500 | 10 GB | 1 | 1 |
+| Enterprise Retail | ₦999,999 | 10 | 50 | 10,000 | 500,000 | 20,000 | 1,000 | 20 GB | 1 | 1 |
+
+> **Owner-directed correction:** storefront and custom-domain allowances are **1 on every plan**.
+> Earlier drafts showing 2/3 on upper tiers were corrected in `lib/pricing-plans.ts`,
+> `lib/estimate-calculator.ts` and the comparison matrix — no public surface may show more than 1.
 
 - **Enterprise Retail is a Retail Cloud capacity tier — not MartPoint ERP.** Labelled as such on the
   pricing page and in the admin editor.
@@ -46,7 +50,12 @@ price difference × remaining billing months ÷ 12 (stated in FAQ; sales-execute
 
 ## MartPoint Retail Offline — separate one-time licence
 
-| Item | Terms |
+> **Owner-directed change:** Offline is **quote-only** — no public price is displayed anywhere on
+> the site (pricing page, Retail landing page, FAQs, homepage, estimator). The site presents it as
+> a one-time licence "priced per setup — on request". The figures below are the internal baseline,
+> retained for quoting; they must not be published.
+
+| Item | Internal terms (not published) |
 |---|---|
 | Licence | ₦250,000 **one-time** — 1 branch, 5 users, local installation |
 | Included | First 12 months of eligible updates + standard remote support; works without internet |
@@ -76,8 +85,11 @@ Metered services have no included allowance unless an accepted offer specifies o
 ## Billing position
 
 - Retail Cloud: **annual** billing; downgrades at renewal, no mid-term credit.
-- Retail Offline: **one-time** licence + optional Annual Care.
-- ERP: retained for existing customers/direct enquiries; pricing not publicly published in this change.
+- Retail Offline: **one-time** licence + optional Annual Care — **public pricing on request only**
+  (owner decision; estimator returns a custom quote, not a figure).
+- ERP: retained for existing customers/direct enquiries; **no public ERP pricing anywhere**, including
+  the estimator — visitors who flag ERP interest get a "Custom quote" leg and a consultation.
+  Retail remains the sole priced sales journey.
 - Tax treatment: not asserted on the site — no approved tax configuration was found; display only what
   approved configuration confirms.
 
@@ -88,3 +100,5 @@ Metered services have no included allowance unless an accepted offer specifies o
 3. Migration of the internal commercial catalogue (migration 022 legacy monthly plans) to baseline.
 4. Entitlement mapping for the four public plan IDs.
 5. Confirmation that live Supabase `settings` row has been saved with the corrected values.
+6. Roadmap items shown as "Coming soon" on the comparison matrix (Merchant API, international
+   currencies) — confirm public roadmap wording is acceptable.

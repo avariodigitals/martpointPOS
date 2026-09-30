@@ -1,6 +1,5 @@
 import {
   ShoppingCart,
-  Building2,
   Sparkles,
   Tag,
   Store,
@@ -19,8 +18,6 @@ import {
   HeartHandshake,
   ShieldCheck,
   Mail,
-  Truck,
-  Warehouse,
   Calculator,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
@@ -48,12 +45,6 @@ export const mainNav: NavItem[] = [
         href: "/martpoint-retail",
         description: "For supermarkets, pharmacies, restaurants, fashion stores and everyday retailers.",
         icon: ShoppingCart,
-      },
-      {
-        label: "MartPoint Enterprise",
-        href: "/martpoint-erp",
-        description: "For growing businesses that need finance, HR, procurement, approvals and reporting.",
-        icon: Building2,
       },
       {
         label: "MartPoint Intelligence",
@@ -85,8 +76,6 @@ export const mainNav: NavItem[] = [
       { label: "Electronics Stores", href: "/industries/electronics-stores", icon: Smartphone },
       { label: "Beauty & Salons", href: "/industries/beauty-and-salons", icon: Scissors },
       { label: "Multi-Branch Retail", href: "/industries/multi-branch-retail", icon: GitBranch },
-      { label: "Distributors", href: "/industries/distributors", icon: Truck },
-      { label: "Wholesalers", href: "/industries/wholesalers", icon: Warehouse },
       { label: "View All Industries", href: "/industries", icon: ChevronRight },
     ],
   },
@@ -132,7 +121,6 @@ export const footerColumns = {
     title: "Solutions",
     links: [
       { label: "MartPoint Retail", href: "/martpoint-retail" },
-      { label: "MartPoint Enterprise", href: "/martpoint-erp" },
       { label: "MartPoint Intelligence", href: "/martpoint-intelligence" },
       { label: "Pricing", href: "/pricing" },
       { label: "Cost Estimator", href: "/estimate" },
@@ -147,8 +135,6 @@ export const footerColumns = {
       { label: "Fashion Stores", href: "/industries/fashion-stores" },
       { label: "Electronics Stores", href: "/industries/electronics-stores" },
       { label: "Beauty & Salons", href: "/industries/beauty-and-salons" },
-      { label: "Distributors", href: "/industries/distributors" },
-      { label: "Wholesalers", href: "/industries/wholesalers" },
       { label: "View All Industries", href: "/industries" },
     ],
   },

@@ -641,7 +641,7 @@ export function LeadDetailModal({
                     <p className="text-sm font-bold text-foreground">Cost Estimate</p>
                     <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground">From calculator</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className={`grid grid-cols-1 gap-4 ${estimate.erpPlan ? "sm:grid-cols-2" : ""}`}>
                     <div className="rounded-lg border border-retail/10 bg-background p-4">
                       <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Retail Recommendation</p>
                       <p className="text-sm font-semibold text-foreground">{estimate.retailPlan}</p>
@@ -663,27 +663,29 @@ export function LeadDetailModal({
                         </ul>
                       )}
                     </div>
-                    <div className="rounded-lg border border-erp/10 bg-background p-4">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">ERP Recommendation</p>
-                      <p className="text-sm font-semibold text-foreground">{estimate.erpPlan}</p>
-                      <p className="text-xl font-extrabold text-erp mt-1">{estimate.erpRange}</p>
-                      {estimate.erpTier && (
-                        <p className="mt-1 text-[11px] text-muted-foreground">License tier: {estimate.erpTier}</p>
-                      )}
-                      {estimate.erpRationale && (
-                        <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{estimate.erpRationale}</p>
-                      )}
-                      {estimate.erpInclusions && estimate.erpInclusions.length > 0 && (
-                        <ul className="mt-2 space-y-1">
-                          {estimate.erpInclusions.map((inc) => (
-                            <li key={inc} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                              <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0 text-erp" />
-                              {inc}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                    {estimate.erpPlan && (
+                      <div className="rounded-lg border border-erp/10 bg-background p-4">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">ERP Recommendation</p>
+                        <p className="text-sm font-semibold text-foreground">{estimate.erpPlan}</p>
+                        <p className="text-xl font-extrabold text-erp mt-1">{estimate.erpRange}</p>
+                        {estimate.erpTier && (
+                          <p className="mt-1 text-[11px] text-muted-foreground">License tier: {estimate.erpTier}</p>
+                        )}
+                        {estimate.erpRationale && (
+                          <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{estimate.erpRationale}</p>
+                        )}
+                        {estimate.erpInclusions && estimate.erpInclusions.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {estimate.erpInclusions.map((inc) => (
+                              <li key={inc} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                                <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0 text-erp" />
+                                {inc}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1706,26 +1708,26 @@ interface EstimateView {
   retailTier?: string
   retailInclusions?: string[]
   retailRationale?: string
-  erpPlan: string
-  erpRange: string
+  erpPlan?: string
+  erpRange?: string
   erpTier?: string
   erpInclusions?: string[]
   erpRationale?: string
 }
 
 function normalizeEstimate(estimate?: StoredEstimate | null): EstimateView | null {
-  if (!estimate?.retail?.planName || !estimate?.erp?.planName) return null
+  if (!estimate?.retail?.planName) return null
   return {
     retailPlan: estimate.retail.planName,
     retailRange: estimate.retail.range,
     retailTier: estimate.retail.tier,
     retailInclusions: estimate.retail.inclusions,
     retailRationale: estimate.retail.rationale,
-    erpPlan: estimate.erp.planName,
-    erpRange: estimate.erp.range,
-    erpTier: estimate.erp.tier,
-    erpInclusions: estimate.erp.inclusions,
-    erpRationale: estimate.erp.rationale,
+    erpPlan: estimate.erp?.planName,
+    erpRange: estimate.erp?.range,
+    erpTier: estimate.erp?.tier,
+    erpInclusions: estimate.erp?.inclusions,
+    erpRationale: estimate.erp?.rationale,
   }
 }
 

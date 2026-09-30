@@ -39,7 +39,7 @@ export async function OrganizationSchema() {
     ],
     email,
     description:
-      "MartPoint is a African retail and ERP software company providing POS, inventory management, accounting, and business operations tools for supermarkets, pharmacies, restaurants, and fashion stores.",
+      "MartPoint is an African retail software company providing POS, inventory management, online store, and business operations tools for supermarkets, pharmacies, restaurants, and fashion stores.",
     foundingDate: "2019",
     address: {
       "@type": "PostalAddress",
@@ -252,8 +252,8 @@ export function LocalBusinessSchema() {
           "@type": "Offer",
           itemOffered: {
             "@type": "SoftwareApplication",
-            name: "MartPoint ERP",
-            description: "Enterprise resource planning for manufacturing, distribution, and multi-location businesses.",
+            name: "MartPoint Retail Offline",
+            description: "One-time locally installed retail licence for stores that need to work without internet.",
             applicationCategory: "BusinessApplication",
           },
         },
@@ -364,11 +364,7 @@ export function SiteNavigationSchema() {
         name: "MartPoint Retail",
         url: `${BASE_URL}/martpoint-retail`,
       },
-      {
-        "@type": "SiteNavigationElement",
-        name: "MartPoint Enterprise",
-        url: `${BASE_URL}/martpoint-erp`,
-      },
+
       {
         "@type": "SiteNavigationElement",
         name: "MartPoint Intelligence",

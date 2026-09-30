@@ -7,13 +7,13 @@ import { getPublicPartnerByPartnerId } from "@/lib/partners"
 export const metadata: Metadata = {
   title: "Book a Free Demo — See MartPoint POS in Action",
   description:
-    "Schedule a free personalized demo of MartPoint Retail POS or ERP software. See how it works for your supermarket, pharmacy, restaurant or retail store.",
+    "Schedule a free personalized demo of MartPoint Retail POS software. See how it works for your supermarket, pharmacy, restaurant or retail store.",
   alternates: {
     canonical: "/book-demo",
   },
   openGraph: {
     title: "Book a Free Demo — See MartPoint POS in Action",
-    description: "Schedule a free demo of MartPoint Retail POS or ERP. See how it works for your business.",
+    description: "Schedule a free demo of MartPoint Retail POS. See how it works for your business.",
     url: "https://martpoint.com.ng/book-demo",
   },
 }
@@ -27,6 +27,8 @@ export default async function BookDemoPage({
   const partnerCode = typeof sp.partner === "string" ? sp.partner.toUpperCase().trim() : ""
   const partner = partnerCode ? await getPublicPartnerByPartnerId(partnerCode) : null
   const validPartner = partner && partner.status === "ACTIVE" ? partner : null
+  // ERP demos arrive via the dedicated ?product=erp route only.
+  const isErp = typeof sp.product === "string" && sp.product.toLowerCase() === "erp"
 
   return (
     <>
@@ -40,7 +42,7 @@ export default async function BookDemoPage({
                   Referred by <span className="font-medium">{validPartner.businessName}</span> — your demo will be linked to them.
                 </div>
               )}
-              <DemoBooking partnerCode={validPartner?.partnerId} />
+              <DemoBooking partnerCode={validPartner?.partnerId} includeErpOption={isErp} productDefault={isErp ? "erp" : "not-sure"} />
             </div>
           </div>
         </section>

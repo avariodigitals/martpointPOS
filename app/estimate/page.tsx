@@ -8,14 +8,14 @@ import { buildPricingFromSettings, type EstimatePricing } from "@/lib/estimate-c
 export const metadata: Metadata = {
   title: "Cost Estimator — Estimate Your MartPoint Setup Cost",
   description:
-    "Answer a few questions about your business and get an instant estimated cost range for MartPoint Retail or ERP. No hidden fees — just a tailored recommendation.",
+    "Answer a few questions about your business and get an instant estimated cost range for MartPoint Retail. No hidden fees — just a tailored recommendation.",
   alternates: {
     canonical: "/estimate",
   },
   openGraph: {
     title: "Cost Estimator — Estimate Your MartPoint Setup Cost",
     description:
-      "Answer a few questions and get an instant estimated cost range for MartPoint Retail or ERP.",
+      "Answer a few questions and get an instant estimated cost range for MartPoint Retail.",
     url: "https://martpoint.com.ng/estimate",
   },
 }

@@ -174,12 +174,12 @@ export async function Footer() {
             <p className="text-xs text-white/80">
               MartPoint is developed and maintained by{" "}
               <a
-                href="https://avario.digitals"
+                href="https://martpoint.com.ng"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-white transition-colors"
               >
-                Avario Digitals
+                MartPoint Solutions
               </a>
               .
             </p>

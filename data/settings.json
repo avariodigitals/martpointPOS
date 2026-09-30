@@ -14,9 +14,9 @@
     "tagline": "Built for African businesses."
   },
   "seo": {
-    "title": "MartPoint — Retail & ERP Software for African Businesses",
-    "description": "Business management software built for African retail stores and enterprises. POS, inventory, accounting, and operations in one ecosystem.",
-    "keywords": "pos software nigeria, retail software, inventory management, erp nigeria, supermarket pos",
+    "title": "MartPoint — Retail POS & Store Management Software for African Businesses",
+    "description": "Retail management software built for African stores. POS, inventory, online store, WhatsApp ordering and multi-branch control in one platform.",
+    "keywords": "pos software nigeria, retail software, inventory management, supermarket pos, restaurant pos",
     "ogImage": "/uploads/og/1782421169853-9qdn3l.webp"
   },
   "analytics": {
@@ -63,21 +63,59 @@
         "Attendance (Face Capture)",
         "Daily Report",
         "AI Chatbot",
-        "Training & Onboarding",
+        "Activation & Store Setup",
         "Mobile & Desktop Access"
       ],
       "branchesIncluded": 1,
       "usersIncluded": 5,
-      "branchAddonPrice": "₦49,999 / Year",
+      "branchAddonPrice": "₦50,000 / Year",
       "ctaText": "Get Started",
       "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"
     },
+    "cloudPlans": [
+      {
+        "id": "basic",
+        "name": "Basic",
+        "price": "₦99,999",
+        "badge": "",
+        "description": "For a single store getting started.",
+        "ctaText": "Get Started",
+        "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Basic%20plan.%20Can%20we%20talk%3F"
+      },
+      {
+        "id": "standard",
+        "name": "Standard",
+        "price": "₦249,999",
+        "badge": "Most Popular",
+        "description": "For growing stores with a few branches.",
+        "ctaText": "Get Started",
+        "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Standard%20plan.%20Can%20we%20talk%3F"
+      },
+      {
+        "id": "premium",
+        "name": "Premium",
+        "price": "₦499,999",
+        "badge": "",
+        "description": "For established multi-branch retailers.",
+        "ctaText": "Get Started",
+        "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Premium%20plan.%20Can%20we%20talk%3F"
+      },
+      {
+        "id": "enterprise-retail",
+        "name": "Enterprise Retail",
+        "price": "₦999,999",
+        "badge": "",
+        "description": "Our largest Retail Cloud capacity tier.",
+        "ctaText": "Get Started",
+        "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Enterprise%20Retail%20plan.%20Can%20we%20talk%3F"
+      }
+    ],
     "offline": {
       "name": "MartPoint Retail Offline",
       "price": "₦250,000",
-      "period": "",
+      "period": "one-time",
       "badge": "Offline",
-      "description": "Full software installed locally. Annual maintenance and license renewal applicable. Works without internet.",
+      "description": "One-time licence for one branch and five users, installed locally. Works without internet. Includes the first 12 months of eligible updates and standard remote support.",
       "features": [
         "POS Sales & Checkout",
         "Inventory & Stock Control",
@@ -87,14 +125,14 @@
         "Staff Attendance (Face Capture)",
         "Daily Sales Report",
         "Multi-Branch (LAN Connected)",
-        "Offline-First Sync",
+        "Works Without Internet",
         "Local Installation",
-        "Staff Setup & Training"
+        "First 12 Months Updates & Support"
       ],
       "branchesIncluded": 1,
       "usersIncluded": 5,
-      "branchAddonPrice": "₦100,000",
-      "supportRenewal": "₦50,000 / Year",
+      "branchAddonPrice": "₦100,000 one-time",
+      "supportRenewal": "₦150,000 / Year",
       "ctaText": "Request Offline Setup",
       "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20setup.%20Can%20we%20talk%3F"
     },

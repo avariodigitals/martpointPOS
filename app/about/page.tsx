@@ -7,16 +7,16 @@ import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 import { Building2, Users, Globe, Lightbulb, Award, MapPin, Layers, ShieldCheck, TrendingUp, RefreshCw } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "About Us — MartPoint by Avario Digitals",
+  title: "About Us — MartPoint Solutions",
   description:
-    "Learn about Avario Digitals, the African technology company behind MartPoint Retail and MartPoint ERP. Built for African businesses, by Africans.",
+    "Learn about MartPoint Solutions, the African technology company behind MartPoint Retail. Built for African businesses, by Africans.",
   alternates: {
     canonical: "/about",
   },
   openGraph: {
-    title: "About Us — MartPoint by Avario Digitals",
+    title: "About Us — MartPoint Solutions",
     description:
-      "Learn about Avario Digitals, the African technology company behind MartPoint Retail and MartPoint ERP.",
+      "Learn about MartPoint Solutions, the African technology company behind MartPoint Retail.",
     url: "https://martpoint.com.ng/about",
   },
 }
@@ -50,34 +50,10 @@ const values = [
 
 const milestones = [
   {
-    year: "2019",
-    title: "Started With a Clear Mission",
+    year: "2026",
+    title: "Every Business Got a Digital Storefront",
     description:
-      "Avario Digitals was founded to build technology that actually works for African businesses — not imported tools that break under local conditions.",
-  },
-  {
-    year: "2020",
-    title: "First Retailers Ditched the Notebook",
-    description:
-      "MartPoint Retail launched with POS and real-time inventory. Shop owners could finally see what was selling while they were still selling it.",
-  },
-  {
-    year: "2021",
-    title: "One Dashboard for Every Branch",
-    description:
-      "Multi-branch support meant business owners could track stock, sales and staff across every location without phone calls and spreadsheets.",
-  },
-  {
-    year: "2022",
-    title: "Enterprises Got the Same Clarity",
-    description:
-      "MartPoint ERP brought accounting, procurement and HR to manufacturers and distributors — replacing fragmented systems with one connected platform.",
-  },
-  {
-    year: "2024",
-    title: "Pharmacies Stopped Losing Money to Expired Stock",
-    description:
-      "Expiry and manufacturing date tracking gave regulated businesses precise control. Automated end-of-day backups protected every day's data.",
+      "The full retail suite launched: online stores, WhatsApp ordering, offline-first sales, PayPlan instalments, staff attendance, customer verification and loyalty rewards.",
   },
   {
     year: "2025",
@@ -86,10 +62,34 @@ const milestones = [
       "Multiple barcodes simplified bulk and unit pricing. QR menu codes let customers order directly from their tables, cutting wait times.",
   },
   {
-    year: "2026",
-    title: "Every Business Got a Digital Storefront",
+    year: "2024",
+    title: "Pharmacies Stopped Losing Money to Expired Stock",
     description:
-      "The full retail suite launched: online stores, WhatsApp ordering, offline-first sales, PayPlan instalments, staff attendance, customer verification and loyalty rewards.",
+      "Expiry and manufacturing date tracking gave regulated businesses precise control. Automated end-of-day backups protected every day's data.",
+  },
+  {
+    year: "2022",
+    title: "Enterprises Got the Same Clarity",
+    description:
+      "MartPoint ERP brought accounting, procurement and HR to manufacturers and distributors — replacing fragmented systems with one connected platform.",
+  },
+  {
+    year: "2021",
+    title: "One Dashboard for Every Branch",
+    description:
+      "Multi-branch support meant business owners could track stock, sales and staff across every location without phone calls and spreadsheets.",
+  },
+  {
+    year: "2020",
+    title: "First Retailers Ditched the Notebook",
+    description:
+      "MartPoint Retail launched with POS and real-time inventory. Shop owners could finally see what was selling while they were still selling it.",
+  },
+  {
+    year: "2019",
+    title: "Started With a Clear Mission",
+    description:
+      "MartPoint Solutions was founded to build technology that actually works for African businesses — not imported tools that break under local conditions.",
   },
 ]
 
@@ -129,7 +129,7 @@ export default function AboutPage() {
                     Running a business in Africa means dealing with realities that foreign software ignores. Internet drops mid-transaction. Customers pay by bank transfer. Stock runs out before you notice. Staff come and go. And every evening, someone sits down to count cash and reconcile a notebook.
                   </p>
                   <p>
-                    Avario Digitals was founded because we watched shop owners, pharmacy managers and restaurant operators struggle with tools that were never built for them. Expensive enterprise suites. Fragile apps that crash offline. Spreadsheet workflows that steal hours every day.
+                    MartPoint Solutions was founded because we watched shop owners, pharmacy managers and restaurant operators struggle with tools that were never built for them. Expensive enterprise suites. Fragile apps that crash offline. Spreadsheet workflows that steal hours every day.
                   </p>
                   <p>
                     So we built MartPoint differently. We started by sitting with real businesses — understanding their workflows, their frustrations and their ambitions. Every feature was shaped by those conversations. Offline-first sales. Transfer payment recording. Automatic stock alerts. Staff tracking that actually works.
@@ -241,15 +241,14 @@ export default function AboutPage() {
               {milestones.map((m, i) => (
                 <div key={m.year} className="flex gap-6">
                   <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 rounded-full bg-retail text-white flex items-center justify-center text-sm font-bold shrink-0">
-                      {i + 1}
+                    <div className="h-10 px-3 rounded-full bg-retail text-white flex items-center justify-center text-sm font-bold shrink-0">
+                      {m.year}
                     </div>
                     {i < milestones.length - 1 && (
                       <div className="w-px h-full bg-border mt-2" />
                     )}
                   </div>
                   <div className="pb-8">
-                    <span className="text-sm font-semibold text-retail">{m.year}</span>
                     <h3 className="text-lg font-bold text-foreground mt-1">{m.title}</h3>
                     <p className="text-muted-foreground leading-relaxed mt-1">{m.description}</p>
                   </div>

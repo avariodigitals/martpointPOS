@@ -2,12 +2,12 @@
   {
     "id": "what-is-martpoint",
     "question": "What is MartPoint and who owns it?",
-    "answer": "MartPoint is a complete retail commerce platform built by Avario Digitals, a African technology company. It includes POS, inventory management, online store, WhatsApp ordering, installment payments (PayPlan), and multi-branch operations — designed specifically for African businesses."
+    "answer": "MartPoint is a complete retail commerce platform built by MartPoint Solutions, an African technology company. It includes POS, inventory management, online store, WhatsApp ordering, installment payments (PayPlan), and multi-branch operations — designed specifically for African businesses."
   },
   {
-    "id": "who-is-avario-digitals",
-    "question": "Who is Avario Digitals?",
-    "answer": "Avario Digitals is the African technology company that owns and develops MartPoint. Founded in 2019 and headquartered in Lagos, Avario Digitals builds software solutions specifically for African businesses, with a focus on retail and enterprise management."
+    "id": "who-is-martpoint-solutions",
+    "question": "Who is MartPoint Solutions?",
+    "answer": "MartPoint Solutions is the African technology company that owns and develops MartPoint. Founded in 2019 and headquartered in Lagos, MartPoint Solutions builds software solutions specifically for African businesses, with a focus on retail and enterprise management."
   },
   {
     "id": "martpoint-vs-pos",
@@ -22,7 +22,7 @@
   {
     "id": "how-much-does-martpoint-cost",
     "question": "How much does MartPoint cost?",
-    "answer": "MartPoint Retail Cloud costs ₦99,999 per year and includes 1 branch, 5 users and a Standard Online Store. The offline version costs ₦250,000 for licence and setup, with annual maintenance and license renewal applicable. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer."
+    "answer": "MartPoint Retail Cloud is billed annually in four plans — Basic ₦99,999, Standard ₦249,999, Premium ₦499,999 and Enterprise Retail ₦999,999 — each with included branches, users and catalogue limits. Standard Online Store is included in every plan. MartPoint Retail Offline is a separate one-time licence of ₦250,000 for one branch and five users, with optional Annual Care from year two. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer."
   },
   {
     "id": "does-martpoint-work-offline",
@@ -32,7 +32,7 @@
   {
     "id": "industries-supported",
     "question": "What types of businesses can use MartPoint?",
-    "answer": "MartPoint is built for supermarkets, mini marts, pharmacies, restaurants, fashion stores, electronics shops, and any retail business. MartPoint ERP also serves manufacturing, distribution, and larger enterprises with accounting, procurement, HR, and operational management."
+    "answer": "MartPoint Retail is built for supermarkets, mini marts, pharmacies, restaurants, fashion stores, electronics shops, and any retail business — from a single store to multi-branch operations."
   },
   {
     "id": "multi-branch",

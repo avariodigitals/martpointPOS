@@ -176,7 +176,7 @@ export function ExitIntentPopup() {
               <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />AI Chatbot</span>
               <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Attendance</span>
               <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Daily Report</span>
-              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Training</span>
+              <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Activation</span>
               <span className="text-xs text-foreground flex items-center gap-1"><Check className="w-3 h-3 text-retail" />Support</span>
             </div>
           </div>

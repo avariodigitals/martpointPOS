@@ -45,17 +45,20 @@ function browserTimeZone(): string {
   }
 }
 
-const productOptions = [
+const baseProductOptions = [
   { value: "retail", label: "MartPoint Retail" },
-  { value: "erp", label: "MartPoint ERP" },
   { value: "not-sure", label: "Not Sure — Need Guidance" },
 ]
+const erpProductOption = { value: "erp", label: "MartPoint ERP" }
 
 function waUrl(text: string) {
   return `https://wa.me/${WHATSAPP_NUMBER.replace("+", "")}?text=${encodeURIComponent(text)}`
 }
 
-export function DemoBooking({ partnerCode }: { partnerCode?: string }) {
+export function DemoBooking({ partnerCode, includeErpOption = false, productDefault = "not-sure" }: { partnerCode?: string; includeErpOption?: boolean; productDefault?: string }) {
+  const productOptions = includeErpOption
+    ? [baseProductOptions[0], erpProductOption, baseProductOptions[1]]
+    : baseProductOptions
   const [step, setStep] = useState<"pick" | "details" | "done">("pick")
   const [feed, setFeed] = useState<SlotFeed | null>(null)
   const [slotsError, setSlotsError] = useState("")
@@ -74,7 +77,7 @@ export function DemoBooking({ partnerCode }: { partnerCode?: string }) {
     formState: { errors },
   } = useForm<DetailsData>({
     resolver: zodResolver(detailsSchema),
-    defaultValues: { productInterest: "not-sure" },
+    defaultValues: { productInterest: productDefault },
   })
 
   const loadSlots = async () => {

@@ -17,14 +17,14 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Customer Stories — MartPoint Retail & Enterprise",
+  title: "Customer Stories — MartPoint Retail",
   description:
     "See how supermarkets, pharmacies, restaurants and retail chains across Africa use MartPoint to grow sales, reduce waste and take control of their operations.",
   alternates: {
     canonical: "/customer-stories",
   },
   openGraph: {
-    title: "Customer Stories — MartPoint Retail & Enterprise",
+    title: "Customer Stories — MartPoint Retail",
     description: "How African businesses use MartPoint to grow sales, reduce waste and take control of operations.",
     url: "https://martpoint.com.ng/customer-stories",
   },

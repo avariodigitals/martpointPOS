@@ -1,20 +1,34 @@
 /* ───────────────────────────  Estimate Calculator  ───────────────────────────
- * Public cost estimator for MartPoint. A short questionnaire captures the core
- * facts about a business, then a recommendation engine maps those facts onto the
- * MartPoint plan catalogue and returns an estimated cost range.
+ * Public cost estimator for MartPoint Retail. A short questionnaire captures
+ * the core facts about a business, then a recommendation engine maps those
+ * facts onto the Retail Cloud plan catalogue and returns an estimated cost
+ * range.
  *
- * Plan tiers (Basic / Standard / Premium / Enterprise) mirror the license limits
- * in the MartPoint Retail source catalogue (db_subscription_plans). Public-facing
- * plan names (Retail Cloud / Retail Offline / ERP Growth / Scale / Corporate) and
- * prices come from the admin-configured pricing settings so the estimator never
- * drifts from the /pricing page.
+ * Plan tiers (Basic / Standard / Premium / Enterprise Retail) and prices mirror
+ * the approved Retail licence matrix in lib/pricing-plans.ts (baseline: Pricing
+ * & Quotation Playbook v2.1). Admin-configured settings can override display
+ * prices so the estimator never drifts from the /pricing page.
  *
- * The internal tier label is computed for the sales team (used in the lead/email)
- * but is NOT surfaced to the visitor — the public UI only shows the plan name, an
- * estimated range, and a few high-level inclusions.
+ * Plan selection follows the commercial rule: quote the lowest valid
+ * plan/add-on combination; when that reaches or exceeds the next suitable
+ * plan's price, recommend the higher plan.
+ *
+ * The internal tier label is computed for the sales team (used in the
+ * lead/email) but is NOT surfaced to the visitor — the public UI only shows the
+ * plan name, an estimated range, and a few high-level inclusions.
  */
 
-/* ─── Public plan tiers (license limits from the retail source catalogue) ─── */
+import {
+  BRANCH_ADDON_ANNUAL,
+  CLOUD_PLANS,
+  OFFLINE_PLAN,
+  PRODUCT_PACK_ADDON_ANNUAL,
+  USER_PACK_ADDON_ANNUAL,
+  formatNairaAmount,
+  resolveCloudPlans,
+} from "./pricing-plans"
+
+/* ─── Public plan tiers (licence limits from the retail catalogue) ─── */
 export interface PlanTierLimits {
   tier: "Basic" | "Standard" | "Premium" | "Enterprise"
   branchLimit: number
@@ -35,11 +49,12 @@ export const PLAN_TIERS: PlanTierLimits[] = [
 ]
 
 /* ─── Normalised numeric pricing (built from admin settings on the server) ─── */
-export interface RetailPricingInput {
-  baseAnnual: number
-  branchAddonAnnual: number
-  branchesIncluded: number
-  usersIncluded: number
+export interface CloudPlanPriceInput {
+  tier: PlanTierLimits["tier"]
+  planId: string
+  name: string
+  annual: number
+  limits: PlanTierLimits
 }
 
 export interface OfflinePricingInput {
@@ -49,17 +64,12 @@ export interface OfflinePricingInput {
   supportRenewalAnnual: number
 }
 
-export interface ErpPricingTierInput {
-  name: string
-  baseMonthly: number | null // null => "Custom"
-  usersIncluded: number
-  branchesIncluded: number
-}
-
 export interface EstimatePricing {
-  retailCloud: RetailPricingInput
+  cloudPlans: CloudPlanPriceInput[]
+  branchAddonAnnual: number
+  userPackAnnual: number
+  productPackAnnual: number
   retailOffline: OfflinePricingInput
-  erp: ErpPricingTierInput[]
 }
 
 /* ─── Questionnaire answers ─── */
@@ -76,7 +86,9 @@ export interface EstimateAnswers {
   receiptHardware: string
   dataMigration: string
   offlineOperation: string
-  erpModules: string
+  /** Legacy field — retained for stored leads captured before the estimator
+   *  became Retail-only. No longer asked in the questionnaire. */
+  erpModules?: string
   trainingPreference: string
 }
 
@@ -95,7 +107,7 @@ export interface EstimateSubmission extends EstimateAnswers, EstimateContact {
 export interface Recommendation {
   line: "retail" | "erp"
   planName: string
-  /** Internal license tier — for the sales team only, not shown to the visitor. */
+  /** Internal licence tier — for the sales team only, not shown to the visitor. */
   internalTier: PlanTierLimits["tier"]
   rangeLow: number | null
   rangeHigh: number | null
@@ -106,7 +118,6 @@ export interface Recommendation {
 
 export interface EstimateResult {
   retail: Recommendation
-  erp: Recommendation
 }
 
 /* ─── Stored estimate (persisted on the lead record for admin review) ─── */
@@ -120,18 +131,20 @@ export interface StoredEstimateLeg {
 
 export interface StoredEstimate {
   retail: StoredEstimateLeg
-  erp: StoredEstimateLeg
+  /** Present only on estimates captured before the estimator went Retail-only. */
+  erp?: StoredEstimateLeg
 }
 
 export function toStoredEstimate(result: EstimateResult): StoredEstimate {
-  const leg = (rec: Recommendation): StoredEstimateLeg => ({
-    planName: rec.planName,
-    range: formatRange(rec),
-    tier: rec.internalTier,
-    inclusions: rec.inclusions,
-    rationale: rec.rationale,
-  })
-  return { retail: leg(result.retail), erp: leg(result.erp) }
+  return {
+    retail: {
+      planName: result.retail.planName,
+      range: formatRange(result.retail),
+      tier: result.retail.internalTier,
+      inclusions: result.retail.inclusions,
+      rationale: result.retail.rationale,
+    },
+  }
 }
 
 /* ─── Option metadata (labels + values) shared by the UI ─── */
@@ -205,19 +218,14 @@ export function parseNaira(value: string | number | undefined | null): number | 
 
 /** Format a number as Naira, e.g. 149998 -> "₦149,998". */
 export function formatNaira(n: number): string {
-  return "₦" + n.toLocaleString("en-NG")
+  return formatNairaAmount(n)
 }
 
-/** Resolve the highest license tier that satisfies branches, users and products. */
+/** Resolve the highest licence tier that satisfies branches, users and products. */
 export function resolveTier(branches: number, users: number, products: number): PlanTierLimits["tier"] {
-  let chosen: PlanTierLimits["tier"] = "Basic"
   for (const t of PLAN_TIERS) {
-    const fitsBranches = branches <= t.branchLimit
-    const fitsUsers = users <= t.userLimit
-    const fitsProducts = products <= t.productLimit
-    if (fitsBranches && fitsUsers && fitsProducts) {
-      chosen = t.tier
-      return chosen
+    if (branches <= t.branchLimit && users <= t.userLimit && products <= t.productLimit) {
+      return t.tier
     }
   }
   // Nothing fits cleanly → Enterprise
@@ -228,25 +236,63 @@ function branchCountBounds(value: string): [number, number] {
   return BRANCH_EXTRA[value] ?? [0, 0]
 }
 
-function staffUpperBound(value: string): number {
+function staffBounds(value: string): [number, number] {
   switch (value) {
-    case "1-5": return 5
-    case "6-15": return 15
-    case "16-30": return 30
-    case "31-50": return 50
-    case "50+": return 200
-    default: return 5
+    case "1-5": return [1, 5]
+    case "6-15": return [6, 15]
+    case "16-30": return [16, 30]
+    case "31-50": return [31, 50]
+    case "50+": return [51, 200]
+    default: return [1, 5]
   }
 }
 
-function productUpperBound(value: string): number {
+function productBounds(value: string): [number, number] {
   switch (value) {
-    case "up-to-500": return 500
-    case "500-2000": return 2000
-    case "2000-5000": return 5000
-    case "5000+": return 20000
-    default: return 500
+    case "up-to-500": return [1, 500]
+    case "500-2000": return [501, 2000]
+    case "2000-5000": return [2001, 5000]
+    case "5000+": return [5001, 20000]
+    default: return [1, 500]
   }
+}
+
+/* ─── Lowest valid plan/add-on combination ───
+ * For each plan, the mid-year add-on cost of any requirement that exceeds its
+ * included limits is added to the annual licence. The cheapest total wins;
+ * on a tie the higher-capacity plan is recommended.
+ */
+interface Requirements {
+  branches: number
+  users: number
+  products: number
+}
+
+interface PlanQuote {
+  plan: CloudPlanPriceInput
+  total: number
+  addonCost: number
+}
+
+function quotePlan(plan: CloudPlanPriceInput, reqs: Requirements, pricing: EstimatePricing): PlanQuote {
+  const extraBranches = Math.max(0, reqs.branches - plan.limits.branchLimit)
+  const extraUserPacks = Math.ceil(Math.max(0, reqs.users - plan.limits.userLimit) / 5)
+  const extraProductPacks = Math.ceil(Math.max(0, reqs.products - plan.limits.productLimit) / 500)
+  const addonCost =
+    extraBranches * pricing.branchAddonAnnual +
+    extraUserPacks * pricing.userPackAnnual +
+    extraProductPacks * pricing.productPackAnnual
+  return { plan, total: plan.annual + addonCost, addonCost }
+}
+
+function lowestCostPlan(reqs: Requirements, pricing: EstimatePricing): PlanQuote {
+  const quotes = pricing.cloudPlans.map((p) => quotePlan(p, reqs, pricing))
+  let best = quotes[0]
+  for (const q of quotes) {
+    if (q.total < best.total) best = q
+    else if (q.total === best.total && q.plan.limits.branchLimit > best.plan.limits.branchLimit) best = q
+  }
+  return best
 }
 
 /* ─── Recommendation engine ─── */
@@ -254,14 +300,12 @@ function productUpperBound(value: string): number {
 export function recommendRetail(answers: EstimateAnswers, pricing: EstimatePricing): Recommendation {
   const [minExtra, maxExtra] = branchCountBounds(answers.branches)
   const wantsOffline = answers.offlineOperation === "yes"
-  const cloud = pricing.retailCloud
   const offline = pricing.retailOffline
 
-  const tier = resolveTier(
-    Math.max(1, 1 + maxExtra),
-    staffUpperBound(answers.staffSize),
-    productUpperBound(answers.productCount),
-  )
+  const [, staffHigh] = staffBounds(answers.staffSize)
+  const [, productsHigh] = productBounds(answers.productCount)
+
+  const internalTier = resolveTier(Math.max(1, 1 + maxExtra), staffHigh, productsHigh)
 
   if (wantsOffline && offline.baseOneTime > 0) {
     const low = offline.baseOneTime + minExtra * offline.branchAddonOneTime
@@ -269,114 +313,48 @@ export function recommendRetail(answers: EstimateAnswers, pricing: EstimatePrici
     return {
       line: "retail",
       planName: "MartPoint Retail Offline",
-      internalTier: tier,
+      internalTier,
       rangeLow: low,
       rangeHigh: high,
-      period: "",
+      period: "one-time",
       inclusions: [
         "Works without internet",
-        "Local installation & setup",
+        "Local installation & activation",
         "Multi-branch (LAN connected)",
-        "Annual maintenance & license renewal applicable",
+        "First 12 months updates & standard support included",
+        `Optional Annual Care from year two (${formatNaira(offline.supportRenewalAnnual)}/year)`,
       ],
       rationale: "You indicated you need offline operation, so Retail Offline is the right fit.",
     }
   }
 
-  const low = cloud.baseAnnual + minExtra * cloud.branchAddonAnnual
-  const high = cloud.baseAnnual + maxExtra * cloud.branchAddonAnnual
+  const [staffLow] = staffBounds(answers.staffSize)
+  const [productsLow] = productBounds(answers.productCount)
+  const lowQuote = lowestCostPlan({ branches: 1 + minExtra, users: staffLow, products: productsLow }, pricing)
+  const highQuote = lowestCostPlan({ branches: 1 + maxExtra, users: staffHigh, products: productsHigh }, pricing)
+
   return {
     line: "retail",
-    planName: "MartPoint Retail Cloud",
-    internalTier: tier,
-    rangeLow: low,
-    rangeHigh: high,
+    planName: `MartPoint Retail Cloud — ${highQuote.plan.name}`,
+    internalTier,
+    rangeLow: lowQuote.total,
+    rangeHigh: highQuote.total,
     period: "/ year",
     inclusions: [
+      `${highQuote.plan.limits.branchLimit} branch${highQuote.plan.limits.branchLimit !== 1 ? "es" : ""} · ${highQuote.plan.limits.userLimit} users included`,
       "POS, inventory & online store",
       "WhatsApp ordering & invoices",
       "Loyalty, payments & reports",
-      "Multi-branch ready",
     ],
-    rationale: "Cloud keeps you connected across branches with the online store included.",
-  }
-}
-
-export function recommendErp(answers: EstimateAnswers, pricing: EstimatePricing): Recommendation {
-  const staff = staffUpperBound(answers.staffSize)
-  const wantsModules = answers.erpModules === "yes" || answers.erpModules === "maybe"
-  const branches = Math.max(1, 1 + branchCountBounds(answers.branches)[1])
-
-  const tiers = pricing.erp
-  const growth = tiers.find((t) => /growth/i.test(t.name))
-  const scale = tiers.find((t) => /scale/i.test(t.name))
-  const corporate = tiers.find((t) => /corporate|enterprise|custom/i.test(t.name))
-
-  // Corporate: very large staff, complex needs, or explicit enterprise signals
-  const isCorporate = staff > 100 || (answers.staffSize === "50+" && wantsModules) || branches > 10
-  // Scale: mid-size or needs advanced modules
-  const isScale = staff > 20 || wantsModules
-
-  let chosen: ErpPricingTierInput = growth || scale || corporate || tiers[0]
-  let rationale: string
-  if (isCorporate && corporate) {
-    chosen = corporate
-    rationale = "Your scale and module needs point to a tailored enterprise rollout."
-  } else if (isScale && scale) {
-    chosen = scale
-    rationale = "With your team size and module needs, the Scale edition fits best."
-  } else if (growth) {
-    chosen = growth
-    rationale = "For a smaller team getting started with systemised operations."
-  } else {
-    rationale = "A tailored enterprise rollout fits your needs."
-  }
-
-  const tier = resolveTier(branches, staff, productUpperBound(answers.productCount))
-
-  const inclusionsByPlan: Record<string, string[]> = {
-    growth: [
-      "Accounting & procurement",
-      "Basic HR & CRM",
-      "Up to 20 employees",
-      "Standard reports",
-    ],
-    scale: [
-      "Full accounting suite",
-      "Manufacturing, HR & approvals",
-      "Up to 100 employees",
-      "Priority support",
-    ],
-    corporate: [
-      "All modules included",
-      "Custom workflows & API access",
-      "Unlimited employees",
-      "Dedicated support team",
-    ],
-  }
-  const key = chosen.name.toLowerCase()
-  const inclusions =
-    inclusionsByPlan[key] ||
-    inclusionsByPlan[isCorporate ? "corporate" : isScale ? "scale" : "growth"]
-
-  const isCustom = chosen.baseMonthly == null || isCorporate
-  return {
-    line: "erp",
-    planName: isCorporate && corporate ? corporate.name : chosen.name.startsWith("MartPoint") ? chosen.name : `MartPoint ERP ${chosen.name}`,
-    internalTier: tier,
-    rangeLow: isCustom ? null : chosen.baseMonthly,
-    rangeHigh: isCustom ? null : chosen.baseMonthly,
-    period: isCustom ? "" : "/ month",
-    inclusions,
-    rationale,
+    rationale:
+      highQuote.addonCost > 0
+        ? `${highQuote.plan.name} plus capacity add-ons is the lowest-cost fit for your size.`
+        : `${highQuote.plan.name} covers your branches, staff and catalogue within its included limits.`,
   }
 }
 
 export function buildEstimate(answers: EstimateAnswers, pricing: EstimatePricing): EstimateResult {
-  return {
-    retail: recommendRetail(answers, pricing),
-    erp: recommendErp(answers, pricing),
-  }
+  return { retail: recommendRetail(answers, pricing) }
 }
 
 /* ─── Range formatting for the UI ─── */
@@ -399,31 +377,43 @@ interface RawPlan {
   supportRenewal?: string
 }
 
+const TIER_ORDER: PlanTierLimits["tier"][] = ["Basic", "Standard", "Premium", "Enterprise"]
+const PLAN_ID_TO_TIER: Record<string, PlanTierLimits["tier"]> = {
+  basic: "Basic",
+  standard: "Standard",
+  premium: "Premium",
+  "enterprise-retail": "Enterprise",
+}
+
 export function buildPricingFromSettings(raw: Record<string, unknown> | undefined | null): EstimatePricing {
   const pricing = (raw as Record<string, unknown> | undefined) || {}
-  const cloud = (pricing.cloud as RawPlan | undefined) || {}
   const offline = (pricing.offline as RawPlan | undefined) || {}
-  const erp = Array.isArray(pricing.erp) ? (pricing.erp as RawPlan[]) : []
+
+  const resolved = resolveCloudPlans({ pricing })
+
+  const cloudPlans: CloudPlanPriceInput[] = TIER_ORDER.map((tier) => {
+    const limits = PLAN_TIERS.find((t) => t.tier === tier) as PlanTierLimits
+    const plan = resolved.find((p) => PLAN_ID_TO_TIER[p.id] === tier)
+    return {
+      tier,
+      planId: plan?.id ?? tier.toLowerCase(),
+      name: plan?.displayName ?? tier,
+      annual: plan?.annualPrice ?? (CLOUD_PLANS.find((c) => PLAN_ID_TO_TIER[c.id] === tier)?.annualPrice ?? 0),
+      limits,
+    }
+  })
 
   return {
-    retailCloud: {
-      baseAnnual: parseNaira(cloud.price) ?? 99999,
-      branchAddonAnnual: parseNaira(cloud.branchAddonPrice) ?? 49999,
-      branchesIncluded: cloud.branchesIncluded ?? 1,
-      usersIncluded: cloud.usersIncluded ?? 5,
-    },
+    cloudPlans,
+    branchAddonAnnual: BRANCH_ADDON_ANNUAL,
+    userPackAnnual: USER_PACK_ADDON_ANNUAL,
+    productPackAnnual: PRODUCT_PACK_ADDON_ANNUAL,
     retailOffline: {
-      baseOneTime: parseNaira(offline.price) ?? 250000,
-      branchAddonOneTime: parseNaira(offline.branchAddonPrice) ?? 100000,
-      branchesIncluded: offline.branchesIncluded ?? 1,
-      supportRenewalAnnual: parseNaira(offline.supportRenewal) ?? 50000,
+      baseOneTime: parseNaira(offline.price) ?? OFFLINE_PLAN.licencePrice,
+      branchAddonOneTime: parseNaira(offline.branchAddonPrice) ?? OFFLINE_PLAN.extraBranchOneTime,
+      branchesIncluded: offline.branchesIncluded ?? OFFLINE_PLAN.branchesIncluded,
+      supportRenewalAnnual: parseNaira(offline.supportRenewal) ?? OFFLINE_PLAN.annualCarePrice,
     },
-    erp: erp.map((p, i) => ({
-      name: p.name || ["Growth", "Scale", "Corporate"][i] || `Plan ${i + 1}`,
-      baseMonthly: parseNaira(p.price),
-      usersIncluded: p.usersIncluded ?? 5,
-      branchesIncluded: p.branchesIncluded ?? 1,
-    })),
   }
 }
 
@@ -441,12 +431,10 @@ export function buildEstimateWhatsAppMessage(answers: EstimateAnswers, contact: 
     `Products: ${PRODUCT_COUNT_OPTIONS.find((o) => o.value === answers.productCount)?.label || answers.productCount}`,
     `Online store: ${answers.onlineStore}`,
     `Offline operation: ${answers.offlineOperation}`,
-    `ERP modules: ${answers.erpModules}`,
     `Hardware: ${answers.hardwareAvailable}`,
     `Training: ${answers.trainingPreference}`,
     "",
-    `Retail recommendation: ${result.retail.planName} — ${formatRange(result.retail)}`,
-    `ERP recommendation: ${result.erp.planName} — ${formatRange(result.erp)}`,
+    `Recommended: ${result.retail.planName} — ${formatRange(result.retail)}`,
   ]
   if (contact.notes) lines.push("", `Notes: ${contact.notes}`)
   lines.push("", "Can we take this forward?")

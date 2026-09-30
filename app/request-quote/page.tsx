@@ -8,7 +8,7 @@ import { BadgeCheck } from "lucide-react"
 export const metadata: Metadata = {
   title: "Request a Quote",
   description:
-    "Get a custom quote for MartPoint Retail or ERP. Tailored pricing for your business size and needs.",
+    "Get a custom quote for MartPoint Retail. Tailored pricing for your business size and needs.",
   alternates: {
     canonical: "/request-quote",
   },
@@ -23,6 +23,8 @@ export default async function RequestQuotePage({
   const partnerCode = typeof sp.partner === "string" ? sp.partner.toUpperCase().trim() : ""
   const partner = partnerCode ? await getPublicPartnerByPartnerId(partnerCode) : null
   const validPartner = partner && partner.status === "ACTIVE" ? partner : null
+  // ERP enquiries arrive via the dedicated ?product=erp route only.
+  const isErp = typeof sp.product === "string" && sp.product.toLowerCase() === "erp"
 
   return (
     <>
@@ -42,7 +44,12 @@ export default async function RequestQuotePage({
                   </p>
                 </div>
               )}
-              <LeadForm pageType="quote" partnerCode={validPartner?.partnerId} />
+              <LeadForm
+                pageType="quote"
+                productDefault={isErp ? "erp" : "not-sure"}
+                includeErpOption={isErp}
+                partnerCode={validPartner?.partnerId}
+              />
             </div>
           </div>
         </section>

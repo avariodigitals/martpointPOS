@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "System Status — MartPoint by Avario Digitals",
+  title: "System Status — MartPoint Solutions",
   description:
     "Real-time status and uptime history for MartPoint services — POS, payments, APIs, sync, and dashboards. Subscribe for incident and maintenance updates.",
   alternates: { canonical: "/status" },

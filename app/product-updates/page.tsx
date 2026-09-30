@@ -15,7 +15,7 @@ import {
 export const metadata: Metadata = {
   title: "Product Updates — MartPoint Changelog",
   description:
-    "Latest releases, improvements and upcoming features for MartPoint Retail and Enterprise. See what we have shipped and what is coming next.",
+    "Latest releases, improvements and upcoming features for MartPoint Retail. See what we have shipped and what is coming next.",
   alternates: {
     canonical: "/product-updates",
   },
@@ -234,7 +234,7 @@ export default function ProductUpdatesPage() {
             <SectionHeader
               label="Shipped"
               headline="Latest Releases"
-              description="New capabilities recently added to MartPoint Retail and Enterprise."
+              description="New capabilities recently added to MartPoint Retail."
             />
             <div className="mt-14 space-y-16">
               {latestReleases.map((group) => (

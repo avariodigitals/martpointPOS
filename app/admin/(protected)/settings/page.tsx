@@ -95,8 +95,19 @@ interface PricingPlan {
   ctaLink: string
 }
 
+interface CloudPlanForm {
+  id: string
+  name: string
+  price: string
+  badge: string
+  description: string
+  ctaText: string
+  ctaLink: string
+}
+
 interface PricingSettings {
   cloud: PricingPlan
+  cloudPlans: CloudPlanForm[]
   offline: PricingPlan
   erp: PricingPlan[]
 }
@@ -174,24 +185,30 @@ export default function AdminSettingsPage() {
       period: "/ Year",
       badge: "Most Popular",
       description: "1 branch · 5 users · Standard Online Store included.",
-      features: "POS Sales & Checkout\nInventory & Stock Control\nOnline Store\nWhatsApp Ordering & Invoice\nQR Menu Ordering\nPayment Links\nPayPlan™ Installment Plans\nLoyalty & Rewards\nCustomer Verification\nCollections Tracking\nAttendance (Face Capture)\nDaily Report\nMartpoint Assist\nTraining & Onboarding\nMobile & Desktop Access",
+      features: "POS Sales & Checkout\nInventory & Stock Control\nOnline Store\nWhatsApp Ordering & Invoice\nQR Menu Ordering\nPayment Links\nPayPlan™ Installment Plans\nLoyalty & Rewards\nCustomer Verification\nCollections Tracking\nAttendance (Face Capture)\nDaily Report\nMartpoint Assist\nActivation & Store Setup\nMobile & Desktop Access",
       branchesIncluded: 1,
       usersIncluded: 5,
-      branchAddonPrice: "₦49,999 / Year",
+      branchAddonPrice: "₦50,000 / Year",
       ctaText: "Get Started",
       ctaLink: "https://wa.me/+2348036028069",
     },
+    cloudPlans: [
+      { id: "basic", name: "Basic", price: "₦99,999", badge: "", description: "For a single store getting started.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
+      { id: "standard", name: "Standard", price: "₦249,999", badge: "Most Popular", description: "For growing stores with a few branches.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
+      { id: "premium", name: "Premium", price: "₦499,999", badge: "", description: "For established multi-branch retailers.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
+      { id: "enterprise-retail", name: "Enterprise Retail", price: "₦999,999", badge: "", description: "Our largest Retail Cloud capacity tier.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
+    ],
     offline: {
       name: "MartPoint Retail Offline",
       price: "₦250,000",
-      period: "",
+      period: "one-time",
       badge: "Offline",
-      description: "Full software with offline capability installed locally. Annual maintenance and license renewal applicable. Works without internet.",
-      features: "POS Sales & Checkout\nInventory & Stock Control\nReceipt Printing\nBarcode & SKU Management\nCustomer & Supplier Records\nStaff Attendance (Face Capture)\nDaily Sales Report\nMulti-Branch (LAN Connected)\nOffline-First Sync\nLocal Installation\nStaff Setup & Training",
+      description: "One-time licence for one branch and five users, installed locally. Works without internet. Includes the first 12 months of eligible updates and standard remote support.",
+      features: "POS Sales & Checkout\nInventory & Stock Control\nReceipt Printing\nBarcode & SKU Management\nCustomer & Supplier Records\nStaff Attendance (Face Capture)\nDaily Sales Report\nMulti-Branch (LAN Connected)\nWorks Without Internet\nLocal Installation\nFirst 12 Months Updates & Support",
       branchesIncluded: 1,
       usersIncluded: 5,
-      branchAddonPrice: "₦100,000",
-      supportRenewal: "₦50,000 / Year",
+      branchAddonPrice: "₦100,000 one-time",
+      supportRenewal: "₦150,000 / Year",
       ctaText: "Request Offline Setup",
       ctaLink: "https://wa.me/+2348036028069",
     },
@@ -272,6 +289,12 @@ export default function AdminSettingsPage() {
                 ? data.pricing.offline.features.join("\n")
                 : data.pricing.offline.features || prev.offline.features,
             },
+            cloudPlans: Array.isArray(data.pricing.cloudPlans)
+              ? data.pricing.cloudPlans.map((plan: CloudPlanForm, i: number) => ({
+                  ...(prev.cloudPlans.find((p) => p.id === plan.id) || prev.cloudPlans[i] || plan),
+                  ...plan,
+                }))
+              : prev.cloudPlans,
             erp: Array.isArray(data.pricing.erp)
               ? data.pricing.erp.map((plan: PricingPlan, i: number) => ({
                   ...(prev.erp[i] || plan),
@@ -1186,7 +1209,7 @@ export default function AdminSettingsPage() {
           <Card className={activeTab === "configuration" ? "hidden" : "lg:col-span-2"}>
             <CardHeader>
               <CardTitle>Pricing Plans</CardTitle>
-              <CardDescription>Edit Retail Cloud, Retail Offline, and ERP plan details shown across the site.</CardDescription>
+              <CardDescription>Edit Retail Cloud plan tiers, Retail Offline, and ERP plan details. Cloud plan capacity limits are set by the approved pricing baseline and are not editable here.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Cloud Plan */}
@@ -1295,6 +1318,93 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
 
+              {/* Retail Cloud Plan Tiers */}
+              {pricing.cloudPlans.map((plan, index) => (
+                <div key={plan.id} className="border border-border rounded-lg p-4 space-y-4">
+                  <h3 className="text-sm font-semibold text-foreground">Retail Cloud — {plan.name}</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Plan Name</label>
+                      <input
+                        type="text"
+                        value={plan.name}
+                        onChange={(e) => setPricing((prev) => {
+                          const next = [...prev.cloudPlans]
+                          next[index] = { ...next[index], name: e.target.value }
+                          return { ...prev, cloudPlans: next }
+                        })}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Badge</label>
+                      <input
+                        type="text"
+                        value={plan.badge}
+                        onChange={(e) => setPricing((prev) => {
+                          const next = [...prev.cloudPlans]
+                          next[index] = { ...next[index], badge: e.target.value }
+                          return { ...prev, cloudPlans: next }
+                        })}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Annual Price</label>
+                      <input
+                        type="text"
+                        value={plan.price}
+                        onChange={(e) => setPricing((prev) => {
+                          const next = [...prev.cloudPlans]
+                          next[index] = { ...next[index], price: e.target.value }
+                          return { ...prev, cloudPlans: next }
+                        })}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">CTA Text</label>
+                      <input
+                        type="text"
+                        value={plan.ctaText}
+                        onChange={(e) => setPricing((prev) => {
+                          const next = [...prev.cloudPlans]
+                          next[index] = { ...next[index], ctaText: e.target.value }
+                          return { ...prev, cloudPlans: next }
+                        })}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Description</label>
+                    <input
+                      type="text"
+                      value={plan.description}
+                      onChange={(e) => setPricing((prev) => {
+                        const next = [...prev.cloudPlans]
+                        next[index] = { ...next[index], description: e.target.value }
+                        return { ...prev, cloudPlans: next }
+                      })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">CTA Link</label>
+                    <input
+                      type="text"
+                      value={plan.ctaLink}
+                      onChange={(e) => setPricing((prev) => {
+                        const next = [...prev.cloudPlans]
+                        next[index] = { ...next[index], ctaLink: e.target.value }
+                        return { ...prev, cloudPlans: next }
+                      })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              ))}
+
               {/* Offline Plan */}
               <div className="border border-border rounded-lg p-4 space-y-4">
                 <h3 className="text-sm font-semibold text-foreground">Offline Plan</h3>
@@ -1395,7 +1505,7 @@ export default function AdminSettingsPage() {
               {/* ERP Plans */}
               {pricing.erp.map((plan, index) => (
                 <div key={plan.name} className="border border-border rounded-lg p-4 space-y-4">
-                  <h3 className="text-sm font-semibold text-foreground">ERP Plan — {plan.name}</h3>
+                  <h3 className="text-sm font-semibold text-foreground">ERP Plan — {plan.name} (internal, not shown on the public pricing page)</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Plan Name</label>
@@ -1540,6 +1650,7 @@ export default function AdminSettingsPage() {
               <Button type="button" onClick={() => doSave("pricing", {
                 pricing: {
                   cloud: { ...pricing.cloud, features: pricing.cloud.features.split("\n").map((f) => f.trim()).filter(Boolean) },
+                  cloudPlans: pricing.cloudPlans,
                   offline: { ...pricing.offline, features: pricing.offline.features.split("\n").map((f) => f.trim()).filter(Boolean) },
                   erp: pricing.erp.map((plan) => ({ ...plan, features: plan.features.split("\n").map((f) => f.trim()).filter(Boolean) })),
                 },

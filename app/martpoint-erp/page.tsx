@@ -114,13 +114,13 @@ export default function MartPointERPPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="erp">
-                  <Link href="/book-demo">
+                  <Link href="/book-demo?product=erp">
                     Book a Demo
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
                 <Button asChild variant="outline" size="lg">
-                  <Link href="/request-quote">Request a Quote</Link>
+                  <Link href="/request-quote?product=erp">Request a Quote</Link>
                 </Button>
               </div>
             </div>
@@ -279,13 +279,13 @@ export default function MartPointERPPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="erp">
-                  <Link href="/book-demo">
+                  <Link href="/book-demo?product=erp">
                     Book a Demo
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
                 <Button asChild variant="outline" size="lg">
-                  <Link href="/request-quote">Request a Quote</Link>
+                  <Link href="/request-quote?product=erp">Request a Quote</Link>
                 </Button>
               </div>
             </div>

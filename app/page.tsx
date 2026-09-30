@@ -16,7 +16,7 @@ import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 
 export const metadata: Metadata = {
   title: {
-    absolute: "MartPoint — #1 POS & ERP Software for Businesses in Nigeria",
+    absolute: "MartPoint — #1 POS & Retail Management Software for Businesses in Nigeria",
   },
   description:
     "All-in-one POS, inventory management, online store, WhatsApp ordering, loyalty rewards, and multi-branch management software built for African retail businesses. Supermarkets, pharmacies, restaurants, fashion stores & more.",
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     "restaurant POS system", "fashion store POS", "MartPoint POS",
     "multi-branch POS software", "offline POS system Nigeria",
     "WhatsApp ordering system", "online store Nigeria",
-    "business management software Africa", "ERP software Nigeria",
+    "business management software Africa",
     "retail management system", "stock management software",
     "best POS software Nigeria", "affordable POS system Africa",
     "inventory software in Nigeria", "inventory software for small business",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
     canonical: "/",
   },
   openGraph: {
-    title: "MartPoint — #1 POS & ERP Software for Businesses in Nigeria",
+    title: "MartPoint — #1 POS & Retail Management Software for Businesses in Nigeria",
     description:
       "All-in-one POS, inventory, online store, WhatsApp ordering, loyalty rewards & multi-branch management. Built for African retail businesses.",
     url: "https://martpoint.com.ng",

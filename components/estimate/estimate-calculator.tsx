@@ -12,7 +12,6 @@ import {
   Loader2,
   MessageCircle,
   Store,
-  Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { businessTypeOptions } from "@/lib/industries"
@@ -60,7 +59,6 @@ const emptyAnswers: EstimateAnswers = {
   receiptHardware: "",
   dataMigration: "",
   offlineOperation: "",
-  erpModules: "",
   trainingPreference: "",
 }
 
@@ -95,7 +93,6 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
         return (
           answers.onlineStore &&
           answers.offlineOperation &&
-          answers.erpModules &&
           answers.hardwareAvailable &&
           answers.trainingPreference
         )
@@ -164,9 +161,8 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
             advisor will review your estimate and reach out shortly.
           </p>
 
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
+          <div className="mt-8 max-w-sm mx-auto text-left">
             <RecSummaryCard rec={result.retail} icon={<Store className="w-5 h-5 text-retail" />} />
-            <RecSummaryCard rec={result.erp} icon={<Sparkles className="w-5 h-5 text-erp" />} />
           </div>
 
           <div className="mt-8 rounded-xl border border-retail/20 bg-retail-soft p-5">
@@ -303,7 +299,7 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
               {step === 2 && (
                 <StepWrapper
                   title="What do you need from your system?"
-                  subtitle="These answers shape whether Retail Cloud, Retail Offline, or ERP fits best."
+                  subtitle="These answers shape whether Retail Cloud or Retail Offline fits best."
                 >
                   <ChoiceGroup
                     label="Do you need an online store?"
@@ -316,12 +312,6 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
                     options={YES_NO_MAYBE}
                     value={answers.offlineOperation}
                     onChange={(v) => update("offlineOperation", v)}
-                  />
-                  <ChoiceGroup
-                    label="Do you need ERP modules (accounting, HR, procurement)?"
-                    options={YES_NO_MAYBE}
-                    value={answers.erpModules}
-                    onChange={(v) => update("erpModules", v)}
                   />
                   <ChoiceGroup
                     label="Do you already have hardware (POS, computer, tablet)?"
@@ -342,18 +332,13 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
               {step === 3 && (
                 <StepWrapper
                   title="Your estimated cost range"
-                  subtitle="Based on your answers, here are the MartPoint editions we'd recommend. Final pricing is confirmed after a quick conversation."
+                  subtitle="Based on your answers, here is the MartPoint Retail option we'd recommend. Final pricing is confirmed after a quick conversation."
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="max-w-md mx-auto">
                     <RecommendationCard
                       rec={result.retail}
                       icon={<Store className="w-5 h-5 text-retail" />}
                       accent="retail"
-                    />
-                    <RecommendationCard
-                      rec={result.erp}
-                      icon={<Sparkles className="w-5 h-5 text-erp" />}
-                      accent="erp"
                     />
                   </div>
                   <div className="mt-6 rounded-xl border border-border bg-muted/60 p-4">

@@ -22,7 +22,7 @@ import {
 export const metadata: Metadata = {
   title: "Help Centre — MartPoint Support",
   description:
-    "Find answers, guides and support for MartPoint Retail and Enterprise. Search our knowledge base or contact our support team.",
+    "Find answers, guides and support for MartPoint Retail. Search our knowledge base or contact our support team.",
   alternates: {
     canonical: "/help-centre",
   },
@@ -130,7 +130,7 @@ const categories = [
 const contactFAQs = [
   { q: "How do I contact MartPoint support?", a: "Message us on WhatsApp at +234 803 602 8069 or email hello@martpoint.com.ng. Our local support team responds within hours during business hours." },
   { q: "What are your support hours?", a: "Standard software support is available Monday to Friday, 9:00 a.m. to 5:00 p.m. West Africa Time. Messages received outside these hours are attended to on the next business day." },
-  { q: "Do you offer on-site support?", a: "Yes. For Enterprise clients and larger retail setups, we offer on-site training and technical support in major Nigerian cities." },
+  { q: "Do you offer on-site support?", a: "Yes. For larger retail setups, we offer on-site training and technical support in major Nigerian cities as separately scoped services." },
   { q: "Is there a self-service knowledge base?", a: "You are looking at it. Browse the categories above or reach out directly if you need personalised help." },
 ]
 
@@ -150,7 +150,7 @@ export default function HelpCentrePage() {
                 How Can We Help?
               </h1>
               <p className="mt-6 text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-                Find guides, troubleshooting steps and answers to common questions about MartPoint Retail and Enterprise.
+                Find guides, troubleshooting steps and answers to common questions about MartPoint Retail.
               </p>
               <div className="mt-8 flex items-center gap-3 max-w-lg mx-auto rounded-xl border border-border bg-card px-4 py-3">
                 <Search className="w-5 h-5 text-muted-foreground shrink-0" />

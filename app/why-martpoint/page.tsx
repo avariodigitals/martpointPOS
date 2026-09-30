@@ -64,7 +64,7 @@ const problems = [
 const differentiators = [
   { icon: Store, title: "Built for African Retail", desc: "Transfer payments, WhatsApp orders, offline sales and local tax rules are first-class features — not afterthoughts." },
   { icon: Puzzle, title: "One Connected Platform", desc: "Sales, stock, staff, payments and customers live in one system. One login. One source of truth." },
-  { icon: GitBranch, title: "Retail + Enterprise Growth", desc: "Start with MartPoint Retail. Grow into MartPoint Enterprise for accounting, HR and procurement. Same data. Same team." },
+  { icon: GitBranch, title: "Scales As You Grow", desc: "Start with a single store and grow to multiple branches, bigger catalogues and higher plan tiers on the same platform. Same data. Same team." },
   { icon: HandCoins, title: "PayPlan Built In", desc: "Offer customers installment plans, track deposits and collect balances without a separate system." },
   { icon: Lightbulb, title: "MartPoint Intelligence", desc: "AI-powered alerts tell you what is low, what is slow and what to reorder before you run out." },
   { icon: WifiOff, title: "Offline-Ready Architecture", desc: "Sales never stop. Work offline and sync automatically when connection returns. No downtime." },
@@ -96,12 +96,12 @@ const faqs = [
   { q: "Can I use MartPoint for multiple branches?", a: "Yes. MartPoint Retail supports unlimited branches from one central dashboard. You can transfer stock, compare sales and manage staff across every location." },
   { q: "Can I migrate my existing data?", a: "Yes. Our team helps migrate your products, stock levels and customer records from spreadsheets or other systems. Most migrations are completed within a few days." },
   { q: "Does MartPoint work for my industry?", a: "MartPoint serves supermarkets, pharmacies, restaurants, fashion stores, electronics stores, beauty businesses and multi-branch retailers. Each industry gets tailored features for its specific challenges." },
-  { q: "Can I grow into Enterprise later?", a: "Absolutely. Many customers start with MartPoint Retail and upgrade to MartPoint Enterprise when they need accounting, procurement, HR and advanced approvals. Your data transfers seamlessly." },
+  { q: "What if my business outgrows my plan?", a: "You can upgrade to a higher Retail Cloud plan or add capacity — extra branches, users or products — at any time. Your data, setup and team carry over without re-platforming." },
   { q: "Does it work without internet?", a: "Yes. MartPoint's offline-first architecture lets you process sales, manage stock and print receipts without an internet connection. Everything syncs automatically when you are back online." },
   { q: "What happens to my data if I stop using MartPoint?", a: "You own your data. We provide full exports in standard formats at any time. Your information is never held hostage." },
   { q: "How long does setup take?", a: "Most single-store businesses are up and running within a day. Multi-branch setups typically take 2-3 days including training. Our team guides you through every step." },
   { q: "Is there a free trial?", a: "We offer personalised demos where our team walks you through the features relevant to your business. Book a demo and we will show you exactly how MartPoint fits your operations." },
-  { q: "What support do I get after signing up?", a: "Every customer gets access to our local support team via WhatsApp and phone. Enterprise clients receive a dedicated account manager and on-site training where available." },
+  { q: "What support do I get after signing up?", a: "Every customer gets access to our local support team via WhatsApp and phone. Larger retail deployments can add a dedicated account manager and on-site training as separately scoped services." },
 ]
 
 export default function WhyMartPointPage() {
@@ -178,7 +178,7 @@ export default function WhyMartPointPage() {
                 The software available to these businesses was either too expensive, too fragile or built for markets with reliable infrastructure and card-only payments. None of it understood transfer payments. None of it handled offline sales gracefully. None of it scaled from one store to twenty without forcing a complete system change.
               </p>
               <p>
-                So we built MartPoint differently. Cash sales, transfer payments and credit tracking are core features — not plugins. Offline mode means you never stop selling. WhatsApp orders flow directly into your system. Multi-branch management happens from one login. And when you are ready for accounting, procurement and HR, <Link href="/martpoint-erp" className="text-retail font-medium hover:underline">MartPoint Enterprise</Link> picks up exactly where Retail leaves off.
+                So we built MartPoint differently. Cash sales, transfer payments and credit tracking are core features — not plugins. Offline mode means you never stop selling. WhatsApp orders flow directly into your system. Multi-branch management happens from one login. And as you grow, the same platform scales from a single store to a full multi-branch retail operation — without a system change.
               </p>
               <p>
                 Every line of code was written with African business realities in mind. That is why MartPoint feels different from the moment you start using it.
@@ -209,12 +209,12 @@ export default function WhyMartPointPage() {
           </div>
         </section>
 
-        {/* 5. From First Sale To Enterprise */}
+        {/* 5. From First Sale To Full Scale */}
         <section className="w-full bg-muted py-16 md:py-24">
           <div className="container-martpoint max-w-4xl">
             <SectionHeader
               label="Growth Path"
-              headline="From First Sale To Enterprise"
+              headline="From First Sale To Full Scale"
               description="Start simple. Grow powerful. Never re-platform."
             />
             <div className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -234,9 +234,9 @@ export default function WhyMartPointPage() {
               </div>
               <div className="rounded-xl border border-border bg-background p-8 text-center">
                 <div className="w-12 h-12 rounded-full bg-retail text-white font-bold text-base flex items-center justify-center mx-auto mb-4">3</div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">MartPoint Enterprise</h3>
+                <h3 className="text-lg font-semibold text-foreground mb-2">Enterprise Retail Capacity</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  When you need accounting, procurement, HR and advanced approvals, <Link href="/martpoint-erp" className="text-retail font-medium hover:underline">Enterprise</Link> extends your existing data. No migration. No disruption.
+                  Higher <Link href="/pricing" className="text-retail font-medium hover:underline">Retail Cloud plans</Link> extend your branches, users, catalogue and storefronts on the same platform. No migration. No disruption.
                 </p>
               </div>
             </div>

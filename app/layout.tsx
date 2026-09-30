@@ -30,21 +30,21 @@ export async function generateMetadata(): Promise<Metadata> {
 
   const meta: Metadata = {
     title: {
-      default: seo.title || "MartPoint — Retail & ERP Software for African Businesses",
+      default: seo.title || "MartPoint — Retail POS & Store Management Software for African Businesses",
       template: "%s — MartPoint",
     },
     description:
       seo.description ||
-      "Business management software built for African retail stores and enterprises. POS, inventory, accounting, and operations in one ecosystem.",
+      "Retail management software built for African stores. POS, inventory, online store, WhatsApp ordering and multi-branch control in one platform.",
     keywords: [
       "POS software Nigeria", "retail software Africa", "inventory management",
       "point of sale system", "supermarket software", "pharmacy POS",
-      "restaurant POS Nigeria", "ERP software Africa", "MartPoint",
+      "restaurant POS Nigeria", "MartPoint",
       "business management software", "multi-branch POS", "offline POS",
     ],
-    authors: [{ name: "MartPoint by Avario Digitals" }],
-    creator: "MartPoint by Avario Digitals",
-    publisher: "MartPoint by Avario Digitals",
+    authors: [{ name: "MartPoint Solutions" }],
+    creator: "MartPoint Solutions",
+    publisher: "MartPoint Solutions",
     metadataBase: new URL(baseUrl),
     openGraph: {
       type: "website",
@@ -57,7 +57,7 @@ export async function generateMetadata(): Promise<Metadata> {
           secureUrl: `${baseUrl}${ogImage}`,
           width: 1200,
           height: 630,
-          alt: seo.title || "MartPoint — Retail & ERP Software for African Businesses",
+          alt: seo.title || "MartPoint — Retail POS & Store Management Software for African Businesses",
           type: "image/webp",
         },
       ],

@@ -28,22 +28,28 @@ type LeadFormData = z.infer<typeof leadSchema>
 interface LeadFormProps {
   pageType: "demo" | "quote" | "contact"
   productDefault?: "retail" | "erp" | "not-sure"
+  /** Include the MartPoint ERP option — only set when the visitor arrived via
+   *  a dedicated ERP route (e.g. /request-quote?product=erp). */
+  includeErpOption?: boolean
   /** Set when the visitor arrived via a verified partner (e.g. MP-NG-00001). */
   partnerCode?: string
 }
 
 const businessTypes = businessTypeOptions
 
-const productOptions = [
+const baseProductOptions = [
   { value: "retail", label: "MartPoint Retail" },
-  { value: "erp", label: "MartPoint ERP" },
   { value: "not-sure", label: "Not Sure — Need Guidance" },
 ]
+const erpProductOption = { value: "erp", label: "MartPoint ERP" }
 
 const branchOptions = ["1", "2-3", "4-6", "7-10", "10+"]
 const staffOptions = ["1-5", "6-15", "16-30", "31-50", "50+"]
 
-export function LeadForm({ pageType, productDefault = "not-sure", partnerCode }: LeadFormProps) {
+export function LeadForm({ pageType, productDefault = "not-sure", includeErpOption = false, partnerCode }: LeadFormProps) {
+  const productOptions = includeErpOption
+    ? [baseProductOptions[0], erpProductOption, baseProductOptions[1]]
+    : baseProductOptions
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")

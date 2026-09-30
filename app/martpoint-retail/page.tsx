@@ -268,7 +268,7 @@ export default async function MartPointRetailPage() {
           },
           {
             question: "How much does MartPoint Retail cost?",
-            answer: "MartPoint Retail Cloud costs ₦99,999 per year and includes 1 branch, 5 users and a Standard Online Store. The offline version costs ₦250,000 for licence and setup, with annual maintenance and license renewal applicable. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
+            answer: "MartPoint Retail Cloud is billed annually in four plans — Basic ₦99,999, Standard ₦249,999, Premium ₦499,999 and Enterprise Retail ₦999,999 — each with included branches, users and catalogue limits. Standard Online Store is included in every plan. MartPoint Retail Offline is a separate one-time licence of ₦250,000 for one branch and five users, with optional Annual Care from year two. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
           },
           {
             question: "Does MartPoint upload my products for me?",
@@ -599,7 +599,7 @@ export default async function MartPointRetailPage() {
                     "Attendance (Face Capture)",
                     "Daily Report",
                     "AI Chatbot",
-                    "Training & Onboarding",
+                    "Activation & Store Setup",
                     "Mobile & Desktop Access",
                   ]).map((item: string) => (
                     <li key={item} className="flex items-center gap-2 text-sm text-foreground">
@@ -610,7 +610,7 @@ export default async function MartPointRetailPage() {
                 </ul>
                 <div className="mt-6 rounded-lg bg-retail-soft p-4 text-center">
                   <p className="text-sm font-semibold text-foreground">Includes {(cloud.branchesIncluded as number) ?? 1} Branch · {(cloud.usersIncluded as number) ?? 5} Users</p>
-                  <p className="text-base font-bold text-retail mt-1">Additional Branch: {cloud.branchAddonPrice || "₦49,999 / Year"}</p>
+                  <p className="text-base font-bold text-retail mt-1">Additional Branch: {cloud.branchAddonPrice || "₦50,000 / Year"}</p>
                 </div>
                 <div className="mt-6">
                   <Button asChild size="lg" variant="retail" className="w-full">
@@ -635,7 +635,7 @@ export default async function MartPointRetailPage() {
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{offline.period || ""}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {offline.description || "Full software installed locally. Annual maintenance and license renewal applicable. Works without internet."}
+                  {offline.description || "One-time licence for one branch and five users, installed locally. Works without internet. Includes the first 12 months of eligible updates and standard remote support."}
                 </p>
                 <ul className="mt-6 space-y-3">
                   {((offline.features as string[]) || [
@@ -647,9 +647,9 @@ export default async function MartPointRetailPage() {
                     "Staff Attendance (Face Capture)",
                     "Daily Sales Report",
                     "Multi-Branch (LAN Connected)",
-                    "Offline-First Sync",
+                    "Works Without Internet",
                     "Local Installation",
-                    "Staff Setup & Training",
+                    "First 12 Months Updates & Support",
                   ]).map((item: string) => (
                     <li key={item} className="flex items-center gap-2 text-sm text-foreground">
                       <Check className="w-4 h-4 text-retail shrink-0" />
@@ -658,10 +658,8 @@ export default async function MartPointRetailPage() {
                   ))}
                 </ul>
                 <div className="mt-6 rounded-lg bg-muted p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Additional Branch: {offline.branchAddonPrice || "₦100,000"}</p>
-                  {offline.supportRenewal && (
-                    <p className="text-xs text-muted-foreground mt-1">Annual Maintenance and License Renewal Applicable.</p>
-                  )}
+                  <p className="text-sm font-semibold text-foreground">Additional Branch: {offline.branchAddonPrice || "₦100,000 one-time"}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Optional Annual Care from year two: {(offline.supportRenewal as string) || "₦150,000 / Year"} for continued updates and standard remote support.</p>
                 </div>
                 <div className="mt-6">
                   <Button asChild size="lg" variant="outline" className="w-full">

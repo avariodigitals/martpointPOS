@@ -6,16 +6,16 @@ import { FAQPageSchema } from "@/components/structured-data"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 export const metadata: Metadata = {
-  title: "Frequently Asked Questions — MartPoint by Avario Digitals",
+  title: "Frequently Asked Questions — MartPoint Solutions",
   description:
-    "Find answers to common questions about MartPoint Retail, MartPoint ERP, PayPlan installment payments, pricing, offline support, and more. Built by Avario Digitals for African businesses.",
+    "Find answers to common questions about MartPoint Retail, PayPlan installment payments, pricing, offline support, and more. Built by MartPoint Solutions for African businesses.",
   alternates: {
     canonical: "/faqs",
   },
   openGraph: {
-    title: "Frequently Asked Questions — MartPoint by Avario Digitals",
+    title: "Frequently Asked Questions — MartPoint Solutions",
     description:
-      "Find answers to common questions about MartPoint Retail, MartPoint ERP, PayPlan, pricing, offline support, and more.",
+      "Find answers to common questions about MartPoint Retail, PayPlan, pricing, offline support, and more.",
     url: "https://martpoint.com.ng/faqs",
   },
 }

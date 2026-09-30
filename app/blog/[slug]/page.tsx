@@ -102,7 +102,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: `${post.title} — MartPoint Blog`,
     description: post.metaDescription || post.excerpt,
     keywords,
-    authors: [{ name: post.author || "MartPoint by Avario Digitals" }],
+    authors: [{ name: post.author || "MartPoint Solutions" }],
     alternates: {
       canonical: `/blog/${post.slug}`,
     },
@@ -114,7 +114,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       title: post.title,
       description: post.metaDescription || post.excerpt,
       publishedTime: post.publishedAt,
-      authors: [post.author || "MartPoint by Avario Digitals"],
+      authors: [post.author || "MartPoint Solutions"],
       images: post.coverImage
         ? [
             {

@@ -766,7 +766,7 @@ Message: {{message}}`,
     key: "estimate_submission",
     label: "Cost Estimator Submission (internal)",
     description: "Internal notification when a visitor completes the cost estimator. Recipient is controlled by the estimate_submission email route.",
-    variables: ["fullName", "businessName", "email", "phone", "businessType", "country", "branches", "staffSize", "productCount", "productOrService", "onlineStore", "hardwareAvailable", "receiptHardware", "dataMigration", "offlineOperation", "erpModules", "trainingPreference", "retailPlan", "retailRange", "retailTier", "erpPlan", "erpRange", "erpTier", "notes"],
+    variables: ["fullName", "businessName", "email", "phone", "businessType", "country", "branches", "staffSize", "productCount", "productOrService", "onlineStore", "hardwareAvailable", "receiptHardware", "dataMigration", "offlineOperation", "trainingPreference", "retailPlan", "retailRange", "retailTier", "notes"],
     subject: "New Estimate Request: {{fullName}} — {{businessName}}",
     text: `New estimate request from the Cost Estimator.
 
@@ -789,12 +789,10 @@ Hardware available: {{hardwareAvailable}}
 Receipt printer/scanner: {{receiptHardware}}
 Data migration: {{dataMigration}}
 Offline operation: {{offlineOperation}}
-ERP modules: {{erpModules}}
 Training: {{trainingPreference}}
 
-RECOMMENDED PLANS
-Retail: {{retailPlan}} ({{retailTier}}) — {{retailRange}}
-ERP: {{erpPlan}} ({{erpTier}}) — {{erpRange}}
+RECOMMENDED PLAN
+{{retailPlan}} ({{retailTier}}) — {{retailRange}}
 
 Notes: {{notes}}
 

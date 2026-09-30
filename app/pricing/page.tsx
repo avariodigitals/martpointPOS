@@ -87,7 +87,7 @@ function PlanCard({ plan }: { plan: ResolvedCloudPlan }) {
       <ul className="mt-5 space-y-2.5 flex-1 text-sm">
         <li className="flex items-center gap-2 text-foreground">
           <Check className="w-4 h-4 text-retail shrink-0" />
-          {plan.limits.branches} branch{plan.limits.branches !== 1 ? "es" : ""} · {plan.limits.namedUsers} named users
+          {plan.limits.branches} branch{plan.limits.branches !== 1 ? "es" : ""} · {plan.limits.namedUsers} users
         </li>
         <li className="flex items-center gap-2 text-foreground">
           <Check className="w-4 h-4 text-retail shrink-0" />

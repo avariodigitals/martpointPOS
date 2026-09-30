@@ -46,7 +46,7 @@
       "name": "MartPoint Retail Cloud",
       "price": "₦99,999",
       "period": "/ Year",
-      "badge": "Most Popular",
+      "badge": "Popular",
       "description": "1 branch · 5 users · Standard Online Store included.",
       "implementationNote": "Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
       "features": [
@@ -86,7 +86,7 @@
         "id": "standard",
         "name": "Standard",
         "price": "₦249,999",
-        "badge": "Most Popular",
+        "badge": "Popular",
         "description": "For growing stores with a few branches.",
         "ctaText": "Get Started",
         "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Standard%20plan.%20Can%20we%20talk%3F"

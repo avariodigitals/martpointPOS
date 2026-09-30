@@ -139,7 +139,7 @@ function getDefaultSettings() {
         name: "MartPoint Retail Cloud",
         price: "₦99,999",
         period: "/ Year",
-        badge: "Most Popular",
+        badge: "Popular",
         description: "1 branch · 5 users · Standard Online Store included.",
         implementationNote: "Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
         features: [

@@ -47,7 +47,7 @@ export const CLOUD_PLANS: CloudPlanBaseline[] = [
     id: "standard",
     name: "Standard",
     annualPrice: 249999,
-    badge: "Most Popular",
+    badge: "Popular",
     tagline: "For growing businesses with a few branches.",
     limits: { branches: 3, namedUsers: 10, mainProducts: 2000, productVariations: 50000, onlineProducts: 2000, services: 300, mediaGb: 5, storefronts: 1, customDomains: 1 },
   },
@@ -79,7 +79,7 @@ export interface Addon {
 
 export const ADDONS: Addon[] = [
   { id: "branch", label: "Extra Cloud branch", detail: "per branch, per year", annualPrice: 50000 },
-  { id: "users", label: "Five named users", detail: "per 5 users, per year", annualPrice: 25000 },
+  { id: "users", label: "Five users", detail: "per 5 users, per year", annualPrice: 25000 },
   { id: "products", label: "500 main products", detail: "per 500 products, per year", annualPrice: 15000 },
   { id: "variations", label: "10,000 product variations", detail: "per 10,000 variations, per year", annualPrice: 25000 },
   { id: "services", label: "100 services", detail: "per 100 services, per year", annualPrice: 10000 },
@@ -167,7 +167,7 @@ export const COMPARISON_GROUPS: ComparisonGroup[] = [
     rows: [
       { label: "Annual licence", values: ["₦99,999", "₦249,999", "₦499,999", "₦999,999"] },
       { label: "Branches", values: ["1", "3", "5", "10"] },
-      { label: "Named users", values: ["5", "10", "25", "50"] },
+      { label: "Users", values: ["5", "10", "25", "50"] },
       { label: "Main products", values: ["500", "2,000", "5,000", "10,000"] },
       { label: "Product variations", values: ["10,000", "50,000", "150,000", "500,000"] },
       { label: "Online store products", values: ["500", "2,000", "5,000", "20,000"] },

@@ -6,7 +6,7 @@ effective 8 September 2026* (supplied in the Retail Pricing brief; signature fie
 
 ## Retail Cloud — annual licences
 
-| Plan | Annual licence | Branches | Named users | Main products | Product variations | Online products | Services | Media | Storefronts | Custom domains |
+| Plan | Annual licence | Branches | Users | Main products | Product variations | Online products | Services | Media | Storefronts | Custom domains |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Basic | ₦99,999 | 1 | 5 | 500 | 10,000 | 500 | 100 | 2 GB | 1 | 1 |
 | Standard | ₦249,999 | 3 | 10 | 2,000 | 50,000 | 2,000 | 300 | 5 GB | 1 | 1 |

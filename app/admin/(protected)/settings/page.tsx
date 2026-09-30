@@ -183,7 +183,7 @@ export default function AdminSettingsPage() {
       name: "MartPoint Retail Cloud",
       price: "₦99,999",
       period: "/ Year",
-      badge: "Most Popular",
+      badge: "Popular",
       description: "1 branch · 5 users · Standard Online Store included.",
       features: "POS Sales & Checkout\nInventory & Stock Control\nOnline Store\nWhatsApp Ordering & Invoice\nQR Menu Ordering\nPayment Links\nPayPlan™ Installment Plans\nLoyalty & Rewards\nCustomer Verification\nCollections Tracking\nAttendance (Face Capture)\nDaily Report\nMartpoint Assist\nActivation & Store Setup\nMobile & Desktop Access",
       branchesIncluded: 1,
@@ -194,7 +194,7 @@ export default function AdminSettingsPage() {
     },
     cloudPlans: [
       { id: "basic", name: "Basic", price: "₦99,999", badge: "", description: "For a single store getting started.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
-      { id: "standard", name: "Standard", price: "₦249,999", badge: "Most Popular", description: "For growing stores with a few branches.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
+      { id: "standard", name: "Standard", price: "₦249,999", badge: "Popular", description: "For growing businesses with a few branches.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
       { id: "premium", name: "Premium", price: "₦499,999", badge: "", description: "For established multi-branch retailers.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
       { id: "enterprise-retail", name: "Enterprise Retail", price: "₦999,999", badge: "", description: "Our largest Retail Cloud capacity tier.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
     ],

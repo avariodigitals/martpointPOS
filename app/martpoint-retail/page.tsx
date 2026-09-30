@@ -581,7 +581,7 @@ export default async function MartPointRetailPage() {
               <div className="relative rounded-2xl border-2 border-retail bg-card p-8 shadow-sm">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="inline-block rounded-full bg-retail px-4 py-1 text-xs font-bold uppercase tracking-wider text-white">
-                    {cloud.badge || "Most Popular"}
+                    {cloud.badge || "Popular"}
                   </span>
                 </div>
                 <h3 className="text-xl font-bold text-foreground mt-2">{cloud.name || "MartPoint Retail Cloud"}</h3>

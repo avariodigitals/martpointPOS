@@ -163,7 +163,7 @@ const capabilities = [
   {
     icon: Store,
     title: "See Every Branch",
-    description: "Compare sales across locations, transfer stock between stores and manage centrally. One view of your entire operation.",
+    description: "Compare sales across locations, transfer stock between branches and manage centrally. One view of your entire operation.",
   },
   {
     icon: BarChart3,
@@ -239,8 +239,20 @@ const trustedBy = [
 export default async function MartPointRetailPage() {
   const settings = await readSettings()
   const pricing = (settings?.pricing as Record<string, unknown>) || {}
-  const cloud = (pricing.cloud as Record<string, any>) || {}
-  const offline = (pricing.offline as Record<string, any>) || {}
+  const cloud = (pricing.cloud as {
+    name?: string
+    price?: string
+    period?: string
+    badge?: string
+    description?: string
+    implementationNote?: string
+    features?: string[]
+    branchesIncluded?: number
+    usersIncluded?: number
+    branchAddonPrice?: string
+    ctaLink?: string
+    ctaText?: string
+  }) || {}
 
   return (
     <>
@@ -268,7 +280,7 @@ export default async function MartPointRetailPage() {
           },
           {
             question: "How much does MartPoint Retail cost?",
-            answer: "MartPoint Retail Cloud is billed annually in four plans — Basic ₦99,999, Standard ₦249,999, Premium ₦499,999 and Enterprise Retail ₦999,999 — each with included branches, users and catalogue limits. Standard Online Store is included in every plan. MartPoint Retail Offline is a separate one-time licence for one branch and five users, priced per setup on request, with optional Annual Care from year two. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
+            answer: "MartPoint Retail Cloud is billed annually in four plans — Basic ₦99,999, Standard ₦249,999, Premium ₦499,999 and Enterprise Retail ₦999,999 — each with included branches, users and catalogue limits. Standard Online Store is included in every plan. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
           },
           {
             question: "Does MartPoint upload my products for me?",
@@ -378,7 +390,7 @@ export default async function MartPointRetailPage() {
           <div className="container-martpoint">
             <SectionHeader
               headline="Built For The Way Retail Businesses Operate"
-              description="Whether you run a single store or multiple branches, MartPoint Retail helps you stay in control."
+              description="Whether you run a single business or multiple branches, MartPoint Retail helps you stay in control."
             />
             <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {whoUses.map((item) => (
@@ -564,7 +576,7 @@ export default async function MartPointRetailPage() {
             </div>
 
             {/* Pricing Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto mb-16">
+            <div className="grid grid-cols-1 gap-6 max-w-xl mx-auto mb-16">
               {/* Cloud Plan */}
               <div className="relative rounded-2xl border-2 border-retail bg-card p-8 shadow-sm">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -616,55 +628,6 @@ export default async function MartPointRetailPage() {
                   <Button asChild size="lg" variant="retail" className="w-full">
                     <a href={(cloud.ctaLink as string) || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
                       {(cloud.ctaText as string) || "Get Started"}
-                    </a>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Offline Plan */}
-              <div className="relative rounded-2xl border border-border bg-card p-8 shadow-sm">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="inline-block rounded-full bg-foreground px-4 py-1 text-xs font-bold uppercase tracking-wider text-white">
-                    {offline.badge || "Offline"}
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-foreground mt-2">{offline.name || "MartPoint Retail Offline"}</h3>
-                <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">One-time licence</p>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-4xl sm:text-5xl font-extrabold text-foreground">On request</span>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">Priced per setup — tell us about yours</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {offline.description || "One-time licence for one branch and five users, installed locally. Works without internet. Includes the first 12 months of eligible updates and standard remote support."}
-                </p>
-                <ul className="mt-6 space-y-3">
-                  {((offline.features as string[]) || [
-                    "POS Sales & Checkout",
-                    "Inventory & Stock Control",
-                    "Receipt Printing",
-                    "Barcode & SKU Management",
-                    "Customer & Supplier Records",
-                    "Staff Attendance (Face Capture)",
-                    "Daily Sales Report",
-                    "Multi-Branch (LAN Connected)",
-                    "Works Without Internet",
-                    "Local Installation",
-                    "First 12 Months Updates & Support",
-                  ]).map((item: string) => (
-                    <li key={item} className="flex items-center gap-2 text-sm text-foreground">
-                      <Check className="w-4 h-4 text-retail shrink-0" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-6 rounded-lg bg-muted p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Includes 1 branch · 5 users · local installation</p>
-                  <p className="text-xs text-muted-foreground mt-1">Optional Annual Care from year two keeps updates and standard remote support active.</p>
-                </div>
-                <div className="mt-6">
-                  <Button asChild size="lg" variant="outline" className="w-full">
-                    <a href={(offline.ctaLink as string) || "https://wa.me/+2348036028069?text=Hi%2C%20I%27d%20like%20a%20quote%20for%20MartPoint%20Retail%20Offline.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
-                      {(offline.ctaText as string) || "Request Offline Pricing"}
                     </a>
                   </Button>
                 </div>

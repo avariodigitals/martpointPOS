@@ -50,10 +50,10 @@ price difference × remaining billing months ÷ 12 (stated in FAQ; sales-execute
 
 ## MartPoint Retail Offline — separate one-time licence
 
-> **Owner-directed change:** Offline is **quote-only** — no public price is displayed anywhere on
-> the site (pricing page, Retail landing page, FAQs, homepage, estimator). The site presents it as
-> a one-time licence "priced per setup — on request". The figures below are the internal baseline,
-> retained for quoting; they must not be published.
+> **Owner-directed change:** Offline is **removed from the public website entirely** — no card,
+> no price, no product listing on `/pricing`, `/martpoint-retail`, FAQs, homepage, estimator or
+> structured data. The figures below are the internal baseline, retained for quoting; they must
+> not be published.
 
 | Item | Internal terms (not published) |
 |---|---|
@@ -85,8 +85,8 @@ Metered services have no included allowance unless an accepted offer specifies o
 ## Billing position
 
 - Retail Cloud: **annual** billing; downgrades at renewal, no mid-term credit.
-- Retail Offline: **one-time** licence + optional Annual Care — **public pricing on request only**
-  (owner decision; estimator returns a custom quote, not a figure).
+- Retail Offline: **one-time** licence + optional Annual Care — **not listed on the public website
+  at all** (owner decision); sold only through direct conversation.
 - ERP: retained for existing customers/direct enquiries; **no public ERP pricing anywhere**, including
   the estimator — visitors who flag ERP interest get a "Custom quote" leg and a consultation.
   Retail remains the sole priced sales journey.

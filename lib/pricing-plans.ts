@@ -40,7 +40,7 @@ export const CLOUD_PLANS: CloudPlanBaseline[] = [
     name: "Basic",
     annualPrice: 99999,
     badge: "",
-    tagline: "For a single store getting started.",
+    tagline: "For a single business getting started.",
     limits: { branches: 1, namedUsers: 5, mainProducts: 500, productVariations: 10000, onlineProducts: 500, services: 100, mediaGb: 2, storefronts: 1, customDomains: 1 },
   },
   {
@@ -48,7 +48,7 @@ export const CLOUD_PLANS: CloudPlanBaseline[] = [
     name: "Standard",
     annualPrice: 249999,
     badge: "Most Popular",
-    tagline: "For growing stores with a few branches.",
+    tagline: "For growing businesses with a few branches.",
     limits: { branches: 3, namedUsers: 10, mainProducts: 2000, productVariations: 50000, onlineProducts: 2000, services: 300, mediaGb: 5, storefronts: 1, customDomains: 1 },
   },
   {
@@ -201,7 +201,7 @@ export const COMPARISON_GROUPS: ComparisonGroup[] = [
     ],
   },
   {
-    title: "Grow your store",
+    title: "Grow your business",
     rows: [
       { label: "Customer import/export & bulk editing", values: ["yes", "yes", "yes", "yes"] },
       { label: "Automatic payment reconciliation", values: ["yes", "yes", "yes", "yes"] },

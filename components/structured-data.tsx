@@ -248,15 +248,6 @@ export function LocalBusinessSchema() {
             applicationCategory: "BusinessApplication",
           },
         },
-        {
-          "@type": "Offer",
-          itemOffered: {
-            "@type": "SoftwareApplication",
-            name: "MartPoint Retail Offline",
-            description: "One-time locally installed retail licence for stores that need to work without internet.",
-            applicationCategory: "BusinessApplication",
-          },
-        },
       ],
     },
     aggregateRating: {

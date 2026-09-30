@@ -47,10 +47,10 @@ matrix in the brief; formal sign-off remains **unverified** and is listed as an 
 
 ## Addendum — owner-directed updates (post-review pass)
 
-1. **Retail Offline is quote-only.** The ₦250,000 licence, ₦100,000 extra branch and ₦150,000 Annual
-   Care figures are no longer displayed on any public surface (`/pricing`, `/martpoint-retail`, FAQs,
-   homepage, estimator). Public copy reads "priced per setup — on request". The internal baseline
-   stays in `lib/pricing-plans.ts` and admin settings for quoting.
+1. **Retail Offline is off the public website entirely.** No card, price or product listing on
+   `/pricing`, `/martpoint-retail`, FAQs, homepage, estimator or structured data — superseding the
+   earlier quote-only presentation. The internal baseline stays in `lib/pricing-plans.ts` and admin
+   settings for quoting.
 2. **Storefronts and custom domains = 1 on every plan.** Earlier drafts showing 2/3 on upper tiers
    were corrected in `CLOUD_PLANS`, `PLAN_TIERS` and the comparison matrix — no surface may show
    more than one storefront per plan.
@@ -62,8 +62,8 @@ matrix in the brief; formal sign-off remains **unverified** and is listed as an 
    international currencies are marked "Coming soon"** as later priorities, not live features.
 4. **Estimator: ERP stays but is quote-only.** A new "ERP interest" question adds a MartPoint ERP
    "Custom quote" card alongside the priced Retail recommendation — no ERP figure is shown anywhere,
-   including the estimator. Selecting offline operation likewise returns a quote-only Retail Offline
-   result.
+   including the estimator. Selecting offline operation no longer switches products; it is noted in
+   the rationale for the consultation.
 5. **Homepage product split** — the "One-Time Licence / MartPoint Retail Offline" card was replaced
    with a four-plan pricing teaser linking to `/pricing`; the section headline moved from
    "Two ways to run it" to a Retail-first message.

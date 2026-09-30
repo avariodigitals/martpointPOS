@@ -305,7 +305,7 @@ export function EstimateCalculator({ pricing, partnerCode }: EstimateCalculatorP
               {step === 2 && (
                 <StepWrapper
                   title="What do you need from your system?"
-                  subtitle="These answers shape whether Retail Cloud or Retail Offline fits best — and whether ERP should be part of the conversation."
+                  subtitle="These answers help us size the right Retail Cloud plan — and tell us whether ERP should be part of the conversation."
                 >
                   <ChoiceGroup
                     label="Do you need an online store?"

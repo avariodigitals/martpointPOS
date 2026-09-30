@@ -21,7 +21,6 @@
 import {
   BRANCH_ADDON_ANNUAL,
   CLOUD_PLANS,
-  OFFLINE_PLAN,
   PRODUCT_PACK_ADDON_ANNUAL,
   USER_PACK_ADDON_ANNUAL,
   formatNairaAmount,
@@ -57,19 +56,11 @@ export interface CloudPlanPriceInput {
   limits: PlanTierLimits
 }
 
-export interface OfflinePricingInput {
-  baseOneTime: number
-  branchAddonOneTime: number
-  branchesIncluded: number
-  supportRenewalAnnual: number
-}
-
 export interface EstimatePricing {
   cloudPlans: CloudPlanPriceInput[]
   branchAddonAnnual: number
   userPackAnnual: number
   productPackAnnual: number
-  retailOffline: OfflinePricingInput
 }
 
 /* ─── Questionnaire answers ─── */
@@ -323,26 +314,6 @@ export function recommendRetail(answers: EstimateAnswers, pricing: EstimatePrici
 
   const internalTier = resolveTier(Math.max(1, 1 + maxExtra), staffHigh, productsHigh)
 
-  if (wantsOffline) {
-    return {
-      line: "retail",
-      planName: "MartPoint Retail Offline",
-      internalTier,
-      rangeLow: null,
-      rangeHigh: null,
-      period: "one-time licence",
-      inclusions: [
-        "Works without internet",
-        "Local installation & activation",
-        "Multi-branch (LAN connected)",
-        "First 12 months updates & standard support included",
-        "Optional Annual Care available from year two",
-      ],
-      rationale:
-        "You indicated you need offline operation, so Retail Offline is the right fit. Offline licences are priced per setup — we'll confirm your quote in a quick conversation.",
-    }
-  }
-
   const [staffLow] = staffBounds(answers.staffSize)
   const [productsLow] = productBounds(answers.productCount)
   const lowQuote = lowestCostPlan({ branches: 1 + minExtra, users: staffLow, products: productsLow }, pricing)
@@ -362,9 +333,12 @@ export function recommendRetail(answers: EstimateAnswers, pricing: EstimatePrici
       "Loyalty, payments & reports",
     ],
     rationale:
-      highQuote.addonCost > 0
+      (highQuote.addonCost > 0
         ? `${highQuote.plan.name} plus capacity add-ons is the lowest-cost fit for your size.`
-        : `${highQuote.plan.name} covers your branches, staff and catalogue within its included limits.`,
+        : `${highQuote.plan.name} covers your branches, staff and catalogue within its included limits.`) +
+      (wantsOffline
+        ? " You flagged a need to work without internet — we'll confirm the best setup for that during your consultation."
+        : ""),
   }
 }
 
@@ -406,16 +380,6 @@ export function formatRange(rec: Recommendation): string {
 }
 
 /* ─── Build normalised pricing from the admin settings object ─── */
-interface RawPlan {
-  name?: string
-  price?: string
-  period?: string
-  branchesIncluded?: number
-  usersIncluded?: number
-  branchAddonPrice?: string
-  supportRenewal?: string
-}
-
 const TIER_ORDER: PlanTierLimits["tier"][] = ["Basic", "Standard", "Premium", "Enterprise"]
 const PLAN_ID_TO_TIER: Record<string, PlanTierLimits["tier"]> = {
   basic: "Basic",
@@ -426,7 +390,6 @@ const PLAN_ID_TO_TIER: Record<string, PlanTierLimits["tier"]> = {
 
 export function buildPricingFromSettings(raw: Record<string, unknown> | undefined | null): EstimatePricing {
   const pricing = (raw as Record<string, unknown> | undefined) || {}
-  const offline = (pricing.offline as RawPlan | undefined) || {}
 
   const resolved = resolveCloudPlans({ pricing })
 
@@ -447,12 +410,6 @@ export function buildPricingFromSettings(raw: Record<string, unknown> | undefine
     branchAddonAnnual: BRANCH_ADDON_ANNUAL,
     userPackAnnual: USER_PACK_ADDON_ANNUAL,
     productPackAnnual: PRODUCT_PACK_ADDON_ANNUAL,
-    retailOffline: {
-      baseOneTime: parseNaira(offline.price) ?? OFFLINE_PLAN.licencePrice,
-      branchAddonOneTime: parseNaira(offline.branchAddonPrice) ?? OFFLINE_PLAN.extraBranchOneTime,
-      branchesIncluded: offline.branchesIncluded ?? OFFLINE_PLAN.branchesIncluded,
-      supportRenewalAnnual: parseNaira(offline.supportRenewal) ?? OFFLINE_PLAN.annualCarePrice,
-    },
   }
 }
 

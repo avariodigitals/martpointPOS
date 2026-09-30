@@ -26,13 +26,12 @@ import {
   QrCode,
   ScanFace,
   ShoppingCart,
-  WifiOff,
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { readSettings } from "@/lib/settings"
 import {
   ADDONS,
   COMPARISON_GROUPS,
-  OFFLINE_PLAN,
   formatNairaAmount,
   resolveCloudPlans,
   type CellValue,
@@ -42,12 +41,12 @@ import {
 export const metadata: Metadata = {
   title: "Pricing — Retail POS Software Plans & Prices in Nigeria",
   description:
-    "Transparent annual pricing for MartPoint Retail Cloud, configured for your business type. Plans from ₦99,999/year plus a one-time Offline licence option for stores without reliable internet.",
+    "Transparent annual pricing for MartPoint Retail Cloud, configured for your business type. Plans from ₦99,999/year with an online store, WhatsApp ordering and payments included.",
   keywords: [
     "POS software price Nigeria", "affordable POS system",
     "retail software pricing", "retail POS cost Nigeria",
     "MartPoint pricing", "cheap POS system Africa",
-    "POS software subscription", "offline POS software",
+    "POS software subscription", "retail management software",
   ],
   alternates: {
     canonical: "/pricing",
@@ -55,17 +54,9 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Pricing — Retail POS Software Plans & Prices in Nigeria",
     description:
-      "Transparent annual pricing for MartPoint Retail Cloud. Plans from ₦99,999/year, plus a one-time Offline licence option.",
+      "Transparent annual pricing for MartPoint Retail Cloud. Plans from ₦99,999/year with online store, WhatsApp ordering and payments included.",
     url: "https://martpoint.com.ng/pricing",
   },
-}
-
-interface OfflinePlanData {
-  name?: string
-  description?: string
-  features?: string[]
-  ctaText?: string
-  ctaLink?: string
 }
 
 function PlanCard({ plan }: { plan: ResolvedCloudPlan }) {
@@ -147,7 +138,7 @@ const COMMON_INCLUSIONS: { icon: typeof ShoppingCart; label: string; desc: strin
   { icon: ScanFace, label: "Staff attendance", desc: "Face-capture clock-in for your team" },
   { icon: BarChart3, label: "Daily reports", desc: "Sales, stock and staff performance at a glance" },
   { icon: Bot, label: "AI assistant", desc: "Answers and guidance inside the platform" },
-  { icon: MonitorSmartphone, label: "Mobile & desktop access", desc: "Run your store from any device" },
+  { icon: MonitorSmartphone, label: "Mobile & desktop access", desc: "Run your business from any device" },
 ]
 
 function Cell({ value }: { value: CellValue }) {
@@ -221,34 +212,11 @@ const PRICING_FAQS = [
     q: "What costs are not included in the licence?",
     a: "Payment gateway fees, SMS/messaging, paid email, verification lookups, AI usage, domain registration or renewal, custom design, integrations, hardware, onsite work and travel are charged separately unless your accepted offer expressly bundles them. Connecting your own domain is included within your plan's domain allowance — buying the domain is not.",
   },
-  {
-    q: "Is MartPoint Retail Offline a subscription?",
-    a: "No. Retail Offline is a one-time licence covering one branch and five users, priced per setup on request. The first 12 months of eligible updates and standard remote support are included. From year two, optional Annual Care keeps updates and support active — your licensed software keeps working either way.",
-  },
 ]
 
 export default async function PricingPage() {
   const settings = await readSettings()
   const plans = resolveCloudPlans(settings)
-  const pricing = (settings?.pricing as Record<string, unknown>) || {}
-  const offline = (pricing.offline as OfflinePlanData) || {}
-
-  const offlineFeatures =
-    Array.isArray(offline.features) && offline.features.length > 0
-      ? offline.features
-      : [
-          "POS Sales & Checkout",
-          "Inventory & Stock Control",
-          "Receipt Printing",
-          "Barcode & SKU Management",
-          "Customer & Supplier Records",
-          "Staff Attendance (Face Capture)",
-          "Daily Sales Report",
-          "Multi-Branch (LAN Connected)",
-          "Works Without Internet",
-          "Local Installation",
-          "First 12 Months Updates & Support",
-        ]
 
   return (
     <>
@@ -283,42 +251,77 @@ export default async function PricingPage() {
               </div>
 
               {/* Plan comparison */}
-              <div className="mt-12 max-w-5xl mx-auto">
-                <h3 className="text-lg font-semibold text-foreground mb-4 text-center">
-                  Compare plans in detail
-                </h3>
-                <div className="overflow-x-auto rounded-xl border border-border bg-background">
-                  <table className="w-full min-w-[680px] text-sm">
+              <div className="mt-14 max-w-6xl mx-auto">
+                <div className="text-center mb-8">
+                  <h3 className="text-2xl font-bold tracking-tight text-foreground">
+                    Compare plans in detail
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Every capability, side by side.
+                  </p>
+                </div>
+                <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+                  <table className="w-full min-w-[760px] text-sm border-collapse">
                     <thead>
-                      <tr className="border-b border-border bg-muted/60">
-                        <th className="text-left px-4 py-3 font-semibold text-foreground sticky left-0 bg-muted/60 min-w-[200px]">
-                          Feature
+                      <tr className="border-b-2 border-border">
+                        <th className="text-left px-5 py-5 sticky left-0 bg-card z-10 min-w-[220px] align-bottom">
+                          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                            Features
+                          </span>
                         </th>
-                        {plans.map((p) => (
-                          <th key={p.id} className="text-center px-4 py-3 font-semibold text-foreground whitespace-nowrap">
-                            {p.displayName}
-                          </th>
-                        ))}
+                        {plans.map((p) => {
+                          const highlighted = p.badge !== ""
+                          return (
+                            <th
+                              key={p.id}
+                              className={cn(
+                                "px-4 py-5 text-center align-bottom min-w-[130px]",
+                                highlighted && "bg-retail-soft/60",
+                              )}
+                            >
+                              {highlighted && (
+                                <span className="inline-block rounded-full bg-retail px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white mb-2">
+                                  {p.badge}
+                                </span>
+                              )}
+                              <p className="text-base font-bold text-foreground whitespace-nowrap">
+                                {p.displayName}
+                              </p>
+                              <p className="text-xs font-normal text-muted-foreground mt-1 whitespace-nowrap">
+                                {p.priceText}<span className="text-muted-foreground/70"> / year</span>
+                              </p>
+                            </th>
+                          )
+                        })}
                       </tr>
                     </thead>
                     <tbody>
                       {COMPARISON_GROUPS.map((group) => (
                         <Fragment key={group.title}>
-                          <tr className="bg-muted/40 border-b border-border">
+                          <tr className="bg-muted/50">
                             <td
                               colSpan={plans.length + 1}
-                              className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-foreground sticky left-0 bg-muted/40"
+                              className="px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground sticky left-0 bg-muted/50 z-10"
                             >
                               {group.title}
                             </td>
                           </tr>
                           {group.rows.map((row) => (
-                            <tr key={row.label} className="border-b border-border last:border-0">
-                              <td className="px-4 py-3 text-muted-foreground sticky left-0 bg-background">
+                            <tr
+                              key={row.label}
+                              className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors"
+                            >
+                              <td className="px-5 py-3.5 text-foreground/80 sticky left-0 bg-card z-10">
                                 {row.label}
                               </td>
                               {row.values.map((v, i) => (
-                                <td key={i} className="px-4 py-3 text-center">
+                                <td
+                                  key={i}
+                                  className={cn(
+                                    "px-4 py-3.5 text-center",
+                                    plans[i]?.badge !== "" && "bg-retail-soft/40",
+                                  )}
+                                >
                                   <Cell value={v} />
                                 </td>
                               ))}
@@ -335,12 +338,12 @@ export default async function PricingPage() {
               </div>
 
               {/* Common inclusions */}
-              <div className="mt-12 max-w-4xl mx-auto">
-                <h3 className="text-lg font-semibold text-foreground mb-2 text-center">
+              <div className="mt-14 max-w-6xl mx-auto">
+                <h3 className="text-2xl font-bold tracking-tight text-foreground mb-2 text-center">
                   Every Retail Cloud plan includes
                 </h3>
-                <p className="text-sm text-muted-foreground text-center mb-6">
-                  One licence. Everything you need to sell — in store, online and on WhatsApp.
+                <p className="text-sm text-muted-foreground text-center mb-8">
+                  One licence. Everything your business needs to sell — in person, online and on WhatsApp.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {COMMON_INCLUSIONS.map((item) => (
@@ -361,15 +364,15 @@ export default async function PricingPage() {
               </div>
 
               {/* Add-ons */}
-              <div className="mt-12 max-w-4xl mx-auto">
+              <div className="mt-14 max-w-6xl mx-auto">
                 <h3 className="text-lg font-semibold text-foreground mb-2 text-center">
                   Need more capacity? Add only what you need.
                 </h3>
                 <p className="text-sm text-muted-foreground text-center mb-6">
                   Add-ons are billed annually and end with your subscription term.
                 </p>
-                <div className="overflow-x-auto rounded-xl border border-border bg-background">
-                  <table className="w-full min-w-[480px] text-sm">
+                <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+                  <table className="w-full min-w-[480px] text-sm border-collapse">
                     <thead>
                       <tr className="border-b border-border bg-muted/60">
                         <th className="text-left px-4 py-3 font-semibold text-foreground">Add-on</th>
@@ -389,69 +392,6 @@ export default async function PricingPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
-              </div>
-            </div>
-
-            {/* Retail Offline */}
-            <div>
-              <div className="max-w-3xl mx-auto text-center mb-10">
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-                  MartPoint Retail Offline
-                </h2>
-                <p className="mt-2 text-muted-foreground">
-                  Prefer a locally installed system that runs without internet? Retail Offline is a separate one-time licence — priced per setup, on request.
-                </p>
-              </div>
-              <div className="max-w-2xl mx-auto">
-                <div className="relative rounded-2xl border-2 border-retail bg-card p-8 shadow-sm">
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-retail px-4 py-1 text-xs font-bold uppercase tracking-wider text-white">
-                      <WifiOff className="w-3 h-3" />
-                      One-time licence
-                    </span>
-                  </div>
-                  <h3 className="text-xl font-bold text-foreground mt-2">{offline.name || OFFLINE_PLAN.name}</h3>
-                  <div className="mt-4 flex flex-col items-start">
-                    <span className="text-4xl sm:text-5xl font-extrabold text-retail">
-                      On request
-                    </span>
-                    <span className="text-muted-foreground">one-time licence — priced per setup</span>
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {offline.description ||
-                      `One-time licence for ${OFFLINE_PLAN.branchesIncluded} branch and ${OFFLINE_PLAN.usersIncluded} users, installed locally. Works without internet. Includes the first 12 months of eligible updates and standard remote support.`}
-                  </p>
-                  <ul className="mt-6 space-y-3">
-                    {offlineFeatures.map((item) => (
-                      <li key={item} className="flex items-center gap-2 text-sm text-foreground">
-                        <Check className="w-4 h-4 text-retail shrink-0" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-6 rounded-lg bg-retail-soft p-4 text-center space-y-1.5">
-                    <p className="text-sm font-semibold text-foreground">
-                      Includes {OFFLINE_PLAN.branchesIncluded} branch · {OFFLINE_PLAN.usersIncluded} users · local installation
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Optional Annual Care from year two keeps updates and standard remote support active. Without it, your licensed installation keeps working.
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Hosted Online Store is not included — it requires Retail Cloud or a separately quoted hosted arrangement.
-                    </p>
-                  </div>
-                  <div className="mt-6">
-                    <Button asChild size="lg" variant="retail" className="w-full">
-                      <a
-                        href={offline.ctaLink || "https://wa.me/+2348036028069?text=Hi%2C%20I%27d%20like%20a%20quote%20for%20MartPoint%20Retail%20Offline.%20Can%20we%20talk%3F"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {offline.ctaText || "Request Offline Pricing"}
-                      </a>
-                    </Button>
-                  </div>
                 </div>
               </div>
             </div>

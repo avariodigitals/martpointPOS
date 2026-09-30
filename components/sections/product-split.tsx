@@ -106,7 +106,7 @@ export function ProductSplit() {
             </div>
 
             <p className="text-muted-foreground leading-relaxed mb-8">
-              Four annual plans sized to your store. Every plan includes POS,
+              Four annual plans sized to your business. Every plan includes POS,
               inventory, your online storefront and WhatsApp ordering — pick
               the capacity that fits today, upgrade when you grow.
             </p>
@@ -139,11 +139,6 @@ export function ProductSplit() {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-
-            <p className="mt-5 text-xs text-muted-foreground text-center md:text-left">
-              Need to work without internet? MartPoint Retail Offline is a separate
-              one-time licence — pricing on request.
-            </p>
           </div>
         </div>
       </div>

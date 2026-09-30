@@ -14,6 +14,8 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
 import { readSettings } from "@/lib/settings"
+import { resolveCloudPlans } from "@/lib/pricing-plans"
+import { PlanCard } from "@/components/pricing/plan-card"
 import {
   ArrowRight,
   Check,
@@ -238,21 +240,7 @@ const trustedBy = [
 
 export default async function MartPointRetailPage() {
   const settings = await readSettings()
-  const pricing = (settings?.pricing as Record<string, unknown>) || {}
-  const cloud = (pricing.cloud as {
-    name?: string
-    price?: string
-    period?: string
-    badge?: string
-    description?: string
-    implementationNote?: string
-    features?: string[]
-    branchesIncluded?: number
-    usersIncluded?: number
-    branchAddonPrice?: string
-    ctaLink?: string
-    ctaText?: string
-  }) || {}
+  const plans = resolveCloudPlans(settings)
 
   return (
     <>
@@ -576,61 +564,10 @@ export default async function MartPointRetailPage() {
             </div>
 
             {/* Pricing Cards */}
-            <div className="grid grid-cols-1 gap-6 max-w-xl mx-auto mb-16">
-              {/* Cloud Plan */}
-              <div className="relative rounded-2xl border-2 border-retail bg-card p-8 shadow-sm">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="inline-block rounded-full bg-retail px-4 py-1 text-xs font-bold uppercase tracking-wider text-white">
-                    {cloud.badge || "Popular"}
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-foreground mt-2">{cloud.name || "MartPoint Retail Cloud"}</h3>
-                <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Starting from</p>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-4xl sm:text-5xl font-extrabold text-retail">{cloud.price || "₦99,999"}</span>
-                  <span className="text-muted-foreground">{cloud.period || "/ Year"}</span>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {cloud.description || "1 branch · 5 users · Standard Online Store included."}
-                </p>
-                {cloud.implementationNote && (
-                  <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{cloud.implementationNote as string}</p>
-                )}
-                <ul className="mt-6 space-y-3">
-                  {((cloud.features as string[]) || [
-                    "POS Sales & Checkout",
-                    "Inventory & Stock Control",
-                    "Online Store",
-                    "WhatsApp Ordering & Invoice",
-                    "QR Menu Ordering",
-                    "PayPlan™ Installment Plans",
-                    "Loyalty & Rewards",
-                    "Customer Verification",
-                    "Collections Tracking",
-                    "Attendance (Face Capture)",
-                    "Daily Report",
-                    "AI Chatbot",
-                    "Activation & Store Setup",
-                    "Mobile & Desktop Access",
-                  ]).map((item: string) => (
-                    <li key={item} className="flex items-center gap-2 text-sm text-foreground">
-                      <Check className="w-4 h-4 text-retail shrink-0" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-6 rounded-lg bg-retail-soft p-4 text-center">
-                  <p className="text-sm font-semibold text-foreground">Includes {(cloud.branchesIncluded as number) ?? 1} Branch · {(cloud.usersIncluded as number) ?? 5} Users</p>
-                  <p className="text-base font-bold text-retail mt-1">Additional Branch: {cloud.branchAddonPrice || "₦50,000 / Year"}</p>
-                </div>
-                <div className="mt-6">
-                  <Button asChild size="lg" variant="retail" className="w-full">
-                    <a href={(cloud.ctaLink as string) || "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"} target="_blank" rel="noopener noreferrer">
-                      {(cloud.ctaText as string) || "Get Started"}
-                    </a>
-                  </Button>
-                </div>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto mb-16">
+              {plans.map((plan) => (
+                <PlanCard key={plan.id} plan={plan} />
+              ))}
             </div>
 
             {/* Implementation & Product Catalogue Responsibilities */}

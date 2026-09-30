@@ -132,13 +132,12 @@ export interface ResolvedCloudPlan extends CloudPlanBaseline {
   ctaLink: string
 }
 
-const DEFAULT_FEATURES = [
+const CORE_FEATURES = [
   "POS Sales & Checkout",
   "Inventory & Stock Control",
   "Standard Online Store included",
   "WhatsApp Ordering & Invoices",
   "QR Menu Ordering",
-  "Payment Links",
   "PayPlan™ Installment Plans",
   "Loyalty & Rewards",
   "Customer Verification",
@@ -148,6 +147,21 @@ const DEFAULT_FEATURES = [
   "AI Assistant",
   "Mobile & Desktop Access",
 ]
+
+const FEATURES_WITH_PAYMENT_LINKS = [
+  ...CORE_FEATURES.slice(0, 5),
+  "Payment Links",
+  ...CORE_FEATURES.slice(5),
+]
+
+/* Default per-plan feature lists for the plan cards. Payment Links is not
+ * included on Basic — matching the public comparison matrix. */
+const PLAN_FEATURES: Record<CloudPlanId, string[]> = {
+  basic: CORE_FEATURES,
+  standard: FEATURES_WITH_PAYMENT_LINKS,
+  premium: FEATURES_WITH_PAYMENT_LINKS,
+  "enterprise-retail": FEATURES_WITH_PAYMENT_LINKS,
+}
 
 /* ─── Plan comparison matrix (public /pricing page) ───
  * Rows are ordered to match CLOUD_PLANS: [Basic, Standard, Premium, Enterprise Retail].
@@ -197,7 +211,7 @@ export const COMPARISON_GROUPS: ComparisonGroup[] = [
       { label: "Paystack", values: ["yes", "yes", "yes", "yes"] },
       { label: "Moniepoint", values: ["yes", "yes", "yes", "yes"] },
       { label: "Flutterwave", values: ["yes", "yes", "yes", "yes"] },
-      { label: "Payment links", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Payment links", values: ["no", "yes", "yes", "yes"] },
     ],
   },
   {
@@ -207,7 +221,9 @@ export const COMPARISON_GROUPS: ComparisonGroup[] = [
       { label: "Automatic payment reconciliation", values: ["yes", "yes", "yes", "yes"] },
       { label: "Advertising pixels & analytics", values: ["yes", "yes", "yes", "yes"] },
       { label: "Abandoned-cart recovery", values: ["yes", "yes", "yes", "yes"] },
-      { label: "Shipping, pickup & tracking", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Custom shipping & pickup", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Third-party shipping", values: ["no", "no", "yes", "yes"] },
+      { label: "Tracking", values: ["no", "no", "yes", "yes"] },
       { label: "Segmentation, campaigns & back-in-stock alerts", values: ["yes", "yes", "yes", "yes"] },
       { label: "Reviews, bundles & checkout upsells", values: ["yes", "yes", "yes", "yes"] },
       { label: "Order quantity rules & coupon limits", values: ["yes", "yes", "yes", "yes"] },
@@ -216,7 +232,7 @@ export const COMPARISON_GROUPS: ComparisonGroup[] = [
   {
     title: "Connect your existing setup",
     rows: [
-      { label: "Migrate from WooCommerce, Shopify, Magento or a custom site", values: ["yes", "yes", "yes", "yes"] },
+      { label: "Migrate from WooCommerce, Shopify, Magento or a custom site", values: ["no", "yes", "yes", "yes"] },
       { label: "Merchant API", values: ["soon", "soon", "soon", "soon"] },
       { label: "International currencies", values: ["soon", "soon", "soon", "soon"] },
     ],
@@ -252,7 +268,7 @@ export function resolveCloudPlans(settings: Record<string, unknown> | null | und
     const features =
       (Array.isArray(o.features) && o.features.length > 0 && o.features) ||
       (Array.isArray(legacy.features) && legacy.features.length > 0 && legacy.features) ||
-      DEFAULT_FEATURES
+      PLAN_FEATURES[base.id]
 
     return {
       ...base,

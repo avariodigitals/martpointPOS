@@ -603,7 +603,6 @@ export default async function MartPointRetailPage() {
                     "Online Store",
                     "WhatsApp Ordering & Invoice",
                     "QR Menu Ordering",
-                    "Payment Links",
                     "PayPlan™ Installment Plans",
                     "Loyalty & Rewards",
                     "Customer Verification",

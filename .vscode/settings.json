@@ -1,8 +1,13 @@
 {
   // The .sql files in this repo are PostgreSQL (Supabase) migrations.
-  // The installed MS SQL extension parses .sql as T-SQL and reports
-  // false syntax errors for valid Postgres (ADD COLUMN IF NOT EXISTS,
-  // JSONB, TIMESTAMPTZ, ...). Disable its error checking for this
-  // workspace; syntax highlighting still works.
-  "mssql.intelliSense.enableErrorChecking": false
+  // The editor's SQL tooling parses .sql as T-SQL and reports false
+  // syntax errors for valid Postgres (ADD COLUMN IF NOT EXISTS, JSONB,
+  // TIMESTAMPTZ, ...). Two guards below:
+  // 1) mssql.* disables error checking if the MS SQL extension is present.
+  // 2) files.associations maps migrations to plaintext so no SQL linter
+  //    runs on them at all (tradeoff: no SQL syntax highlighting there).
+  "mssql.intelliSense.enableErrorChecking": false,
+  "files.associations": {
+    "supabase/migrations/*.sql": "plaintext"
+  }
 }

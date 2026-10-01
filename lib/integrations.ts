@@ -17,9 +17,17 @@ export interface WhatsAppSettings {
   phoneNumber: string
 }
 
+export interface AdLeadsSettings {
+  /** Shared secret for relayed posts (Make.com/Zapier) to /api/webhooks/*-leads */
+  webhookSecret: string
+  /** TikTok developer app secret — verifies the tiktok-signature header in native mode */
+  tiktokAppSecret: string
+}
+
 export interface IntegrationSettings {
   livekit: LiveKitSettings
   whatsapp: WhatsAppSettings
+  adLeads: AdLeadsSettings
 }
 
 export function getIntegrationDefaults(): IntegrationSettings {
@@ -40,6 +48,10 @@ export function getIntegrationDefaults(): IntegrationSettings {
       baseUrl: process.env.DIALOG360_BASE_URL || "https://waba-v2.360dialog.io",
       webhookSecret: process.env.DIALOG360_WEBHOOK_SECRET || "",
       phoneNumber: process.env.WHATSAPP_PHONE_NUMBER || "",
+    },
+    adLeads: {
+      webhookSecret: process.env.LEADS_WEBHOOK_SECRET || "",
+      tiktokAppSecret: process.env.TIKTOK_APP_SECRET || "",
     },
   }
 }

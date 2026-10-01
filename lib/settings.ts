@@ -79,5 +79,6 @@ export async function getSettings(): Promise<Record<string, unknown> & Integrati
     ...stored,
     livekit: { ...defaults.livekit, ...((stored.livekit || {}) as Partial<IntegrationSettings["livekit"]>) },
     whatsapp: { ...defaults.whatsapp, ...((stored.whatsapp || {}) as Partial<IntegrationSettings["whatsapp"]>) },
+    adLeads: { ...defaults.adLeads, ...((stored.adLeads || {}) as Partial<IntegrationSettings["adLeads"]>) },
   } as Record<string, unknown> & IntegrationSettings
 }

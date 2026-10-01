@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { MobileNav } from "./mobile-nav"
@@ -33,6 +33,19 @@ function DesktopDropdown({ item }: { item: NavItem }) {
     if (e.key === "Escape") setOpen(false)
   }, [])
 
+  // Close when clicking/tapping outside the menu (needed for touch devices
+  // where there is no mouseleave to dismiss it)
+  useEffect(() => {
+    if (!open) return
+    const handlePointerDown = (e: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [open])
+
   if (!item.children || item.children.length === 0) {
     return (
       <Link
@@ -56,7 +69,8 @@ function DesktopDropdown({ item }: { item: NavItem }) {
     >
       <button
         className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-3"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => setOpen(true)}
+        onFocus={() => setOpen(true)}
         aria-expanded={open}
         aria-haspopup="menu"
       >

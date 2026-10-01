@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, Phone, Radio } from "lucide-react"
+import { Loader2, Save, Phone, Radio, Megaphone, Copy, RefreshCw } from "lucide-react"
 
 interface LiveKitSettings {
   serverUrl: string
@@ -43,9 +43,21 @@ const defaultWhatsApp: WhatsAppSettings = {
   phoneNumber: "",
 }
 
+interface AdLeadsSettings {
+  webhookSecret: string
+  tiktokAppSecret: string
+}
+
+const defaultAdLeads: AdLeadsSettings = {
+  webhookSecret: "",
+  tiktokAppSecret: "",
+}
+
 export default function IntegrationsPage() {
   const [livekit, setLivekit] = useState<LiveKitSettings>(defaultLiveKit)
   const [whatsapp, setWhatsapp] = useState<WhatsAppSettings>(defaultWhatsApp)
+  const [adLeads, setAdLeads] = useState<AdLeadsSettings>(defaultAdLeads)
+  const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
@@ -56,6 +68,7 @@ export default function IntegrationsPage() {
       .then((data) => {
         if (data.livekit) setLivekit((prev) => ({ ...prev, ...data.livekit }))
         if (data.whatsapp) setWhatsapp((prev) => ({ ...prev, ...data.whatsapp }))
+        if (data.adLeads) setAdLeads((prev) => ({ ...prev, ...data.adLeads }))
       })
       .catch(() => setMessage("Failed to load settings"))
       .finally(() => setLoading(false))
@@ -68,7 +81,7 @@ export default function IntegrationsPage() {
       const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ livekit, whatsapp }),
+        body: JSON.stringify({ livekit, whatsapp, adLeads }),
       })
       const data = await res.json()
       if (res.ok && data.success) {
@@ -147,6 +160,66 @@ export default function IntegrationsPage() {
             {input("Base URL", whatsapp.baseUrl, (v) => setWhatsapp({ ...whatsapp, baseUrl: v }))}
             {input("Webhook Secret", whatsapp.webhookSecret, (v) => setWhatsapp({ ...whatsapp, webhookSecret: v }), "password")}
             {input("Business Phone Number", whatsapp.phoneNumber, (v) => setWhatsapp({ ...whatsapp, phoneNumber: v }))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Megaphone className="w-4 h-4" /> Ad Lead Webhooks
+            </CardTitle>
+            <CardDescription>
+              Inbound leads from TikTok (and later Meta). Point Make.com or TikTok&apos;s native
+              webhook subscription at the endpoint below.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Webhook Endpoint</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/api/webhooks/tiktok-leads${adLeads.webhookSecret ? `?secret=${adLeads.webhookSecret}` : ""}`}
+                  className="w-full rounded-md border border-input bg-muted px-3 py-2 text-sm font-mono"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const url = `${window.location.origin}/api/webhooks/tiktok-leads${adLeads.webhookSecret ? `?secret=${adLeads.webhookSecret}` : ""}`
+                    navigator.clipboard.writeText(url).then(() => {
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    })
+                  }}
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+              {copied && <p className="text-xs text-green-600 mt-1">Copied.</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Shared Webhook Secret (Make.com relay)</label>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={adLeads.webhookSecret}
+                  onChange={(e) => setAdLeads({ ...adLeads, webhookSecret: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAdLeads({ ...adLeads, webhookSecret: crypto.randomUUID() })}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            {input("TikTok App Secret (native webhook mode)", adLeads.tiktokAppSecret, (v) => setAdLeads({ ...adLeads, tiktokAppSecret: v }), "password")}
           </CardContent>
         </Card>
       </div>

@@ -8,6 +8,7 @@ import {
   useState,
 } from "react"
 import { Turnstile } from "@marsidev/react-turnstile"
+import type { TurnstileInstance } from "@marsidev/react-turnstile"
 import ReCAPTCHA from "react-google-recaptcha"
 import type { CaptchaProvider } from "@/lib/captcha"
 
@@ -27,6 +28,11 @@ export interface CaptchaFieldHandle {
    * - Not configured: resolves null.
    */
   execute: () => Promise<string | null>
+  /**
+   * Clear the current token and reset the widget so the next submission
+   * obtains a fresh token (captcha tokens are single-use).
+   */
+  reset: () => void
 }
 
 interface CaptchaFieldProps {
@@ -53,6 +59,7 @@ export const CaptchaField = forwardRef<CaptchaFieldHandle, CaptchaFieldProps>(
     const [loaded, setLoaded] = useState(false)
     const stateRef = useRef<CaptchaState>({ configured: false, token: null })
     const recaptchaRef = useRef<ReCAPTCHA>(null)
+    const turnstileRef = useRef<TurnstileInstance | undefined>(undefined)
     const pendingRef = useRef<((token: string | null) => void) | null>(null)
 
     const cbRef = useRef(onChange)
@@ -132,6 +139,16 @@ export const CaptchaField = forwardRef<CaptchaFieldHandle, CaptchaFieldProps>(
           // Visible widget (Turnstile): return the solved token.
           return Promise.resolve(current.token)
         },
+        reset: () => {
+          pendingRef.current = null
+          try {
+            if (config?.provider === "recaptcha") recaptchaRef.current?.reset()
+            else turnstileRef.current?.reset()
+          } catch {
+            // Widget not mounted yet — nothing to reset.
+          }
+          report({ configured: Boolean(config), token: null })
+        },
       }),
       [config]
     )
@@ -157,6 +174,7 @@ export const CaptchaField = forwardRef<CaptchaFieldHandle, CaptchaFieldProps>(
           />
         ) : (
           <Turnstile
+            ref={turnstileRef}
             siteKey={config.siteKey}
             onSuccess={(token) => settle(token)}
             onExpire={() => settle(null)}

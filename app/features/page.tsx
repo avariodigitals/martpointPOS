@@ -51,7 +51,6 @@ import {
   ShieldCheck,
   Shirt,
   ShoppingBag,
-  ShoppingCart,
   Smartphone,
   Sparkles,
   Split,
@@ -107,7 +106,7 @@ interface FeatureSection {
   highlights: FeatureHighlight[]
   more: string[]
   note?: string
-  screenshot?: { src: string; alt: string }
+  screenshot?: { src: string; alt: string; width: number; height: number; portrait?: boolean }
 }
 
 const featureSections: FeatureSection[] = [
@@ -157,6 +156,8 @@ const featureSections: FeatureSection[] = [
     screenshot: {
       src: "/retail-dashboard.webp",
       alt: "MartPoint Retail dashboard showing low-stock alerts, expiry alerts and outstanding payments",
+      width: 1908,
+      height: 956,
     },
   },
   {
@@ -225,6 +226,9 @@ const featureSections: FeatureSection[] = [
     screenshot: {
       src: "/loginUI.webp",
       alt: "MartPoint Retail mobile dashboard showing sales, expenses, debts, plan usage and the daily intelligence report",
+      width: 1288,
+      height: 1974,
+      portrait: true,
     },
   },
   {
@@ -422,8 +426,8 @@ export default function FeaturesPage() {
                     <Image
                       src="/retail-dash.webp"
                       alt="MartPoint Retail dashboard showing today's sales, profit, expenses, outstanding debts and low-stock items"
-                      width={1200}
-                      height={760}
+                      width={2396}
+                      height={1496}
                       className="w-full h-auto"
                       priority
                     />
@@ -473,13 +477,17 @@ export default function FeaturesPage() {
                       </p>
 
                       {section.screenshot && (
-                        <div className="mt-6 rounded-xl border border-border bg-slate-100 p-2 shadow-md">
+                        <div
+                          className={`mt-6 rounded-xl border border-border bg-slate-100 p-2 shadow-md ${
+                            section.screenshot.portrait ? "max-w-[300px] mx-auto lg:mx-0" : ""
+                          }`}
+                        >
                           <div className="relative rounded-lg overflow-hidden bg-white">
                             <Image
                               src={section.screenshot.src}
                               alt={section.screenshot.alt}
-                              width={1200}
-                              height={760}
+                              width={section.screenshot.width}
+                              height={section.screenshot.height}
                               className="w-full h-auto"
                               loading="lazy"
                             />
@@ -644,7 +652,7 @@ export default function FeaturesPage() {
               headline="Questions retailers ask"
             />
             <div className="mt-10 space-y-4">
-              {faqs.map((faq, i) => (
+              {faqs.map((faq) => (
                 <details
                   key={faq.q}
                   className="group rounded-xl border border-border bg-card p-5 cursor-pointer"

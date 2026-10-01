@@ -27,7 +27,7 @@ export function ProductSplit() {
           description="Sell at the counter, online and on WhatsApp — inventory, payments and reports stay in sync across every branch."
         />
 
-        <div className="mt-14 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+        <div className="mt-14 grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
           {/* Retail Cloud Card */}
           <div className="group relative rounded-2xl border border-retail-muted bg-retail-soft p-8 md:p-10 transition-all duration-300 hover:shadow-lg hover:border-retail/30 text-center md:text-left">
             <div className="absolute left-0 top-8 bottom-8 w-1 rounded-r bg-retail hidden md:block" />
@@ -115,13 +115,13 @@ export function ProductSplit() {
               {CLOUD_PLANS.map((plan) => (
                 <div
                   key={plan.id}
-                  className="flex items-center justify-between px-4 py-3.5"
+                  className="flex items-center justify-between gap-4 px-5 py-4"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground">{plan.name}</p>
-                    <p className="text-xs text-muted-foreground">{plan.tagline}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{plan.tagline}</p>
                   </div>
-                  <p className="text-sm font-bold text-retail whitespace-nowrap">
+                  <p className="text-sm font-bold text-retail whitespace-nowrap shrink-0">
                     {formatNairaAmount(plan.annualPrice)}
                     <span className="text-xs font-normal text-muted-foreground">/yr</span>
                   </p>

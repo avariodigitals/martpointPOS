@@ -196,10 +196,10 @@ export default async function PricingPage() {
                   </p>
                 </div>
                 <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-                  <table className="w-full min-w-[760px] text-sm border-collapse">
+                  <table className="w-full min-w-[820px] text-sm border-collapse">
                     <thead>
                       <tr className="border-b-2 border-border">
-                        <th className="text-left px-5 py-5 sticky left-0 bg-card z-10 min-w-[220px] align-bottom">
+                        <th className="text-left px-6 py-5 sticky left-0 bg-card z-10 min-w-[260px] align-bottom">
                           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                             Features
                           </span>
@@ -210,7 +210,7 @@ export default async function PricingPage() {
                             <th
                               key={p.id}
                               className={cn(
-                                "px-4 py-5 text-center align-bottom min-w-[130px]",
+                                "px-5 py-5 text-center align-bottom min-w-[150px]",
                                 highlighted && "bg-retail-soft/60",
                               )}
                             >
@@ -236,7 +236,7 @@ export default async function PricingPage() {
                           <tr className="bg-muted/50">
                             <td
                               colSpan={plans.length + 1}
-                              className="px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground sticky left-0 bg-muted/50 z-10"
+                              className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-muted-foreground sticky left-0 bg-muted/50 z-10"
                             >
                               {group.title}
                             </td>
@@ -246,14 +246,14 @@ export default async function PricingPage() {
                               key={row.label}
                               className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors"
                             >
-                              <td className="px-5 py-3.5 text-foreground/80 sticky left-0 bg-card z-10">
+                              <td className="px-6 py-4 text-foreground/80 sticky left-0 bg-card z-10">
                                 {row.label}
                               </td>
                               {row.values.map((v, i) => (
                                 <td
                                   key={i}
                                   className={cn(
-                                    "px-4 py-3.5 text-center",
+                                    "px-5 py-4 text-center",
                                     plans[i]?.badge !== "" && "bg-retail-soft/40",
                                   )}
                                 >

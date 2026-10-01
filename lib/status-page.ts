@@ -33,7 +33,6 @@ const IMPACT_TO_COMPONENT: Record<IncidentImpact, ComponentStatus | null> = {
 
 const TIMEZONE = "Africa/Lagos"
 const UPTIME_DAYS = 90
-const HISTORY_DAYS = 14
 
 /* ───────────────────────────  Row mappers  ─────────────────────────── */
 
@@ -240,24 +239,64 @@ export async function getStatusPageData(): Promise<StatusPageData> {
         new Date(b.scheduledFor || b.createdAt).getTime()
     )
 
-  const history: StatusPageData["history"] = []
-  for (let i = 0; i < HISTORY_DAYS; i++) {
-    const d = new Date(now)
-    d.setDate(d.getDate() - i)
-    const key = dayKey(d)
-    const dayIncidents = incidents.filter(
-      (inc) => dayKey(new Date(inc.scheduledFor || inc.createdAt)) === key
-    )
-    history.push({
-      date: key,
-      label: d.toLocaleDateString("en-US", {
-        timeZone: TIMEZONE,
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-      incidents: dayIncidents,
-    })
+  // Group every incident by the Africa/Lagos day it started (scheduledFor for
+  // maintenance, createdAt otherwise), keyed by month for the history tab.
+  const byMonth = new Map<string, Map<string, StatusIncident[]>>()
+  for (const inc of incidents) {
+    const start = new Date(inc.scheduledFor || inc.createdAt)
+    if (isNaN(start.getTime())) continue
+    const dKey = dayKey(start)
+    const mKey = dKey.slice(0, 7)
+    let monthDays = byMonth.get(mKey)
+    if (!monthDays) byMonth.set(mKey, (monthDays = new Map()))
+    const dayIncidents = monthDays.get(dKey) || []
+    dayIncidents.push(inc)
+    monthDays.set(dKey, dayIncidents)
+  }
+
+  // Contiguous month range, earliest incident → latest known month (includes
+  // the current month and any future-dated maintenance windows).
+  const knownKeys = [...byMonth.keys(), dayKey(now).slice(0, 7)]
+  const minKey = knownKeys.reduce((a, b) => (a < b ? a : b))
+  const maxKey = knownKeys.reduce((a, b) => (a > b ? a : b))
+
+  const months: StatusPageData["months"] = []
+  {
+    let [y, m] = minKey.split("-").map(Number)
+    let guard = 0
+    while (guard++ < 600) {
+      const key = `${y}-${String(m).padStart(2, "0")}`
+      if (key > maxKey) break
+      const dayMap = byMonth.get(key)
+      const days: StatusPageData["months"][number]["days"] = dayMap
+        ? [...dayMap.keys()].sort().reverse().map((dKey) => ({
+            date: dKey,
+            label: new Date(`${dKey}T12:00:00Z`).toLocaleDateString("en-US", {
+              timeZone: TIMEZONE,
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }),
+            incidents: dayMap.get(dKey)!,
+          }))
+        : []
+      months.push({
+        key,
+        label: new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString("en-US", {
+          timeZone: TIMEZONE,
+          month: "long",
+          year: "numeric",
+        }),
+        days,
+        incidentCount: days.reduce((n, d) => n + d.incidents.length, 0),
+      })
+      m++
+      if (m > 12) {
+        m = 1
+        y++
+      }
+    }
+    months.sort((a, b) => (a.key < b.key ? 1 : -1))
   }
 
   let overall: StatusPageData["overall"] = "operational"
@@ -270,7 +309,7 @@ export async function getStatusPageData(): Promise<StatusPageData> {
       overall = "maintenance"
   }
 
-  return { components: publicComponents, activeIncidents, maintenance, history, overall }
+  return { components: publicComponents, activeIncidents, maintenance, months, overall }
 }
 
 /* ───────────────────────────  Subscriber notifications  ─────────────────────────── */

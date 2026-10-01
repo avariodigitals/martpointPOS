@@ -67,14 +67,35 @@ export interface PublicComponent extends StatusComponent {
 
 export type OverallStatus = "operational" | "degraded" | "partial" | "major" | "maintenance"
 
+export interface StatusHistoryDay {
+  /** "2026-10-14" */
+  date: string
+  /** "Oct 14, 2026" */
+  label: string
+  /** Incidents that started this day, newest first. */
+  incidents: StatusIncident[]
+}
+
+export interface StatusHistoryMonth {
+  /** "2026-10" */
+  key: string
+  /** "October 2026" */
+  label: string
+  /** Days within the month that had incidents, newest first. */
+  days: StatusHistoryDay[]
+  incidentCount: number
+}
+
 export interface StatusPageData {
   components: PublicComponent[]
   /** Unresolved incidents, newest first. */
   activeIncidents: StatusIncident[]
   /** Scheduled or in-progress maintenance, soonest first. */
   maintenance: StatusIncident[]
-  /** Past days, today first. Each entry lists incidents that started that day. */
-  history: Array<{ date: string; label: string; incidents: StatusIncident[] }>
+  /** Incident history grouped by month, newest first. Contiguous from the
+   * earliest incident month through the current month (including future
+   * scheduled maintenance) so empty months remain browsable. */
+  months: StatusHistoryMonth[]
   overall: OverallStatus
 }
 

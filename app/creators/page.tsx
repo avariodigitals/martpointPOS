@@ -132,147 +132,34 @@ export default async function CreatorsPage() {
       <Header />
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-[#070B14] text-white">
-        {/* Ambient glows */}
-        <div className="pointer-events-none absolute -top-32 -left-32 h-[480px] w-[480px] rounded-full bg-retail/25 blur-[120px]" />
-        <div className="pointer-events-none absolute -bottom-40 -right-24 h-[420px] w-[420px] rounded-full bg-indigo-500/20 blur-[120px]" />
-        {/* Subtle grid */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.15]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
-            backgroundSize: "56px 56px",
-            maskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)",
-            WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)",
-          }}
-        />
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16 md:pt-28 md:pb-24">
-          <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-12 lg:gap-16 items-center">
-            {/* Copy */}
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/80 backdrop-blur mb-6">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-retail-light opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-retail-light" />
-                </span>
-                Applications open — creators across Nigeria
-              </div>
-
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.02]">
-                Create.
-                <br />
-                Influence.
-                <br />
-                <span className="bg-gradient-to-r from-retail-light via-amber-300 to-orange-400 bg-clip-text text-transparent">
-                  Earn.
-                </span>
-              </h1>
-
-              <p className="mt-6 text-lg md:text-xl text-white/70 leading-relaxed max-w-xl">
-                Join the MartPoint Creator Network and make content that helps Nigerian
-                businesses discover smarter ways to run their operations.
-              </p>
-
-              <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Button asChild size="lg" className="text-base shadow-lg shadow-retail/30">
-                  <Link href="/creators/apply">
-                    Apply as a Creator <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="text-base bg-white/5 text-white border-white/15 hover:bg-white/10 hover:border-white/25"
-                >
-                  <Link href="/creators/application-status">Check Application Status</Link>
-                </Button>
-              </div>
-
-              {/* Platform chips */}
-              <div className="mt-10">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-3">
-                  Your platform. Your voice.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {["TikTok", "Instagram", "YouTube", "Facebook", "X", "LinkedIn"].map((p) => (
-                    <span
-                      key={p}
-                      className="rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs font-medium text-white/60"
-                    >
-                      {p}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <p className="mt-8 text-xs text-white/40 max-w-md leading-relaxed">
-                Admission is subject to review. Rewards depend on individual challenge
-                terms — applying does not guarantee acceptance or payment.
-              </p>
+      <section className="relative overflow-hidden bg-[#0A0F1C] text-white">
+        <div className="absolute inset-0 bg-gradient-to-br from-retail/20 via-transparent to-transparent" />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
+          <div className="max-w-3xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-retail-light mb-4">
+              MartPoint Creator Network
+            </p>
+            <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
+              Create. Influence. Earn.
+            </h1>
+            <p className="text-lg md:text-xl text-gray-300 leading-relaxed mb-8">
+              Join the MartPoint Creator Network and create content that helps Nigerian
+              businesses discover smarter ways to run their operations.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button asChild size="lg" className="text-base">
+                <Link href="/creators/apply">
+                  Apply as a Creator <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="text-base bg-transparent text-white border-white/30 hover:bg-white/10">
+                <Link href="/creators/application-status">Check Application Status</Link>
+              </Button>
             </div>
-
-            {/* Visual — creator dashboard mock */}
-            <div className="relative hidden lg:block">
-              <div className="pointer-events-none absolute inset-0 -m-6 rounded-[2rem] bg-gradient-to-tr from-retail/30 via-indigo-500/10 to-transparent blur-2xl" />
-
-              <div className="relative rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-2xl p-6 rotate-1">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-retail to-indigo-500 flex items-center justify-center text-sm font-bold">
-                      MC
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">Creator Dashboard</p>
-                      <p className="text-xs text-white/50">MPC-00234 · Level: Pro</p>
-                    </div>
-                  </div>
-                  <span className="rounded-full bg-green-500/15 text-green-400 text-[10px] font-semibold px-2.5 py-1 uppercase tracking-wide">
-                    Active
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3 mb-5">
-                  {[
-                    { label: "Clicks", value: "1,204" },
-                    { label: "Leads", value: "38" },
-                    { label: "Rewards", value: "₦75k" },
-                  ].map((s) => (
-                    <div
-                      key={s.label}
-                      className="rounded-xl border border-white/10 bg-white/[0.05] p-3 text-center"
-                    >
-                      <p className="text-lg font-bold">{s.value}</p>
-                      <p className="text-[10px] uppercase tracking-wider text-white/50">
-                        {s.label}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="rounded-xl border border-retail/30 bg-retail/10 p-4">
-                  <p className="text-[10px] uppercase tracking-wider text-white/50 mb-1.5">
-                    Your tracking link
-                  </p>
-                  <code className="block text-xs text-retail-light font-mono truncate">
-                    martpoint.com.ng/?ref=MP-00234
-                  </code>
-                </div>
-              </div>
-
-              {/* Floating challenge card */}
-              <div className="absolute -bottom-10 -left-8 w-64 rounded-xl border border-white/10 bg-[#0D1424]/95 backdrop-blur-xl shadow-2xl p-4 -rotate-2">
-                <div className="flex items-center gap-2 text-amber-300 text-[10px] font-semibold uppercase tracking-wider mb-2">
-                  <Trophy className="h-3.5 w-3.5" /> Live challenge
-                </div>
-                <p className="text-sm font-semibold leading-snug">
-                  “Show your shop's real numbers” — ₦250k reward pool
-                </p>
-                <p className="mt-1.5 text-xs text-white/50">Submissions close in 12 days</p>
-              </div>
-            </div>
+            <p className="mt-6 text-sm text-gray-400">
+              Admission is subject to review. Rewards depend on individual challenge terms —
+              applying does not guarantee acceptance or payment.
+            </p>
           </div>
         </div>
       </section>

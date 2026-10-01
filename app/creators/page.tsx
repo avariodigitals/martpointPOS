@@ -272,7 +272,7 @@ export default async function CreatorsPage() {
               challenge leaderboards and your creator level.
             </p>
             <p className="font-medium text-foreground">
-              Important: joining the network does not guarantee payment. Earnings come only
+              Important: Joining the network does not guarantee payment. Earnings come only
               from challenge rewards and any referral programmes explicitly offered under
               published terms.
             </p>

@@ -37,6 +37,18 @@ const pageMap: Record<string, string> = {
   "/admin/careers/performance": "careers.performance.view",
   "/admin/careers/reports": "careers.dashboard.view",
   "/admin/careers/settings": "careers.settings.manage",
+  "/admin/creators": "creator.view",
+  "/admin/creators/applications": "creator.view",
+  "/admin/creators/creators": "creator.view",
+  "/admin/creators/interviews": "creator.interview.manage",
+  "/admin/creators/challenges": "creator.challenge.manage",
+  "/admin/creators/submissions": "creator.submission.review",
+  "/admin/creators/leaderboard": "creator.view",
+  "/admin/creators/rewards": "creator.reward.manage",
+  "/admin/creators/learning": "creator.learning.manage",
+  "/admin/creators/kit": "creator.learning.manage",
+  "/admin/creators/reports": "creator.report.view",
+  "/admin/creators/settings": "creator.settings.manage",
 }
 
 function matchPage(pathname: string): string | undefined {

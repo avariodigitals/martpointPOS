@@ -97,6 +97,7 @@ const DEFAULT_ROUTES: Record<string, string> = {
   quote_change_request: "sales@martpoint.com.ng",
   quote_declined: "sales@martpoint.com.ng",
   career_application: "careers@martpoint.com.ng",
+  creator_application: "hello@martpoint.com.ng",
   partner_application: "",
   onboarding_welcome: "",
   onboarding_invoice: "",

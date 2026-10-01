@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { AnalyticsData } from "@/components/analytics-data";
 import { TrackingScript } from "@/components/tracking-script";
 import { CookieConsentLoader } from "@/components/cookie-consent-loader";
+import { CreatorRefCapture } from "@/components/creator-ref-capture";
 import { OrganizationSchema, WebsiteSchema, SiteNavigationSchema } from "@/components/structured-data";
 import { readSettings } from "@/lib/settings";
 import "./globals.css";
@@ -114,6 +115,7 @@ export default function RootLayout({
         <AnalyticsData />
         <TrackingScript />
         {children}
+        <CreatorRefCapture />
         <CookieConsentLoader />
       </body>
     </html>

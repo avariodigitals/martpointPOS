@@ -44,6 +44,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/product-updates`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
     { url: `${baseUrl}/why-martpoint`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: `${baseUrl}/partners`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${baseUrl}/creators`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${baseUrl}/creators/apply`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     { url: `${baseUrl}/customer-stories`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${baseUrl}/careers`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     { url: `${baseUrl}/help-centre`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },

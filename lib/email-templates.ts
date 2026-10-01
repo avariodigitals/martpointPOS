@@ -1866,6 +1866,406 @@ MartPoint Careers Team`,
       { eyebrow: "Careers", title: "Offer of engagement", signoff: "MartPoint Careers Team" }
     ),
   },
+
+  /* ───────────────────────────  Creator Network  ─────────────────────────── */
+
+  {
+    key: "creator_application_received",
+    label: "Creator Application Received (applicant)",
+    description: "Sent to the applicant right after they submit a Creator Network application.",
+    variables: ["fullName", "reference", "statusUrl"],
+    subject: "MartPoint Creator Network Application Received — {{reference}}",
+    text: `Hi {{fullName}},
+
+Thank you for applying to the MartPoint Creator Network. Your application has been received and is now being reviewed.
+
+Application Reference: {{reference}}
+
+You can check your application status anytime at:
+{{statusUrl}}
+
+Please note: admission to the Creator Network is subject to review, and application does not guarantee acceptance or payment.
+
+Best regards,
+MartPoint Creator Network`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Thank you for applying to the MartPoint Creator Network. Your application has been received and is now being reviewed by our team.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Application reference</p>
+                    <p style="font-size:17px; font-weight:700; color:#111827; margin:0; letter-spacing:0.5px;">{{reference}}</p>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{statusUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Track Your Application</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280;">
+                Admission is subject to review — applying does not guarantee acceptance or payment.
+              </p>`,
+      { eyebrow: "Creator Network", title: "Application received", signoff: "MartPoint Creator Network" }
+    ),
+  },
+
+  {
+    key: "creator_application_admin",
+    label: "Creator Application Received (internal)",
+    description: "Internal notification to the configured email route when a creator application arrives.",
+    variables: ["fullName", "reference", "category", "state", "profilesSummary", "reviewUrl"],
+    subject: "New Creator Application — {{reference}} ({{fullName}})",
+    text: `New Creator Network application received.
+
+Reference: {{reference}}
+Name: {{fullName}}
+Category: {{category}}
+State: {{state}}
+Profiles: {{profilesSummary}}
+
+Review: {{reviewUrl}}`,
+  },
+
+  {
+    key: "creator_interview_invite",
+    label: "Creator Interview Invite",
+    description: "Sent when an admin schedules an interview with an applicant.",
+    variables: ["fullName", "reference", "interviewWhen", "durationMinutes", "joinLine", "joinBlock", "locationLine", "locationBlock", "notes", "statusUrl"],
+    subject: "MartPoint Creator Network — Interview Invitation ({{reference}})",
+    text: `Hi {{fullName}},
+
+We would like to invite you to a short interview as part of your MartPoint Creator Network application ({{reference}}).
+
+When: {{interviewWhen}}
+Duration: {{durationMinutes}} minutes
+{{joinLine}}{{locationLine}}
+{{notes}}
+
+An .ics calendar invite is attached to this email.
+
+Best regards,
+MartPoint Creator Network`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                We would like to invite you to a short interview as part of your Creator Network application ({{reference}}).
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">When</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 12px;">{{interviewWhen}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Duration</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 12px;">{{durationMinutes}} minutes</p>
+                    {{locationBlock}}
+                  </td>
+                </tr>
+              </table>
+              {{joinBlock}}
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280;">{{notes}}</p>`,
+      { eyebrow: "Creator Network", title: "Interview invitation", signoff: "MartPoint Creator Network" }
+    ),
+  },
+
+  {
+    key: "creator_approved",
+    label: "Creator Application Approved",
+    description: "Sent when an application is approved — includes creator codes and set-password link.",
+    variables: ["fullName", "reference", "creatorId", "referralCode", "trackingUrl", "setPasswordUrl", "loginUrl"],
+    subject: "Welcome to the MartPoint Creator Network — you're approved",
+    text: `Hi {{fullName}},
+
+Great news — your MartPoint Creator Network application ({{reference}}) has been approved.
+
+Your Creator ID: {{creatorId}}
+Your Referral Code: {{referralCode}}
+Your tracking link: {{trackingUrl}}
+
+Activate your account and set your password:
+{{setPasswordUrl}}
+
+Then sign in at: {{loginUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Welcome aboard, {{fullName}}!</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Your MartPoint Creator Network application ({{reference}}) has been approved. Here are your creator details:
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Creator ID</p>
+                    <p style="font-size:17px; font-weight:700; color:#111827; margin:0 0 12px; letter-spacing:0.5px;">{{creatorId}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Referral code</p>
+                    <p style="font-size:17px; font-weight:700; color:#111827; margin:0 0 12px; letter-spacing:0.5px;">{{referralCode}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Your tracking link</p>
+                    <p style="font-size:14px; font-weight:600; color:#0057FF; margin:0; word-break:break-all;">{{trackingUrl}}</p>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{setPasswordUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Activate Your Account</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:13px; line-height:1.5; margin:0; color:#6b7280;">
+                This activation link expires in 72 hours. After setting your password, sign in at {{loginUrl}} to start onboarding.
+              </p>`,
+      { eyebrow: "Creator Network", title: "You're approved", signoff: "MartPoint Creator Network" }
+    ),
+  },
+
+  {
+    key: "creator_waitlisted",
+    label: "Creator Application Waitlisted",
+    description: "Sent when an applicant is placed on the waitlist.",
+    variables: ["fullName", "reference", "statusUrl"],
+    subject: "MartPoint Creator Network — application update ({{reference}})",
+    text: `Hi {{fullName}},
+
+Thank you for your interest in the MartPoint Creator Network. Your application ({{reference}}) has been placed on our waitlist.
+
+This means your application impressed us, but we are not able to offer you a place in the current cohort. We may reach out again as the network expands.
+
+Check your status anytime: {{statusUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Your Creator Network application ({{reference}}) has been placed on our waitlist. Your application impressed us, but we are not able to offer you a place in the current cohort — we may reach out again as the network expands.
+              </p>`,
+      { eyebrow: "Creator Network", title: "Application update", signoff: "MartPoint Creator Network" }
+    ),
+  },
+
+  {
+    key: "creator_rejected",
+    label: "Creator Application Rejected",
+    description: "Sent when an application is not accepted.",
+    variables: ["fullName", "reference"],
+    subject: "MartPoint Creator Network — application update ({{reference}})",
+    text: `Hi {{fullName}},
+
+Thank you for applying to the MartPoint Creator Network ({{reference}}).
+
+After careful review, we are unable to offer you a place in the network at this time. This does not reflect on the quality of your content — places are limited and we review many applications.
+
+You are welcome to apply again in the future as the programme grows.
+
+Best regards,
+MartPoint Creator Network`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Thank you for applying to the MartPoint Creator Network ({{reference}}). After careful review, we are unable to offer you a place at this time.
+              </p>
+              <p style="font-size:15px; line-height:1.6; margin:0; color:#374151;">
+                This does not reflect on the quality of your content — places are limited and we review many applications. You are welcome to apply again in the future.
+              </p>`,
+      { eyebrow: "Creator Network", title: "Application update", signoff: "MartPoint Creator Network" }
+    ),
+  },
+
+  {
+    key: "creator_set_password",
+    label: "Creator Set Password",
+    description: "Account activation / set-password link for a new creator.",
+    variables: ["fullName", "setPasswordUrl"],
+    subject: "Activate your MartPoint Creator account",
+    text: `Hi {{fullName}},
+
+Set your Creator Portal password using this link (valid for 72 hours):
+{{setPasswordUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Set your Creator Portal password to activate your account. The link is valid for 72 hours.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{setPasswordUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Set Your Password</a>
+                  </td>
+                </tr>
+              </table>`,
+      { eyebrow: "Creator Network", title: "Activate your account", signoff: "MartPoint Creator Network" }
+    ),
+  },
+
+  {
+    key: "creator_password_reset",
+    label: "Creator Password Reset",
+    description: "Password reset link for an existing creator.",
+    variables: ["fullName", "resetUrl"],
+    subject: "Reset your MartPoint Creator password",
+    text: `Hi {{fullName}},
+
+We received a request to reset your Creator Portal password. Use this link (valid for 72 hours):
+{{resetUrl}}
+
+If you did not request this, you can ignore this email.
+
+Best regards,
+MartPoint Creator Network`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                We received a request to reset your Creator Portal password. This link is valid for 72 hours — if you did not request it, you can ignore this email.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{resetUrl}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Reset Password</a>
+                  </td>
+                </tr>
+              </table>`,
+      { eyebrow: "Creator Network", title: "Password reset", signoff: "MartPoint Creator Network" }
+    ),
+  },
+
+  {
+    key: "creator_onboarding_reminder",
+    label: "Creator Onboarding Reminder",
+    description: "Reminds an approved creator to finish onboarding.",
+    variables: ["fullName", "portalUrl"],
+    subject: "Finish your Creator onboarding to unlock challenges",
+    text: `Hi {{fullName}},
+
+You're approved for the MartPoint Creator Network — finish your onboarding to unlock challenges and start creating.
+
+Continue here: {{portalUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_challenge_announced",
+    label: "New Creator Challenge",
+    description: "Announces a new challenge to creators.",
+    variables: ["fullName", "challengeName", "deadline", "challengeUrl"],
+    subject: "New Creator Challenge: {{challengeName}}",
+    text: `Hi {{fullName}},
+
+A new Creator Challenge is live: {{challengeName}}
+Submission deadline: {{deadline}}
+
+View the brief and join: {{challengeUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_submission_received",
+    label: "Creator Submission Received",
+    description: "Confirms receipt of a challenge content submission.",
+    variables: ["fullName", "challengeName", "contentUrl"],
+    subject: "Submission received — {{challengeName}}",
+    text: `Hi {{fullName}},
+
+We received your submission for "{{challengeName}}":
+{{contentUrl}}
+
+Our team will review it and update the status in your portal.
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_submission_decision",
+    label: "Creator Submission Decision",
+    description: "Notifies a creator of a submission review outcome.",
+    variables: ["fullName", "challengeName", "decisionLabel", "feedback", "portalUrl"],
+    subject: "Submission update — {{challengeName}}: {{decisionLabel}}",
+    text: `Hi {{fullName}},
+
+Your submission for "{{challengeName}}" has been updated: {{decisionLabel}}.
+
+{{feedback}}
+
+View it in your portal: {{portalUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_deadline_reminder",
+    label: "Creator Challenge Deadline Reminder",
+    description: "Deadline reminder for an active challenge.",
+    variables: ["fullName", "challengeName", "deadline", "challengeUrl"],
+    subject: "Deadline reminder — {{challengeName}}",
+    text: `Hi {{fullName}},
+
+Reminder: submissions for "{{challengeName}}" close on {{deadline}}.
+
+Submit your published content: {{challengeUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_winner",
+    label: "Creator Challenge Winner",
+    description: "Notifies a creator they won a challenge award.",
+    variables: ["fullName", "challengeName", "awardTitle", "rewardDetail"],
+    subject: "You won — {{awardTitle}} in {{challengeName}}",
+    text: `Hi {{fullName}},
+
+Congratulations! You won "{{awardTitle}}" in the {{challengeName}} challenge.
+
+{{rewardDetail}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_reward_approved",
+    label: "Creator Reward Approved",
+    description: "Notifies a creator that a reward was approved for payment.",
+    variables: ["fullName", "rewardTitle", "amount"],
+    subject: "Reward approved — {{rewardTitle}}",
+    text: `Hi {{fullName}},
+
+Your reward "{{rewardTitle}}" ({{amount}}) has been approved and is being processed for payment.
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_reward_paid",
+    label: "Creator Reward Paid",
+    description: "Notifies a creator that a reward was paid.",
+    variables: ["fullName", "rewardTitle", "amount", "paymentReference"],
+    subject: "Reward paid — {{rewardTitle}}",
+    text: `Hi {{fullName}},
+
+Your reward "{{rewardTitle}}" ({{amount}}) has been paid.
+Payment reference: {{paymentReference}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
 ]
 
 const templateMap = new Map(EMAIL_TEMPLATES.map((t) => [t.key, t]))

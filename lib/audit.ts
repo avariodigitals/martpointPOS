@@ -6,7 +6,7 @@ import type { SessionPayload } from "./admin-types"
  * Writes to the audit_logs table via the service role client.
  */
 
-export type ActorType = "ADMIN" | "SYSTEM" | "PARTNER"
+export type ActorType = "ADMIN" | "SYSTEM" | "PARTNER" | "CREATOR"
 
 export interface AuditContext {
   actorType: ActorType
@@ -106,6 +106,23 @@ export function auditContextFromPartnerSession(
   return {
     actorType: session ? "PARTNER" : "SYSTEM",
     actorId: session?.partnerUserId ?? null,
+    actorName: session?.name ?? null,
+    ipAddress: ip,
+    userAgent: headers?.get("user-agent") || null,
+  }
+}
+
+/** Build an audit context from a creator session and request headers. */
+export function auditContextFromCreatorSession(
+  session: { creatorId: string; name?: string | null } | null,
+  request?: Request
+): AuditContext {
+  const headers = request?.headers
+  const forwarded = headers?.get("x-forwarded-for")
+  const ip = forwarded ? forwarded.split(",")[0].trim() : headers?.get("cf-connecting-ip") || null
+  return {
+    actorType: session ? "CREATOR" : "SYSTEM",
+    actorId: session?.creatorId ?? null,
     actorName: session?.name ?? null,
     ipAddress: ip,
     userAgent: headers?.get("user-agent") || null,
@@ -225,6 +242,36 @@ export const AUDIT_ACTIONS = {
   CAREER_PIPELINE_HANDOVER_RECORDED: "CAREER_PIPELINE_HANDOVER_RECORDED",
   CAREER_PIPELINE_HANDOVER_UPDATED: "CAREER_PIPELINE_HANDOVER_UPDATED",
   CAREER_PIPELINE_STAGE_OWNER_UPDATED: "CAREER_PIPELINE_STAGE_OWNER_UPDATED",
+  CREATOR_APPLICATION_SUBMITTED: "CREATOR_APPLICATION_SUBMITTED",
+  CREATOR_APPLICATION_STATUS_CHANGED: "CREATOR_APPLICATION_STATUS_CHANGED",
+  CREATOR_APPLICATION_NOTE_ADDED: "CREATOR_APPLICATION_NOTE_ADDED",
+  CREATOR_AI_REVIEW_COMPLETED: "CREATOR_AI_REVIEW_COMPLETED",
+  CREATOR_INTERVIEW_SCHEDULED: "CREATOR_INTERVIEW_SCHEDULED",
+  CREATOR_INTERVIEW_UPDATED: "CREATOR_INTERVIEW_UPDATED",
+  CREATOR_APPROVED: "CREATOR_APPROVED",
+  CREATOR_WAITLISTED: "CREATOR_WAITLISTED",
+  CREATOR_REJECTED: "CREATOR_REJECTED",
+  CREATOR_SUSPENDED: "CREATOR_SUSPENDED",
+  CREATOR_REACTIVATED: "CREATOR_REACTIVATED",
+  CREATOR_REMOVED: "CREATOR_REMOVED",
+  CREATOR_LOGIN: "CREATOR_LOGIN",
+  CREATOR_LOGIN_FAILED: "CREATOR_LOGIN_FAILED",
+  CREATOR_LOGOUT: "CREATOR_LOGOUT",
+  CREATOR_PROFILE_UPDATED: "CREATOR_PROFILE_UPDATED",
+  CREATOR_PASSWORD_SET: "CREATOR_PASSWORD_SET",
+  CREATOR_CHALLENGE_CREATED: "CREATOR_CHALLENGE_CREATED",
+  CREATOR_CHALLENGE_UPDATED: "CREATOR_CHALLENGE_UPDATED",
+  CREATOR_CHALLENGE_STATUS_CHANGED: "CREATOR_CHALLENGE_STATUS_CHANGED",
+  CREATOR_SUBMISSION_RECEIVED: "CREATOR_SUBMISSION_RECEIVED",
+  CREATOR_SUBMISSION_REVIEWED: "CREATOR_SUBMISSION_REVIEWED",
+  CREATOR_FLAG_RAISED: "CREATOR_FLAG_RAISED",
+  CREATOR_FLAG_RESOLVED: "CREATOR_FLAG_RESOLVED",
+  CREATOR_REWARD_CREATED: "CREATOR_REWARD_CREATED",
+  CREATOR_REWARD_STATUS_CHANGED: "CREATOR_REWARD_STATUS_CHANGED",
+  CREATOR_RESOURCE_CREATED: "CREATOR_RESOURCE_CREATED",
+  CREATOR_RESOURCE_UPDATED: "CREATOR_RESOURCE_UPDATED",
+  CREATOR_LEARNING_CONTENT_SAVED: "CREATOR_LEARNING_CONTENT_SAVED",
+  CREATOR_SETTINGS_UPDATED: "CREATOR_SETTINGS_UPDATED",
 } as const
 
 export const AUDIT_ENTITIES = {
@@ -264,4 +311,14 @@ export const AUDIT_ENTITIES = {
   CAREER_COMMISSION: "career_commission",
   CAREER_PIPELINE_HANDOVER: "career_pipeline_handover",
   CAREER_PIPELINE_STAGE: "career_pipeline_stage",
+  CREATOR_APPLICATION: "creator_application",
+  CREATOR: "creator",
+  CREATOR_INTERVIEW: "creator_interview",
+  CREATOR_AI_REVIEW: "creator_ai_review",
+  CREATOR_CHALLENGE: "creator_challenge",
+  CREATOR_SUBMISSION: "creator_submission",
+  CREATOR_FLAG: "creator_flag",
+  CREATOR_REWARD: "creator_reward",
+  CREATOR_RESOURCE: "creator_resource",
+  CREATOR_LEARNING_CONTENT: "creator_learning_content",
 } as const

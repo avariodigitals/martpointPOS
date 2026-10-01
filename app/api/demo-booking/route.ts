@@ -12,6 +12,11 @@ import {
   getSchedulingSettings,
   meetingPageUrl,
 } from "@/lib/meeting-booking"
+import {
+  readCreatorRef,
+  resolveCreatorRef,
+  recordCreatorReferral,
+} from "@/lib/creator-attribution"
 
 const bookSchema = z.object({
   fullName: z.string().trim().min(2).max(200),
@@ -62,6 +67,10 @@ export async function POST(request: Request) {
       ? body.partnerCode.trim().toUpperCase()
       : null
 
+  // Creator attribution via the ?ref= cookie.
+  const ref = await readCreatorRef()
+  const creator = ref ? await resolveCreatorRef(ref.code) : null
+
   // 1. Create the lead (graceful — a duplicate submission still gets a meeting)
   const leadId = crypto.randomUUID()
   const { error: leadError } = await supabase.from("leads").insert({
@@ -78,6 +87,12 @@ export async function POST(request: Request) {
     message: body.message || "",
     source: "demo-booking",
     referring_partner_code: referringPartnerCode,
+    referring_creator_code: creator?.referralCode ?? null,
+    creator_id: creator?.id ?? null,
+    utm_source: ref?.utmSource ?? null,
+    utm_medium: ref?.utmMedium ?? null,
+    utm_campaign: ref?.utmCampaign ?? null,
+    utm_content: ref?.utmContent ?? null,
     status: "New",
     submitted_at: now,
     updated_at: now,
@@ -85,6 +100,13 @@ export async function POST(request: Request) {
   if (leadError) {
     console.error("[demo-booking] lead insert failed:", leadError)
     return NextResponse.json({ error: "Could not complete the booking. Please try again." }, { status: 500 })
+  }
+
+  // Creator funnel events — the lead is both a LEAD and a booked DEMO.
+  if (creator) {
+    const utm = { source: ref?.utmSource, medium: ref?.utmMedium, campaign: ref?.utmCampaign, content: ref?.utmContent }
+    void recordCreatorReferral({ creatorId: creator.id, referralCode: creator.referralCode, eventType: "LEAD", leadId, utm })
+    void recordCreatorReferral({ creatorId: creator.id, referralCode: creator.referralCode, eventType: "DEMO", leadId, utm })
   }
 
   // 2. Create the meeting row as PENDING, then let confirmMeetingSlot do the

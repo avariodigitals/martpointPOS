@@ -85,6 +85,21 @@ const CAREERS_HR_PERMISSIONS = CAREERS_PERMISSIONS.filter(
   (p) => p !== "careers.settings.manage" && p !== "careers.commissions.pay"
 )
 
+/* Creator Network granular permissions — same pattern as CAREERS_PERMISSIONS:
+ * these strings are the `page` argument to authorize()/authorizeAdmin(). */
+export const CREATOR_PERMISSIONS = [
+  "creator.view",
+  "creator.manage",
+  "creator.application.review",
+  "creator.interview.manage",
+  "creator.challenge.manage",
+  "creator.submission.review",
+  "creator.reward.manage",
+  "creator.learning.manage",
+  "creator.report.view",
+  "creator.settings.manage",
+] as const
+
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   Admin: "Full access to all Control Centre features",
   Finance: "Dashboard, finance, tracker, analytics, leads, customers, onboarding",
@@ -101,8 +116,8 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   Admin: ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "integrations", "users", "leads", "quotations", "customers", "finance", "onboarding", "partners", "businesses", "support", "customer_success", "compliance", "tasks", "marketing", "status"],
   Finance: ["dashboard", "finance", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "compliance"],
-  "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "marketing"],
-  Sales: ["tracker", "analytics", "leads", "quotations", "customers", "finance", "onboarding", "businesses", "partners", "customer_success", "marketing"],
+  "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "marketing", ...CREATOR_PERMISSIONS],
+  Sales: ["tracker", "analytics", "leads", "quotations", "customers", "finance", "onboarding", "businesses", "partners", "customer_success", "marketing", "creator.view", "creator.report.view"],
   Tech: ["settings", "integrations", "seo", "blog", "faqs", "customers", "businesses", "support", "customer_success", "compliance", "tasks", "status"],
   Editor: ["blog", "faqs"],
   "HR Manager": [...CAREERS_HR_PERMISSIONS, "dashboard"],

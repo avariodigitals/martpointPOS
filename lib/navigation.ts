@@ -162,9 +162,11 @@ export const footerColumns = {
       { label: "Partners", href: "/partners" },
       { label: "Partner Directory", href: "/partners/directory" },
       { label: "Verify a Partner", href: "/partners/verify" },
+      { label: "Creator Network", href: "/creators" },
       { label: "Careers", href: "/careers" },
       { label: "Contact", href: "/contact" },
       { label: "Partner Login", href: "/partner/login" },
+      { label: "Creator Login", href: "/creator/login" },
     ],
   },
   legal: {

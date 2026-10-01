@@ -45,6 +45,11 @@ import {
   UserCheck,
   MapPin,
   ChevronDown,
+  Trophy,
+  Video,
+  CalendarClock,
+  GraduationCap,
+  FolderOpen,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -114,6 +119,20 @@ const navItems: NavItem[] = [
   { href: "/admin/careers/performance", label: "Performance", icon: Activity, page: "careers.performance.view", section: "Careers" },
   { href: "/admin/careers/reports", label: "Reports", icon: BarChart3, page: "careers.dashboard.view", section: "Careers" },
   { href: "/admin/careers/settings", label: "Careers Settings", icon: Settings, page: "careers.settings.manage", section: "Careers" },
+
+  // CREATOR NETWORK
+  { href: "/admin/creators", label: "Creators Dashboard", icon: Video, page: "creator.view", section: "Creator Network" },
+  { href: "/admin/creators/applications", label: "Applications", icon: FileText, page: "creator.view", section: "Creator Network" },
+  { href: "/admin/creators/creators", label: "Creators", icon: Users, page: "creator.view", section: "Creator Network" },
+  { href: "/admin/creators/interviews", label: "Interviews", icon: CalendarClock, page: "creator.interview.manage", section: "Creator Network" },
+  { href: "/admin/creators/challenges", label: "Challenges", icon: Trophy, page: "creator.challenge.manage", section: "Creator Network" },
+  { href: "/admin/creators/submissions", label: "Submissions", icon: ClipboardCheck, page: "creator.submission.review", section: "Creator Network" },
+  { href: "/admin/creators/leaderboard", label: "Leaderboard", icon: TrendingUp, page: "creator.view", section: "Creator Network" },
+  { href: "/admin/creators/rewards", label: "Rewards", icon: Wallet, page: "creator.reward.manage", section: "Creator Network" },
+  { href: "/admin/creators/learning", label: "Learning Centre", icon: GraduationCap, page: "creator.learning.manage", section: "Creator Network" },
+  { href: "/admin/creators/kit", label: "Creator Kit", icon: FolderOpen, page: "creator.learning.manage", section: "Creator Network" },
+  { href: "/admin/creators/reports", label: "Reports", icon: BarChart3, page: "creator.report.view", section: "Creator Network" },
+  { href: "/admin/creators/settings", label: "Creator Settings", icon: Settings, page: "creator.settings.manage", section: "Creator Network" },
 
   // MARKETING
   { href: "/admin/marketing", label: "Campaigns", icon: Megaphone, page: "marketing", section: "Marketing" },

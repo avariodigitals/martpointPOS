@@ -16,6 +16,7 @@ import {
   Pencil,
 } from "lucide-react"
 import Link from "next/link"
+import { formatMoney } from "@/lib/money-format"
 
 interface FinanceTransaction {
   id: string
@@ -63,9 +64,7 @@ const INCOME_CATEGORIES = [
 ]
 
 function formatNgn(n: number) {
-  if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `₦${(n / 1_000).toFixed(0)}K`
-  return `₦${n.toFixed(0)}`
+  return formatMoney(n)
 }
 
 export default function FinanceTransactionsPage() {

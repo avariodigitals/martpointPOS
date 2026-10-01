@@ -7,6 +7,7 @@ import { Loader2, FileText, Download, ArrowUpRight, ArrowDownRight, ChevronLeft,
 import Link from "next/link"
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
+import { formatMoney } from "@/lib/money-format"
 
 interface FinanceTransaction {
   id: string
@@ -51,13 +52,11 @@ function getWeekRange(year: number, week: number): { start: string; end: string 
 }
 
 function formatNgn(n: number) {
-  if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `₦${(n / 1_000).toFixed(0)}K`
-  return `₦${n.toFixed(0)}`
+  return formatMoney(n)
 }
 
 function formatNgnFull(n: number) {
-  return `₦${n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return formatMoney(n)
 }
 
 const PnL_SECTIONS = [

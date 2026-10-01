@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Plus, Search, X, Pencil, Trash2, ArrowLeft, CheckCircle2, Package, Layers, Wrench } from "lucide-react"
+import { formatMoney } from "@/lib/money-format"
 
 type Tab = "products" | "plans" | "services"
 
@@ -54,9 +55,7 @@ const BILLING_INTERVALS = ["MONTHLY", "QUARTERLY", "ANNUAL", "NONE"]
 const PRODUCT_FAMILIES = ["RETAIL", "ERP", "ECOMMERCE", "ANALYTICS", "FINANCE", "CUSTOMER", "MOBILE", "HARDWARE"]
 
 function formatNgn(n: number | string | undefined | null) {
-  const v = typeof n === "string" ? Number.parseFloat(n) : Number(n)
-  if (Number.isNaN(v)) return "₦0.00"
-  return `₦${v.toFixed(2)}`
+  return formatMoney(n)
 }
 
 export default function CatalogPage() {

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCircle2, Ban, CreditCard, Send, FileX } from "lucide-react"
+import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCircle2, Ban, CreditCard, Send, FileX, Eye } from "lucide-react"
+import { formatMoney } from "@/lib/money-format"
 
 interface BusinessMini {
   id: string
@@ -29,7 +30,7 @@ interface Invoice {
   id: string
   invoice_number: string
   business_id: string
-  business?: { business_name: string } | null
+  businesses?: { business_name: string } | null
   quote_id?: string | null
   currency: string
   issue_date: string
@@ -45,6 +46,19 @@ interface Invoice {
   notes_internal?: string | null
   invoice_items?: InvoiceItem[]
   created_at?: string
+}
+
+interface InvoicePayment {
+  id: string
+  payment_reference: string
+  amount: number
+  currency: string
+  payment_method: string
+  status: string
+  paid_at?: string | null
+  created_at?: string
+  notes?: string | null
+  payment_allocations?: { invoice_id: string; amount_allocated: number }[]
 }
 
 const CURRENCIES = ["NGN", "USD", "GBP", "GHS", "KES", "ZAR"]
@@ -77,20 +91,62 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-gray-100 text-gray-500",
 }
 
-function formatNgn(n: number | string | undefined | null) {
-  const v = typeof n === "string" ? Number.parseFloat(n) : Number(n)
-  if (Number.isNaN(v)) return "₦0"
-  if (v >= 1_000_000) return `₦${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 1_000) return `₦${(v / 1_000).toFixed(0)}K`
-  return `₦${v.toFixed(2)}`
+function formatNgn(n: number | string | undefined | null, currency = "NGN") {
+  return formatMoney(n, currency)
 }
 
 function computeItemTotal(item: InvoiceItem) {
   return Math.max(0, (Number(item.quantity) || 0) * (Number(item.unit_price) || 0) - (Number(item.discount) || 0) + (Number(item.tax) || 0))
 }
 
+function computeInvoiceTotals(items: InvoiceItem[]) {
+  return items.reduce(
+    (acc, it) => {
+      const qty = Number(it.quantity) || 0
+      const unit = Number(it.unit_price) || 0
+      const disc = Number(it.discount) || 0
+      const tax = Number(it.tax) || 0
+      const lineSub = qty * unit
+      const lineTotal = Math.max(0, lineSub - disc + tax)
+      return {
+        subtotal: acc.subtotal + lineSub,
+        discount: acc.discount + disc,
+        tax: acc.tax + tax,
+        total: acc.total + lineTotal,
+      }
+    },
+    { subtotal: 0, discount: 0, tax: 0, total: 0 }
+  )
+}
+
 function catalogPriceOf(item: CatalogItem) {
   return item.default_price ?? item.base_price ?? 0
+}
+
+type Catalog = { products: CatalogItem[]; plans: CatalogItem[]; services: CatalogItem[] }
+
+function catalogOptionsFor(catalog: Catalog, type?: string): CatalogItem[] {
+  if (type === "PRODUCT") return catalog.products
+  if (type === "PLAN") return catalog.plans
+  if (type === "SERVICE") return catalog.services
+  return []
+}
+
+function defaultNewItemFor(catalog: Catalog): InvoiceItem {
+  const firstProduct = catalog.products[0]
+  if (firstProduct) {
+    return {
+      description: firstProduct.name,
+      quantity: 1,
+      unit_price: catalogPriceOf(firstProduct),
+      discount: 0,
+      tax: 0,
+      line_total: catalogPriceOf(firstProduct),
+      item_type: "PRODUCT",
+      reference_id: firstProduct.id,
+    }
+  }
+  return { description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0, line_total: 0, item_type: "CUSTOM", reference_id: null }
 }
 
 type CatalogTab = "PRODUCT" | "PLAN" | "SERVICE"
@@ -191,6 +247,170 @@ function CatalogPicker({
   )
 }
 
+/** Editable invoice line-items table (type, item, description, qty, price, discount, tax). */
+function ItemsEditor({
+  items,
+  onChange,
+  catalog,
+  currency = "NGN",
+}: {
+  items: InvoiceItem[]
+  onChange: (items: InvoiceItem[]) => void
+  catalog: Catalog
+  currency?: string
+}) {
+  function updateItem(idx: number, field: keyof InvoiceItem, value: unknown) {
+    onChange(
+      items.map((it, i) => {
+        if (i !== idx) return it
+        let next = { ...it, [field]: value } as InvoiceItem
+
+        if (field === "item_type") {
+          const options = catalogOptionsFor(catalog, String(value))
+          if (String(value) !== "CUSTOM" && options.length > 0) {
+            const selected = options[0]
+            next = {
+              ...next,
+              description: selected.name,
+              unit_price: catalogPriceOf(selected),
+              reference_id: selected.id,
+            }
+          } else {
+            next = { ...next, description: "", unit_price: 0, reference_id: null }
+          }
+        }
+
+        if (field === "reference_id" && it.item_type && it.item_type !== "CUSTOM") {
+          const selected = catalogOptionsFor(catalog, it.item_type).find((c) => c.id === value)
+          if (selected) {
+            next = { ...next, description: selected.name, unit_price: catalogPriceOf(selected) }
+          }
+        }
+
+        next.line_total = computeItemTotal(next)
+        return next
+      })
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Line Items</CardTitle></CardHeader>
+      <CardContent>
+        {items.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">No line items. Add one below.</p>
+        ) : (
+          <div className="overflow-x-auto -mx-2">
+            <table className="w-full text-sm min-w-[60rem]">
+              <thead>
+                <tr className="text-left text-muted-foreground text-[10px] uppercase tracking-wider">
+                  <th className="px-3 py-2.5 font-medium w-28">Type</th>
+                  <th className="px-3 py-2.5 font-medium min-w-[14rem]">Item</th>
+                  <th className="px-3 py-2.5 font-medium min-w-[14rem]">Description</th>
+                  <th className="px-3 py-2.5 font-medium w-16 text-center">Qty</th>
+                  <th className="px-3 py-2.5 font-medium w-28 text-right">Unit Price</th>
+                  <th className="px-3 py-2.5 font-medium w-20 text-right">Disc</th>
+                  <th className="px-3 py-2.5 font-medium w-20 text-right">Tax</th>
+                  <th className="px-3 py-2.5 font-medium w-28 text-right">Total</th>
+                  <th className="px-3 py-2.5 font-medium w-12"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => {
+                  const options = item.item_type ? catalogOptionsFor(catalog, item.item_type) : []
+                  const isCustom = !item.item_type || item.item_type === "CUSTOM"
+                  return (
+                    <tr key={item.id || idx} className="border-t last:border-b">
+                      <td className="px-3 py-2.5 align-top w-28">
+                        <select
+                          value={item.item_type || "CUSTOM"}
+                          onChange={(e) => updateItem(idx, "item_type", e.target.value)}
+                          className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
+                        >
+                          {CATALOG_TYPES.map((t) => (<option key={t.key} value={t.key}>{t.label}</option>))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-2.5 align-top min-w-[14rem]">
+                        {!isCustom && (
+                          <select
+                            value={item.reference_id || ""}
+                            onChange={(e) => updateItem(idx, "reference_id", e.target.value)}
+                            className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
+                          >
+                            {options.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
+                          </select>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 align-top min-w-[14rem]">
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => updateItem(idx, "description", e.target.value)}
+                          placeholder={isCustom ? "Item description" : "Description"}
+                          className="w-full min-w-[14rem] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 align-top w-16">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(idx, "quantity", Number(e.target.value))}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-center"
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 align-top w-28">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={item.unit_price}
+                          onChange={(e) => updateItem(idx, "unit_price", Number(e.target.value))}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right"
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 align-top w-20">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={item.discount}
+                          onChange={(e) => updateItem(idx, "discount", Number(e.target.value))}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right"
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 align-top w-20">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={item.tax}
+                          onChange={(e) => updateItem(idx, "tax", Number(e.target.value))}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right"
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 align-middle w-28 text-sm font-medium text-right">
+                        {formatNgn(item.line_total, currency)}
+                      </td>
+                      <td className="px-3 py-2.5 align-top w-12">
+                        <button onClick={() => onChange(items.filter((_, i) => i !== idx))} className="p-1 text-muted-foreground hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <Button variant="outline" size="sm" onClick={() => onChange([...items, defaultNewItemFor(catalog)])} className="mt-3">
+          <Plus className="mr-1 h-3.5 w-3.5" /> Add Line Item
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
 function today() {
   return new Date().toISOString().split("T")[0]
 }
@@ -225,16 +445,9 @@ export default function InvoicesPage() {
 
   const [editing, setEditing] = useState<Invoice | null>(null)
   const [editLoading, setEditLoading] = useState(false)
-  const [editItemForm, setEditItemForm] = useState<InvoiceItem>({
-    description: "",
-    quantity: 1,
-    unit_price: 0,
-    discount: 0,
-    tax: 0,
-    line_total: 0,
-    item_type: "PRODUCT",
-    reference_id: null,
-  })
+  const [modalMode, setModalMode] = useState<"view" | "edit">("view")
+  const [invoicePayments, setInvoicePayments] = useState<InvoicePayment[]>([])
+  const [paymentsLoading, setPaymentsLoading] = useState(false)
 
   const [showPayment, setShowPayment] = useState(false)
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null)
@@ -300,32 +513,15 @@ export default function InvoicesPage() {
       list = list.filter(
         (i) =>
           i.invoice_number.toLowerCase().includes(q) ||
-          i.business?.business_name?.toLowerCase().includes(q) ||
+          i.businesses?.business_name?.toLowerCase().includes(q) ||
           String(i.total_amount).includes(q)
       )
     }
     return list.sort((a, b) => new Date(b.created_at || b.issue_date).getTime() - new Date(a.created_at || a.issue_date).getTime())
   }, [invoices, filterBusiness, filterStatus, searchQuery])
 
-  const createTotals = useMemo(() => {
-    return createForm.items.reduce(
-      (acc, it) => {
-        const qty = Number(it.quantity) || 0
-        const unit = Number(it.unit_price) || 0
-        const disc = Number(it.discount) || 0
-        const tax = Number(it.tax) || 0
-        const lineSub = qty * unit
-        const lineTotal = Math.max(0, lineSub - disc + tax)
-        return {
-          subtotal: acc.subtotal + lineSub,
-          discount: acc.discount + disc,
-          tax: acc.tax + tax,
-          total: acc.total + lineTotal,
-        }
-      },
-      { subtotal: 0, discount: 0, tax: 0, total: 0 }
-    )
-  }, [createForm.items])
+  const createTotals = useMemo(() => computeInvoiceTotals(createForm.items), [createForm.items])
+  const editingTotals = useMemo(() => computeInvoiceTotals(editing?.invoice_items || []), [editing?.invoice_items])
 
   async function createInvoice() {
     if (!createForm.businessId) {
@@ -381,163 +577,54 @@ export default function InvoicesPage() {
     }
   }
 
-  function catalogOptions(type: string) {
-    if (type === "PRODUCT") return catalog.products
-    if (type === "PLAN") return catalog.plans
-    if (type === "SERVICE") return catalog.services
-    return []
-  }
-
-  function catalogPrice(item: CatalogItem) {
-    return catalogPriceOf(item)
+  function buildCatalogItem(type: CatalogTab, c: CatalogItem): InvoiceItem {
+    const price = catalogPriceOf(c)
+    return {
+      description: c.name,
+      quantity: 1,
+      unit_price: price,
+      discount: 0,
+      tax: 0,
+      line_total: price,
+      item_type: type,
+      reference_id: c.id,
+    }
   }
 
   function addCatalogItemToCreate(type: CatalogTab, c: CatalogItem) {
-    const item: InvoiceItem = {
-      description: c.name,
-      quantity: 1,
-      unit_price: catalogPrice(c),
-      discount: 0,
-      tax: 0,
-      line_total: catalogPrice(c),
-      item_type: type,
-      reference_id: c.id,
-    }
-    setCreateForm((prev) => ({ ...prev, items: [...prev.items, item] }))
+    setCreateForm((prev) => ({ ...prev, items: [...prev.items, buildCatalogItem(type, c)] }))
   }
 
-  function pickCatalogItemForEdit(type: CatalogTab, c: CatalogItem) {
-    setEditItemForm({
-      description: c.name,
-      quantity: 1,
-      unit_price: catalogPrice(c),
-      discount: 0,
-      tax: 0,
-      line_total: catalogPrice(c),
-      item_type: type,
-      reference_id: c.id,
-    })
+  function addCatalogItemToEdit(type: CatalogTab, c: CatalogItem) {
+    setEditing((prev) =>
+      prev ? { ...prev, invoice_items: [...(prev.invoice_items || []), buildCatalogItem(type, c)] } : prev
+    )
   }
 
-  function defaultNewItem(): InvoiceItem {
-    const firstProduct = catalog.products[0]
-    if (firstProduct) {
-      return {
-        description: firstProduct.name,
-        quantity: 1,
-        unit_price: catalogPrice(firstProduct),
-        discount: 0,
-        tax: 0,
-        line_total: catalogPrice(firstProduct),
-        item_type: "PRODUCT",
-        reference_id: firstProduct.id,
-      }
-    }
-    return { description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0, line_total: 0, item_type: "CUSTOM", reference_id: null }
-  }
-
-  function addCreateItem() {
-    setCreateForm((prev) => ({ ...prev, items: [...prev.items, defaultNewItem()] }))
-  }
-
-  function updateCreateItem(idx: number, field: keyof InvoiceItem, value: unknown) {
-    setCreateForm((prev) => {
-      const items = prev.items.map((it, i) => {
-        if (i !== idx) return it
-        let next = { ...it, [field]: value } as InvoiceItem
-
-        if (field === "item_type") {
-          const options = catalogOptions(String(value))
-          if (String(value) !== "CUSTOM" && options.length > 0) {
-            const selected = options[0]
-            next = {
-              ...next,
-              description: selected.name,
-              unit_price: catalogPrice(selected),
-              reference_id: selected.id,
-            }
-          } else {
-            next = { ...next, description: "", unit_price: 0, reference_id: null }
-          }
-        }
-
-        if (field === "reference_id" && it.item_type && it.item_type !== "CUSTOM") {
-          const selected = catalogOptions(it.item_type).find((c) => c.id === value)
-          if (selected) {
-            next = { ...next, description: selected.name, unit_price: catalogPrice(selected) }
-          }
-        }
-
-        next.line_total = computeItemTotal(next)
-        return next
-      })
-      return { ...prev, items }
-    })
-  }
-
-  function removeCreateItem(idx: number) {
-    setCreateForm((prev) => ({ ...prev, items: prev.items.filter((_, i) => i !== idx) }))
-  }
-
-  function resetEditItemForm() {
-    const firstProduct = catalog.products[0]
-    if (firstProduct) {
-      setEditItemForm({
-        description: firstProduct.name,
-        quantity: 1,
-        unit_price: catalogPrice(firstProduct),
-        discount: 0,
-        tax: 0,
-        line_total: catalogPrice(firstProduct),
-        item_type: "PRODUCT",
-        reference_id: firstProduct.id,
-      })
-    } else {
-      setEditItemForm({
-        description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0, line_total: 0, item_type: "CUSTOM", reference_id: null,
-      })
+  async function fetchInvoicePayments(invoiceId: string) {
+    setPaymentsLoading(true)
+    try {
+      const res = await fetch(`/api/admin/finance/commercial/payments?invoiceId=${encodeURIComponent(invoiceId)}`)
+      const data = await res.json()
+      setInvoicePayments(data.success && Array.isArray(data.data) ? (data.data as InvoicePayment[]) : [])
+    } catch {
+      setInvoicePayments([])
+    } finally {
+      setPaymentsLoading(false)
     }
   }
 
-  function updateEditItemForm(field: keyof InvoiceItem, value: unknown) {
-    setEditItemForm((prev) => {
-      let next = { ...prev, [field]: value } as InvoiceItem
-
-      if (field === "item_type") {
-        const options = catalogOptions(String(value))
-        if (String(value) !== "CUSTOM" && options.length > 0) {
-          const selected = options[0]
-          next = {
-            ...next,
-            description: selected.name,
-            unit_price: catalogPrice(selected),
-            reference_id: selected.id,
-          }
-        } else {
-          next = { ...next, description: "", unit_price: 0, reference_id: null }
-        }
-      }
-
-      if (field === "reference_id" && prev.item_type && prev.item_type !== "CUSTOM") {
-        const selected = catalogOptions(prev.item_type).find((c) => c.id === value)
-        if (selected) {
-          next = { ...next, description: selected.name, unit_price: catalogPrice(selected) }
-        }
-      }
-
-      next.line_total = computeItemTotal(next)
-      return next
-    })
-  }
-
-  async function openEdit(invoice: Invoice) {
+  async function openInvoice(invoice: Invoice, mode: "view" | "edit" = "view") {
     setEditLoading(true)
     setEditing(null)
+    setInvoicePayments([])
+    setModalMode(mode)
     try {
       const res = await fetch(`/api/admin/finance/commercial/invoices?id=${encodeURIComponent(invoice.id)}`)
       const data = await res.json()
       if (data.success && data.data) {
         setEditing(data.data as Invoice)
+        fetchInvoicePayments(invoice.id)
       } else {
         setMessage(data.error || "Failed to load invoice")
       }
@@ -548,73 +635,7 @@ export default function InvoicesPage() {
     }
   }
 
-  async function addItemToInvoice() {
-    if (!editing) return
-    if (!editItemForm.description) {
-      setMessage("Description is required")
-      return
-    }
-    setEditLoading(true)
-    setMessage("")
-    try {
-      const res = await fetch("/api/admin/finance/commercial/invoices", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "add_item",
-          data: {
-            invoice_id: editing.id,
-            description: editItemForm.description,
-            quantity: Number(editItemForm.quantity) || 0,
-            unit_price: Number(editItemForm.unit_price) || 0,
-            discount: Number(editItemForm.discount) || 0,
-            tax: Number(editItemForm.tax) || 0,
-            item_type: editItemForm.item_type || "CUSTOM",
-            reference_id: editItemForm.reference_id || null,
-            line_total: computeItemTotal(editItemForm),
-          },
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        resetEditItemForm()
-        openEdit(editing)
-        fetchInvoices()
-      } else {
-        setMessage(data.error || "Failed to add item")
-      }
-    } catch {
-      setMessage("Failed to add item")
-    } finally {
-      setEditLoading(false)
-    }
-  }
-
-  async function removeItemFromInvoice(itemId: string) {
-    if (!editing) return
-    if (!confirm("Remove this item?")) return
-    setEditLoading(true)
-    try {
-      const res = await fetch("/api/admin/finance/commercial/invoices", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "remove_item", data: { invoice_id: editing.id, item_id: itemId } }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        openEdit(editing)
-        fetchInvoices()
-      } else {
-        setMessage(data.error || "Failed to remove item")
-      }
-    } catch {
-      setMessage("Failed to remove item")
-    } finally {
-      setEditLoading(false)
-    }
-  }
-
-  async function saveInvoiceMeta() {
+  async function saveInvoice() {
     if (!editing) return
     setEditLoading(true)
     setMessage("")
@@ -626,21 +647,33 @@ export default function InvoicesPage() {
           action: "update",
           data: {
             id: editing.id,
+            issue_date: editing.issue_date,
             due_date: editing.due_date,
             notes_public: editing.notes_public,
             notes_internal: editing.notes_internal,
+            items: (editing.invoice_items || []).map((it) => ({
+              id: it.id,
+              item_type: it.item_type || "CUSTOM",
+              reference_id: it.reference_id || null,
+              description: it.description,
+              quantity: Number(it.quantity) || 0,
+              unit_price: Number(it.unit_price) || 0,
+              discount: Number(it.discount) || 0,
+              tax: Number(it.tax) || 0,
+            })),
           },
         }),
       })
       const data = await res.json()
       if (data.success) {
-        setMessage("Invoice updated")
+        setMessage("Invoice saved")
         fetchInvoices()
+        openInvoice(editing, modalMode)
       } else {
-        setMessage(data.error || "Failed to update invoice")
+        setMessage(data.error || "Failed to save invoice")
       }
     } catch {
-      setMessage("Failed to update invoice")
+      setMessage("Failed to save invoice")
     } finally {
       setEditLoading(false)
     }
@@ -658,7 +691,7 @@ export default function InvoicesPage() {
       if (data.success) {
         setMessage(`Invoice ${action.replace("_", " ")}`)
         fetchInvoices()
-        if (editing?.id === id) openEdit({ ...editing, id })
+        if (editing?.id === id) openInvoice({ ...editing, id }, modalMode)
       } else {
         setMessage(data.error || `Failed to ${action}`)
       }
@@ -725,7 +758,7 @@ export default function InvoicesPage() {
           setPaymentInvoice(null)
           setPaymentForm({ amount: "", paymentMethod: "BANK_TRANSFER", paidAt: today(), notes: "" })
           fetchInvoices()
-          if (editing?.id === paymentInvoice.id) openEdit(paymentInvoice)
+          if (editing?.id === paymentInvoice.id) openInvoice(paymentInvoice, modalMode)
         } else {
           setMessage(confirmData.error || "Payment recorded but not confirmed")
         }
@@ -837,12 +870,12 @@ export default function InvoicesPage() {
                   {filteredInvoices.map((inv) => (
                     <tr key={inv.id} className="border-b last:border-0 hover:bg-muted/50">
                       <td className="px-3 py-2 font-mono text-xs">{inv.invoice_number}</td>
-                      <td className="px-3 py-2">{inv.business?.business_name || "—"}</td>
+                      <td className="px-3 py-2">{inv.businesses?.business_name || "—"}</td>
                       <td className="px-3 py-2">{inv.issue_date}</td>
                       <td className="px-3 py-2">{inv.due_date}</td>
-                      <td className="px-3 py-2 text-right">{formatNgn(inv.total_amount)}</td>
-                      <td className="px-3 py-2 text-right">{formatNgn(inv.amount_paid)}</td>
-                      <td className="px-3 py-2 text-right">{formatNgn(inv.balance_due)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(inv.total_amount, inv.currency)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(inv.amount_paid, inv.currency)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(inv.balance_due, inv.currency)}</td>
                       <td className="px-3 py-2">
                         <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[inv.status] || "bg-gray-100 text-gray-700"}`}>
                           {inv.status.replace(/_/g, " ")}
@@ -850,9 +883,14 @@ export default function InvoicesPage() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => openEdit(inv)} className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50" title="View/Edit">
-                            <Pencil className="h-3.5 w-3.5" />
+                          <button onClick={() => openInvoice(inv, "view")} className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50" title="View">
+                            <Eye className="h-3.5 w-3.5" />
                           </button>
+                          {inv.status !== "VOID" && inv.status !== "CANCELLED" && (
+                            <button onClick={() => openInvoice(inv, "edit")} className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50" title="Edit">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           {inv.status === "DRAFT" && (
                             <button onClick={() => runInvoiceAction("issue", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50" title="Issue">
                               <Send className="h-3.5 w-3.5" />
@@ -951,127 +989,19 @@ export default function InvoicesPage() {
               }
             />
 
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Line Items</CardTitle></CardHeader>
-              <CardContent>
-                {createForm.items.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No line items. Add one below.</p>
-                ) : (
-                  <div className="overflow-x-auto -mx-2">
-                    <table className="w-full text-sm min-w-[60rem]">
-                      <thead>
-                        <tr className="text-left text-muted-foreground text-[10px] uppercase tracking-wider">
-                          <th className="px-3 py-2.5 font-medium w-28">Type</th>
-                          <th className="px-3 py-2.5 font-medium min-w-[14rem]">Item</th>
-                          <th className="px-3 py-2.5 font-medium min-w-[14rem]">Description</th>
-                          <th className="px-3 py-2.5 font-medium w-16 text-center">Qty</th>
-                          <th className="px-3 py-2.5 font-medium w-28 text-right">Unit Price</th>
-                          <th className="px-3 py-2.5 font-medium w-20 text-right">Disc</th>
-                          <th className="px-3 py-2.5 font-medium w-20 text-right">Tax</th>
-                          <th className="px-3 py-2.5 font-medium w-28 text-right">Total</th>
-                          <th className="px-3 py-2.5 font-medium w-12"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {createForm.items.map((item, idx) => {
-                          const options = item.item_type ? catalogOptions(item.item_type) : []
-                          const isCustom = !item.item_type || item.item_type === "CUSTOM"
-                          return (
-                            <tr key={idx} className="border-t last:border-b">
-                              <td className="px-3 py-2.5 align-top w-28">
-                                <select
-                                  value={item.item_type || "CUSTOM"}
-                                  onChange={(e) => updateCreateItem(idx, "item_type", e.target.value)}
-                                  className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
-                                >
-                                  {CATALOG_TYPES.map((t) => (<option key={t.key} value={t.key}>{t.label}</option>))}
-                                </select>
-                              </td>
-                              <td className="px-3 py-2.5 align-top min-w-[14rem]">
-                                {!isCustom && (
-                                  <select
-                                    value={item.reference_id || ""}
-                                    onChange={(e) => updateCreateItem(idx, "reference_id", e.target.value)}
-                                    className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
-                                  >
-                                    {options.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
-                                  </select>
-                                )}
-                              </td>
-                              <td className="px-3 py-2.5 align-top min-w-[14rem]">
-                                <input
-                                  type="text"
-                                  value={item.description}
-                                  onChange={(e) => updateCreateItem(idx, "description", e.target.value)}
-                                  placeholder={isCustom ? "Item description" : "Description"}
-                                  className="w-full min-w-[14rem] rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                />
-                              </td>
-                              <td className="px-3 py-2.5 align-top w-16">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={item.quantity}
-                                  onChange={(e) => updateCreateItem(idx, "quantity", Number(e.target.value))}
-                                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-center"
-                                />
-                              </td>
-                              <td className="px-3 py-2.5 align-top w-28">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={item.unit_price}
-                                  onChange={(e) => updateCreateItem(idx, "unit_price", Number(e.target.value))}
-                                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right"
-                                />
-                              </td>
-                              <td className="px-3 py-2.5 align-top w-20">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={item.discount}
-                                  onChange={(e) => updateCreateItem(idx, "discount", Number(e.target.value))}
-                                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right"
-                                />
-                              </td>
-                              <td className="px-3 py-2.5 align-top w-20">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={item.tax}
-                                  onChange={(e) => updateCreateItem(idx, "tax", Number(e.target.value))}
-                                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right"
-                                />
-                              </td>
-                              <td className="px-3 py-2.5 align-middle w-28 text-sm font-medium text-right">
-                                {formatNgn(item.line_total)}
-                              </td>
-                              <td className="px-3 py-2.5 align-top w-12">
-                                <button onClick={() => removeCreateItem(idx)} className="p-1 text-muted-foreground hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-                <Button variant="outline" size="sm" onClick={addCreateItem} className="mt-3">
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Add Line Item
-                </Button>
-              </CardContent>
-            </Card>
+            <ItemsEditor
+              items={createForm.items}
+              onChange={(items) => setCreateForm((prev) => ({ ...prev, items }))}
+              catalog={catalog}
+              currency={createForm.currency}
+            />
 
             <div className="flex items-center justify-between">
               <div className="text-sm space-y-1">
-                <p className="text-muted-foreground">Subtotal: <span className="font-medium text-foreground">{formatNgn(createTotals.subtotal)}</span></p>
-                <p className="text-muted-foreground">Discount: <span className="font-medium text-foreground">{formatNgn(createTotals.discount)}</span></p>
-                <p className="text-muted-foreground">Tax: <span className="font-medium text-foreground">{formatNgn(createTotals.tax)}</span></p>
-                <p className="font-semibold">Total: {formatNgn(createTotals.total)}</p>
+                <p className="text-muted-foreground">Subtotal: <span className="font-medium text-foreground">{formatNgn(createTotals.subtotal, createForm.currency)}</span></p>
+                <p className="text-muted-foreground">Discount: <span className="font-medium text-foreground">{formatNgn(createTotals.discount, createForm.currency)}</span></p>
+                <p className="text-muted-foreground">Tax: <span className="font-medium text-foreground">{formatNgn(createTotals.tax, createForm.currency)}</span></p>
+                <p className="font-semibold">Total: {formatNgn(createTotals.total, createForm.currency)}</p>
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={() => setShowCreate(false)} disabled={creating}>Cancel</Button>
@@ -1088,40 +1018,94 @@ export default function InvoicesPage() {
       {editing && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-2 sm:p-4 overflow-y-auto">
           <div className="my-2 w-full max-w-6xl max-h-[94vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold">Invoice {editing.invoice_number}</h3>
-                <p className="text-xs text-muted-foreground">{editing.business?.business_name} · {editing.currency}</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-semibold">Invoice {editing.invoice_number}</h3>
+                  <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[editing.status] || "bg-gray-100 text-gray-700"}`}>
+                    {editing.status.replace(/_/g, " ")}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">{editing.businesses?.business_name || "—"} · {editing.currency}</p>
               </div>
-              <button onClick={() => setEditing(null)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"><X className="h-5 w-5" /></button>
+              <div className="flex items-center gap-2">
+                {modalMode === "view" && editing.status !== "VOID" && editing.status !== "CANCELLED" && (
+                  <Button size="sm" variant="outline" onClick={() => setModalMode("edit")}>
+                    <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                  </Button>
+                )}
+                <button onClick={() => setEditing(null)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"><X className="h-5 w-5" /></button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Business</label>
+                <input
+                  type="text"
+                  value={editing.businesses?.business_name || ""}
+                  disabled
+                  className="w-full rounded-md border border-input bg-muted px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Issue Date</label>
+                <input
+                  type="date"
+                  value={editing.issue_date}
+                  disabled={modalMode === "view"}
+                  onChange={(e) => setEditing((prev) => (prev ? { ...prev, issue_date: e.target.value } : prev))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:bg-muted disabled:text-muted-foreground"
+                />
+              </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Due Date</label>
                 <input
                   type="date"
                   value={editing.due_date}
+                  disabled={modalMode === "view"}
                   onChange={(e) => setEditing((prev) => (prev ? { ...prev, due_date: e.target.value } : prev))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:bg-muted disabled:text-muted-foreground"
                 />
               </div>
-              <div className="space-y-1.5 lg:col-span-3">
-                <label className="text-sm font-medium">Notes</label>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Currency</label>
+                <input
+                  type="text"
+                  value={editing.currency}
+                  disabled
+                  className="w-full rounded-md border border-input bg-muted px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5 lg:col-span-2">
+                <label className="text-sm font-medium">Notes (public)</label>
                 <input
                   type="text"
                   value={editing.notes_public || ""}
+                  disabled={modalMode === "view"}
                   onChange={(e) => setEditing((prev) => (prev ? { ...prev, notes_public: e.target.value } : prev))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:bg-muted disabled:text-muted-foreground"
+                />
+              </div>
+              <div className="space-y-1.5 lg:col-span-2">
+                <label className="text-sm font-medium">Notes (internal)</label>
+                <input
+                  type="text"
+                  value={editing.notes_internal || ""}
+                  disabled={modalMode === "view"}
+                  onChange={(e) => setEditing((prev) => (prev ? { ...prev, notes_internal: e.target.value } : prev))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:bg-muted disabled:text-muted-foreground"
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={saveInvoiceMeta} disabled={editLoading}>
-                {editLoading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1 h-3.5 w-3.5" />}
-                Save
-              </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {modalMode === "edit" && (
+                <Button size="sm" onClick={saveInvoice} disabled={editLoading}>
+                  {editLoading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1 h-3.5 w-3.5" />}
+                  Save Changes
+                </Button>
+              )}
               {editing.status === "DRAFT" && (
                 <Button size="sm" variant="outline" onClick={() => runInvoiceAction("issue", editing.id)}><Send className="mr-1 h-3.5 w-3.5" /> Issue</Button>
               )}
@@ -1137,154 +1121,123 @@ export default function InvoicesPage() {
               <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => { deleteInvoice(editing.id); setEditing(null) }}><Trash2 className="mr-1 h-3.5 w-3.5" /> Delete</Button>
             </div>
 
+            {modalMode === "edit" ? (
+              <>
+                <CatalogPicker
+                  catalog={catalog}
+                  onPick={addCatalogItemToEdit}
+                  onCustom={() =>
+                    setEditing((prev) =>
+                      prev
+                        ? { ...prev, invoice_items: [...(prev.invoice_items || []), { description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0, line_total: 0, item_type: "CUSTOM" as const, reference_id: null }] }
+                        : prev
+                    )
+                  }
+                />
+                <ItemsEditor
+                  items={editing.invoice_items || []}
+                  onChange={(items) => setEditing((prev) => (prev ? { ...prev, invoice_items: items } : prev))}
+                  catalog={catalog}
+                  currency={editing.currency}
+                />
+              </>
+            ) : (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Line Items</CardTitle></CardHeader>
+                <CardContent>
+                  {(!editing.invoice_items || editing.invoice_items.length === 0) ? (
+                    <p className="text-sm text-muted-foreground py-4 text-center">No line items.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-muted-foreground">
+                            <th className="px-3 py-2 font-medium">Description</th>
+                            <th className="px-3 py-2 font-medium text-right">Qty</th>
+                            <th className="px-3 py-2 font-medium text-right">Unit</th>
+                            <th className="px-3 py-2 font-medium text-right">Disc</th>
+                            <th className="px-3 py-2 font-medium text-right">Tax</th>
+                            <th className="px-3 py-2 font-medium text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editing.invoice_items.map((it, idx) => (
+                            <tr key={it.id || idx} className="border-b last:border-0">
+                              <td className="px-3 py-2">{it.description}</td>
+                              <td className="px-3 py-2 text-right">{it.quantity}</td>
+                              <td className="px-3 py-2 text-right">{formatNgn(it.unit_price, editing.currency)}</td>
+                              <td className="px-3 py-2 text-right">{formatNgn(it.discount, editing.currency)}</td>
+                              <td className="px-3 py-2 text-right">{formatNgn(it.tax, editing.currency)}</td>
+                              <td className="px-3 py-2 text-right">{formatNgn(it.line_total, editing.currency)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Line Items</CardTitle></CardHeader>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" /> Payment History
+                </CardTitle>
+              </CardHeader>
               <CardContent>
-                {(!editing.invoice_items || editing.invoice_items.length === 0) ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No line items.</p>
+                {paymentsLoading ? (
+                  <div className="flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+                ) : invoicePayments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">No payments recorded for this invoice.</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-left text-muted-foreground">
-                          <th className="px-3 py-2 font-medium">Description</th>
-                          <th className="px-3 py-2 font-medium text-right">Qty</th>
-                          <th className="px-3 py-2 font-medium text-right">Unit</th>
-                          <th className="px-3 py-2 font-medium text-right">Disc</th>
-                          <th className="px-3 py-2 font-medium text-right">Tax</th>
-                          <th className="px-3 py-2 font-medium text-right">Total</th>
-                          <th className="px-3 py-2 font-medium"></th>
+                          <th className="px-3 py-2 font-medium">Date</th>
+                          <th className="px-3 py-2 font-medium">Reference</th>
+                          <th className="px-3 py-2 font-medium">Method</th>
+                          <th className="px-3 py-2 font-medium">Status</th>
+                          <th className="px-3 py-2 font-medium text-right">Applied</th>
+                          <th className="px-3 py-2 font-medium text-right">Amount</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {editing.invoice_items.map((it) => (
-                          <tr key={it.id} className="border-b last:border-0">
-                            <td className="px-3 py-2">{it.description}</td>
-                            <td className="px-3 py-2 text-right">{it.quantity}</td>
-                            <td className="px-3 py-2 text-right">{formatNgn(it.unit_price)}</td>
-                            <td className="px-3 py-2 text-right">{formatNgn(it.discount)}</td>
-                            <td className="px-3 py-2 text-right">{formatNgn(it.tax)}</td>
-                            <td className="px-3 py-2 text-right">{formatNgn(it.line_total)}</td>
-                            <td className="px-3 py-2">
-                              <button onClick={() => it.id && removeItemFromInvoice(it.id)} className="p-1 text-muted-foreground hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
-                            </td>
-                          </tr>
-                        ))}
+                        {invoicePayments.map((p) => {
+                          const alloc = p.payment_allocations?.find((a) => a.invoice_id === editing.id)
+                          return (
+                            <tr key={p.id} className="border-b last:border-0">
+                              <td className="px-3 py-2 whitespace-nowrap">{(p.paid_at || p.created_at || "").slice(0, 10)}</td>
+                              <td className="px-3 py-2 font-mono text-xs">{p.payment_reference}</td>
+                              <td className="px-3 py-2">{p.payment_method.replace(/_/g, " ")}</td>
+                              <td className="px-3 py-2">
+                                <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${p.status === "CONFIRMED" ? "bg-green-50 text-green-700" : p.status === "PENDING" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                                  {p.status.replace(/_/g, " ")}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-right font-medium">{formatMoney(alloc ? alloc.amount_allocated : p.amount, p.currency)}</td>
+                              <td className="px-3 py-2 text-right text-muted-foreground">{alloc ? formatMoney(p.amount, p.currency) : "—"}</td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
                 )}
-
-                <div className="mt-4 space-y-3">
-                  <CatalogPicker
-                    catalog={catalog}
-                    onPick={pickCatalogItemForEdit}
-                    onCustom={() =>
-                      setEditItemForm({ description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0, line_total: 0, item_type: "CUSTOM", reference_id: null })
-                    }
-                  />
-                  <div className="overflow-x-auto">
-                  <div className="min-w-[52rem] grid grid-cols-12 gap-2 items-end p-3 rounded-lg border border-border bg-muted/20">
-                    <div className="col-span-2">
-                      <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Type</label>
-                      <select
-                        value={editItemForm.item_type || "CUSTOM"}
-                        onChange={(e) => updateEditItemForm("item_type", e.target.value)}
-                        className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
-                      >
-                        {CATALOG_TYPES.map((t) => (<option key={t.key} value={t.key}>{t.label}</option>))}
-                      </select>
-                    </div>
-                    <div className="col-span-3">
-                      <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Item</label>
-                      {editItemForm.item_type && editItemForm.item_type !== "CUSTOM" ? (
-                        <select
-                          value={editItemForm.reference_id || ""}
-                          onChange={(e) => updateEditItemForm("reference_id", e.target.value)}
-                          className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
-                        >
-                          {catalogOptions(editItemForm.item_type).map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
-                        </select>
-                      ) : (
-                        <input disabled value="Custom" className="w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="col-span-3">
-                      <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Description</label>
-                      <input
-                        type="text"
-                        value={editItemForm.description}
-                        onChange={(e) => updateEditItemForm("description", e.target.value)}
-                        placeholder="Description"
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      />
-                    </div>
-                    <div className="col-span-1">
-                      <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Qty</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={editItemForm.quantity}
-                        onChange={(e) => updateEditItemForm("quantity", Number(e.target.value))}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-center"
-                      />
-                    </div>
-                    <div className="col-span-1">
-                      <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Price</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={editItemForm.unit_price}
-                        onChange={(e) => updateEditItemForm("unit_price", Number(e.target.value))}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right"
-                      />
-                    </div>
-                    <div className="col-span-1">
-                      <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Disc</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={editItemForm.discount}
-                        onChange={(e) => updateEditItemForm("discount", Number(e.target.value))}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right"
-                      />
-                    </div>
-                    <div className="col-span-1">
-                      <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Tax</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={editItemForm.tax}
-                        onChange={(e) => updateEditItemForm("tax", Number(e.target.value))}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-right"
-                      />
-                    </div>
-                    <div className="col-span-1">
-                      <Button size="sm" onClick={addItemToInvoice} disabled={editLoading || !editItemForm.description}>
-                        {editLoading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1 h-3.5 w-3.5" />}
-                        Add
-                      </Button>
-                    </div>
-                  </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div className="space-y-1">
-                <p className="text-muted-foreground">Subtotal: <span className="font-medium text-foreground">{formatNgn(editing.subtotal)}</span></p>
-                <p className="text-muted-foreground">Discount: <span className="font-medium text-foreground">{formatNgn(editing.discount_amount)}</span></p>
-                <p className="text-muted-foreground">Tax: <span className="font-medium text-foreground">{formatNgn(editing.tax_amount)}</span></p>
-                <p className="font-semibold text-lg">Total: {formatNgn(editing.total_amount)}</p>
+                <p className="text-muted-foreground">Subtotal: <span className="font-medium text-foreground">{formatNgn(modalMode === "edit" ? editingTotals.subtotal : editing.subtotal, editing.currency)}</span></p>
+                <p className="text-muted-foreground">Discount: <span className="font-medium text-foreground">{formatNgn(modalMode === "edit" ? editingTotals.discount : editing.discount_amount, editing.currency)}</span></p>
+                <p className="text-muted-foreground">Tax: <span className="font-medium text-foreground">{formatNgn(modalMode === "edit" ? editingTotals.tax : editing.tax_amount, editing.currency)}</span></p>
+                <p className="font-semibold text-lg">Total: {formatNgn(modalMode === "edit" ? editingTotals.total : editing.total_amount, editing.currency)}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-muted-foreground">Paid: <span className="font-medium text-foreground">{formatNgn(editing.amount_paid)}</span></p>
-                <p className="text-muted-foreground">Balance: <span className="font-medium text-foreground">{formatNgn(editing.balance_due)}</span></p>
+                <p className="text-muted-foreground">Paid: <span className="font-medium text-foreground">{formatNgn(editing.amount_paid, editing.currency)}</span></p>
+                <p className="text-muted-foreground">Balance: <span className="font-medium text-foreground">{formatNgn(editing.balance_due, editing.currency)}</span></p>
                 <p className="text-muted-foreground">Status: <span className="font-medium text-foreground">{editing.status.replace(/_/g, " ")}</span></p>
               </div>
             </div>

@@ -6,11 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Loader2, Landmark, FileText, CreditCard, AlertCircle, Repeat, Calendar, Gift, Wallet } from "lucide-react"
 import Link from "next/link"
 import type { FinanceOverview } from "@/lib/finance-commercial"
+import { formatMoney } from "@/lib/money-format"
 
 function formatNgn(n: number) {
-  if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `₦${(n / 1_000).toFixed(0)}K`
-  return `₦${n.toFixed(0)}`
+  return formatMoney(n)
 }
 
 function KpiCard({

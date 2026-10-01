@@ -41,14 +41,14 @@ describe("isLive", () => {
     expect(isLive(inc({ status: "completed" }), NOW)).toBe(false)
   })
 
-  it("does not raise the banner for a future maintenance window", () => {
+  it("announces a future maintenance window as soon as it is scheduled", () => {
     const m = inc({
       kind: "maintenance",
       status: "scheduled",
       scheduledFor: "2026-10-05T01:00:00Z",
       scheduledUntil: "2026-10-05T03:00:00Z",
     })
-    expect(isLive(m, NOW)).toBe(false)
+    expect(isLive(m, NOW)).toBe(true)
   })
 
   it("raises the banner for in-progress maintenance and drops expired windows", () => {

@@ -130,7 +130,12 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
     if (resource === "payments") {
       let q = supabase.from("payments").select("*, payment_allocations(*), businesses:business_id (business_name)")
       if (businessId) q = q.eq("business_id", businessId)
-      if (invoiceId) q = q.eq("invoice_id", invoiceId)
+      if (invoiceId) {
+        // Include payments linked directly AND those allocated to this invoice via payment_allocations.
+        const { data: allocs } = await supabase.from("payment_allocations").select("payment_id").eq("invoice_id", invoiceId)
+        const allocIds = ((allocs as { payment_id: string }[]) || []).map((a) => a.payment_id)
+        q = allocIds.length ? q.or(`invoice_id.eq.${invoiceId},id.in.(${allocIds.join(",")})`) : q.eq("invoice_id", invoiceId)
+      }
       if (status) q = q.eq("status", status)
       const { data, error } = id ? await q.eq("id", id).single() : await q.order("created_at", { ascending: false })
       if (error) return err(error.message, 500)
@@ -407,10 +412,46 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         return ok(inv)
       }
       if (action === "update") {
-        const { id, ...updates } = data
+        const { id, items, ...updates } = data
         if (!id) return err("Invoice ID required")
-        const { data: inv, error } = await supabase.from("invoices").update({ ...updates, updated_at: now() }).eq("id", id).select().single()
+        const meta: Record<string, unknown> = {}
+        for (const k of ["issue_date", "due_date", "currency", "notes_public", "notes_internal"]) {
+          if (k in updates) meta[k] = updates[k]
+        }
+        const { data: inv, error } = await supabase.from("invoices").update({ ...meta, updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
+        if (Array.isArray(items)) {
+          for (const it of items) {
+            if (!it.description) return err("Every line item needs a description")
+          }
+          const { data: existing } = await supabase.from("invoice_items").select("id").eq("invoice_id", id)
+          const keepIds = new Set(items.filter((it: any) => it?.id).map((it: any) => it.id as string))
+          const removed = ((existing as { id: string }[]) || []).map((r) => r.id).filter((itemId) => !keepIds.has(itemId))
+          if (removed.length) {
+            const { error: delErr } = await supabase.from("invoice_items").delete().in("id", removed)
+            if (delErr) return err(delErr.message, 500)
+          }
+          for (const it of items) {
+            const row = {
+              item_type: it.item_type || "CUSTOM",
+              reference_id: it.reference_id || null,
+              description: it.description,
+              quantity: Number(it.quantity) || 0,
+              unit_price: Number(it.unit_price) || 0,
+              discount: Number(it.discount) || 0,
+              tax: Number(it.tax) || 0,
+              line_total: money((Number(it.quantity) || 0) * (Number(it.unit_price) || 0) - (Number(it.discount) || 0) + (Number(it.tax) || 0)),
+            }
+            if (it.id) {
+              const { error: uErr } = await supabase.from("invoice_items").update(row).eq("id", it.id).eq("invoice_id", id)
+              if (uErr) return err(uErr.message, 500)
+            } else {
+              const { error: iErr } = await supabase.from("invoice_items").insert({ ...row, invoice_id: id })
+              if (iErr) return err(iErr.message, 500)
+            }
+          }
+        }
+        await recalculateInvoice(id)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_UPDATED", "INVOICE", id)
         return ok(inv)
       }

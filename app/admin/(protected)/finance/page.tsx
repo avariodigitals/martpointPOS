@@ -17,6 +17,7 @@ import {
   ArrowDownRight,
 } from "lucide-react"
 import Link from "next/link"
+import { formatMoney } from "@/lib/money-format"
 import {
   AreaChart,
   Area,
@@ -54,9 +55,7 @@ interface FinanceSummary {
 const COLORS = ["#0057FF", "#00C853", "#FF9800", "#E91E63", "#9C27B0", "#00BCD4", "#FF5722", "#607D8B"]
 
 function formatNgn(n: number) {
-  if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `₦${(n / 1_000).toFixed(0)}K`
-  return `₦${n.toFixed(0)}`
+  return formatMoney(n)
 }
 
 function KpiCard({

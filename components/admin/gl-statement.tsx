@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
+import { formatMoney as formatNairaMoney } from "@/lib/money-format"
 
 type StatementRow = {
   entry_id: string
@@ -18,7 +19,7 @@ type StatementRow = {
 
 export function formatMoney(n: number | null | undefined) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—"
-  return `₦${Number(n).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return formatNairaMoney(n)
 }
 
 export function GlStatement({

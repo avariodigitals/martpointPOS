@@ -1,14 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Loader2, Building2, Receipt, CreditCard, RefreshCw, Award } from "lucide-react"
+import { ArrowLeft, Loader2, Building2, Receipt, CreditCard, RefreshCw, Award, BookOpen, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+import { formatMoney } from "@/lib/money-format"
 
 function fmtMoney(amount: number, currency = "NGN") {
-  return new Intl.NumberFormat("en-NG", { style: "currency", currency }).format(amount || 0)
+  return formatMoney(amount, currency)
 }
 
 function fmtDate(iso?: string | null) {
@@ -35,6 +36,18 @@ const ENDPOINTS = [
   ["commissions", "/api/admin/finance/commercial/commissions"],
 ] as const
 
+type StatementRow = {
+  key: string
+  date: string
+  reference: string
+  description: string
+  charge: number
+  payment: number
+  balance: number
+}
+
+type StmtSortKey = "date" | "reference" | "charge" | "payment" | "balance"
+
 export default function BusinessFinancePage() {
   const { businessId } = useParams() as { businessId: string }
   const [loading, setLoading] = useState(true)
@@ -46,6 +59,7 @@ export default function BusinessFinancePage() {
   const [subscriptions, setSubscriptions] = useState<any[]>([])
   const [renewals, setRenewals] = useState<any[]>([])
   const [commissions, setCommissions] = useState<any[]>([])
+  const [stmtSort, setStmtSort] = useState<{ key: StmtSortKey; dir: 1 | -1 }>({ key: "date", dir: 1 })
 
   useEffect(() => {
     if (!businessId) return
@@ -107,6 +121,76 @@ export default function BusinessFinancePage() {
     (sum, c) => sum + (c.commission_amount || 0),
     0
   )
+
+  // Per-business statement: invoices are charges (money owed), confirmed payments are credits.
+  // Running balance is always computed chronologically, then rows are displayed in the chosen sort order.
+  const statementRows = useMemo<StatementRow[]>(() => {
+    const rows: StatementRow[] = []
+    for (const inv of invoices) {
+      if (inv.status === "VOID" || inv.status === "CANCELLED") continue
+      rows.push({
+        key: `inv-${inv.id}`,
+        date: String(inv.issue_date || inv.created_at || "").slice(0, 10),
+        reference: inv.invoice_number,
+        description: `Invoice ${inv.invoice_number}`,
+        charge: Number(inv.total_amount) || 0,
+        payment: 0,
+        balance: 0,
+      })
+    }
+    for (const p of payments) {
+      if (p.status !== "CONFIRMED") continue
+      rows.push({
+        key: `pay-${p.id}`,
+        date: String(p.paid_at || p.created_at || "").slice(0, 10),
+        reference: p.payment_reference,
+        description: `Payment received · ${String(p.payment_method || "").replace(/_/g, " ")}`,
+        charge: 0,
+        payment: Number(p.amount) || 0,
+        balance: 0,
+      })
+    }
+    rows.sort((a, b) => a.date.localeCompare(b.date) || a.reference.localeCompare(b.reference))
+    let bal = 0
+    for (const r of rows) {
+      bal += r.charge - r.payment
+      r.balance = bal
+    }
+    return rows
+  }, [invoices, payments])
+
+  const sortedStatementRows = useMemo(() => {
+    const { key, dir } = stmtSort
+    return [...statementRows].sort((a, b) => {
+      let cmp = 0
+      if (key === "date") cmp = a.date.localeCompare(b.date) || a.reference.localeCompare(b.reference)
+      else if (key === "reference") cmp = a.reference.localeCompare(b.reference)
+      else cmp = a[key] - b[key]
+      return cmp * dir
+    })
+  }, [statementRows, stmtSort])
+
+  const closingBalance = statementRows.length ? statementRows[statementRows.length - 1].balance : 0
+
+  function toggleStatementSort(key: StmtSortKey) {
+    setStmtSort((prev) => (prev.key === key ? { key, dir: (prev.dir * -1) as 1 | -1 } : { key, dir: 1 }))
+  }
+
+  function renderSortableTh(label: string, sortKey: StmtSortKey, right?: boolean) {
+    const active = stmtSort.key === sortKey
+    return (
+      <th key={sortKey} className={`px-4 py-2 ${right ? "text-right" : "text-left"}`}>
+        <button type="button" onClick={() => toggleStatementSort(sortKey)} className="inline-flex items-center gap-1 font-medium">
+          {label}
+          {active ? (
+            stmtSort.dir === 1 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+          ) : (
+            <ArrowUpDown className="h-3 w-3 opacity-40" />
+          )}
+        </button>
+      </th>
+    )
+  }
 
   if (loading) {
     return (
@@ -171,6 +255,51 @@ export default function BusinessFinancePage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <BookOpen className="w-4 h-4" /> Statement of Account
+            </CardTitle>
+            <span className="text-xs text-muted-foreground">
+              Closing balance: <span className="font-semibold text-foreground">{fmtMoney(closingBalance, currency)}</span>
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {sortedStatementRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No invoices or confirmed payments for this business yet.</p>
+          ) : (
+            <div className="overflow-x-auto -mx-6">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    {renderSortableTh("Date", "date")}
+                    {renderSortableTh("Reference", "reference")}
+                    <th className="px-4 py-2 text-left">Description</th>
+                    {renderSortableTh("Charge", "charge", true)}
+                    {renderSortableTh("Payment", "payment", true)}
+                    {renderSortableTh("Balance", "balance", true)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedStatementRows.map((r) => (
+                    <tr key={r.key} className="border-t border-border">
+                      <td className="px-4 py-2 whitespace-nowrap">{fmtDate(r.date)}</td>
+                      <td className="px-4 py-2 font-mono text-xs">{r.reference}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{r.description}</td>
+                      <td className="px-4 py-2 text-right">{r.charge > 0 ? fmtMoney(r.charge, currency) : "—"}</td>
+                      <td className="px-4 py-2 text-right text-emerald-600">{r.payment > 0 ? fmtMoney(r.payment, currency) : "—"}</td>
+                      <td className="px-4 py-2 text-right font-medium">{fmtMoney(r.balance, currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>

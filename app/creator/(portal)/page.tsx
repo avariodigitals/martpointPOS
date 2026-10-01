@@ -3,6 +3,8 @@ import { redirect } from "next/navigation"
 import { requireCreatorSession } from "@/lib/creator-auth"
 import { getCreatorOverviewStats } from "@/lib/creator-applications"
 import { listCreatorNotifications } from "@/lib/creator-notifications"
+import { getOnboardingState } from "@/lib/creator-learning"
+import { CREATOR_READINESS_LABELS } from "@/lib/creator-constants"
 import { creatorTrackingUrl } from "@/lib/creators"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,9 +31,10 @@ export default async function CreatorDashboardPage() {
   const { creator } = await requireCreatorSession()
   if (!creator) redirect("/creator/login")
 
-  const [stats, notifications, challenges] = await Promise.all([
+  const [stats, notifications, onboarding, challenges] = await Promise.all([
     getCreatorOverviewStats(creator.id),
     listCreatorNotifications(creator.id, 6),
+    getOnboardingState(creator.id),
     isSupabaseConfigured()
       ? supabase
           .from("creator_challenges")
@@ -79,22 +82,42 @@ export default async function CreatorDashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Onboarding prompt */}
-      {stats.onboardingStatus !== "COMPLETED" && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-4 flex items-center gap-4">
-            <GraduationCap className="w-8 h-8 text-amber-600 shrink-0" />
-            <div className="flex-1">
-              <p className="font-semibold text-amber-900">Complete your onboarding</p>
-              <p className="text-sm text-amber-800">
-                Learn how MartPoint works before joining challenges.{" "}
-                {stats.onboardingProgress > 0 ? `${Math.round(stats.onboardingProgress)}% complete.` : ""}
-              </p>
+      {/* Onboarding card */}
+      <Card className={onboarding.readiness === "READY" ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4">
+            <GraduationCap className={`w-8 h-8 shrink-0 ${onboarding.readiness === "READY" ? "text-green-600" : "text-amber-600"}`} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-3">
+                <p className={`font-semibold ${onboarding.readiness === "READY" ? "text-green-900" : "text-amber-900"}`}>
+                  Creator Onboarding — {onboarding.progressPct}% Complete
+                </p>
+                <span className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${
+                  onboarding.readiness === "READY" ? "bg-green-600 text-white" : "bg-amber-100 text-amber-800"
+                }`}>
+                  {CREATOR_READINESS_LABELS[onboarding.readiness]}
+                </span>
+              </div>
+              <div className="mt-2 h-1.5 w-full rounded-full bg-black/10 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${onboarding.readiness === "READY" ? "bg-green-600" : "bg-amber-500"}`}
+                  style={{ width: `${onboarding.progressPct}%` }}
+                />
+              </div>
+              {onboarding.nextStep && (
+                <p className="text-sm text-amber-800 mt-2">
+                  Next: <span className="font-medium">{onboarding.nextStep.title}</span>
+                </p>
+              )}
             </div>
-            <Button asChild size="sm"><Link href="/creator/learn">Continue</Link></Button>
-          </CardContent>
-        </Card>
-      )}
+            <Button asChild size="sm" className="shrink-0">
+              <Link href={onboarding.nextStep ? `/creator/learn/${onboarding.nextStep.slug}` : "/creator/learn"}>
+                {onboarding.readiness === "READY" ? "Review" : "Continue Learning"}
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Metric value={stats.approvedContent} label="Approved Content" />

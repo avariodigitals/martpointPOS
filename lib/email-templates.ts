@@ -2155,6 +2155,87 @@ MartPoint Creator Network`,
   },
 
   {
+    key: "creator_onboarding_completed",
+    label: "Creator Onboarding Completed",
+    description: "Confirms a creator finished required onboarding and is challenge-ready.",
+    variables: ["fullName", "portalUrl"],
+    subject: "You're Creator Ready — challenges unlocked",
+    text: `Hi {{fullName}},
+
+You've completed the required Creator Network onboarding — you're now Creator Ready.
+
+You can join Creator Challenges, submit content and track your results from your dashboard:
+{{portalUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_assessment_passed",
+    label: "Creator Assessment Passed",
+    description: "Notifies a creator they passed the onboarding assessment.",
+    variables: ["fullName", "score", "portalUrl"],
+    subject: "Assessment passed — {{score}}%",
+    text: `Hi {{fullName}},
+
+You passed the Creator onboarding assessment with {{score}}%. Nice work.
+
+Keep going in your portal: {{portalUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_assessment_retry",
+    label: "Creator Assessment Retry",
+    description: "Notifies a creator they did not reach the passing score and may retry.",
+    variables: ["fullName", "score", "passingScore", "portalUrl"],
+    subject: "Assessment result — {{score}}% (retry available)",
+    text: `Hi {{fullName}},
+
+You scored {{score}}% on the Creator onboarding assessment. The passing score is {{passingScore}}%.
+
+Review the lessons and try again: {{portalUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_new_lesson",
+    label: "New Required Lesson",
+    description: "Announces a newly published required lesson to creators.",
+    variables: ["fullName", "lessonTitle", "portalUrl"],
+    subject: "New lesson: {{lessonTitle}}",
+    text: `Hi {{fullName}},
+
+A new required lesson is available in your Learning Centre: {{lessonTitle}}
+
+Continue learning: {{portalUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
+    key: "creator_new_resource",
+    label: "New Creator Resource",
+    description: "Announces a new Creator Kit resource to creators.",
+    variables: ["fullName", "resourceName", "kitUrl"],
+    subject: "New in your Creator Kit: {{resourceName}}",
+    text: `Hi {{fullName}},
+
+A new resource was added to your Creator Kit: {{resourceName}}
+
+Open the kit: {{kitUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
     key: "creator_challenge_announced",
     label: "New Creator Challenge",
     description: "Announces a new challenge to creators.",

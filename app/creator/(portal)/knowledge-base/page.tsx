@@ -1,30 +1,50 @@
-import Link from "next/link"
 import { requireCreatorSession } from "@/lib/creator-auth"
-import { Card, CardContent } from "@/components/ui/card"
+import { listKbLinks } from "@/lib/creator-resources"
+import { KbLinks } from "./kb-links"
 import { Button } from "@/components/ui/button"
-import { BookOpen } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { BookOpen, ExternalLink } from "lucide-react"
 
-export default async function CreatorKnowledgeBasePage() {
+export const dynamic = "force-dynamic"
+
+export default async function CreatorKbPage() {
   await requireCreatorSession()
+  const links = await listKbLinks({ activeOnly: true })
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <h2 className="text-2xl font-bold tracking-tight">Knowledge Base</h2>
-      <Card>
-        <CardContent className="p-8 text-center space-y-4">
-          <BookOpen className="w-10 h-10 text-retail mx-auto" />
-          <div>
-            <p className="font-semibold">MartPoint Help Centre</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-              Detailed product guides for every MartPoint feature — POS, inventory, online store,
-              reporting, staff and more. Use these to make accurate, helpful content.
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Knowledge Base</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Curated MartPoint help topics for creators — deeper product detail when you need it.
+        </p>
+      </div>
+
+      <Card className="border-retail/30 bg-retail-soft/30">
+        <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <BookOpen className="h-5 w-5 text-retail shrink-0" />
+            <p className="text-sm">
+              The full public Help Centre has step-by-step product guides.
             </p>
           </div>
-          <Button asChild>
-            <Link href="/help-centre">Open Help Centre</Link>
+          <Button asChild size="sm" variant="outline">
+            <a href="/help-centre" target="_blank" rel="noopener noreferrer">
+              Open Help Centre <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+            </a>
           </Button>
         </CardContent>
       </Card>
+
+      {links.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center text-sm text-muted-foreground">
+            Curated topics are being added — use the Help Centre above for now.
+          </CardContent>
+        </Card>
+      ) : (
+        <KbLinks links={links} />
+      )}
     </div>
   )
 }

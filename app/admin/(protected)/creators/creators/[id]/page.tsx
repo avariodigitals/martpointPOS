@@ -20,6 +20,22 @@ interface Stats {
 interface Note { id: string; note: string; authorName: string | null; createdAt: string }
 interface Social { id: string; platform: string; profile_url: string; followers: number | null }
 interface Flag { id: string; type: string; severity: string; description: string; status: string; created_at: string }
+interface LearningProgressRow {
+  contentId: string; title: string; type: string; required: boolean
+  status: string; score: number | null; videoPercent: number
+  completedAt: string | null; lastActivityAt: string | null
+}
+interface AttemptRow {
+  contentId: string; title: string; score: number; passed: boolean
+  attemptNumber: number; submittedAt: string
+}
+interface LearningDetail {
+  readiness: string
+  onboarding: { pct: number; requiredTotal: number; requiredDone: number; completedAt: string | null; readinessLabel: string }
+  progress: LearningProgressRow[]
+  attempts: AttemptRow[]
+  downloads: number
+}
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 
@@ -34,6 +50,7 @@ export default function AdminCreatorDetailPage() {
   const [notes, setNotes] = useState<Note[]>([])
   const [socials, setSocials] = useState<Social[]>([])
   const [flags, setFlags] = useState<Flag[]>([])
+  const [learning, setLearning] = useState<LearningDetail | null>(null)
   const [reason, setReason] = useState("")
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState("")
@@ -69,8 +86,33 @@ export default function AdminCreatorDetailPage() {
         setLoading(false)
       })
       .catch(() => { if (!cancelled) setLoading(false) })
+    fetch(`/api/admin/creators/creators/${id}/learning`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((d) => { if (!cancelled && d) setLearning(d) })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [id])
+
+  async function resetLearning() {
+    if (!confirm("Reset all learning progress and assessment attempts for this creator?")) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/admin/creators/creators/${id}/learning`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset" }),
+      })
+      const d = await res.json()
+      setToast(res.ok ? "Learning progress reset" : d.error || "Failed")
+      if (res.ok) {
+        const r2 = await fetch(`/api/admin/creators/creators/${id}/learning`)
+        if (r2.ok) setLearning(await r2.json())
+      }
+    } finally {
+      setBusy(false)
+      setTimeout(() => setToast(""), 5000)
+    }
+  }
 
   async function setStatus(status: string) {
     setBusy(true)
@@ -148,6 +190,77 @@ export default function AdminCreatorDetailPage() {
                   <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Onboarding &amp; Learning</CardTitle>
+                {learning && (
+                  <Button size="sm" variant="outline" className="text-red-600" disabled={busy} onClick={resetLearning}>
+                    Reset progress
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!learning ? (
+                <p className="text-sm text-muted-foreground">Loading learning data…</p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-medium">{learning.onboarding.readinessLabel}</span>
+                        <span className="text-muted-foreground">
+                          {learning.onboarding.requiredDone}/{learning.onboarding.requiredTotal} required · {learning.onboarding.pct}%
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full bg-retail rounded-full" style={{ width: `${learning.onboarding.pct}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                  {learning.progress.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Not started — no lesson activity yet.</p>
+                  ) : (
+                    <div className="divide-y rounded-lg border">
+                      {learning.progress.map((p) => (
+                        <div key={p.contentId} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{p.title}</p>
+                            <p className="text-muted-foreground">
+                              {p.type}{p.required ? " · required" : ""}
+                              {p.type === "VIDEO" && p.videoPercent > 0 ? ` · ${Math.round(p.videoPercent)}% watched` : ""}
+                            </p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 font-medium ${p.status === "COMPLETED" ? "bg-green-100 text-green-700" : p.status === "IN_PROGRESS" ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}>
+                            {p.status === "COMPLETED" ? "Done" : p.status === "IN_PROGRESS" ? "In progress" : "—"}
+                            {p.score != null ? ` · ${p.score}%` : ""}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {learning.attempts.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Assessment attempts</p>
+                      <div className="divide-y rounded-lg border">
+                        {learning.attempts.map((a, i) => (
+                          <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
+                            <span>{a.title} · attempt {a.attemptNumber}</span>
+                            <span className={a.passed ? "text-green-700 font-medium" : "text-red-600 font-medium"}>
+                              {a.score}% {a.passed ? "· passed" : "· failed"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">{learning.downloads} resource download{learning.downloads === 1 ? "" : "s"} tracked</p>
+                </>
+              )}
             </CardContent>
           </Card>
 

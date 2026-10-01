@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
   Loader2, Users, FileText, Clock, BadgeCheck, Trophy,
-  MapPin, Funnel, Wallet, Video,
+  MapPin, Funnel, Wallet, Video, GraduationCap, ListChecks,
 } from "lucide-react"
 
 interface Stats {
@@ -20,6 +20,15 @@ interface Stats {
   pendingSubmissions: number
   totalLeads: number
   rewardsPaidKobo: number
+  learning?: {
+    startedOnboarding: number
+    completedOnboarding: number
+    completionRate: number
+    avgCompletionHours: number | null
+    assessmentAttempts: number
+    assessmentPassRate: number
+    incompleteRequired: { title: string; pending: number }[]
+  }
 }
 
 function naira(kobo: number): string {
@@ -97,6 +106,39 @@ export default function CreatorsDashboardPage() {
                   <li key={s.state} className="flex items-center justify-between text-sm">
                     <span className="text-foreground">{s.state}</span>
                     <span className="font-semibold">{s.count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><GraduationCap className="w-4 h-4" /> Onboarding &amp; learning</h3>
+            {!stats?.learning ? (
+              <p className="text-sm text-muted-foreground">No learning data yet.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                <li className="flex justify-between"><span>Started onboarding</span><span className="font-semibold">{stats.learning.startedOnboarding}</span></li>
+                <li className="flex justify-between"><span>Completed</span><span className="font-semibold">{stats.learning.completedOnboarding}</span></li>
+                <li className="flex justify-between"><span>Completion rate</span><span className="font-semibold">{stats.learning.completionRate}%</span></li>
+                <li className="flex justify-between"><span>Avg. time to complete</span><span className="font-semibold">{stats.learning.avgCompletionHours != null ? `${stats.learning.avgCompletionHours}h` : "—"}</span></li>
+                <li className="flex justify-between"><span>Assessment pass rate</span><span className="font-semibold">{stats.learning.assessmentPassRate}%</span></li>
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><ListChecks className="w-4 h-4" /> Required lessons pending</h3>
+            {!stats?.learning || stats.learning.incompleteRequired.length === 0 ? (
+              <p className="text-sm text-muted-foreground">All active creators have completed required lessons — or none are configured.</p>
+            ) : (
+              <ul className="space-y-2">
+                {stats.learning.incompleteRequired.slice(0, 10).map((l) => (
+                  <li key={l.title} className="flex items-center justify-between text-sm">
+                    <span className="text-foreground">{l.title}</span>
+                    <span className="font-semibold">{l.pending} pending</span>
                   </li>
                 ))}
               </ul>

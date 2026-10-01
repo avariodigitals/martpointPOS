@@ -18,7 +18,20 @@ export const ALLOWED_CREATOR_MIME_TYPES = [
 
 export const ALLOWED_PHOTO_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"]
 
+/** Admin-managed Creator Kit uploads — wider type set than creator evidence. */
+export const ALLOWED_RESOURCE_MIME_TYPES = [
+  ...ALLOWED_CREATOR_MIME_TYPES,
+  "video/mp4",
+  "video/webm",
+  "application/zip",
+  "text/csv",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]
+
 export const MAX_CREATOR_FILE_BYTES = 5 * 1024 * 1024 // 5 MB
+export const MAX_RESOURCE_FILE_BYTES = 100 * 1024 * 1024 // 100 MB — videos/decks
 
 export function validateCreatorFile(file: { type: string; size: number }): string | null {
   if (!ALLOWED_CREATOR_MIME_TYPES.includes(file.type)) {
@@ -67,6 +80,31 @@ export async function uploadCreatorFile(
   })
   if (error) {
     console.error("[creator-files] upload failed:", error.message)
+    return { ok: false, error: "Failed to upload file" }
+  }
+  return { ok: true, storagePath }
+}
+
+/** Upload an admin-managed Creator Kit resource (wider allowlist + size cap). */
+export async function uploadCreatorResourceFile(
+  filename: string,
+  mimeType: string,
+  fileBytes: Buffer | ArrayBuffer
+): Promise<{ ok: boolean; storagePath?: string; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Storage not configured" }
+  if (!ALLOWED_RESOURCE_MIME_TYPES.includes(mimeType)) {
+    return { ok: false, error: "File type not allowed for Creator Kit resources." }
+  }
+  if (fileBytes.byteLength > MAX_RESOURCE_FILE_BYTES) {
+    return { ok: false, error: "File too large. Maximum size is 100 MB." }
+  }
+  const safeName = sanitizeFilename(filename)
+  const storagePath = `kit/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`
+  const { error } = await supabase.storage
+    .from(CREATOR_FILES_BUCKET)
+    .upload(storagePath, fileBytes, { contentType: mimeType, upsert: false })
+  if (error) {
+    console.error("[creator-files] resource upload failed:", error.message)
     return { ok: false, error: "Failed to upload file" }
   }
   return { ok: true, storagePath }

@@ -46,7 +46,9 @@ const pageMap: Record<string, string> = {
   "/admin/creators/leaderboard": "creator.view",
   "/admin/creators/rewards": "creator.reward.manage",
   "/admin/creators/learning": "creator.learning.manage",
-  "/admin/creators/kit": "creator.learning.manage",
+  "/admin/creators/kit": "creator.resource.manage",
+  "/admin/creators/guides": "creator.learning.manage",
+  "/admin/creators/faqs": "creator.learning.manage",
   "/admin/creators/reports": "creator.report.view",
   "/admin/creators/settings": "creator.settings.manage",
 }

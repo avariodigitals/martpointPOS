@@ -96,6 +96,8 @@ export const CREATOR_PERMISSIONS = [
   "creator.submission.review",
   "creator.reward.manage",
   "creator.learning.manage",
+  "creator.resource.manage",
+  "creator.assessment.manage",
   "creator.report.view",
   "creator.settings.manage",
 ] as const

@@ -28,6 +28,8 @@ export async function POST(request: Request) {
     const externalUrl = String(form.get("externalUrl") || "")
     const version = String(form.get("version") || "")
     const usageNotes = String(form.get("usageNotes") || "")
+    const bodyText = String(form.get("body") || "")
+    const pdfEnabled = form.get("pdfEnabled") === "true"
     const active = form.get("active") !== "false"
     const sortOrder = Number(form.get("sortOrder") || 0)
 
@@ -47,8 +49,8 @@ export async function POST(request: Request) {
       if (!up.ok) return NextResponse.json({ error: up.error }, { status: 400 })
       filePath = up.storagePath!
     }
-    if (!filePath && !externalUrl) {
-      return NextResponse.json({ error: "Provide a file or an external URL" }, { status: 400 })
+    if (!filePath && !externalUrl && !bodyText) {
+      return NextResponse.json({ error: "Provide a file, external URL or document body" }, { status: 400 })
     }
 
     const { id, error } = await saveResource(
@@ -56,6 +58,7 @@ export async function POST(request: Request) {
         name, category: category as never, resourceType: resourceType as never,
         description: description || null, externalUrl: externalUrl || null,
         filePath, version: version || null, usageNotes: usageNotes || null,
+        body: bodyText || null, pdfEnabled,
         active, sortOrder,
       },
       session.userId

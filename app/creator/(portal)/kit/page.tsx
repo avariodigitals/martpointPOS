@@ -43,6 +43,8 @@ export default async function CreatorKitPage() {
             downloadCount: r.downloadCount,
             hasFile: !!r.filePath,
             hasLink: !!r.externalUrl,
+            hasBody: !!r.body,
+            pdfEnabled: r.pdfEnabled,
           }))}
         />
       )}

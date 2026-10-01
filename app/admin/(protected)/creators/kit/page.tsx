@@ -17,6 +17,8 @@ interface ResourceRow {
   usageNotes: string | null
   active: boolean
   sortOrder: number
+  body: string | null
+  pdfEnabled: boolean
 }
 
 const CATEGORIES = [
@@ -29,6 +31,7 @@ const TYPES = ["FILE", "IMAGE", "VIDEO", "ARTICLE", "LINK"]
 const emptyForm = {
   name: "", description: "", category: "GETTING_STARTED", resourceType: "FILE",
   externalUrl: "", version: "", usageNotes: "", active: true, sortOrder: "0",
+  body: "", pdfEnabled: false,
 }
 
 export default function AdminKitPage() {
@@ -70,6 +73,7 @@ export default function AdminKitPage() {
       resourceType: it.resourceType, externalUrl: it.externalUrl || "",
       version: it.version || "", usageNotes: it.usageNotes || "",
       active: it.active, sortOrder: String(it.sortOrder),
+      body: it.body || "", pdfEnabled: it.pdfEnabled,
     })
     setFile(null)
     setExistingFilePath(it.filePath)
@@ -114,6 +118,8 @@ export default function AdminKitPage() {
     fd.set("externalUrl", it.externalUrl || "")
     fd.set("version", it.version || "")
     fd.set("usageNotes", it.usageNotes || "")
+    fd.set("body", it.body || "")
+    fd.set("pdfEnabled", String(it.pdfEnabled))
     fd.set("active", String(!it.active))
     fd.set("sortOrder", String(it.sortOrder))
     if (it.filePath) fd.set("existingFilePath", it.filePath)
@@ -213,10 +219,27 @@ export default function AdminKitPage() {
                 <input className={field} value={form.usageNotes} onChange={(e) => setForm({ ...form, usageNotes: e.target.value })} /></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Sort order</span>
                 <input className={field} type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} /></label>
+              {form.resourceType === "ARTICLE" && (
+                <label className="space-y-1 md:col-span-2">
+                  <span className="text-xs text-muted-foreground">
+                    Document body — drives &quot;View online&quot; and the branded PDF.
+                    Markup: # heading · ## sub-heading · - bullet · 1. numbered · &gt; callout · | col | col | tables · ![caption](/path.png)
+                  </span>
+                  <textarea rows={12} className={`${field} font-mono text-xs`} value={form.body}
+                    onChange={(e) => setForm({ ...form, body: e.target.value })} />
+                </label>
+              )}
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Active
-            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Active
+              </label>
+              {form.resourceType === "ARTICLE" && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={form.pdfEnabled} onChange={(e) => setForm({ ...form, pdfEnabled: e.target.checked })} /> Enable PDF download
+                </label>
+              )}
+            </div>
             <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}</Button>
           </CardContent>
         </Card>

@@ -27,11 +27,15 @@ export interface CreatorResource {
   active: boolean
   sortOrder: number
   downloadCount: number
+  /** Inline document body (ARTICLE resources) — drives View Online + PDF. */
+  body: string | null
+  pdfEnabled: boolean
 }
 
 const RESOURCE_SELECT =
   "id, name, description, category, resource_type, file_path, external_url, " +
-  "preview_path, version, usage_notes, published_at, active, sort_order, download_count"
+  "preview_path, version, usage_notes, published_at, active, sort_order, download_count, " +
+  "body, pdf_enabled"
 
 function mapResource(row: Record<string, unknown>): CreatorResource {
   return {
@@ -49,6 +53,8 @@ function mapResource(row: Record<string, unknown>): CreatorResource {
     active: !!row.active,
     sortOrder: (row.sort_order as number) ?? 0,
     downloadCount: (row.download_count as number) ?? 0,
+    body: (row.body as string) ?? null,
+    pdfEnabled: !!row.pdf_enabled,
   }
 }
 
@@ -74,6 +80,8 @@ export interface ResourceInput {
   usageNotes?: string | null
   active?: boolean
   sortOrder?: number
+  body?: string | null
+  pdfEnabled?: boolean
 }
 
 export async function saveResource(
@@ -92,6 +100,8 @@ export async function saveResource(
     preview_path: input.previewPath ?? null,
     version: input.version ?? null,
     usage_notes: input.usageNotes ?? null,
+    body: input.body ?? null,
+    pdf_enabled: input.pdfEnabled ?? false,
     active: input.active ?? true,
     sort_order: input.sortOrder ?? 0,
     published_at: new Date().toISOString(),
@@ -109,6 +119,16 @@ export async function saveResource(
 export async function deleteResource(id: string): Promise<{ error?: string }> {
   const { error } = await supabase.from("creator_resources").delete().eq("id", id)
   return error ? { error: error.message } : {}
+}
+
+export async function getResourceById(id: string): Promise<CreatorResource | null> {
+  if (!isSupabaseConfigured()) return null
+  const { data } = await supabase
+    .from("creator_resources")
+    .select(RESOURCE_SELECT)
+    .eq("id", id)
+    .maybeSingle()
+  return data ? mapResource(data as unknown as Record<string, unknown>) : null
 }
 
 /** Creator-side view/download: returns a signed URL (files) or the external URL. */

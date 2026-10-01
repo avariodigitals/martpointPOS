@@ -100,7 +100,6 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
   y += Math.max(logoH + 10, companyLines.length * 13 + 10)
 
   // Two-column block: client (left) and quote details (right).
-  const midX = pageW / 2
   const leftY = y
   const rightY = y
 
@@ -174,13 +173,15 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
 
   const pageH = doc.internal.pageSize.getHeight()
   const pageWNum = Number(doc.internal.pageSize.getWidth())
+  // The footer band occupies the bottom ~90pt — body content must stay above it.
+  const FOOTER_TOP = pageH - 100
   let finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || y + 80
 
   // If the table ends too low, start the summary block on a fresh page.
   const summaryMinH = 240
-  if (pageH - finalY < summaryMinH) {
+  if (finalY + summaryMinH > FOOTER_TOP) {
     doc.addPage()
-    finalY = 40
+    finalY = 50
   }
 
   // Draw the totals on the right, payment terms on the left (same band).
@@ -216,52 +217,65 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
   doc.text(formatPdfNgn(quote.total_amount), totalsValueX, totalsY, { align: "right" })
   totalsY += 24
 
-  // Left column is bounded by the totals column so text never overlaps it.
-  const leftColW = Math.max(200, totalsX - margin - 30)
-
-  let termsY = finalY + 20
-  if (quote.payment_terms) {
+  // Page-break-aware writer for the free-flowing left column and anything below
+  // the totals band. Lines that would cross the footer zone move to a new page
+  // instead of being clipped — fixing the page-boundary cutoff.
+  let bandY = finalY + 20
+  let bandW = Math.max(200, totalsX - margin - 30)
+  let leftPaged = false // true once the left column has moved past the totals band page
+  const startNewPage = () => {
+    doc.addPage()
+    leftPaged = true
+    bandY = 50
+    bandW = pageWNum - margin * 2 // full width once past the totals band
+  }
+  const writeBand = (
+    text: string,
+    opts: { size: number; bold?: boolean; color?: [number, number, number]; gap?: number } = { size: 9 }
+  ) => {
+    const lineH = opts.size * 1.35
+    doc.setFontSize(opts.size)
+    doc.setFont("helvetica", opts.bold ? "bold" : "normal")
+    doc.setTextColor(...(opts.color || [17, 24, 39]))
+    const lines = doc.splitTextToSize(text, bandW) as string[]
+    for (const line of lines) {
+      if (bandY + lineH > FOOTER_TOP) startNewPage()
+      doc.text(line, margin, bandY)
+      bandY += lineH
+    }
+    bandY += opts.gap ?? 4
+  }
+  const writeBandHeading = (text: string) => {
+    const h = 12
+    // heading + at least one body line must fit, else the heading moves over.
+    if (bandY + h + 14 > FOOTER_TOP) startNewPage()
     doc.setFontSize(10)
+    doc.setFont("helvetica", "bold")
     doc.setTextColor(17, 24, 39)
-    doc.text("Payment Terms", margin, termsY)
-    termsY += 14
-    doc.setFontSize(9)
-    doc.setTextColor(17, 24, 39)
-    const splitTerms = doc.splitTextToSize(quote.payment_terms, leftColW)
-    doc.text(splitTerms, margin, termsY)
-    termsY += splitTerms.length * 11 + 8
+    doc.text(text, margin, bandY)
+    bandY += h + 4
+  }
+
+  if (quote.payment_terms) {
+    writeBandHeading("Payment Terms")
+    writeBand(quote.payment_terms, { size: 9, gap: 10 })
   }
 
   if (accountNumber) {
-    doc.setFontSize(10)
-    doc.setTextColor(107, 114, 128)
-    doc.text("Bank Details", margin, termsY)
-    termsY += 14
-    doc.setFontSize(10)
-    doc.setTextColor(17, 24, 39)
+    writeBandHeading("Bank Details")
     for (const line of bankDetailLines(accountNumber)) {
-      const wrapped = doc.splitTextToSize(line, leftColW)
-      doc.text(wrapped, margin, termsY)
-      termsY += wrapped.length * 12 + 2
+      writeBand(line, { size: 10, gap: 2 })
     }
-    termsY += 10
+    bandY += 8
   }
 
-  // Public notes sit above the footer, full width.
-  let notesY = Math.max(totalsY, termsY) + 20
-  if (notesY > pageH - 140) {
-    doc.addPage()
-    notesY = 40
-  }
+  // Public notes continue below whichever band column ended lower — but only
+  // compare y positions while both are on the same page.
+  if (!leftPaged && bandY < totalsY) bandY = totalsY
+  bandY += 14
   if (quote.notes_public) {
-    doc.setFontSize(10)
-    doc.setTextColor(107, 114, 128)
-    doc.text("Notes:", margin, notesY)
-    notesY += 14
-    doc.setTextColor(17, 24, 39)
-    doc.setFontSize(9)
-    const splitNotes = doc.splitTextToSize(quote.notes_public, pageWNum - margin * 2)
-    doc.text(splitNotes, margin, notesY)
+    writeBandHeading("Notes:")
+    writeBand(quote.notes_public, { size: 9 })
   }
 
   // Footer is drawn on every page at a fixed bottom position so it is never disturbed.

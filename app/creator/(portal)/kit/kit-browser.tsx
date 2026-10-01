@@ -20,6 +20,8 @@ interface Resource {
   downloadCount: number
   hasFile: boolean
   hasLink: boolean
+  hasBody: boolean
+  pdfEnabled: boolean
 }
 
 const TYPE_ICONS: Record<string, typeof FileText> = {
@@ -128,7 +130,21 @@ export function KitBrowser({ resources }: { resources: Resource[] }) {
                         {r.usageNotes}
                       </p>
                     )}
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {r.hasBody && (
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={`/creator/kit/${r.id}`}>
+                            <FileText className="mr-1.5 h-3.5 w-3.5" /> View online
+                          </a>
+                        </Button>
+                      )}
+                      {r.pdfEnabled && r.hasBody && (
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={`/api/creator/resources/${r.id}/pdf`} target="_blank" rel="noopener noreferrer">
+                            <Download className="mr-1.5 h-3.5 w-3.5" /> PDF
+                          </a>
+                        </Button>
+                      )}
                       {r.hasFile && (
                         <Button
                           size="sm"

@@ -36,8 +36,10 @@ export async function PUT(request: Request, { params }: Params) {
       filePath = up.storagePath!
     }
     const externalUrl = String(form.get("externalUrl") || "")
-    if (!filePath && !externalUrl) {
-      return NextResponse.json({ error: "Provide a file or an external URL" }, { status: 400 })
+    const bodyText = String(form.get("body") || "")
+    const pdfEnabled = form.get("pdfEnabled") === "true"
+    if (!filePath && !externalUrl && !bodyText) {
+      return NextResponse.json({ error: "Provide a file, external URL or document body" }, { status: 400 })
     }
 
     const { error } = await saveResource(
@@ -47,6 +49,7 @@ export async function PUT(request: Request, { params }: Params) {
         externalUrl: externalUrl || null, filePath,
         version: String(form.get("version") || "") || null,
         usageNotes: String(form.get("usageNotes") || "") || null,
+        body: bodyText || null, pdfEnabled,
         active: form.get("active") !== "false",
         sortOrder: Number(form.get("sortOrder") || 0),
       },

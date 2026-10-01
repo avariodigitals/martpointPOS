@@ -54,6 +54,11 @@ export class PartnerDocBuilder {
     }
   }
 
+  /** Current cursor position (pt from page top) — for tests/callers. */
+  get cursorY() { return this.y }
+  /** Lowest y (pt) body content may reach — keeps clear of the footer band. */
+  get contentBottom() { return this.bottomLimit }
+
   /* Branded letterhead: logo left, company details right. */
   private letterhead(logoDataUrl?: string) {
     const { doc, margin, pageW } = this
@@ -100,7 +105,8 @@ export class PartnerDocBuilder {
     doc.setFont("times", "bold")
     doc.setFontSize(17)
     doc.setTextColor(17, 24, 39)
-    this.ensureSpace(26)
+    // Reserve room for the full title block so it never straddles a page break.
+    this.ensureSpace(subtitle ? 52 : 34)
     doc.text(text, pageW / 2, this.y, { align: "center" })
     this.y += 24
     if (subtitle) {
@@ -114,6 +120,7 @@ export class PartnerDocBuilder {
 
   heading(text: string) {
     const { doc, margin, pageW } = this
+    // 70pt ≈ heading + rule + first body line — prevents orphaned headings.
     this.ensureSpace(70)
     this.y += 10
     doc.setFont("times", "bold")
@@ -129,7 +136,7 @@ export class PartnerDocBuilder {
 
   subHeading(text: string) {
     const { doc, margin } = this
-    this.ensureSpace(44)
+    this.ensureSpace(60)
     doc.setFont("times", "bold")
     doc.setFontSize(10.5)
     doc.setTextColor(17, 24, 39)
@@ -152,8 +159,92 @@ export class PartnerDocBuilder {
     this.y += gap
   }
 
+  /* Bulleted/numbered list item with a hanging indent — page-break safe. */
+  listItem(text: string, opts: { marker?: string; size?: number; indent?: number } = {}) {
+    const { doc, margin } = this
+    const { marker = "•", size = 10, indent = 14 } = opts
+    const lineH = size * 1.35
+    doc.setFont("times", "normal")
+    doc.setFontSize(size)
+    doc.setTextColor(31, 41, 55)
+    const textW = this.contentW - indent - 8
+    const lines = doc.splitTextToSize(text, textW) as string[]
+    lines.forEach((line, i) => {
+      this.ensureSpace(lineH)
+      if (i === 0) doc.text(marker, margin + 4, this.y)
+      doc.text(line, margin + indent + 8, this.y)
+      this.y += lineH
+    })
+    this.y += 2
+  }
+
+  /* Bordered callout/highlight box — wraps line-by-line so it can split across
+   * pages instead of clipping. */
+  callout(text: string, opts: { title?: string } = {}) {
+    const { doc, margin } = this
+    const size = 9.5
+    const lineH = size * 1.4
+    const padX = 10
+    const padY = 8
+    doc.setFont("times", "normal")
+    doc.setFontSize(size)
+    const innerW = this.contentW - padX * 2 - 6
+    const lines: string[] = []
+    if (opts.title) lines.push(...(doc.splitTextToSize(opts.title, innerW) as string[]))
+    lines.push(...(doc.splitTextToSize(text, innerW) as string[]))
+
+    this.y += 4
+    const titleLines = opts.title ? (doc.splitTextToSize(opts.title, innerW) as string[]).length : 0
+    lines.forEach((line, i) => {
+      const isFirst = i === 0
+      const isLast = i === lines.length - 1
+      this.ensureSpace(lineH + (isFirst || isLast ? padY : 0))
+      // Per-line background segment + left rule so a split callout still reads as one block.
+      const lineTop = this.y - lineH + 2
+      const top = lineTop - (isFirst ? padY : 0)
+      const h = lineH + (isFirst ? padY : 0) + (isLast ? padY : 0)
+      doc.setFillColor(239, 246, 255)
+      doc.setDrawColor(...BRAND_BLUE)
+      doc.setLineWidth(2)
+      doc.rect(margin, top, this.contentW, h, "F")
+      doc.line(margin, top, margin, top + h)
+      doc.setFont("times", i < titleLines ? "bold" : "normal")
+      doc.setFontSize(size)
+      doc.setTextColor(30, 58, 138)
+      doc.text(line, margin + padX, this.y)
+      this.y += lineH + (isLast ? padY : 0)
+    })
+    this.y += 10
+    doc.setTextColor(31, 41, 55)
+  }
+
+  /* Image fitted inside the printable area; moves to a new page when it does
+   * not fit rather than overflowing the footer zone. */
+  image(dataUrl: string, opts: { maxHeight?: number; caption?: string } = {}) {
+    const { doc, margin } = this
+    const maxH = Math.min(opts.maxHeight ?? 320, this.bottomLimit - this.margin)
+    const props = doc.getImageProperties(dataUrl)
+    const scale = Math.min(this.contentW / props.width, maxH / props.height, 1)
+    const w = props.width * scale
+    const h = props.height * scale
+    const captionH = opts.caption ? 16 : 0
+    this.ensureSpace(h + captionH + 6)
+    doc.addImage(dataUrl, "PNG", margin, this.y, w, h)
+    this.y += h
+    if (opts.caption) {
+      doc.setFont("times", "italic")
+      doc.setFontSize(8.5)
+      doc.setTextColor(107, 114, 128)
+      doc.text(opts.caption, margin, this.y + 11)
+      this.y += captionH
+    }
+    this.y += 6
+    doc.setTextColor(31, 41, 55)
+  }
+
   /* Label/value field table (used for control fields and record details). */
   fieldTable(rows: [string, string][], head: [string, string] = ["Field", "Value"]) {
+    this.ensureSpace(70)
     autoTable(this.doc, {
       startY: this.y,
       margin: { left: this.margin, right: this.margin, bottom: 76 },
@@ -173,6 +264,7 @@ export class PartnerDocBuilder {
     rows: string[][],
     columnStyles?: Record<number, { cellWidth?: number | "auto"; fontStyle?: "normal" | "bold" | "italic" | "bolditalic" }>
   ) {
+    this.ensureSpace(70)
     autoTable(this.doc, {
       startY: this.y,
       margin: { left: this.margin, right: this.margin, bottom: 76 },
@@ -192,6 +284,7 @@ export class PartnerDocBuilder {
     const head = [signatories.map((s) => `For ${s.side}`)]
     const rowFor = (key: "name" | "title" | "email", label: string) =>
       signatories.map((s) => `${label}: ${orNA(s[key])}`)
+    this.ensureSpace(70)
     autoTable(this.doc, {
       startY: this.y,
       margin: { left: this.margin, right: this.margin, bottom: 76 },

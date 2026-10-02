@@ -8,6 +8,7 @@ import {
   Loader2, Briefcase, FileText, Clock, Users, Star, ClipboardCheck,
   CheckCircle2, MapPin, UserCheck, AlertCircle, Activity,
 } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface Stats {
   draftVacancies: number
@@ -130,7 +131,7 @@ export default function CareersDashboardPage() {
               <ul className="space-y-2.5">
                 {recent.slice(0, 12).map((e) => (
                   <li key={e.id} className="text-xs">
-                    <span className="font-medium text-foreground">{e.action.replace(/_/g, " ").toLowerCase()}</span>
+                    <span className="font-medium text-foreground">{enumLabel(e.action)}</span>
                     <span className="text-muted-foreground"> — {e.actor_name || "System"} · {new Date(e.created_at).toLocaleString()}</span>
                   </li>
                 ))}

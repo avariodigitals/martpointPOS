@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Megaphone } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface Meta {
   totalCreators: number
@@ -83,7 +84,7 @@ export function BroadcastCard() {
             <select className={inputCls} value={challengeId} onChange={(e) => setChallengeId(e.target.value)}>
               <option value="">Select a challenge…</option>
               {(meta?.challenges || []).map((c) => (
-                <option key={c.id} value={c.id}>{c.title} ({c.status})</option>
+                <option key={c.id} value={c.id}>{c.title} ({enumLabel(c.status)})</option>
               ))}
             </select>
             {!meta?.challenges?.length && (

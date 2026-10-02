@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface Faq {
   id: string
@@ -113,10 +114,10 @@ export default function AdminFaqsPage() {
                 {items.map((f) => (
                   <tr key={f.id} className="border-b last:border-0 hover:bg-muted/40">
                     <td className="p-4 font-medium">{f.question}</td>
-                    <td className="p-4 text-xs">{f.category}</td>
+                    <td className="p-4 text-xs">{enumLabel(f.category)}</td>
                     <td className="p-4">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${f.status === "PUBLISHED" ? "bg-green-100 text-green-700" : f.status === "ARCHIVED" ? "bg-muted text-muted-foreground" : "bg-amber-100 text-amber-700"}`}>
-                        {f.status}
+                        {enumLabel(f.status)}
                       </span>
                     </td>
                     <td className="p-4">
@@ -144,11 +145,11 @@ export default function AdminFaqsPage() {
               <label className="space-y-1 md:col-span-2"><span className="text-xs text-muted-foreground">Question</span>
                 <input className={field} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} /></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Category</span>
-                <select className={field} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></label>
+                <select className={field} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{CATEGORIES.map((c) => <option key={c}>{enumLabel(c)}</option>)}</select></label>
               <label className="space-y-1 md:col-span-3"><span className="text-xs text-muted-foreground">Answer</span>
                 <textarea rows={5} className={field} value={form.answer} onChange={(e) => setForm({ ...form, answer: e.target.value })} /></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Status</span>
-                <select className={field} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></label>
+                <select className={field} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUSES.map((s) => <option key={s}>{enumLabel(s)}</option>)}</select></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Sort order</span>
                 <input className={field} type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} /></label>
             </div>

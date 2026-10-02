@@ -4,6 +4,7 @@ import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import Link from "next/link"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { enumLabel } from "@/lib/utils"
 export const metadata: Metadata = {
   title: "Blog — Retail Tips & Business Guides for African Businesses",
   description: "Tips, guides, and insights for African retail businesses and enterprises. Learn how to grow your supermarket, pharmacy, restaurant or retail store.",
@@ -96,7 +97,7 @@ export default async function BlogPage() {
                       </div>
                     )}
                     <div className="p-6">
-                      <span className="text-xs font-medium text-retail">{post.category}</span>
+                      <span className="text-xs font-medium text-retail">{enumLabel(post.category)}</span>
                       <h2 className="mt-2 text-lg font-semibold text-foreground group-hover:text-retail transition-colors line-clamp-2">
                         {post.title}
                       </h2>

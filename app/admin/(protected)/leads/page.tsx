@@ -116,6 +116,10 @@ export default function AdminLeadsPage() {
   // Selected lead (opens detail modal)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
+  // Bulk selection for deletion
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+
   // Add Lead modal
   const [showAddModal, setShowAddModal] = useState(false)
   const [addForm, setAddForm] = useState({
@@ -259,16 +263,68 @@ export default function AdminLeadsPage() {
     }
   }
 
+  const removeDeletedIds = (ids: Iterable<string>) => {
+    const gone = new Set(ids)
+    setLeads((prev) => prev.filter((l) => !gone.has(l.id)))
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      gone.forEach((id) => next.delete(id))
+      return next
+    })
+  }
+
   const deleteLead = async (id: string) => {
     if (!confirm("Delete this lead permanently?")) return
     try {
       const res = await fetch(`/api/admin/leads?id=${id}`, { method: "DELETE" })
       const data = await res.json()
-      if (data.success) {
-        setLeads((prev) => prev.filter((l) => l.id !== id))
+      if (res.ok && data.success) {
+        removeDeletedIds([id])
+      } else {
+        setMessage(data.error || "Failed to delete lead")
       }
     } catch {
       setMessage("Failed to delete lead")
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allFilteredSelected = filteredLeads.length > 0 && filteredLeads.every((l) => selectedIds.has(l.id))
+
+  const toggleSelectAllFiltered = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (allFilteredSelected) filteredLeads.forEach((l) => next.delete(l.id))
+      else filteredLeads.forEach((l) => next.add(l.id))
+      return next
+    })
+  }
+
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Delete ${selectedIds.size} lead${selectedIds.size === 1 ? "" : "s"} permanently? This cannot be undone.`)) return
+    setBulkDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/leads?ids=${[...selectedIds].join(",")}`, { method: "DELETE" })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        removeDeletedIds(selectedIds)
+        setMessage(`${data.deleted ?? selectedIds.size} lead${(data.deleted ?? selectedIds.size) === 1 ? "" : "s"} deleted.`)
+      } else {
+        setMessage(data.error || "Failed to delete leads")
+      }
+    } catch {
+      setMessage("Failed to delete leads")
+    } finally {
+      setBulkDeleting(false)
     }
   }
 
@@ -386,9 +442,11 @@ export default function AdminLeadsPage() {
     try {
       const res = await fetch(`/api/admin/leads?id=${id}`, { method: "DELETE" })
       const data = await res.json()
-      if (data.success) {
-        setLeads((prev) => prev.filter((l) => l.id !== id))
+      if (res.ok && data.success) {
+        removeDeletedIds([id])
         setSelectedLead(null)
+      } else {
+        setMessage(data.error || "Failed to delete lead")
       }
     } catch {
       setMessage("Failed to delete lead")
@@ -626,7 +684,7 @@ export default function AdminLeadsPage() {
       </div>
 
       {message && (
-        <p className={`text-sm ${message.includes("saved") || message.includes("success") ? "text-green-600" : "text-red-500"}`}>
+        <p className={`text-sm ${message.includes("saved") || message.includes("success") || message.includes("deleted") ? "text-green-600" : "text-red-500"}`}>
           {message}
         </p>
       )}
@@ -854,6 +912,32 @@ export default function AdminLeadsPage() {
         )}
       </div>
 
+      {/* Bulk actions */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2">
+          <span className="text-sm font-medium text-red-700">{selectedIds.size} selected</span>
+          <Button variant="outline" size="sm" onClick={toggleSelectAllFiltered}>
+            {allFilteredSelected ? "Deselect visible" : "Select all visible"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-red-600 border-red-200 hover:bg-red-100"
+            onClick={deleteSelected}
+            disabled={bulkDeleting}
+          >
+            {bulkDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
+            Delete selected
+          </Button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Pipeline View */}
       {viewMode === "pipeline" && (
         <div className="overflow-x-auto">
@@ -911,6 +995,15 @@ export default function AdminLeadsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="px-4 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      checked={allFilteredSelected}
+                      onChange={toggleSelectAllFiltered}
+                      className="rounded border-input accent-red-600"
+                      title="Select all"
+                    />
+                  </th>
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Business</th>
                   <th className="px-4 py-3 font-medium">Email</th>
@@ -930,6 +1023,14 @@ export default function AdminLeadsPage() {
                     className="border-b border-border/50 last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
                     onClick={() => setSelectedLead(lead)}
                   >
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(lead.id)}
+                        onChange={() => toggleSelect(lead.id)}
+                        className="rounded border-input accent-red-600"
+                      />
+                    </td>
                     <td className="px-4 py-3 font-medium whitespace-nowrap">{lead.fullName}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{lead.businessName}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{lead.email}</td>
@@ -981,7 +1082,7 @@ export default function AdminLeadsPage() {
                 ))}
                 {filteredLeads.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
                       No leads match your filters.
                     </td>
                   </tr>
@@ -1178,6 +1279,13 @@ export default function AdminLeadsPage() {
                 onClick={() => setSelectedLead(lead)}
               >
                 <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(lead.id)}
+                    onChange={() => toggleSelect(lead.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-1.5 rounded border-input accent-red-600 shrink-0"
+                  />
                   <div className={`w-2 h-12 rounded-full shrink-0 ${STAGE_COLORS[lead.status]}`} />
                   <div>
                     <p className="text-base font-semibold">{lead.fullName}</p>

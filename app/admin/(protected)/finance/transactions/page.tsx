@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { formatMoney } from "@/lib/money-format"
+import { enumLabel } from "@/lib/utils"
 
 interface FinanceTransaction {
   id: string
@@ -382,7 +383,7 @@ export default function FinanceTransactionsPage() {
                       {t.type === "income" ? "Income" : "Expense"}
                     </span>
                   </td>
-                  <td className="px-4 py-3">{t.category}</td>
+                  <td className="px-4 py-3">{enumLabel(t.category)}</td>
                   <td className="px-4 py-3 max-w-xs truncate">{t.description}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{accountName(t)}</td>
                   <td className={`px-4 py-3 text-right font-medium ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>

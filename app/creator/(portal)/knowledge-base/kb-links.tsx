@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
+import { enumLabel } from "@/lib/utils"
 import { Search, Link2 } from "lucide-react"
 
 interface KbLink {
@@ -64,8 +65,8 @@ export function KbLinks({ links }: { links: KbLink[] }) {
       ) : (
         [...byCategory.entries()].map(([cat, items]) => (
           <div key={cat}>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              {cat.replace(/_/g, " ")}
+            <p className="text-xs font-semibold tracking-wider text-muted-foreground mb-2">
+              {enumLabel(cat)}
             </p>
             <Card>
               <CardContent className="divide-y p-0">

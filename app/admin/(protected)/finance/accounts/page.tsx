@@ -14,6 +14,7 @@ import {
   DatabaseZap,
 } from "lucide-react"
 import { formatMoney } from "@/components/admin/gl-statement"
+import { enumLabel } from "@/lib/utils"
 
 type PaymentAccount = {
   id: string
@@ -207,7 +208,7 @@ export default function PaymentAccountsPage() {
                       )}
                       {a.payment_method && (
                         <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          {a.payment_method.replace(/_/g, " ")}
+                          {enumLabel(a.payment_method)}
                         </span>
                       )}
                       {!a.active && (
@@ -248,7 +249,7 @@ export default function PaymentAccountsPage() {
                 <label className="mb-1 block text-xs font-medium">Default for Method</label>
                 <select className={input} value={addForm.payment_method} onChange={(e) => setAddForm({ ...addForm, payment_method: e.target.value })}>
                   <option value="">— none —</option>
-                  {METHODS.map((m) => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
+                  {METHODS.map((m) => <option key={m} value={m}>{enumLabel(m)}</option>)}
                 </select>
               </div>
               <div>

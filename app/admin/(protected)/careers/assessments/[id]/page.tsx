@@ -6,6 +6,7 @@ import { useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Send, Video, MapPin } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface Assessment {
   id: string; name: string; assessment_type: string; instructions: string | null
@@ -86,11 +87,11 @@ export default function AssessmentDetailPage() {
           </Link>
           <h2 className="text-2xl font-bold tracking-tight">{assessment.name}</h2>
           <p className="text-muted-foreground">
-            {assessment.assessment_type.replace(/_/g, " ")} · {assessment.career_vacancies?.title || "No vacancy"}
+            {enumLabel(assessment.assessment_type)} · {assessment.career_vacancies?.title || "No vacancy"}
             {assessment.scheduled_at ? ` · ${new Date(assessment.scheduled_at).toLocaleString()}` : ""}
           </p>
         </div>
-        <span className="text-sm font-medium px-3 py-1 rounded-full bg-muted">{assessment.status}</span>
+        <span className="text-sm font-medium px-3 py-1 rounded-full bg-muted">{enumLabel(assessment.status)}</span>
       </div>
 
       {assessment.instructions && (

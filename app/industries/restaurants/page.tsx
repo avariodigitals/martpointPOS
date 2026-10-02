@@ -1,5 +1,6 @@
 export const revalidate = 86400
 import type { Metadata } from "next"
+import { IndustryPricing } from "@/components/industries/industry-pricing"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { SectionHeader } from "@/components/shared/section-header"
@@ -119,7 +120,7 @@ export default function RestaurantsPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20run%20a%20restaurant%20and%20I%27m%20interested%20in%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                  <Link href="https://wa.me/+2348037978230?text=Hi%2C%20I%20run%20a%20restaurant%20and%20I%27m%20interested%20in%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
                     Book a Demo
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
@@ -301,6 +302,9 @@ export default function RestaurantsPage() {
           </div>
         </section>
 
+        {/* Pricing */}
+        <IndustryPricing industryName="Restaurants" tone="background" />
+
         {/* CTA */}
         <section className="w-full bg-retail-soft border-y border-retail-muted py-16 md:py-24">
           <div className="container-martpoint">
@@ -313,7 +317,7 @@ export default function RestaurantsPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20run%20a%20restaurant%20and%20I%27m%20interested%20in%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                  <Link href="https://wa.me/+2348037978230?text=Hi%2C%20I%20run%20a%20restaurant%20and%20I%27m%20interested%20in%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
                     Book a Demo
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>

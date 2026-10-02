@@ -8,7 +8,7 @@ export async function OrganizationSchema() {
   const social = (settings?.social as Record<string, string>) || {}
   const companyName = general?.companyName || "MartPoint"
   const email = general?.contactEmail || "hello@martpoint.com.ng"
-  const whatsapp = general?.whatsappNumber || "+2348036028069"
+  const whatsapp = general?.whatsappNumber || "+2348037978230"
   const sameAs = [social.facebook, social.instagram, social.twitter, social.linkedin, social.youtube, social.tiktok].filter(
     Boolean,
   )
@@ -228,7 +228,7 @@ export function LocalBusinessSchema() {
     name: "MartPoint",
     alternateName: "MartPoint Africa",
     url: BASE_URL,
-    telephone: "+2348036028069",
+    telephone: "+2348037978230",
     email: "hello@martpoint.ng",
     priceRange: "₦₦",
     areaServed: {

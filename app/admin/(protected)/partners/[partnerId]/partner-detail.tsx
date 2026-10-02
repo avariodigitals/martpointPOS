@@ -10,6 +10,7 @@ import { PARTNER_USER_ROLES, PARTNER_ROLE_LABELS, type PartnerUserRole, ORG_CAPA
 import { PARTNER_BADGE_TIERS, PARTNER_BADGE_TIER_LABELS, type PartnerBadgeTier } from "@/lib/partner-badges"
 import { LocationFields } from "@/components/location-fields"
 import { AgreementForm } from "../applications/[id]/agreement-form"
+import { enumLabel } from "@/lib/utils"
 
 const CAPABILITIES = Object.keys(ORG_CAPABILITY_LABELS) as PartnerOrgCapability[]
 
@@ -361,7 +362,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
       })
       const data = await res.json()
       if (data.success) {
-        setMessage(`Document marked ${reviewStatus.toLowerCase().replace(/_/g, " ")}.`)
+        setMessage(`Document marked ${enumLabel(reviewStatus.toLowerCase())}.`)
         setReviewDocId(null)
         setReviewNotes("")
         fetchCompliance()
@@ -569,7 +570,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
             <h2 className="text-2xl font-bold tracking-tight">{(partner.business_name as string) || (partner.display_name as string)}</h2>
             <p className="text-muted-foreground text-sm font-mono">{partner.partner_id as string} · {partner.partner_type as string}</p>
           </div>
-          <span className={`text-[10px] uppercase px-2 py-1 rounded font-medium ${(partner.status as string) === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-amber-50 text-amber-700"}`}>{partner.status as string}</span>
+          <span className={`text-[10px] uppercase px-2 py-1 rounded font-medium ${(partner.status as string) === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-amber-50 text-amber-700"}`}>{enumLabel(partner.status as string)}</span>
         </div>
       </div>
 
@@ -610,7 +611,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                 <div>
                   <p className="text-xs text-muted-foreground">Compliance Status</p>
                   <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${complianceStatus === "COMPLIANT" ? "bg-green-100 text-green-800" : complianceStatus === "ATTENTION" ? "bg-red-50 text-red-700" : complianceStatus === "PENDING" ? "bg-amber-50 text-amber-700" : "bg-gray-50 text-gray-500"}`}>
-                    {complianceStatus.replace(/_/g, " ")}
+                    {enumLabel(complianceStatus)}
                   </span>
                 </div>
               </div>
@@ -763,7 +764,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                   {users.map((u: Record<string, unknown>) => (
                     <div key={u.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
                       <span>{u.fullName as string} · {u.email as string} · {u.role as string}</span>
-                      <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{u.status as string}</span>
+                      <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{enumLabel(u.status as string)}</span>
                     </div>
                   ))}
                 </div>
@@ -841,7 +842,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                       {c.restrictions ? ` · ${c.restrictions as string}` : ""}
                     </span>
                   </span>
-                  <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${c.status === "CERTIFIED" ? "bg-green-100 text-green-800" : c.status === "EXPIRED" || c.status === "REVOKED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{c.status as string}</span>
+                  <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${c.status === "CERTIFIED" ? "bg-green-100 text-green-800" : c.status === "EXPIRED" || c.status === "REVOKED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{enumLabel(c.status as string)}</span>
                 </div>
               ))}
             </div>
@@ -882,7 +883,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-medium">{(d.document_type as string)}</span>
                     <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full font-medium ${(d.verification_status as string) === "VERIFIED" || (d.verification_status as string) === "APPROVED" ? "bg-green-100 text-green-700" : (d.verification_status as string) === "REJECTED" || (d.verification_status as string) === "EXPIRED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
-                      {String((d.verification_status as string)).replace(/_/g, " ")}
+                      {enumLabel(String((d.verification_status as string)))}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">{(d.original_filename as string) || "—"} · {(d.uploaded_at as string) ? new Date((d.uploaded_at as string)).toLocaleString() : "Not submitted"}</p>
@@ -1107,7 +1108,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${d.status === "ACCEPTED" || d.status === "SIGNED" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>{d.status as string}</span>
+                      <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${d.status === "ACCEPTED" || d.status === "SIGNED" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>{enumLabel(d.status as string)}</span>
                       {!!d.signedUrl && (
                         <a href={d.signedUrl as string} target="_blank" rel="noopener noreferrer">
                           <Button size="sm" variant="outline"><Download className="w-3.5 h-3.5" /></Button>
@@ -1142,7 +1143,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                         <td className="px-3 py-2 font-medium">{l.business_name as string}</td>
                         <td className="px-3 py-2">{l.contact_name as string}</td>
                         <td className="px-3 py-2 text-muted-foreground">{[l.city, l.state, l.country].filter(Boolean).join(", ") || "—"}</td>
-                        <td className="px-3 py-2"><span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${l.status === "WON" ? "bg-green-100 text-green-800" : l.status === "LOST" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{l.status as string}</span></td>
+                        <td className="px-3 py-2"><span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${l.status === "WON" ? "bg-green-100 text-green-800" : l.status === "LOST" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{enumLabel(l.status as string)}</span></td>
                         <td className="px-3 py-2"><span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${l.protection_status === "PROTECTED" ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"}`}>{l.protection_status as string}</span></td>
                         <td className="px-3 py-2 text-right">{l.estimated_deal_value ? money(l.estimated_deal_value) : "—"}</td>
                         <td className="px-3 py-2 text-muted-foreground text-xs">{l.created_at ? new Date(l.created_at as string).toLocaleDateString() : "—"}</td>
@@ -1178,7 +1179,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                           {!!qr.notes && <p className="text-xs text-muted-foreground mt-1">{qr.notes as string}</p>}
                           {!!qr.issued_quote_ref && <p className="text-xs mt-1">Quote ref: <span className="font-mono">{qr.issued_quote_ref as string}</span></p>}
                         </div>
-                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${qr.status === "ISSUED" ? "bg-green-100 text-green-800" : qr.status === "DECLINED" || qr.status === "EXPIRED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{qr.status as string}</span>
+                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${qr.status === "ISSUED" ? "bg-green-100 text-green-800" : qr.status === "DECLINED" || qr.status === "EXPIRED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{enumLabel(qr.status as string)}</span>
                       </div>
                       {open && (
                         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1220,7 +1221,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                 {((d360?.onboardingTasks as Record<string, unknown>[]) || []).map((t) => (
                   <div key={t.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
                     <span>{t.title as string} · <span className="text-muted-foreground">{(t.businesses as Record<string, unknown>)?.business_name as string} · {t.category as string}{t.required ? " · required" : ""}</span></span>
-                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${t.status === "COMPLETED" || t.status === "VERIFIED" ? "bg-green-100 text-green-800" : t.status === "BLOCKED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{t.status as string}</span>
+                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${t.status === "COMPLETED" || t.status === "VERIFIED" ? "bg-green-100 text-green-800" : t.status === "BLOCKED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{enumLabel(t.status as string)}</span>
                   </div>
                 ))}
               </div>
@@ -1280,7 +1281,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-medium ${wo.status === "COMPLETED" || wo.status === "CLOSED" ? "bg-green-100 text-green-800" : wo.status === "CANCELLED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{wo.status as string}</span>
+                            <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-medium ${wo.status === "COMPLETED" || wo.status === "CLOSED" ? "bg-green-100 text-green-800" : wo.status === "CANCELLED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{enumLabel(wo.status as string)}</span>
                             {wo.status === "DRAFT" && <Button size="sm" variant="outline" disabled={woBusy} onClick={() => workOrderAction({ action: "issue", workOrderId: wo.id })}>Issue</Button>}
                             {["ACCEPTED", "IN_PROGRESS", "COMPLETED"].includes(wo.status as string) && <Button size="sm" variant="outline" disabled={woBusy} onClick={() => workOrderAction({ action: "close", workOrderId: wo.id })}>Close</Button>}
                           </div>
@@ -1295,7 +1296,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                                   {m.status === "SUBMITTED" && !!m.evidence_text && <span className="block text-xs text-muted-foreground mt-1">Evidence: {m.evidence_text as string}{m.evidence_url ? ` — ${m.evidence_url as string}` : ""}</span>}
                                 </span>
                                 <span className="flex items-center gap-2">
-                                  <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${m.status === "ACCEPTED" ? "bg-green-100 text-green-800" : m.status === "REJECTED" ? "bg-red-50 text-red-700" : m.status === "SUBMITTED" ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-600"}`}>{m.status as string}</span>
+                                  <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${m.status === "ACCEPTED" ? "bg-green-100 text-green-800" : m.status === "REJECTED" ? "bg-red-50 text-red-700" : m.status === "SUBMITTED" ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-600"}`}>{enumLabel(m.status as string)}</span>
                                   {m.status === "SUBMITTED" && (
                                     <>
                                       <Button size="sm" variant="outline" disabled={woBusy} onClick={() => workOrderAction({ action: "review-milestone", milestoneId: m.id, decision: "ACCEPTED" })}>Accept</Button>
@@ -1349,7 +1350,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                 {((d360?.supportTickets as Record<string, unknown>[]) || []).map((t) => (
                   <div key={t.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
                     <span><span className="font-mono text-xs">{t.ticket_number as string}</span> · {t.subject as string} <span className="text-muted-foreground">· {(t.businesses as Record<string, unknown>)?.business_name as string} · {t.priority as string}</span></span>
-                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${t.status === "ESCALATED" ? "bg-red-50 text-red-700" : t.status === "RESOLVED" || t.status === "CLOSED" ? "bg-green-100 text-green-800" : "bg-blue-50 text-blue-700"}`}>{t.status as string}</span>
+                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${t.status === "ESCALATED" ? "bg-red-50 text-red-700" : t.status === "RESOLVED" || t.status === "CLOSED" ? "bg-green-100 text-green-800" : "bg-blue-50 text-blue-700"}`}>{enumLabel(t.status as string)}</span>
                   </div>
                 ))}
               </div>
@@ -1377,7 +1378,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
                         <td className="px-3 py-2 text-muted-foreground">{c.attribution_type as string}</td>
                         <td className="px-3 py-2 text-right">{money(c.basis_amount, c.currency as string)}</td>
                         <td className="px-3 py-2 text-right font-medium">{money(c.commission_amount, c.currency as string)}</td>
-                        <td className="px-3 py-2"><span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${c.status === "PAID" ? "bg-green-100 text-green-800" : c.status === "REVERSED" || c.status === "CANCELLED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{c.status as string}</span></td>
+                        <td className="px-3 py-2"><span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${c.status === "PAID" ? "bg-green-100 text-green-800" : c.status === "REVERSED" || c.status === "CANCELLED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{enumLabel(c.status as string)}</span></td>
                         <td className="px-3 py-2 text-muted-foreground text-xs">{c.earned_at ? new Date(c.earned_at as string).toLocaleDateString() : "—"}</td>
                       </tr>
                     ))}
@@ -1477,7 +1478,7 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
               <div className="space-y-2">
                 {activity.map((a: Record<string, unknown>, i: number) => (
                   <div key={i} className="flex items-center justify-between text-sm border-b border-border last:border-0 pb-2">
-                    <span className="font-medium">{a.action as string}</span>
+                    <span className="font-medium">{enumLabel(a.action as string)}</span>
                     <span className="text-xs text-muted-foreground">{a.created_at ? new Date(a.created_at as string).toLocaleString() : "—"}</span>
                   </div>
                 ))}

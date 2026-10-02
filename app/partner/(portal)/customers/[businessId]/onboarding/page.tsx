@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { HandoverPanel } from "./handover-panel"
+import { enumLabel } from "@/lib/utils"
 
 interface Task {
   id: string
@@ -62,7 +63,7 @@ export default function OnboardingWorkspacePage() {
                 <p className="text-xs text-muted-foreground">{task.category} {task.required && "• Required"}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs uppercase text-muted-foreground">{task.status}</span>
+                <span className="text-xs uppercase text-muted-foreground">{enumLabel(task.status)}</span>
                 <select
                   value={task.status}
                   onChange={(e) => updateTask(task.id, e.target.value)}

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, LifeBuoy, ArrowLeft, Send, Check } from "lucide-react"
+import { enumLabel, ticketStatusLabel } from "@/lib/utils"
 
 interface BusinessSummary {
   business_name?: string | null
@@ -319,24 +320,24 @@ export default function AdminSupportDetailPage({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Status</p>
-                  <span className={`inline-flex text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[ticket.status]}`}>
-                    {ticket.status}
+                  <span className={`inline-flex text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[ticket.status]}`}>
+                    {ticketStatusLabel(ticket.status)}
                   </span>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Priority</p>
-                  <span className={`inline-flex text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[ticket.priority]}`}>
-                    {ticket.priority}
+                  <span className={`inline-flex text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[ticket.priority]}`}>
+                    {enumLabel(ticket.priority)}
                   </span>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Category</p>
-                  <p className="font-medium">{ticket.category}</p>
+                  <p className="font-medium">{enumLabel(ticket.category)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">SLA state</p>
                   <span className={`text-sm font-medium ${SLA_COLORS[ticket.sla_state || ""] || "text-muted-foreground"}`}>
-                    {ticket.sla_state || "—"}
+                    {ticket.sla_state ? enumLabel(ticket.sla_state) : "—"}
                   </span>
                 </div>
               </div>
@@ -356,7 +357,7 @@ export default function AdminSupportDetailPage({
                   messages.map((m) => (
                     <div key={m.id} className={`p-3 rounded-md border ${m.visibility === "INTERNAL" ? "border-amber-200 bg-amber-50/30" : "border-border bg-muted/20"}`}>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                        <span className="font-medium text-foreground">{m.author_type}</span>
+                        <span className="font-medium text-foreground">{enumLabel(m.author_type)}</span>
                         {m.visibility === "INTERNAL" && <span className="text-amber-700 font-medium">Internal</span>}
                         <span>· {formatDate(m.created_at)}</span>
                       </div>
@@ -405,7 +406,7 @@ export default function AdminSupportDetailPage({
                 <ul className="space-y-2 text-sm">
                   {events.map((e) => (
                     <li key={e.id} className="flex items-start gap-2 p-2 rounded-md bg-muted/20">
-                      <span className="font-medium">{e.event_type}</span>
+                      <span className="font-medium">{enumLabel(e.event_type)}</span>
                       {e.previous_value !== undefined && e.new_value !== undefined && (
                         <span className="text-muted-foreground">
                           {e.previous_value} → {e.new_value}
@@ -442,7 +443,7 @@ export default function AdminSupportDetailPage({
               </div>
               <div>
                 <p className="text-muted-foreground">Business status</p>
-                <p className="font-medium">{summary?.status || "—"}</p>
+                <p className="font-medium">{summary?.status ? enumLabel(summary.status) : "—"}</p>
               </div>
               {entitlement && (
                 <div className="p-2 rounded-md bg-muted/20">

@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Scale, Plus, X } from "lucide-react"
 import { formatMoney } from "@/components/admin/gl-statement"
+import { enumLabel } from "@/lib/utils"
 
 type GlAccount = {
   id: string
@@ -144,7 +145,7 @@ export default function ChartOfAccountsPage() {
                             </Link>
                             {a.subtype && (
                               <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                                {a.subtype.replace(/_/g, " ")}
+                                {enumLabel(a.subtype)}
                               </span>
                             )}
                           </td>

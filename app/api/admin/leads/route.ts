@@ -3,6 +3,7 @@ import crypto from "crypto"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { recordAuditBatch, auditContextFromSession, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 
 interface LeadRecord {
@@ -270,32 +271,76 @@ export async function POST(request: Request) {
   }
 }
 
-/* ─── DELETE ─── */
+/* ─── DELETE — single (?id=) or bulk (?ids=a,b,c). Purges all lead data. ─── */
 export async function DELETE(request: Request) {
   const denied = await guardLeadsAccess()
   if (denied) return denied
+  const session = await getSession()
 
   try {
     const { searchParams } = new URL(request.url)
-    const id = searchParams.get("id")
+    const ids = (
+      searchParams.get("ids")?.split(",") ??
+      (searchParams.get("id") ? [searchParams.get("id")!] : [])
+    )
+      .map((s) => s.trim())
+      .filter(Boolean)
 
-    if (!id) {
-      return NextResponse.json({ error: "Lead ID is required" }, { status: 400 })
+    if (ids.length === 0) {
+      return NextResponse.json({ error: "Lead ID(s) required" }, { status: 400 })
     }
 
     if (!isSupabaseConfigured()) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
     }
 
-    const { error } = await supabase.from("leads").delete().eq("id", id)
+    // Related rows that cascade in the schema are deleted explicitly anyway so a
+    // database missing the cascade constraints can't block the delete. Failures
+    // here are logged, not fatal — the final leads.delete() reports real errors.
+    const cleanup = (label: string, promise: PromiseLike<{ error: { message: string } | null }>) =>
+      Promise.resolve(promise).then((r) => {
+        if (r?.error) console.error(`[Lead delete cleanup:${label}]`, r.error.message)
+      })
+
+    const { data: quotationRows } = await supabase.from("lead_quotations").select("id").in("lead_id", ids)
+    const quotationIds = ((quotationRows as { id: string }[]) || []).map((q) => q.id)
+
+    if (quotationIds.length) {
+      await cleanup("quote_change_requests", supabase.from("lead_quote_change_requests").delete().in("quotation_id", quotationIds))
+      await cleanup("quotation_items", supabase.from("lead_quotation_items").delete().in("quotation_id", quotationIds))
+    }
+    await cleanup("quotations", supabase.from("lead_quotations").delete().in("lead_id", ids))
+    await cleanup("emails", supabase.from("lead_emails").delete().in("lead_id", ids))
+    await cleanup("meetings", supabase.from("lead_meetings").delete().in("lead_id", ids))
+    // onboarding.lead_id is a plain TEXT column (no FK) — purge the orphans.
+    await cleanup("onboarding", supabase.from("onboarding").delete().in("lead_id", ids))
+
+    // Unlink — these columns should be ON DELETE SET NULL, but null them first so
+    // a database without that FK action still lets the lead be deleted.
+    await cleanup("businesses", supabase.from("businesses").update({ source_lead_id: null }).in("source_lead_id", ids))
+    await cleanup("creator_referrals", supabase.from("creator_referrals").update({ lead_id: null }).in("lead_id", ids))
+    await cleanup("career_commissions", supabase.from("career_commissions").update({ lead_id: null }).in("lead_id", ids))
+    await cleanup("career_pipeline_handovers", supabase.from("career_pipeline_handovers").update({ lead_id: null }).in("lead_id", ids))
+
+    const { error, count } = await supabase.from("leads").delete({ count: "exact" }).in("id", ids)
 
     if (error) {
       console.error("[Supabase Lead Delete Error]", error)
-      return NextResponse.json({ error: "Lead not found or delete failed" }, { status: 404 })
+      return NextResponse.json({ error: error.message || "Delete failed" }, { status: 500 })
+    }
+    if (count === 0) {
+      return NextResponse.json({ error: "No matching leads found" }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true })
-  } catch {
-    return NextResponse.json({ error: "Failed to delete lead" }, { status: 500 })
+    const ctx = auditContextFromSession(session, request)
+    await recordAuditBatch(
+      ctx,
+      ids.map((id) => ({ action: AUDIT_ACTIONS.LEAD_DELETED, entityType: AUDIT_ENTITIES.LEAD, entityId: id }))
+    )
+
+    return NextResponse.json({ success: true, deleted: count ?? ids.length })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return NextResponse.json({ error: `Failed to delete lead(s): ${msg}` }, { status: 500 })
   }
 }

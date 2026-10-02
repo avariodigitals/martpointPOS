@@ -118,7 +118,7 @@ export function LeadForm({ pageType, productDefault = "not-sure", includeErpOpti
 
       // Open WhatsApp with pre-filled message
       const message = buildWhatsAppMessage(data)
-      const waUrl = `https://wa.me/+2348036028069?text=${encodeURIComponent(message)}`
+      const waUrl = `https://wa.me/+2348037978230?text=${encodeURIComponent(message)}`
       window.open(waUrl, "_blank")
 
       setSubmitted(true)
@@ -130,7 +130,7 @@ export function LeadForm({ pageType, productDefault = "not-sure", includeErpOpti
   }
 
   if (submitted) {
-    const waUrl = `https://wa.me/+2348036028069?text=${encodeURIComponent(
+    const waUrl = `https://wa.me/+2348037978230?text=${encodeURIComponent(
       "Hi, I just submitted the contact form on your website. I'm ready to talk about MartPoint. Can we start now?"
     )}`
     return (

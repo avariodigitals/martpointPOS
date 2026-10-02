@@ -145,7 +145,7 @@ export default function CustomerSupportLoginPage() {
           <div className="pt-4 border-t border-border">
             <p className="text-xs text-muted-foreground text-center">
               Prefer to reach us another way?{" "}
-              <a href="https://wa.me/+2348036028069?text=Hi%2C%20I%20need%20support%20with%20MartPoint" className="text-retail hover:underline" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+              <a href="https://wa.me/+2348037978230?text=Hi%2C%20I%20need%20support%20with%20MartPoint" className="text-retail hover:underline" target="_blank" rel="noopener noreferrer">WhatsApp</a>
               {" "}or{" "}
               <a href="mailto:hello@martpoint.com.ng" className="text-retail hover:underline">email</a>.
             </p>

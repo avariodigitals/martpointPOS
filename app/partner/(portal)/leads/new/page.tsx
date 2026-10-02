@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
 import { allIndustries, businessTypeOptions } from "@/lib/industries"
+import { enumLabel } from "@/lib/utils"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-sm font-medium mb-1"
@@ -104,7 +105,7 @@ export default function NewLeadPage() {
             >
               <option value="">Select country</option>
               {countries.map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>{enumLabel(c)}</option>
               ))}
             </select>
           </div>
@@ -149,7 +150,7 @@ export default function NewLeadPage() {
               >
                 <option value="">Select city</option>
                 {cities.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{enumLabel(c)}</option>
                 ))}
               </select>
             ) : (

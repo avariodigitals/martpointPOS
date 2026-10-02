@@ -418,7 +418,7 @@ export default async function PricingPage() {
                   </a>
                 </Button>
                 <Button asChild variant="outline" size="lg">
-                  <a href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">Talk to Sales</a>
+                  <a href="https://wa.me/+2348037978230?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">Talk to Sales</a>
                 </Button>
               </div>
             </div>

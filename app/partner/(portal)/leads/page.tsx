@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
 import { listPartnerLeads, partnerCanRegisterLeads } from "@/lib/partner-leads"
 import Link from "next/link"
+import { enumLabel } from "@/lib/utils"
 
 export default async function PartnerLeadsPage() {
   const session = await getPartnerSession()
@@ -52,7 +53,7 @@ export default async function PartnerLeadsPage() {
                   <td className="px-4 py-2">{lead.contactName}</td>
                   <td className="px-4 py-2">{lead.interestedProduct}</td>
                   <td className="px-4 py-2">{new Date(lead.createdAt).toLocaleDateString()}</td>
-                  <td className="px-4 py-2">{lead.status}</td>
+                  <td className="px-4 py-2">{enumLabel(lead.status)}</td>
                   <td className="px-4 py-2">{lead.protectionStatus}</td>
                 </tr>
               ))}

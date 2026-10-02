@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface Incident {
   id: string
@@ -242,7 +243,7 @@ export default function IncidentDetailPage({
                 <ul className="space-y-2 text-sm">
                   {incident.events.map((e) => (
                     <li key={e.id} className="flex items-start gap-2 p-2 rounded-md bg-muted/20">
-                      <span className="font-medium">{e.action}</span>
+                      <span className="font-medium">{enumLabel(e.action)}</span>
                       <span className="text-xs text-muted-foreground ml-auto">{fmt(e.created_at)}</span>
                     </li>
                   ))}

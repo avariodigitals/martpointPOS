@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, ArrowLeft, BarChart3 } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface PerfRow {
   partnerId: string
@@ -140,7 +141,7 @@ export default function PartnerPerformancePage() {
               {TYPE_FILTERS.map((t) => <option key={t} value={t}>{t ? (TYPE_LABELS[t] || t) : "All types"}</option>)}
             </select>
             <select value={status} onChange={(e) => setStatus(e.target.value)} className={selectCls}>
-              {STATUS_FILTERS.map((s) => <option key={s} value={s}>{s ? s.replace(/_/g, " ") : "All statuses"}</option>)}
+              {STATUS_FILTERS.map((s) => <option key={s} value={s}>{s ? enumLabel(s) : "All statuses"}</option>)}
             </select>
             <select value={country} onChange={(e) => setCountry(e.target.value)} className={selectCls}>
               <option value="">All countries</option>
@@ -235,7 +236,7 @@ export default function PartnerPerformancePage() {
                       )}
                       <td className="px-3 py-2">
                         <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${COMPLIANCE_COLORS[r.complianceStatus] || "bg-gray-50 text-gray-500"}`}>
-                          {r.complianceStatus.replace(/_/g, " ")}
+                          {enumLabel(r.complianceStatus)}
                         </span>
                       </td>
                       {showOnboardingCol && (

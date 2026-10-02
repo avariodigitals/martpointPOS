@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation"
 import { getPartnerSession, authorizePartner, getPartnerUserById } from "@/lib/partner-auth"
 import { getPartnerCustomerDetail } from "@/lib/partner-customers"
 import Link from "next/link"
+import { enumLabel } from "@/lib/utils"
 
 export default async function CustomerDetailPage({ params }: { params: { businessId: string } }) {
   const session = await getPartnerSession()
@@ -33,7 +34,7 @@ export default async function CustomerDetailPage({ params }: { params: { busines
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Location</p><p className="font-medium">{[business.address, business.city, business.state, business.country].filter(Boolean).join(", ")}</p></div>
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Relationship</p><p className="font-medium">{assignment.relationship}</p></div>
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Partner Access</p><p className="font-medium">{assignment.accessLevel}</p></div>
-        <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Business Status</p><p className="font-medium">{business.status}</p></div>
+        <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Business Status</p><p className="font-medium">{enumLabel(business.status)}</p></div>
       </div>
 
       {entitlement && (
@@ -50,7 +51,7 @@ export default async function CustomerDetailPage({ params }: { params: { busines
       {deployment && (
         <div className="rounded-lg border p-4 space-y-2">
           <h3 className="font-semibold">Deployment</h3>
-          <p className="text-sm text-muted-foreground">Status: <span className="font-medium text-foreground">{deployment.status as string}</span></p>
+          <p className="text-sm text-muted-foreground">Status: <span className="font-medium text-foreground">{enumLabel(deployment.status as string)}</span></p>
         </div>
       )}
 

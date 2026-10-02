@@ -91,7 +91,7 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
   const companyLines = [
     "MartPoint",
     "hello@martpoint.com.ng",
-    "+234 803 602 8069",
+    "+234 803 797 8230",
     "www.martpoint.com.ng",
   ]
   companyLines.forEach((line, i) => {

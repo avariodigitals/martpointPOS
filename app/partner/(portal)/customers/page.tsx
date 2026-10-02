@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
 import { listPartnerCustomers } from "@/lib/partner-customers"
 import Link from "next/link"
+import { enumLabel } from "@/lib/utils"
 
 export default async function PartnerCustomersPage() {
   const session = await getPartnerSession()
@@ -40,7 +41,7 @@ export default async function PartnerCustomersPage() {
                   <td className="px-4 py-2">{[c.business.city, c.business.state, c.business.country].filter(Boolean).join(", ")}</td>
                   <td className="px-4 py-2">{c.relationship}</td>
                   <td className="px-4 py-2">{c.accessLevel}</td>
-                  <td className="px-4 py-2">{c.business.status}</td>
+                  <td className="px-4 py-2">{enumLabel(c.business.status)}</td>
                 </tr>
               ))}
             </tbody>

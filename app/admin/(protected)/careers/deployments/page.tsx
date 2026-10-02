@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2, MapPin, Plus } from "lucide-react"
 import { DEPLOYMENT_STATUSES } from "@/lib/careers"
 import { STATES } from "@/lib/locations"
+import { enumLabel } from "@/lib/utils"
 
 interface Deployment {
   id: string; name: string; project_client: string | null
@@ -123,7 +124,7 @@ export default function DeploymentsPage() {
                   <td className="py-3 px-4 text-xs">{[d.city, d.state].filter(Boolean).join(", ") || "—"}</td>
                   <td className="py-3 px-4 text-xs text-muted-foreground">{[d.start_date, d.end_date].filter(Boolean).join(" – ") || "—"}</td>
                   <td className="py-3 px-4 text-xs">{d.team_lead_name || "—"}</td>
-                  <td className="py-3 px-4"><span className="text-[10px] uppercase px-1.5 py-0.5 rounded font-medium bg-muted">{d.status}</span></td>
+                  <td className="py-3 px-4"><span className="text-[10px] uppercase px-1.5 py-0.5 rounded font-medium bg-muted">{enumLabel(d.status)}</span></td>
                 </tr>
               ))}
             </tbody>

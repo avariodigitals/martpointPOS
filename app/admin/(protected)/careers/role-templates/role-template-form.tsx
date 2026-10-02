@@ -15,6 +15,7 @@ import {
   type CareerRoleTemplate,
 } from "@/lib/careers-role-templates"
 import { STATES } from "@/lib/locations"
+import { enumLabel } from "@/lib/utils"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-sm font-medium mb-1.5"
@@ -458,7 +459,7 @@ export function RoleTemplateForm({
               <select className={inputCls} value={f.assessment_type} onChange={(e) => set("assessment_type", e.target.value)}>
                 <option value="">None</option>
                 {["WRITTEN", "PRACTICAL", "PRODUCT_CAPTURE", "INTERVIEW", "OTHER"].map((t) => (
-                  <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+                  <option key={t} value={t}>{enumLabel(t)}</option>
                 ))}
               </select>
             </div>
@@ -499,7 +500,7 @@ export function RoleTemplateForm({
                 <div>
                   <label className={labelCls}>Answer type</label>
                   <select className={inputCls} value={q.answer_type} onChange={(e) => setQ(i, "answer_type", e.target.value)}>
-                    {ANSWER_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+                    {ANSWER_TYPES.map((t) => <option key={t} value={t}>{enumLabel(t)}</option>)}
                   </select>
                 </div>
               </div>

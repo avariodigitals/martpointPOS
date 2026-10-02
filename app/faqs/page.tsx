@@ -129,7 +129,7 @@ export default async function FAQsPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <a
-                  href="https://wa.me/+2348036028069?text=Hi%2C%20I%20have%20a%20question%20about%20MartPoint.%20Can%20you%20help%3F"
+                  href="https://wa.me/+2348037978230?text=Hi%2C%20I%20have%20a%20question%20about%20MartPoint.%20Can%20you%20help%3F"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 rounded-md bg-accent px-6 py-3 text-sm font-medium text-white hover:bg-accent/90 transition-colors"

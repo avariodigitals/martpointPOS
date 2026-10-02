@@ -181,7 +181,7 @@ export default function MartPointIntelligencePage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%27d%20like%20to%20learn%20more%20about%20MartPoint%20Intelligence.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                  <Link href="https://wa.me/+2348037978230?text=Hi%2C%20I%27d%20like%20to%20learn%20more%20about%20MartPoint%20Intelligence.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
                     Book a Demo
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
@@ -390,7 +390,7 @@ export default function MartPointIntelligencePage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%27d%20like%20to%20learn%20more%20about%20MartPoint%20Intelligence.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                  <Link href="https://wa.me/+2348037978230?text=Hi%2C%20I%27d%20like%20to%20learn%20more%20about%20MartPoint%20Intelligence.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
                     Book a Demo
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>

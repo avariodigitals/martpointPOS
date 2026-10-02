@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, BarChart3, Download } from "lucide-react"
 import { APPLICATION_STATUS_LABELS, applicationStatusLabel } from "@/lib/careers"
+import { enumLabel } from "@/lib/utils"
 
 interface Reports {
   funnel: { status: string; count: number }[]
@@ -110,7 +111,7 @@ export default function CareersReportsPage() {
             {r.attendanceSummary.length === 0 ? <p className="text-sm text-muted-foreground">No attendance records.</p> :
               r.attendanceSummary.map((v) => (
                 <div key={v.status} className="flex items-center justify-between text-sm">
-                  <span>{v.status.replace(/_/g, " ")}</span><span className="font-medium">{v.count}</span>
+                  <span>{enumLabel(v.status)}</span><span className="font-medium">{v.count}</span>
                 </div>
               ))}
           </CardContent>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import {
   Loader2, Plus, ArrowUp, ArrowDown, Pencil, ListChecks,
 } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface LearningItem {
   id: string
@@ -204,8 +205,8 @@ export default function AdminLearningPage() {
       <div className="flex flex-wrap gap-2">
         <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-sm">
           <option value="">All items</option>
-          <optgroup label="Status">{STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</optgroup>
-          <optgroup label="Type">{TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</optgroup>
+          <optgroup label="Status">{STATUSES.map((s) => <option key={s} value={s}>{enumLabel(s)}</option>)}</optgroup>
+          <optgroup label="Type">{TYPES.map((t) => <option key={t} value={t}>{enumLabel(t)}</option>)}</optgroup>
         </select>
       </div>
 
@@ -246,7 +247,7 @@ export default function AdminLearningPage() {
                       <p className="text-xs text-muted-foreground font-mono">{it.slug}</p>
                     </td>
                     <td className="p-3 text-xs">{it.type}{it.type === "ASSESSMENT" ? ` · ${it.questionCount}q` : ""}</td>
-                    <td className="p-3 text-xs">{it.category}</td>
+                    <td className="p-3 text-xs">{enumLabel(it.category)}</td>
                     <td className="p-3 text-xs space-x-1">
                       {it.required && <span className="rounded-full bg-red-100 text-red-700 px-2 py-0.5">Required</span>}
                       {it.isOnboardingStep && <span className="rounded-full bg-blue-100 text-blue-700 px-2 py-0.5">Onboarding{it.onboardingOrder != null ? ` #${it.onboardingOrder}` : ""}</span>}
@@ -257,7 +258,7 @@ export default function AdminLearningPage() {
                         onChange={(e) => setStatus(it.id, e.target.value)}
                         className={`rounded-full px-2 py-0.5 text-xs border-0 ${it.status === "PUBLISHED" ? "bg-green-100 text-green-700" : it.status === "ARCHIVED" ? "bg-muted text-muted-foreground" : "bg-amber-100 text-amber-700"}`}
                       >
-                        {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                        {STATUSES.map((s) => <option key={s} value={s}>{enumLabel(s)}</option>)}
                       </select>
                     </td>
                     <td className="p-3">
@@ -291,11 +292,11 @@ export default function AdminLearningPage() {
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Slug (blank = auto)</span>
                 <input className={field} value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} /></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Type</span>
-                <select className={field} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
+                <select className={field} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((t) => <option key={t}>{enumLabel(t)}</option>)}</select></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Category</span>
-                <select className={field} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></label>
+                <select className={field} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{CATEGORIES.map((c) => <option key={c}>{enumLabel(c)}</option>)}</select></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Status</span>
-                <select className={field} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></label>
+                <select className={field} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUSES.map((s) => <option key={s}>{enumLabel(s)}</option>)}</select></label>
               <label className="space-y-1 md:col-span-3"><span className="text-xs text-muted-foreground">Short description</span>
                 <input className={field} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
               {(form.type === "ARTICLE" || form.type === "GUIDE" || form.type === "ASSESSMENT") && (

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface ResourceRow {
   id: string
@@ -168,7 +169,7 @@ export default function AdminKitPage() {
                         {it.filePath ? "Uploaded file" : it.externalUrl || "—"}
                       </p>
                     </td>
-                    <td className="p-4 text-xs">{it.category}</td>
+                    <td className="p-4 text-xs">{enumLabel(it.category)}</td>
                     <td className="p-4 text-xs">{it.resourceType}</td>
                     <td className="p-4 text-xs">{it.version || "—"}</td>
                     <td className="p-4">
@@ -206,9 +207,9 @@ export default function AdminKitPage() {
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Version</span>
                 <input className={field} value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })} placeholder="e.g. v1.0" /></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Category</span>
-                <select className={field} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></label>
+                <select className={field} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{CATEGORIES.map((c) => <option key={c}>{enumLabel(c)}</option>)}</select></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Type</span>
-                <select className={field} value={form.resourceType} onChange={(e) => setForm({ ...form, resourceType: e.target.value })}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
+                <select className={field} value={form.resourceType} onChange={(e) => setForm({ ...form, resourceType: e.target.value })}>{TYPES.map((t) => <option key={t}>{enumLabel(t)}</option>)}</select></label>
               <label className="space-y-1 md:col-span-2"><span className="text-xs text-muted-foreground">Description</span>
                 <textarea rows={2} className={field} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">File {editing !== "new" && "(leave empty to keep current)"}</span>

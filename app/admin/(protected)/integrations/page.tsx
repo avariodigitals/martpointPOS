@@ -22,6 +22,7 @@ interface WhatsAppSettings {
   baseUrl: string
   webhookSecret: string
   phoneNumber: string
+  leadKeywords: string
 }
 
 const defaultLiveKit: LiveKitSettings = {
@@ -41,16 +42,23 @@ const defaultWhatsApp: WhatsAppSettings = {
   baseUrl: "https://waba-v2.360dialog.io",
   webhookSecret: "",
   phoneNumber: "",
+  leadKeywords: "demo,pricing,price,quote,cost,interested,buy,subscribe,pos,martpoint,inventory,point of sale,how much,sign up",
 }
 
 interface AdLeadsSettings {
   webhookSecret: string
   tiktokAppSecret: string
+  metaVerifyToken: string
+  metaAppSecret: string
+  metaPageAccessToken: string
 }
 
 const defaultAdLeads: AdLeadsSettings = {
   webhookSecret: "",
   tiktokAppSecret: "",
+  metaVerifyToken: "",
+  metaAppSecret: "",
+  metaPageAccessToken: "",
 }
 
 export default function IntegrationsPage() {
@@ -160,6 +168,12 @@ export default function IntegrationsPage() {
             {input("Base URL", whatsapp.baseUrl, (v) => setWhatsapp({ ...whatsapp, baseUrl: v }))}
             {input("Webhook Secret", whatsapp.webhookSecret, (v) => setWhatsapp({ ...whatsapp, webhookSecret: v }), "password")}
             {input("Business Phone Number", whatsapp.phoneNumber, (v) => setWhatsapp({ ...whatsapp, phoneNumber: v }))}
+            <div>
+              {input("Lead Keywords (comma-separated)", whatsapp.leadKeywords, (v) => setWhatsapp({ ...whatsapp, leadKeywords: v }))}
+              <p className="text-xs text-muted-foreground mt-1">
+                First inbound message containing a keyword creates a lead. Empty = capture all new contacts.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -220,6 +234,39 @@ export default function IntegrationsPage() {
               </div>
             </div>
             {input("TikTok App Secret (native webhook mode)", adLeads.tiktokAppSecret, (v) => setAdLeads({ ...adLeads, tiktokAppSecret: v }), "password")}
+
+            <div className="border-t border-border pt-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Meta Webhook Endpoint (Lead Ads)</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/api/webhooks/meta-leads`}
+                  className="w-full rounded-md border border-input bg-muted px-3 py-2 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Meta Verify Token (you choose this)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={adLeads.metaVerifyToken}
+                    onChange={(e) => setAdLeads({ ...adLeads, metaVerifyToken: e.target.value })}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setAdLeads({ ...adLeads, metaVerifyToken: crypto.randomUUID() })}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              {input("Meta App Secret", adLeads.metaAppSecret, (v) => setAdLeads({ ...adLeads, metaAppSecret: v }), "password")}
+              {input("Meta Page Access Token (leads_retrieval)", adLeads.metaPageAccessToken, (v) => setAdLeads({ ...adLeads, metaPageAccessToken: v }), "password")}
+            </div>
           </CardContent>
         </Card>
       </div>

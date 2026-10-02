@@ -239,7 +239,7 @@ export function PayPlanTrustCallout() {
           <div className="mt-8 flex justify-center">
             <Button asChild size="lg" variant="retail">
               <a
-                href="https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20seeing%20MartPoint%20PayPlan%20in%20action.%20Can%20we%20talk%3F"
+                href="https://wa.me/+2348037978230?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20seeing%20MartPoint%20PayPlan%20in%20action.%20Can%20we%20talk%3F"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2"

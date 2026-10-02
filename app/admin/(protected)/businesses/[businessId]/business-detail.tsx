@@ -13,6 +13,7 @@ import {
 import type { Business, BusinessStatus, BusinessBranch, BusinessUser, OnboardingStages, OnboardingStageKey } from "@/lib/businesses"
 import { ONBOARDING_STAGES } from "@/lib/businesses"
 import { LocationFields } from "@/components/location-fields"
+import { enumLabel } from "@/lib/utils"
 
 interface Props {
   business: Business
@@ -417,7 +418,7 @@ export function BusinessDetail({
         </Link>
         <h2 className="text-2xl font-bold tracking-tight mt-2 flex items-center gap-2">
           <Building2 className="w-5 h-5" /> {business.businessName}
-          <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[business.status] || "bg-gray-100 text-gray-700"}`}>{business.status}</span>
+          <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[business.status] || "bg-gray-100 text-gray-700"}`}>{enumLabel(business.status)}</span>
         </h2>
         <p className="text-muted-foreground text-sm">360° Business Record · {actorName}</p>
       </div>
@@ -494,7 +495,7 @@ export function BusinessDetail({
                   <Detail label="Address" value={business.address} />
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-0.5">Status</p>
-                    <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[business.status] || "bg-gray-100 text-gray-700"}`}>{business.status}</span>
+                    <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[business.status] || "bg-gray-100 text-gray-700"}`}>{enumLabel(business.status)}</span>
                   </div>
                   <Detail label="Source" value={business.source} />
                 </div>
@@ -731,7 +732,7 @@ export function BusinessDetail({
                 <div className="space-y-2">
                   {onboardingRecords.map((r) => (
                     <div key={r.id as string} className="p-3 rounded-md border border-border bg-muted/10 text-sm">
-                      <p className="font-medium">{(r.business_name as string) || (r.full_name as string)} · <span className="text-muted-foreground">{r.status as string}</span></p>
+                      <p className="font-medium">{(r.business_name as string) || (r.full_name as string)} · <span className="text-muted-foreground">{enumLabel(r.status as string)}</span></p>
                       <p className="text-xs text-muted-foreground">{r.email as string} · {r.phone as string}</p>
                       <p className="text-xs text-muted-foreground">Created {fmt(r.created_at as string)}</p>
                     </div>
@@ -785,7 +786,7 @@ export function BusinessDetail({
                       <p className="font-medium flex items-center gap-2">
                         {b.name}
                         {b.isHeadquarters && <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">HQ</span>}
-                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${b.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>{b.status}</span>
+                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${b.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>{enumLabel(b.status)}</span>
                       </p>
                       <p className="text-xs text-muted-foreground">{[b.address, b.city, b.state, b.country].filter(Boolean).join(", ") || "No address"}</p>
                       {b.phone && <p className="text-xs text-muted-foreground">{b.phone}</p>}
@@ -884,7 +885,7 @@ export function BusinessDetail({
                       <p className="font-medium flex items-center gap-2">
                         {u.fullName}
                         <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">{u.role}</span>
-                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>{u.status}</span>
+                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>{enumLabel(u.status)}</span>
                       </p>
                       <p className="text-xs text-muted-foreground">{[u.email, u.phone].filter(Boolean).join(" · ") || "No contact info"}</p>
                       {u.branchId && <p className="text-xs text-muted-foreground">Branch: {branches.find((b) => b.id === u.branchId)?.name || u.branchId}</p>}
@@ -915,7 +916,7 @@ export function BusinessDetail({
                   <Detail label="Plan" value={plan?.name || (plan?.code ?? null)} />
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-0.5">Status</p>
-                    <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${subscription.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}>{subscription.status as string}</span>
+                    <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${subscription.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}>{enumLabel(subscription.status as string)}</span>
                   </div>
                   <Detail label="Billing interval" value={subscription.billing_interval as string} />
                   <Detail label="Price" value={fmtMoney(Number(subscription.price_at_activation) || 0, (subscription.currency as string) || "NGN")} />
@@ -981,7 +982,7 @@ export function BusinessDetail({
                 {activity.map((a, i) => (
                   <div key={i} className="p-3 rounded-md border border-border bg-muted/10 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium">{a.action}</span>
+                      <span className="font-medium">{enumLabel(a.action)}</span>
                       <span className="text-xs text-muted-foreground">{fmt(a.createdAt)}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">by {a.actorName || "system"}</p>

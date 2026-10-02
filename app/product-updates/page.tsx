@@ -215,7 +215,7 @@ export default function ProductUpdatesPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20MartPoint.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
+                  <Link href="https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20MartPoint.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">
                     Get Started
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
@@ -365,7 +365,7 @@ export default function ProductUpdatesPage() {
             <div className="mt-10 text-center">
               <Button asChild variant="retail">
                 <Link
-                  href="https://wa.me/+2348036028069?text=Hi%2C%20I%20want%20early%20access%20to%20upcoming%20MartPoint%20features.%20Can%20you%20add%20me%20to%20the%20early%20access%20list%3F"
+                  href="https://wa.me/+2348037978230?text=Hi%2C%20I%20want%20early%20access%20to%20upcoming%20MartPoint%20features.%20Can%20you%20add%20me%20to%20the%20early%20access%20list%3F"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -390,7 +390,7 @@ export default function ProductUpdatesPage() {
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
                   <Link
-                    href="https://wa.me/+2348036028069?text=Hi%2C%20I%20want%20to%20stay%20updated%20on%20MartPoint%20features.%20Can%20you%20add%20me%20to%20your%20update%20list%3F"
+                    href="https://wa.me/+2348037978230?text=Hi%2C%20I%20want%20to%20stay%20updated%20on%20MartPoint%20features.%20Can%20you%20add%20me%20to%20your%20update%20list%3F"
                     target="_blank"
                     rel="noopener noreferrer"
                   >

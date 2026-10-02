@@ -19,6 +19,9 @@ export const CREATOR_REF_PATTERN = /^MP-\d{1,6}$/i
 
 export interface CreatorRefContext {
   code: string
+  /** Submission-level tracking token (?s=sub_xxxx) — resolves server-side to
+   *  submission_id + challenge_id so attribution lands on the exact content. */
+  submissionToken?: string | null
   utmSource?: string | null
   utmMedium?: string | null
   utmCampaign?: string | null
@@ -29,6 +32,7 @@ export interface CreatorRefContext {
 export function encodeCreatorRef(ctx: CreatorRefContext): string {
   return Buffer.from(JSON.stringify({
     c: ctx.code,
+    v: ctx.submissionToken || undefined,
     s: ctx.utmSource || undefined,
     m: ctx.utmMedium || undefined,
     p: ctx.utmCampaign || undefined,
@@ -45,6 +49,7 @@ export function decodeCreatorRef(raw: string | undefined | null): CreatorRefCont
     if (!CREATOR_REF_PATTERN.test(code)) return null
     return {
       code: code.toUpperCase(),
+      submissionToken: v.v ? String(v.v) : null,
       utmSource: v.s ? String(v.s) : null,
       utmMedium: v.m ? String(v.m) : null,
       utmCampaign: v.p ? String(v.p) : null,
@@ -87,6 +92,8 @@ export async function recordCreatorReferral(input: {
   referrer?: string | null
   ip?: string | null
   userAgent?: string | null
+  /** Prevents double-recording the same event on refresh/retry. */
+  dedupeKey?: string | null
 }): Promise<void> {
   if (!isSupabaseConfigured()) return
   try {
@@ -106,6 +113,7 @@ export async function recordCreatorReferral(input: {
       referrer: input.referrer ?? null,
       ip: input.ip ?? null,
       user_agent: input.userAgent ?? null,
+      dedupe_key: input.dedupeKey ?? null,
     })
   } catch (err) {
     console.error("[creator-ref] referral insert failed:", err)

@@ -142,7 +142,7 @@ export default function TermsOfServicePage() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground mb-3">16. Contact Us</h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  If you have any questions about these Terms of Service, please contact us at <a href="mailto:hello@martpoint.com.ng" className="text-retail underline hover:text-retail/80 transition-colors">hello@martpoint.com.ng</a> or via WhatsApp at <a href="tel:+2348036028069" className="text-retail underline hover:text-retail/80 transition-colors">+234 803 602 8069</a>.
+                  If you have any questions about these Terms of Service, please contact us at <a href="mailto:hello@martpoint.com.ng" className="text-retail underline hover:text-retail/80 transition-colors">hello@martpoint.com.ng</a> or via WhatsApp at <a href="tel:+2348037978230" className="text-retail underline hover:text-retail/80 transition-colors">+234 803 797 8230</a>.
                 </p>
               </div>
             </div>

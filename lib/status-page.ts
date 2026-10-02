@@ -401,7 +401,7 @@ function buildStatusEmailHtml(
         Need more insight? Our team is here —
         <a href="${base}/support" style="color:#0057FF;text-decoration:none">visit support</a>,
         email <a href="mailto:support@martpoint.com.ng" style="color:#0057FF;text-decoration:none">support@martpoint.com.ng</a>,
-        or chat on <a href="https://wa.me/2348036028069" style="color:#0057FF;text-decoration:none">WhatsApp</a>.
+        or chat on <a href="https://wa.me/2348037978230" style="color:#0057FF;text-decoration:none">WhatsApp</a>.
       </div>
     </div>
     <div style="margin-top:24px;font-size:12px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;text-align:center">

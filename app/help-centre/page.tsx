@@ -128,7 +128,7 @@ const categories = [
 ]
 
 const contactFAQs = [
-  { q: "How do I contact MartPoint support?", a: "Message us on WhatsApp at +234 803 602 8069 or email hello@martpoint.com.ng. Our local support team responds within hours during business hours." },
+  { q: "How do I contact MartPoint support?", a: "Message us on WhatsApp at +234 803 797 8230 or email hello@martpoint.com.ng. Our local support team responds within hours during business hours." },
   { q: "What are your support hours?", a: "Standard software support is available Monday to Friday, 9:00 a.m. to 5:00 p.m. West Africa Time. Messages received outside these hours are attended to on the next business day." },
   { q: "Do you offer on-site support?", a: "Yes. For larger retail setups, we offer on-site training and technical support in major Nigerian cities as separately scoped services." },
   { q: "Is there a self-service knowledge base?", a: "You are looking at it. Browse the categories above or reach out directly if you need personalised help." },
@@ -218,7 +218,7 @@ export default function HelpCentrePage() {
             </div>
             <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg" variant="retail">
-                <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20need%20support%20with%20MartPoint.%20Can%20you%20help%3F" target="_blank" rel="noopener noreferrer">
+                <Link href="https://wa.me/+2348037978230?text=Hi%2C%20I%20need%20support%20with%20MartPoint.%20Can%20you%20help%3F" target="_blank" rel="noopener noreferrer">
                   <MessageCircle className="mr-2 h-4 w-4" />
                   Chat on WhatsApp
                 </Link>

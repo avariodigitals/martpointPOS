@@ -4,6 +4,7 @@ import { getPartnerSession, authorizePartner, canPartnerAccessBusiness } from "@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, RefreshCw, Receipt } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 function fmtMoney(amount: number, currency = "NGN") {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency }).format(amount || 0)
@@ -203,7 +204,7 @@ export default async function CustomerFinancePage({
                 {renewals.map((r: any) => (
                   <div key={r.id} className="flex items-center justify-between text-sm">
                     <span>{fmtDate(r.renewal_due_date)}</span>
-                    <span className="font-medium">{r.status}</span>
+                    <span className="font-medium">{enumLabel(r.status)}</span>
                   </div>
                 ))}
               </div>

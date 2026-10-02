@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Send, BellRing, Trash2 } from "lucide-react"
 import { DEPLOYMENT_STATUSES, ATTENDANCE_STATUSES } from "@/lib/careers"
+import { enumLabel } from "@/lib/utils"
 
 interface Deployment {
   id: string; name: string; reference_number: string; project_client: string | null
@@ -174,7 +175,7 @@ export default function DeploymentDetailPage() {
                       <p className="text-xs text-muted-foreground font-mono">{w.candidate?.reference_number}</p>
                     </td>
                     <td className="py-2 pr-3 text-xs">{w.role}{w.candidate_id === dep.team_lead_candidate_id ? " ★" : ""}</td>
-                    <td className="py-2 pr-3 text-xs">{w.candidate?.verification_status?.replace(/_/g, " ")}</td>
+                    <td className="py-2 pr-3 text-xs">{enumLabel(w.candidate?.verification_status)}</td>
                     <td className="py-2 pr-3">
                       <select className={inputCls + " text-xs"} value={w.status}
                         onChange={(e) => req(`/api/admin/careers/deployments/${id}/workers`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ candidateId: w.candidate_id, status: e.target.value }) })}>
@@ -221,7 +222,7 @@ export default function DeploymentDetailPage() {
                         value={attStatus[w.candidate_id] ?? existing?.status ?? ""}
                         onChange={(e) => setAttStatus((s) => ({ ...s, [w.candidate_id]: e.target.value }))}>
                         <option value="">—</option>
-                        {ATTENDANCE_STATUSES.map((s) => <option key={s}>{s.replace(/_/g, " ")}</option>)}
+                        {ATTENDANCE_STATUSES.map((s) => <option key={s}>{enumLabel(s)}</option>)}
                       </select>
                     </div>
                   )

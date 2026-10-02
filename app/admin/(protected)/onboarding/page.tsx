@@ -480,7 +480,7 @@ MartPoint Team`
       tempPassword: saved?.tempPassword || "",
       onlineStoreUrl: saved?.onlineStoreUrl || "",
       supportGroupUrl: saved?.supportGroupUrl || "",
-      supportContact: saved?.supportContact || "Blessing / 08036028069",
+      supportContact: saved?.supportContact || "Blessing / 08037978230",
       trainingSchedule: saved?.trainingSchedule || "Please share a suitable date with us.",
       attachStoreQr: saved?.attachStoreQr ?? true,
       attachLoginQr: saved?.attachLoginQr ?? false,

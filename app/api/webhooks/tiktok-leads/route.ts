@@ -2,6 +2,12 @@ import { NextResponse } from "next/server"
 import { createHmac, timingSafeEqual } from "crypto"
 import { processLead } from "@/lib/process-lead"
 import { getSettings } from "@/lib/settings"
+import {
+  extractAdLeadFields,
+  normalizeProductInterest,
+  firstNonEmpty,
+  type AdLeadFields,
+} from "@/lib/ad-lead-fields"
 
 /**
  * Inbound lead webhook for TikTok Lead Generation (Instant Forms).
@@ -55,112 +61,6 @@ function verifyTikTokSignature(raw: string, header: string | null, secret: strin
   }
 }
 
-type LeadFields = {
-  fullName?: string
-  email?: string
-  phone?: string
-  businessName?: string
-  businessType?: string
-  productInterest?: string
-  branches?: string
-  staffSize?: string
-  challenge?: string
-  message?: string
-  leadId?: string
-  campaignName?: string
-  adName?: string
-}
-
-const FIELD_ALIASES: Record<string, keyof LeadFields> = {
-  fullname: "fullName",
-  full_name: "fullName",
-  name: "fullName",
-  contact_name: "fullName",
-  email: "email",
-  email_address: "email",
-  phone: "phone",
-  phone_number: "phone",
-  mobile: "phone",
-  business_name: "businessName",
-  businessname: "businessName",
-  company: "businessName",
-  company_name: "businessName",
-  business_type: "businessType",
-  industry: "businessType",
-  product_interest: "productInterest",
-  product: "productInterest",
-  branches: "branches",
-  branch_count: "branches",
-  number_of_branches: "branches",
-  staff_size: "staffSize",
-  employees: "staffSize",
-  message: "message",
-  notes: "message",
-  challenge: "challenge",
-  lead_id: "leadId",
-  leadid: "leadId",
-  campaign_name: "campaignName",
-  campaign: "campaignName",
-  ad_name: "adName",
-}
-
-function aliasKey(k: string): string {
-  return k.trim().toLowerCase().replace(/[\s-]+/g, "_")
-}
-
-function assignField(out: LeadFields, key: string, value: unknown) {
-  if (typeof value !== "string" && typeof value !== "number") return
-  const v = String(value).trim()
-  if (!v) return
-
-  // Direct camelCase keys (Make.com simple payloads)
-  const directKeys: (keyof LeadFields)[] = ["fullName", "email", "phone", "businessName", "businessType", "productInterest", "branches", "staffSize", "challenge", "message", "leadId", "campaignName", "adName"]
-  if ((directKeys as string[]).includes(key)) {
-    ;(out as Record<string, string>)[key] = v
-    return
-  }
-  const target = FIELD_ALIASES[aliasKey(key)]
-  if (target && !out[target]) out[target] = v
-}
-
-/** Pulls fields out of a node that may be a flat map and/or contain arrays of {name, value} pairs. */
-function extractFields(node: unknown, out: LeadFields, depth = 0): void {
-  if (!node || typeof node !== "object" || depth > 4) return
-  const rec = node as Record<string, unknown>
-
-  for (const [k, v] of Object.entries(rec)) {
-    assignField(out, k, v)
-  }
-
-  for (const v of Object.values(rec)) {
-    if (Array.isArray(v)) {
-      for (const item of v) {
-        if (item && typeof item === "object") {
-          const it = item as Record<string, unknown>
-          const fk = it.field_name ?? it.key ?? it.name ?? it.question ?? it.label
-          const fv = it.field_value ?? it.value ?? it.answer
-          if (fk != null && fv != null) {
-            assignField(out, String(fk), fv)
-          } else {
-            extractFields(it, out, depth + 1)
-          }
-        }
-      }
-    }
-  }
-}
-
-function normalizeProductInterest(raw: string | undefined): string {
-  const v = (raw || "").trim().toLowerCase()
-  if (v.includes("erp")) return "erp"
-  if (v.includes("retail") || v.includes("pos") || v.includes("point of sale")) return "retail"
-  return "not-sure"
-}
-
-function firstNonEmpty(...vals: (string | undefined)[]): string {
-  return vals.find((v) => v && v.trim())?.trim() || ""
-}
-
 export async function GET() {
   // Health check so Make/TikTok connectivity tests succeed
   return NextResponse.json({ ok: true })
@@ -201,7 +101,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, reason: "invalid_json" })
   }
 
-  const fields: LeadFields = {}
+  const fields: AdLeadFields = {}
 
   // Native TikTok envelope: content is a serialized JSON string
   if (typeof body.content === "string") {
@@ -211,12 +111,12 @@ export async function POST(request: Request) {
     }
     try {
       const content = JSON.parse(body.content)
-      extractFields(content, fields)
+      extractAdLeadFields(content, fields)
     } catch {
       return NextResponse.json({ ok: false, reason: "invalid_content" })
     }
   } else {
-    extractFields(body, fields)
+    extractAdLeadFields(body, fields)
   }
 
   if (fields.leadId && !fields.email && !fields.phone && !fields.fullName) {

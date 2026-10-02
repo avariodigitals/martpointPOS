@@ -48,7 +48,7 @@ function getDefaultSettings() {
     },
     general: {
       contactEmail: "hello@martpoint.com.ng",
-      whatsappNumber: "+2348036028069",
+      whatsappNumber: "+2348037978230",
       phone: "+2348037978230",
       companyName: "MartPoint",
       accountNumber: "",
@@ -106,13 +106,13 @@ function getDefaultSettings() {
       priceText: "₦99,999 / Year",
       priceSubtext: "Everything you need to run a modern retail business.",
       ctaText: "Get Started on WhatsApp",
-      ctaLink: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F",
+      ctaLink: "https://wa.me/+2348037978230?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F",
     },
     header: {
       logo: "/logo.webp",
       favicon: "/icon.webp",
       ctaText: "Book a Call",
-      ctaLink: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F",
+      ctaLink: "https://wa.me/+2348037978230?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F",
       secondaryCtaText: "See Plans",
       secondaryCtaLink: "/pricing",
     },
@@ -163,7 +163,7 @@ function getDefaultSettings() {
         usersIncluded: 5,
         branchAddonPrice: "₦50,000 / Year",
         ctaText: "Get Started",
-        ctaLink: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F",
+        ctaLink: "https://wa.me/+2348037978230?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F",
       },
       offline: {
         name: "MartPoint Retail Offline",
@@ -187,7 +187,7 @@ function getDefaultSettings() {
         branchAddonPrice: "₦100,000 one-time",
         supportRenewal: "₦150,000 / Year",
         ctaText: "Request Offline Setup",
-        ctaLink: "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20setup.%20Can%20we%20talk%3F",
+        ctaLink: "https://wa.me/+2348037978230?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Offline%20setup.%20Can%20we%20talk%3F",
       },
       erp: [
         {
@@ -207,7 +207,7 @@ function getDefaultSettings() {
           branchesIncluded: 1,
           usersIncluded: 5,
           ctaText: "Get Started",
-          ctaLink: "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20ERP%20Growth%20plan.%20Can%20we%20talk%3F",
+          ctaLink: "https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20ERP%20Growth%20plan.%20Can%20we%20talk%3F",
         },
         {
           name: "Scale",
@@ -227,7 +227,7 @@ function getDefaultSettings() {
           branchesIncluded: 1,
           usersIncluded: 10,
           ctaText: "Get Started",
-          ctaLink: "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20ERP%20Scale%20plan.%20Can%20we%20talk%3F",
+          ctaLink: "https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20ERP%20Scale%20plan.%20Can%20we%20talk%3F",
         },
         {
           name: "Corporate",

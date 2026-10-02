@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Wallet, Check, X } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface PayoutRequest {
   id: string
@@ -141,7 +142,7 @@ export default function AdminPayoutRequestsPage() {
                       <td className="py-2 pr-3 text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</td>
                       <td className="py-2 pr-3 text-xs text-muted-foreground max-w-40 truncate">{r.notes || "—"}</td>
                       <td className="py-2 pr-3">
-                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[r.status] || "bg-gray-100 text-gray-700"}`}>{r.status}</span>
+                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[r.status] || "bg-gray-100 text-gray-700"}`}>{enumLabel(r.status)}</span>
                       </td>
                       <td className="py-2 pr-3">
                         {r.status === "PENDING" ? (

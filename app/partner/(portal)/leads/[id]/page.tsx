@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation"
 import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
 import { getPartnerLeadByIdForPartner } from "@/lib/partner-leads"
 import Link from "next/link"
+import { enumLabel } from "@/lib/utils"
 
 export default async function LeadDetailPage({ params }: { params: { id: string } }) {
   const session = await getPartnerSession()
@@ -35,7 +36,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Contact</p><p className="font-medium">{lead.contactName}</p></div>
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Product</p><p className="font-medium">{lead.interestedProduct}</p></div>
-        <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Status</p><p className="font-medium">{lead.status}</p></div>
+        <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Status</p><p className="font-medium">{enumLabel(lead.status)}</p></div>
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Protection</p><p className="font-medium">{lead.protectionStatus}</p></div>
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Location</p><p className="font-medium">{[lead.city, lead.state, lead.country].filter(Boolean).join(", ")}</p></div>
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Industry / Type</p><p className="font-medium">{lead.industry} / {lead.businessType}</p></div>

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { ArrowLeft, Loader2, Scale } from "lucide-react"
 import { GlStatement, formatMoney } from "@/components/admin/gl-statement"
+import { enumLabel } from "@/lib/utils"
 
 type GlAccount = {
   id: string
@@ -66,7 +67,7 @@ export default function GlAccountDetailPage() {
             </h2>
             <p className="text-sm text-muted-foreground">
               {account.type}
-              {account.subtype ? ` · ${account.subtype.replace(/_/g, " ")}` : ""}
+              {account.subtype ? ` · ${enumLabel(account.subtype)}` : ""}
             </p>
           </div>
           <div className="ml-auto text-right">

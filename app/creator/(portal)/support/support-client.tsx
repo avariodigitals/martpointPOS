@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { enumLabel, ticketStatusLabel } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Loader2, LifeBuoy, MessageCircle, Mail, Plus, Clock } from "lucide-react"
 
@@ -171,7 +172,7 @@ export function SupportClient({
               <div>
                 <label className="block text-xs font-medium mb-1">Topic</label>
                 <select className={inputCls} value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })}>
-                  {TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {TOPICS.map((t) => <option key={t} value={t}>{enumLabel(t)}</option>)}
                 </select>
               </div>
               <div>
@@ -213,8 +214,8 @@ export function SupportClient({
                         {t.ticket_number} · {new Date(t.updated_at || t.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                       </p>
                     </div>
-                    <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[t.status] || "bg-gray-100"}`}>
-                      {t.status.replace(/_/g, " ")}
+                    <span className={`text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[t.status] || "bg-gray-100"}`}>
+                      {ticketStatusLabel(t.status, true)}
                     </span>
                   </Link>
                 </li>

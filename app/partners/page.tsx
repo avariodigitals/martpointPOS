@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 }
 
 const WHATSAPP_PARTNER =
-  "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20becoming%20a%20MartPoint%20partner.%20Can%20we%20talk%3F"
+  "https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20becoming%20a%20MartPoint%20partner.%20Can%20we%20talk%3F"
 const EMAIL_PARTNER = "mailto:partners@martpoint.com.ng"
 
 const partnerTypes = [

@@ -4,6 +4,7 @@ import { useEffect, useState, ChangeEvent } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Command, Loader2 } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 type AuditEvent = {
   id: string
@@ -95,7 +96,7 @@ export default function AuditPage() {
                   <tr key={e.id} className="border-t border-border">
                     <td className="p-3 whitespace-nowrap text-xs">{new Date(e.created_at).toLocaleString()}</td>
                     <td className="p-3">{e.actor_type} <span className="text-muted-foreground text-xs">{e.actor_id?.slice(0, 8)}</span></td>
-                    <td className="p-3 font-medium">{e.action}</td>
+                    <td className="p-3 font-medium">{enumLabel(e.action)}</td>
                     <td className="p-3">{e.entity_type} <span className="text-muted-foreground text-xs">{e.entity_id.slice(0, 8)}</span></td>
                     <td className="p-3 text-xs text-muted-foreground max-w-xs truncate">
                       {e.metadata ? JSON.stringify(e.metadata) : "—"}

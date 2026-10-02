@@ -10,7 +10,7 @@ import { businessTypeOptions } from "@/lib/industries"
 import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 import { SlotPicker } from "@/components/shared/slot-picker"
 
-const WHATSAPP_NUMBER = "+2348036028069"
+const WHATSAPP_NUMBER = "+2348037978230"
 
 const detailsSchema = z.object({
   fullName: z.string().min(2, "Full name is required"),

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, LifeBuoy, Plus, ArrowRight, AlertCircle, Send } from "lucide-react"
+import { enumLabel, ticketStatusLabel } from "@/lib/utils"
 
 interface Ticket {
   id: string
@@ -159,13 +160,13 @@ export default function CustomerTicketsPage() {
                   <div>
                     <label className="block text-xs font-medium mb-1">Category</label>
                     <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                      {CATEGORIES.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
+                      {CATEGORIES.map((c) => <option key={c} value={c}>{enumLabel(c)}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-medium mb-1">Priority</label>
                     <select value={priority} onChange={(e) => setPriority(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                      {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                      {PRIORITIES.map((p) => <option key={p} value={p}>{enumLabel(p)}</option>)}
                     </select>
                   </div>
                 </div>
@@ -228,22 +229,22 @@ export default function CustomerTicketsPage() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-semibold">{t.ticket_number}</p>
-                          <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[t.status] || "bg-gray-100"}`}>
-                            {t.status.replace(/_/g, " ")}
+                          <span className={`text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[t.status] || "bg-gray-100"}`}>
+                            {ticketStatusLabel(t.status, true)}
                           </span>
-                          <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[t.priority] || "bg-gray-100"}`}>
-                            {t.priority}
+                          <span className={`text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[t.priority] || "bg-gray-100"}`}>
+                            {enumLabel(t.priority)}
                           </span>
                         </div>
                         <p className="text-sm mt-0.5">{t.subject}</p>
-                        <p className="text-xs text-muted-foreground">{t.category.replace(/_/g, " ")} · Opened {formatDate(t.created_at)}</p>
+                        <p className="text-xs text-muted-foreground">{enumLabel(t.category)} · Opened {formatDate(t.created_at)}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         {t.sla_state && (
-                          <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${
+                          <span className={`text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium ${
                             t.sla_state === "BREACHED" ? "bg-red-100 text-red-700" : t.sla_state === "DUE_SOON" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
                           }`}>
-                            {t.sla_state.replace(/_/g, " ")}
+                            {t.sla_state === "BREACHED" ? "Response overdue" : t.sla_state === "DUE_SOON" ? "Due soon" : "On track"}
                           </span>
                         )}
                         <ArrowRight className="w-4 h-4 text-muted-foreground" />

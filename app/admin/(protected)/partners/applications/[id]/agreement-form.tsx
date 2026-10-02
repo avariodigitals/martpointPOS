@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, FileText, Download, Plus, Trash2 } from "lucide-react"
 import { COUNTRIES, STATES } from "@/lib/locations"
+import { enumLabel } from "@/lib/utils"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-xs font-medium mb-1"
@@ -240,7 +241,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Generated agreements</p>
             {agreements.map((d) => (
               <div key={d.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
-                <span className="truncate">{d.fileName} <span className="text-xs text-muted-foreground">· {new Date(d.uploadedAt).toLocaleDateString("en-NG")} · {d.status.replace(/_/g, " ")}</span></span>
+                <span className="truncate">{d.fileName} <span className="text-xs text-muted-foreground">· {new Date(d.uploadedAt).toLocaleDateString("en-NG")} · {enumLabel(d.status)}</span></span>
                 {d.signedUrl && (
                   <a href={d.signedUrl} target="_blank" rel="noreferrer" className="text-retail inline-flex items-center gap-1 text-xs shrink-0 ml-2">
                     <Download className="w-3.5 h-3.5" /> View

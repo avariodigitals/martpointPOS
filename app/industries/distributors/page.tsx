@@ -132,7 +132,7 @@ export default function DistributorsPage() {
               <p className="mt-6 text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">From supplier to dealer, every stage of your distribution network is connected, visible and optimised. Built for African distributors, wholesalers and FMCG companies that refuse to operate in the dark.</p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="erp">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20run%20a%20distribution%20business%20and%20I%27m%20interested%20in%20MartPoint%20Enterprise.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">Book an Enterprise Demo<ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  <Link href="https://wa.me/+2348037978230?text=Hi%2C%20I%20run%20a%20distribution%20business%20and%20I%27m%20interested%20in%20MartPoint%20Enterprise.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">Book an Enterprise Demo<ArrowRight className="ml-2 h-4 w-4" /></Link>
                 </Button>
                 <Button asChild variant="outline" size="lg"><Link href="/request-quote?product=erp">Request a Quote</Link></Button>
               </div>
@@ -378,13 +378,13 @@ export default function DistributorsPage() {
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">Book a consultation with our enterprise team. We will audit your current operations and show you exactly how MartPoint Enterprise fits your distribution network.</p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="erp">
-                  <Link href="https://wa.me/+2348036028069?text=Hi%2C%20I%20run%20a%20distribution%20business%20and%20I%27d%20like%20an%20enterprise%20consultation.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">Book a Consultation<ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  <Link href="https://wa.me/+2348037978230?text=Hi%2C%20I%20run%20a%20distribution%20business%20and%20I%27d%20like%20an%20enterprise%20consultation.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">Book a Consultation<ArrowRight className="ml-2 h-4 w-4" /></Link>
                 </Button>
                 <Button asChild variant="outline" size="lg">
                   <Link href="/request-quote?product=erp">Request Enterprise Quote</Link>
                 </Button>
               </div>
-              <p className="mt-6 text-sm text-muted-foreground">Or call us directly on <a href="tel:+2348036028069" className="text-erp font-medium">+234 803 602 8069</a></p>
+              <p className="mt-6 text-sm text-muted-foreground">Or call us directly on <a href="tel:+2348037978230" className="text-erp font-medium">+234 803 797 8230</a></p>
             </div>
           </div>
         </section>

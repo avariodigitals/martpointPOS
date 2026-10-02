@@ -119,7 +119,7 @@ export interface AgreementRenderOptions {
 }
 
 const BRAND_BLUE: [number, number, number] = [0, 87, 255]
-const BRAND_COMPANY_LINES = ["MartPoint", "hello@martpoint.com.ng", "+234 803 602 8069", "www.martpoint.com.ng"]
+const BRAND_COMPANY_LINES = ["MartPoint", "hello@martpoint.com.ng", "+234 803 797 8230", "www.martpoint.com.ng"]
 
 const COMMERCIAL_FIELD_ROWS: { label: string; key: keyof CommercialSection }[] = [
   { label: "Applicable partner type", key: "partnerTypeLabel" },

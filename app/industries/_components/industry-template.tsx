@@ -6,6 +6,7 @@ import Link from "next/link"
 import { ArrowRight, Check, ChevronDown } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { FAQPageSchema } from "@/components/structured-data"
+import { IndustryPricing } from "@/components/industries/industry-pricing"
 
 export interface IndustryTemplateData {
   name: string
@@ -64,7 +65,7 @@ export function IndustryTemplate({ data }: { data: IndustryTemplateData }) {
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
                   <Link
-                    href={`https://wa.me/+2348036028069?text=${encodeURIComponent(data.hero.waQuery)}`}
+                    href={`https://wa.me/+2348037978230?text=${encodeURIComponent(data.hero.waQuery)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -233,6 +234,11 @@ export function IndustryTemplate({ data }: { data: IndustryTemplateData }) {
           </div>
         </section>
 
+        {/* Pricing — retail only; ERP stays quote-only */}
+        {data.product === "retail" ? (
+          <IndustryPricing industryName={data.name} tone="muted" />
+        ) : null}
+
         {/* CTA */}
         <section className="w-full bg-retail-soft border-y border-retail-muted py-16 md:py-24">
           <div className="container-martpoint">
@@ -246,7 +252,7 @@ export function IndustryTemplate({ data }: { data: IndustryTemplateData }) {
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
                   <Link
-                    href={`https://wa.me/+2348036028069?text=${encodeURIComponent(data.hero.waQuery)}`}
+                    href={`https://wa.me/+2348037978230?text=${encodeURIComponent(data.hero.waQuery)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

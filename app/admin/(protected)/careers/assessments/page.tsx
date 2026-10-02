@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ClipboardCheck, Plus } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface Assessment {
   id: string; name: string; assessment_type: string; vacancy_title?: string
@@ -102,11 +103,11 @@ export default function AssessmentsPage() {
               {assessments.map((a) => (
                 <tr key={a.id} className="border-b border-border hover:bg-muted/30">
                   <td className="py-3 px-4"><Link href={`/admin/careers/assessments/${a.id}`} className="font-medium text-retail hover:underline">{a.name}</Link></td>
-                  <td className="py-3 px-4 text-xs">{a.assessment_type?.replace(/_/g, " ")}</td>
+                  <td className="py-3 px-4 text-xs">{enumLabel(a.assessment_type)}</td>
                   <td className="py-3 px-4 text-xs">{a.vacancy_title || "—"}</td>
                   <td className="py-3 px-4 text-xs">{a.pass_score != null ? `${a.pass_score}/${a.max_score}` : "—"}</td>
                   <td className="py-3 px-4 text-xs text-muted-foreground">{a.scheduled_at ? new Date(a.scheduled_at).toLocaleString() : "—"}</td>
-                  <td className="py-3 px-4 text-xs">{a.status}</td>
+                  <td className="py-3 px-4 text-xs">{enumLabel(a.status)}</td>
                 </tr>
               ))}
             </tbody>

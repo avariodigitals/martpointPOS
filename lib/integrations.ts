@@ -15,6 +15,9 @@ export interface WhatsAppSettings {
   baseUrl: string
   webhookSecret: string
   phoneNumber: string
+  /** Comma-separated intent keywords — an inbound message must contain one to
+   *  create a lead. Empty = capture every new contact as a lead. */
+  leadKeywords: string
 }
 
 export interface AdLeadsSettings {
@@ -22,6 +25,12 @@ export interface AdLeadsSettings {
   webhookSecret: string
   /** TikTok developer app secret — verifies the tiktok-signature header in native mode */
   tiktokAppSecret: string
+  /** Meta webhook handshake token — any string you choose, entered in the Meta app config */
+  metaVerifyToken: string
+  /** Meta app secret — verifies the x-hub-signature-256 header */
+  metaAppSecret: string
+  /** Page or System-User token with leads_retrieval permission — fetches lead data by leadgen_id */
+  metaPageAccessToken: string
 }
 
 export interface IntegrationSettings {
@@ -48,10 +57,16 @@ export function getIntegrationDefaults(): IntegrationSettings {
       baseUrl: process.env.DIALOG360_BASE_URL || "https://waba-v2.360dialog.io",
       webhookSecret: process.env.DIALOG360_WEBHOOK_SECRET || "",
       phoneNumber: process.env.WHATSAPP_PHONE_NUMBER || "",
+      leadKeywords:
+        process.env.WHATSAPP_LEAD_KEYWORDS ||
+        "demo,pricing,price,quote,cost,interested,buy,subscribe,pos,martpoint,inventory,point of sale,how much,sign up",
     },
     adLeads: {
       webhookSecret: process.env.LEADS_WEBHOOK_SECRET || "",
       tiktokAppSecret: process.env.TIKTOK_APP_SECRET || "",
+      metaVerifyToken: process.env.META_VERIFY_TOKEN || "",
+      metaAppSecret: process.env.META_APP_SECRET || "",
+      metaPageAccessToken: process.env.META_PAGE_ACCESS_TOKEN || "",
     },
   }
 }

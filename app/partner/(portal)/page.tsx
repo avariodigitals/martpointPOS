@@ -11,6 +11,7 @@ import {
 import { getPartnerDashboardMetrics } from "@/lib/partner-dashboard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BadgeCheck, ShieldAlert, Calendar, MapPin, Building2, User } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 function Metric({ value, label }: { value: number; label: string }) {
   return (
@@ -72,11 +73,11 @@ export default async function PartnerDashboardPage() {
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               {verified ? <BadgeCheck className="w-4 h-4 text-green-600" /> : <ShieldAlert className="w-4 h-4 text-amber-500" />}
-              <span>{verified ? "Verified Active Partner" : partner.status}</span>
+              <span>{verified ? "Verified Active Partner" : enumLabel(partner.status)}</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Building2 className="w-4 h-4" />
-              <span>{partner.partnerType.replace(/_/g, " ")}</span>
+              <span>{enumLabel(partner.partnerType)}</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="w-4 h-4" />
@@ -115,7 +116,7 @@ export default async function PartnerDashboardPage() {
                 <div className="flex flex-wrap gap-1">
                   {capabilities.map((c) => (
                     <span key={c} className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-retail-soft text-retail font-medium">
-                      {c.replace(/_/g, " ")}
+                      {enumLabel(c)}
                     </span>
                   ))}
                 </div>
@@ -154,7 +155,7 @@ export default async function PartnerDashboardPage() {
             <div className="space-y-2">
               {activity.slice(0, 10).map((a, i) => (
                 <div key={i} className="flex items-center justify-between text-sm border-b border-border last:border-0 pb-2 last:pb-0">
-                  <span className="font-medium">{a.action as string}</span>
+                  <span className="font-medium">{enumLabel(a.action as string)}</span>
                   <span className="text-xs text-muted-foreground">
                     {a.created_at ? new Date(a.created_at as string).toLocaleString() : "—"}
                   </span>

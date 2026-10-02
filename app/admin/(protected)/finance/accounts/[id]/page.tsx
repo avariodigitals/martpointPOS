@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { ArrowLeft, Landmark, Loader2 } from "lucide-react"
 import { GlStatement, formatMoney } from "@/components/admin/gl-statement"
+import { enumLabel } from "@/lib/utils"
 
 type PaymentAccount = {
   id: string
@@ -71,7 +72,7 @@ export default function PaymentAccountDetailPage() {
               GL {account.gl_accounts?.code} · {account.gl_accounts?.name}
               {account.bank_name ? ` · ${account.bank_name}` : ""}
               {account.account_number_last4 ? ` ····${account.account_number_last4}` : ""}
-              {account.payment_method ? ` · maps ${account.payment_method.replace(/_/g, " ")}` : ""}
+              {account.payment_method ? ` · maps ${enumLabel(account.payment_method)}` : ""}
               {account.is_default ? " · default" : ""}
             </p>
           </div>

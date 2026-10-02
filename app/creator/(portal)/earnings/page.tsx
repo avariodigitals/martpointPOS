@@ -30,7 +30,7 @@ export default async function CreatorEarningsPage() {
   const rewards = isSupabaseConfigured()
     ? (await supabase
         .from("creator_rewards")
-        .select("id, title, description, source, amount_kobo, status, paid_at, created_at")
+        .select("id, title, description, source, amount_kobo, non_cash_reward, status, paid_at, created_at, creator_challenges(name)")
         .eq("creator_id", creator.id)
         .in("status", [...REWARD_STATUSES])
         .order("created_at", { ascending: false })
@@ -58,6 +58,8 @@ export default async function CreatorEarningsPage() {
               <CardContent className="p-4 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-medium text-sm">{r.title}</p>
+                  {r.creator_challenges && <p className="text-[11px] text-retail">{(r.creator_challenges as { name?: string }).name}</p>}
+                  {r.non_cash_reward && <p className="text-xs text-muted-foreground mt-0.5">+ {r.non_cash_reward as string}</p>}
                   {r.description && <p className="text-xs text-muted-foreground mt-0.5">{r.description}</p>}
                   <p className="text-[11px] text-muted-foreground mt-1">
                     {r.paid_at

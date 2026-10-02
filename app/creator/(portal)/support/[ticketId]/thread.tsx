@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ticketStatusLabel } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Send } from "lucide-react"
 
@@ -81,8 +82,8 @@ export function TicketThread({ ticket, messages }: { ticket: Ticket; messages: M
             <h2 className="text-xl font-bold tracking-tight">{ticket.subject}</h2>
             <p className="text-sm text-muted-foreground">{ticket.ticket_number} · opened {fmt(ticket.created_at)}</p>
           </div>
-          <span className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded font-medium ${STATUS_COLORS[ticket.status] || "bg-gray-100"}`}>
-            {ticket.status.replace(/_/g, " ")}
+          <span className={`text-[10px] tracking-wider px-2 py-1 rounded font-medium ${STATUS_COLORS[ticket.status] || "bg-gray-100"}`}>
+            {ticketStatusLabel(ticket.status, true)}
           </span>
         </div>
       </div>

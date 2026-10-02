@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Plus, Pencil, Trash2, ExternalLink } from "lucide-react"
 import Link from "next/link"
+import { enumLabel } from "@/lib/utils"
 
 interface BlogPost {
   id: string
@@ -114,7 +115,7 @@ export default function AdminBlogPage() {
                       >
                         {post.status}
                       </span>
-                      <span className="text-xs text-muted-foreground">{post.category}</span>
+                      <span className="text-xs text-muted-foreground">{enumLabel(post.category)}</span>
                     </div>
                     <h3 className="font-semibold truncate">{post.title}</h3>
                     <p className="text-sm text-muted-foreground line-clamp-1">{post.excerpt}</p>

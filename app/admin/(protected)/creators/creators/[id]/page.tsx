@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Ban, CheckCircle2, AlertTriangle, ExternalLink } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface Creator {
   id: string; creatorId: string; referralCode: string; fullName: string; email: string
@@ -192,7 +193,7 @@ export default function AdminCreatorDetailPage() {
             {creator.fullName} <span className="text-sm font-mono text-muted-foreground">{creator.creatorId}</span>
           </h2>
           <p className="text-sm text-muted-foreground">
-            {creator.levelLabel || "Starter"} · {creator.status.replace(/_/g, " ")} · ref {creator.referralCode}
+            {creator.levelLabel || "Starter"} · {enumLabel(creator.status)} · ref {creator.referralCode}
           </p>
         </div>
       </div>
@@ -389,8 +390,8 @@ export default function AdminCreatorDetailPage() {
               {flags.map((f) => (
                 <div key={f.id} className="rounded-lg border p-3 text-xs">
                   <div className="flex justify-between">
-                    <span className="font-medium">{f.type.replace(/_/g, " ")}</span>
-                    <span className={`rounded-full px-2 py-0.5 ${f.status === "OPEN" ? "bg-red-100 text-red-700" : "bg-muted"}`}>{f.status}</span>
+                    <span className="font-medium">{enumLabel(f.type)}</span>
+                    <span className={`rounded-full px-2 py-0.5 ${f.status === "OPEN" ? "bg-red-100 text-red-700" : "bg-muted"}`}>{enumLabel(f.status)}</span>
                   </div>
                   <p className="text-muted-foreground mt-1">{f.description}</p>
                 </div>

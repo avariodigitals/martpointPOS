@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2, Users, Plus } from "lucide-react"
 import { VERIFICATION_STATUSES, CANDIDATE_STATUSES } from "@/lib/careers"
 import { STATES } from "@/lib/locations"
+import { enumLabel } from "@/lib/utils"
 
 interface Candidate {
   id: string; reference_number: string; full_name: string; email: string
@@ -104,7 +105,7 @@ export default function TalentPoolPage() {
         <select className="rounded-md border border-input bg-background px-2 py-1.5 text-sm" value={filters.verification}
           onChange={(e) => setFilters((f) => ({ ...f, verification: e.target.value }))}>
           <option value="">Verification</option>
-          {VERIFICATION_STATUSES.map((s) => <option key={s}>{s.replace(/_/g, " ")}</option>)}
+          {VERIFICATION_STATUSES.map((s) => <option key={s}>{enumLabel(s)}</option>)}
         </select>
         <select className="rounded-md border border-input bg-background px-2 py-1.5 text-sm" value={filters.status}
           onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
@@ -153,10 +154,10 @@ export default function TalentPoolPage() {
                     <td className="py-3 px-4 text-xs max-w-40 truncate">{c.skills?.join(", ") || "—"}</td>
                     <td className="py-3 px-4">
                       <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${c.verification_status === "VERIFIED" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}>
-                        {c.verification_status?.replace(/_/g, " ")}
+                        {enumLabel(c.verification_status)}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-xs">{c.status}</td>
+                    <td className="py-3 px-4 text-xs">{enumLabel(c.status)}</td>
                     <td className="py-3 px-4 text-xs">{c.team_lead_eligible ? "Yes" : ""}</td>
                   </tr>
                 ))}

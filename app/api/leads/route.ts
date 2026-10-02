@@ -62,6 +62,7 @@ export async function POST(request: Request) {
       source: source || "website",
       partnerCode,
       creatorCode: body.creatorCode || ref?.code || null,
+      creatorSubmissionToken: ref?.submissionToken ?? null,
       utm: ref
         ? { source: ref.utmSource, medium: ref.utmMedium, campaign: ref.utmCampaign, content: ref.utmContent }
         : null,

@@ -19,6 +19,7 @@ import {
   type OperationsReport,
   type InvestorReport,
 } from "@/lib/reports"
+import { enumLabel } from "@/lib/utils"
 
 type ReportTab = "commercial" | "customers" | "partners" | "support" | "operations" | "investor"
 
@@ -504,7 +505,7 @@ function SupportContent({ data }: { data: SupportReport }) {
                   <tbody>
                     {data.category_distribution.map((row, i) => (
                       <tr key={i} className="border-t border-border">
-                        <td className="px-4 py-2">{row.category}</td>
+                        <td className="px-4 py-2">{enumLabel(row.category)}</td>
                         <td className="px-4 py-2 text-right">{formatNumber(row.count)}</td>
                       </tr>
                     ))}
@@ -533,7 +534,7 @@ function SupportContent({ data }: { data: SupportReport }) {
                   <tbody>
                     {data.priority_distribution.map((row, i) => (
                       <tr key={i} className="border-t border-border">
-                        <td className="px-4 py-2">{row.priority}</td>
+                        <td className="px-4 py-2">{enumLabel(row.priority)}</td>
                         <td className="px-4 py-2 text-right">{formatNumber(row.count)}</td>
                       </tr>
                     ))}

@@ -8,6 +8,7 @@ import {
   Loader2, ArrowLeft, Sparkles, CalendarClock, CheckCircle2,
   PauseCircle, XCircle, Ban, ExternalLink, StickyNote,
 } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface ApplicationDetail {
   id: string
@@ -175,7 +176,7 @@ export default function CreatorApplicationDetailPage() {
             {application.fullName} <span className="text-sm font-mono text-muted-foreground">{application.referenceNumber}</span>
           </h2>
           <p className="text-sm text-muted-foreground">
-            Status: <span className="font-medium">{application.status.replace(/_/g, " ")}</span>
+            Status: <span className="font-medium">{enumLabel(application.status)}</span>
             {application.reviewedByName ? ` · by ${application.reviewedByName}` : ""}
           </p>
         </div>
@@ -268,7 +269,7 @@ export default function CreatorApplicationDetailPage() {
                 <div key={iv.id} className="rounded-lg border p-3 text-sm">
                   <div className="flex justify-between">
                     <p className="font-medium">{iv.scheduledAt ? new Date(iv.scheduledAt).toLocaleString("en-GB") : "—"} · {iv.durationMinutes}m</p>
-                    <span className="text-xs rounded-full bg-muted px-2 py-0.5">{iv.status}</span>
+                    <span className="text-xs rounded-full bg-muted px-2 py-0.5">{enumLabel(iv.status)}</span>
                   </div>
                   {iv.meetingUrl && <a href={iv.meetingUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-retail hover:underline">{iv.meetingUrl}</a>}
                   {iv.meetingLocation && <p className="text-xs text-muted-foreground">Location: {iv.meetingLocation}</p>}
@@ -459,7 +460,7 @@ export default function CreatorApplicationDetailPage() {
               <ul className="text-xs space-y-1.5">
                 {(application.statusHistory || []).map((h, i) => (
                   <li key={i} className="flex justify-between gap-2">
-                    <span className="font-medium">{h.status.replace(/_/g, " ")}</span>
+                    <span className="font-medium">{enumLabel(h.status)}</span>
                     <span className="text-muted-foreground text-right">
                       {h.by ? `${h.by} · ` : ""}{new Date(h.at).toLocaleString("en-GB")}
                     </span>

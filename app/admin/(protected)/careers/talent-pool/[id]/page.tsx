@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft } from "lucide-react"
 import { VERIFICATION_STATUSES, CANDIDATE_STATUSES, APPLICATION_STATUS_LABELS, applicationStatusLabel } from "@/lib/careers"
+import { enumLabel } from "@/lib/utils"
 
 interface Candidate {
   id: string; reference_number: string; full_name: string; email: string
@@ -107,7 +108,7 @@ export default function TalentPoolDetailPage() {
             <ArrowLeft className="w-3 h-3" /> Back to Talent Pool
           </Link>
           <h2 className="text-2xl font-bold tracking-tight">{c.full_name}</h2>
-          <p className="text-muted-foreground"><span className="font-mono">{c.reference_number}</span> · {c.status} · {c.verification_status.replace(/_/g, " ")}</p>
+          <p className="text-muted-foreground"><span className="font-mono">{c.reference_number}</span> · {c.status} · {enumLabel(c.verification_status)}</p>
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => {

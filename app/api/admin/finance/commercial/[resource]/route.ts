@@ -30,6 +30,7 @@ import {
   voidEntriesForSource,
 } from "@/lib/finance-ledger"
 import { issuePayoutStatement } from "@/lib/partner-generated-docs"
+import { sendInvoiceEmail } from "@/lib/invoice-emails"
 
 type Action = string
 
@@ -38,7 +39,7 @@ const resourceActionMap: Record<string, Record<string, FinanceAction | null | un
   plans: { list: "finance:view", get: "finance:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: null, set_active: "finance:subscriptions:manage", set_inactive: "finance:subscriptions:manage", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   addons: { list: "finance:view", get: "finance:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: null, set_active: "finance:subscriptions:manage", set_inactive: "finance:subscriptions:manage", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   quotes: { list: "finance:view", get: "finance:view", create: "finance:quotes:create", update: "finance:quotes:create", delete: "finance:quotes:create", add_item: "finance:quotes:create", remove_item: "finance:quotes:create", send: "finance:quotes:create", accept: "finance:quotes:approve", decline: "finance:quotes:approve", expire: "finance:quotes:approve", convert: "finance:invoices:create", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, activate: null, suspend: null, renew: null, cancel_subscription: null, confirm: null, reverse: null, allocate: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
-  invoices: { list: "finance:view", get: "finance:view", create: "finance:invoices:create", update: "finance:invoices:create", delete: "finance:invoices:create", add_item: "finance:invoices:create", remove_item: "finance:invoices:create", issue: "finance:invoices:issue", void: "finance:invoices:void", cancel: "finance:invoices:void", set_active: null, set_inactive: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
+  invoices: { list: "finance:view", get: "finance:view", create: "finance:invoices:create", update: "finance:invoices:create", delete: "finance:invoices:create", add_item: "finance:invoices:create", remove_item: "finance:invoices:create", issue: "finance:invoices:issue", void: "finance:invoices:void", cancel: "finance:invoices:void", set_active: null, set_inactive: null, send: "finance:invoices:issue", send_reminder: "finance:invoices:issue", pause_reminders: "finance:invoices:create", resume_reminders: "finance:invoices:create", accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   payments: { list: "finance:view", get: "finance:payments:view", create: "finance:payments:record", confirm: "finance:payments:confirm", reverse: "finance:payments:reverse", allocate: "finance:payments:record", update: "finance:payments:record", delete: "finance:payments:record", receipt: "finance:payments:record", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, refresh: null },
   subscriptions: { list: "finance:view", get: "finance:subscriptions:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: "finance:subscriptions:manage", activate: "finance:subscriptions:manage", suspend: "finance:subscriptions:manage", cancel_subscription: "finance:subscriptions:manage", renew: "finance:renewals:manage", add_addon: "finance:subscriptions:manage", remove_addon: "finance:subscriptions:manage", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   renewals: { list: "finance:view", get: "finance:view", create: "finance:renewals:manage", update: "finance:renewals:manage", delete: "finance:renewals:manage", link_invoice: "finance:renewals:manage", refresh: "finance:renewals:manage", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, evaluate: null, receipt: null },
@@ -394,6 +395,24 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_ISSUED", "INVOICE", id)
         await syncInvoiceFinanceTransaction(id)
+        const email = await sendInvoiceEmail(id, "invoice", { type: "ADMIN", id: actor.id })
+        return ok({ ...inv, emailSent: email.ok, emailError: email.error, emailSentTo: email.sentTo })
+      }
+      if (action === "send") {
+        const r = await sendInvoiceEmail(data.id, "invoice", { type: "ADMIN", id: actor.id })
+        if (!r.ok) return err(r.error || "Failed to send invoice email", 500)
+        return ok({ sentTo: r.sentTo })
+      }
+      if (action === "send_reminder") {
+        const r = await sendInvoiceEmail(data.id, "reminder", { type: "ADMIN", id: actor.id })
+        if (!r.ok) return err(r.error || "Failed to send reminder", 500)
+        return ok({ sentTo: r.sentTo })
+      }
+      if (action === "pause_reminders" || action === "resume_reminders") {
+        const paused = action === "pause_reminders"
+        const { data: inv, error } = await supabase.from("invoices").update({ reminders_paused: paused, updated_at: now() }).eq("id", data.id).select().single()
+        if (error) return err(error.message, 500)
+        await logFinanceAudit("ADMIN", actor.id, "INVOICE_REMINDERS_TOGGLED", "INVOICE", data.id, { paused })
         return ok(inv)
       }
       if (action === "void") {

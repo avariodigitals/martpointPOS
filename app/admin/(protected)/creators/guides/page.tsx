@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface Guide {
   id: string
@@ -162,7 +163,7 @@ export default function AdminGuidesPage() {
                     <td className="p-4 text-xs">{industries.find((i) => i.slug === g.industrySlug)?.name || g.industrySlug}</td>
                     <td className="p-4">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${g.status === "PUBLISHED" ? "bg-green-100 text-green-700" : g.status === "ARCHIVED" ? "bg-muted text-muted-foreground" : "bg-amber-100 text-amber-700"}`}>
-                        {g.status}
+                        {enumLabel(g.status)}
                       </span>
                     </td>
                     <td className="p-4">
@@ -197,12 +198,12 @@ export default function AdminGuidesPage() {
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Business type</span>
                 <select className={field} value={form.industrySlug} onChange={(e) => setForm({ ...form, industrySlug: e.target.value })}>
                   <option value="">— select —</option>
-                  {industries.map((i) => <option key={i.slug} value={i.slug}>{i.name} ({i.category})</option>)}
+                  {industries.map((i) => <option key={i.slug} value={i.slug}>{i.name} ({enumLabel(i.category)})</option>)}
                 </select></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Title</span>
                 <input className={field} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Status</span>
-                <select className={field} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></label>
+                <select className={field} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUSES.map((s) => <option key={s}>{enumLabel(s)}</option>)}</select></label>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Business overview</span>

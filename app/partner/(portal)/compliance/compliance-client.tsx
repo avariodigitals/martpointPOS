@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Upload, Download, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface ComplianceDoc {
   id: string
@@ -161,7 +162,7 @@ function ComplianceDocRow({
           <p className="text-xs text-muted-foreground">
             {doc.original_filename || "Not submitted"} · {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : "—"}
           </p>
-          <span className={`inline-block text-[10px] uppercase px-1.5 py-0.5 rounded-full font-medium mt-1 ${badgeColor}`}>{doc.verification_status}</span>
+          <span className={`inline-block text-[10px] uppercase px-1.5 py-0.5 rounded-full font-medium mt-1 ${badgeColor}`}>{enumLabel(doc.verification_status)}</span>
         </div>
       </div>
       <div className="flex items-center gap-2">

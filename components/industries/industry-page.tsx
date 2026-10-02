@@ -5,6 +5,7 @@ import { SectionHeader } from "@/components/shared/section-header"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Check, ChevronDown } from "lucide-react"
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
+import { IndustryPricing } from "@/components/industries/industry-pricing"
 import type { IndustryData } from "@/lib/industries"
 
 interface IndustryPageProps {
@@ -13,7 +14,7 @@ interface IndustryPageProps {
 
 export function IndustryPage({ industry }: IndustryPageProps) {
   const labelColor = industry.product === "retail" ? "text-retail" : "text-erp"
-  const waHref = `https://wa.me/+2348036028069?text=${encodeURIComponent(industry.hero.waQuery)}`
+  const waHref = `https://wa.me/+2348037978230?text=${encodeURIComponent(industry.hero.waQuery)}`
 
   return (
     <>
@@ -182,6 +183,11 @@ export function IndustryPage({ industry }: IndustryPageProps) {
             </div>
           </div>
         </section>
+
+        {/* Pricing — retail only; ERP stays quote-only */}
+        {industry.product === "retail" ? (
+          <IndustryPricing industryName={industry.name} tone="background" />
+        ) : null}
 
         {/* CTA */}
         <section className="w-full bg-retail-soft border-y border-retail-muted py-16 md:py-24">

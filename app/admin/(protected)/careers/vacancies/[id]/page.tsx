@@ -7,6 +7,7 @@ import { VacancyForm } from "../vacancy-form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
 import { APPLICATION_STATUS_LABELS, type CareerVacancy, applicationStatusLabel } from "@/lib/careers"
+import { enumLabel } from "@/lib/utils"
 
 interface AppRow {
   id: string; reference_number: string; full_name: string; email: string
@@ -117,7 +118,7 @@ export default function VacancyDetailPage() {
               <ul className="space-y-3">
                 {activity.map((e) => (
                   <li key={e.id} className="text-sm border-b border-border pb-3 last:border-0">
-                    <span className="font-medium">{e.action.replace(/_/g, " ").toLowerCase()}</span>
+                    <span className="font-medium">{enumLabel(e.action)}</span>
                     <span className="text-muted-foreground"> — {e.actor_name || "System"} · {new Date(e.created_at).toLocaleString()}</span>
                     {e.metadata && Object.keys(e.metadata).length > 0 && (
                       <p className="text-xs text-muted-foreground mt-0.5">{JSON.stringify(e.metadata)}</p>

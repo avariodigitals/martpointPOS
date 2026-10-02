@@ -9,6 +9,7 @@ import { ArticleSchema, FAQPageSchema } from "@/components/structured-data"
 import { SocialShare } from "@/components/blog/social-share"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { processBlogContent, escapeHtmlText } from "@/lib/blog-content"
+import { enumLabel } from "@/lib/utils"
 
 interface BlogPost {
   id: string
@@ -173,7 +174,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               </div>
             )}
 
-            <span className="text-sm font-medium text-retail">{post.category}</span>
+            <span className="text-sm font-medium text-retail">{enumLabel(post.category)}</span>
             <h1 className="mt-2 text-3xl md:text-4xl font-bold tracking-tight text-foreground">
               {post.title}
             </h1>

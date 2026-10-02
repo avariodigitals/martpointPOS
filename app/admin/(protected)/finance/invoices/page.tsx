@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCircle2, Ban, CreditCard, Send, FileX, Eye } from "lucide-react"
+import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCircle2, Ban, CreditCard, Send, FileX, Eye, Mail, BellRing, PauseCircle, PlayCircle, Download } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
+import { enumLabel } from "@/lib/utils"
 
 interface BusinessMini {
   id: string
@@ -45,6 +46,10 @@ interface Invoice {
   notes_public?: string | null
   notes_internal?: string | null
   invoice_items?: InvoiceItem[]
+  reminders_paused?: boolean
+  reminder_count?: number
+  last_reminder_at?: string | null
+  invoice_email_sent_at?: string | null
   created_at?: string
 }
 
@@ -689,7 +694,20 @@ export default function InvoicesPage() {
       })
       const data = await res.json()
       if (data.success) {
-        setMessage(`Invoice ${action.replace("_", " ")}`)
+        const labels: Record<string, string> = {
+          issue: "Invoice issued",
+          send: `Invoice email sent to ${data.data?.sentTo || "the business"}`,
+          send_reminder: `Reminder sent to ${data.data?.sentTo || "the business"}`,
+          pause_reminders: "Reminders paused",
+          resume_reminders: "Reminders resumed",
+          void: "Invoice voided",
+          cancel: "Invoice cancelled",
+        }
+        let msg = labels[action] || `Invoice ${action.replace("_", " ")}`
+        if (action === "issue") {
+          msg += data.data?.emailSentTo ? ` — emailed ${data.data.emailSentTo}` : data.data?.emailError ? ` — email not sent: ${data.data.emailError}` : ""
+        }
+        setMessage(msg)
         fetchInvoices()
         if (editing?.id === id) openInvoice({ ...editing, id }, modalMode)
       } else {
@@ -833,7 +851,7 @@ export default function InvoicesPage() {
         >
           <option value="all">All Statuses</option>
           {STATUSES.map((s) => (
-            <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+            <option key={s} value={s}>{enumLabel(s)}</option>
           ))}
         </select>
       </div>
@@ -878,7 +896,7 @@ export default function InvoicesPage() {
                       <td className="px-3 py-2 text-right">{formatMoney(inv.balance_due, inv.currency)}</td>
                       <td className="px-3 py-2">
                         <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[inv.status] || "bg-gray-100 text-gray-700"}`}>
-                          {inv.status.replace(/_/g, " ")}
+                          {enumLabel(inv.status)}
                         </span>
                       </td>
                       <td className="px-3 py-2">
@@ -1023,10 +1041,17 @@ export default function InvoicesPage() {
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-semibold">Invoice {editing.invoice_number}</h3>
                   <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[editing.status] || "bg-gray-100 text-gray-700"}`}>
-                    {editing.status.replace(/_/g, " ")}
+                    {enumLabel(editing.status)}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">{editing.businesses?.business_name || "—"} · {editing.currency}</p>
+                {(editing.status === "ISSUED" || editing.status === "PARTIALLY_PAID" || editing.status === "OVERDUE") && (
+                  <p className={`text-xs ${editing.reminders_paused ? "text-amber-600" : "text-muted-foreground"}`}>
+                    {editing.reminders_paused ? "Auto-reminders paused" : "Auto-reminders on"}
+                    {(editing.reminder_count ?? 0) > 0 && ` · ${editing.reminder_count} sent${editing.last_reminder_at ? ` (last ${new Date(editing.last_reminder_at).toLocaleDateString()})` : ""}`}
+                    {editing.invoice_email_sent_at && ` · invoice emailed ${new Date(editing.invoice_email_sent_at).toLocaleDateString()}`}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {modalMode === "view" && editing.status !== "VOID" && editing.status !== "CANCELLED" && (
@@ -1110,7 +1135,18 @@ export default function InvoicesPage() {
                 <Button size="sm" variant="outline" onClick={() => runInvoiceAction("issue", editing.id)}><Send className="mr-1 h-3.5 w-3.5" /> Issue</Button>
               )}
               {(editing.status === "ISSUED" || editing.status === "PARTIALLY_PAID" || editing.status === "OVERDUE") && (
-                <Button size="sm" variant="outline" onClick={() => openPayment(editing)}><CreditCard className="mr-1 h-3.5 w-3.5" /> Record Payment</Button>
+                <>
+                  <Button size="sm" variant="outline" onClick={() => openPayment(editing)}><CreditCard className="mr-1 h-3.5 w-3.5" /> Record Payment</Button>
+                  <Button size="sm" variant="outline" onClick={() => runInvoiceAction("send", editing.id)}><Mail className="mr-1 h-3.5 w-3.5" /> Resend Email</Button>
+                  <a href={`/api/admin/finance/invoice-pdf?id=${editing.id}`} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline"><Download className="mr-1 h-3.5 w-3.5" /> PDF</Button>
+                  </a>
+                  <Button size="sm" variant="outline" onClick={() => runInvoiceAction("send_reminder", editing.id)}><BellRing className="mr-1 h-3.5 w-3.5" /> Send Reminder</Button>
+                  <Button size="sm" variant="outline" onClick={() => runInvoiceAction(editing.reminders_paused ? "resume_reminders" : "pause_reminders", editing.id)}>
+                    {editing.reminders_paused ? <PlayCircle className="mr-1 h-3.5 w-3.5" /> : <PauseCircle className="mr-1 h-3.5 w-3.5" />}
+                    {editing.reminders_paused ? "Resume Reminders" : "Pause Reminders"}
+                  </Button>
+                </>
               )}
               {editing.status !== "VOID" && editing.status !== "CANCELLED" && (
                 <>
@@ -1210,10 +1246,10 @@ export default function InvoicesPage() {
                             <tr key={p.id} className="border-b last:border-0">
                               <td className="px-3 py-2 whitespace-nowrap">{(p.paid_at || p.created_at || "").slice(0, 10)}</td>
                               <td className="px-3 py-2 font-mono text-xs">{p.payment_reference}</td>
-                              <td className="px-3 py-2">{p.payment_method.replace(/_/g, " ")}</td>
+                              <td className="px-3 py-2">{enumLabel(p.payment_method)}</td>
                               <td className="px-3 py-2">
                                 <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${p.status === "CONFIRMED" ? "bg-green-50 text-green-700" : p.status === "PENDING" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
-                                  {p.status.replace(/_/g, " ")}
+                                  {enumLabel(p.status)}
                                 </span>
                               </td>
                               <td className="px-3 py-2 text-right font-medium">{formatMoney(alloc ? alloc.amount_allocated : p.amount, p.currency)}</td>
@@ -1238,7 +1274,7 @@ export default function InvoicesPage() {
               <div className="space-y-1">
                 <p className="text-muted-foreground">Paid: <span className="font-medium text-foreground">{formatNgn(editing.amount_paid, editing.currency)}</span></p>
                 <p className="text-muted-foreground">Balance: <span className="font-medium text-foreground">{formatNgn(editing.balance_due, editing.currency)}</span></p>
-                <p className="text-muted-foreground">Status: <span className="font-medium text-foreground">{editing.status.replace(/_/g, " ")}</span></p>
+                <p className="text-muted-foreground">Status: <span className="font-medium text-foreground">{enumLabel(editing.status)}</span></p>
               </div>
             </div>
           </div>
@@ -1275,7 +1311,7 @@ export default function InvoicesPage() {
                   onChange={(e) => setPaymentForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  {PAYMENT_METHODS.map((m) => (<option key={m} value={m}>{m.replace(/_/g, " ")}</option>))}
+                  {PAYMENT_METHODS.map((m) => (<option key={m} value={m}>{enumLabel(m)}</option>))}
                 </select>
               </div>
               <div className="space-y-1.5">

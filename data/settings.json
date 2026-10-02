@@ -3,7 +3,7 @@
     "logo": "/uploads/branding/1782423028118-shxohh.webp",
     "favicon": "/uploads/branding/1782422586643-quqo4s.webp",
     "ctaText": "Book a Call",
-    "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F",
+    "ctaLink": "https://wa.me/+2348037978230?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20learning%20more%20about%20MartPoint%20Retail.%20Can%20we%20talk%3F",
     "secondaryCtaText": "See Plans",
     "secondaryCtaLink": "/pricing"
   },
@@ -26,7 +26,7 @@
   },
   "general": {
     "contactEmail": "support@martpoint.com.ng",
-    "whatsappNumber": "+2348036028069",
+    "whatsappNumber": "+2348037978230",
     "companyName": "MartPoint"
   },
   "openai": {
@@ -70,7 +70,7 @@
       "usersIncluded": 5,
       "branchAddonPrice": "₦50,000 / Year",
       "ctaText": "Get Started",
-      "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"
+      "ctaLink": "https://wa.me/+2348037978230?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"
     },
     "cloudPlans": [
       {
@@ -80,7 +80,7 @@
         "badge": "",
         "description": "For a single store getting started.",
         "ctaText": "Get Started",
-        "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Basic%20plan.%20Can%20we%20talk%3F"
+        "ctaLink": "https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Basic%20plan.%20Can%20we%20talk%3F"
       },
       {
         "id": "standard",
@@ -89,7 +89,7 @@
         "badge": "Popular",
         "description": "For growing stores with a few branches.",
         "ctaText": "Get Started",
-        "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Standard%20plan.%20Can%20we%20talk%3F"
+        "ctaLink": "https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Standard%20plan.%20Can%20we%20talk%3F"
       },
       {
         "id": "premium",
@@ -98,7 +98,7 @@
         "badge": "",
         "description": "For established multi-branch retailers.",
         "ctaText": "Get Started",
-        "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Premium%20plan.%20Can%20we%20talk%3F"
+        "ctaLink": "https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Premium%20plan.%20Can%20we%20talk%3F"
       },
       {
         "id": "enterprise-retail",
@@ -107,7 +107,7 @@
         "badge": "",
         "description": "Our largest Retail Cloud capacity tier.",
         "ctaText": "Get Started",
-        "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Enterprise%20Retail%20plan.%20Can%20we%20talk%3F"
+        "ctaLink": "https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20Enterprise%20Retail%20plan.%20Can%20we%20talk%3F"
       }
     ],
     "offline": {
@@ -134,7 +134,7 @@
       "branchAddonPrice": "₦100,000 one-time",
       "supportRenewal": "₦150,000 / Year",
       "ctaText": "Request Offline Pricing",
-      "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27d%20like%20a%20quote%20for%20MartPoint%20Retail%20Offline.%20Can%20we%20talk%3F"
+      "ctaLink": "https://wa.me/+2348037978230?text=Hi%2C%20I%27d%20like%20a%20quote%20for%20MartPoint%20Retail%20Offline.%20Can%20we%20talk%3F"
     },
     "erp": [
       {
@@ -154,7 +154,7 @@
         "branchesIncluded": 1,
         "usersIncluded": 5,
         "ctaText": "Get Started",
-        "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20ERP%20Growth%20plan.%20Can%20we%20talk%3F"
+        "ctaLink": "https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20ERP%20Growth%20plan.%20Can%20we%20talk%3F"
       },
       {
         "name": "Scale",
@@ -174,7 +174,7 @@
         "branchesIncluded": 1,
         "usersIncluded": 10,
         "ctaText": "Get Started",
-        "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20ERP%20Scale%20plan.%20Can%20we%20talk%3F"
+        "ctaLink": "https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20the%20MartPoint%20ERP%20Scale%20plan.%20Can%20we%20talk%3F"
       },
       {
         "name": "Corporate",
@@ -206,6 +206,6 @@
     "priceText": "₦99,999 / Year",
     "priceSubtext": "1 branch · 5 users · Standard Online Store included.",
     "ctaText": "Get Started on WhatsApp",
-    "ctaLink": "https://wa.me/+2348036028069?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"
+    "ctaLink": "https://wa.me/+2348037978230?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F"
   }
 }

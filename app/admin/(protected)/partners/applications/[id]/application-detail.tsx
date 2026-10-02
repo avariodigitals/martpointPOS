@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
 import { AgreementForm } from "./agreement-form"
+import { enumLabel } from "@/lib/utils"
 
 const TYPE_LABELS: Record<string, string> = {
   REFERRAL: "Referral Partner", CHANNEL: "Channel Partner", IMPLEMENTATION: "Implementation Partner",
@@ -337,7 +338,7 @@ export function ApplicationDetail({ id }: { id: string }) {
       })
       const data = await res.json()
       if (data.success) {
-        setActionMsg(`Document marked ${reviewStatus.toLowerCase().replace(/_/g, " ")}.`)
+        setActionMsg(`Document marked ${enumLabel(reviewStatus.toLowerCase())}.`)
         setReviewDocId(null)
         setReviewNotes("")
         fetchDetail()
@@ -423,7 +424,7 @@ export function ApplicationDetail({ id }: { id: string }) {
       status === "REJECTED" || status === "EXPIRED" ? "bg-red-50 text-red-700" :
       status === "SUBMITTED" || status === "UNDER_REVIEW" ? "bg-blue-50 text-blue-700" :
       "bg-amber-50 text-amber-700"
-    return <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full font-medium ${color}`}>{status.replace(/_/g, " ")}</span>
+    return <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full font-medium ${color}`}>{enumLabel(status)}</span>
   }
 
   if (loading) {
@@ -445,7 +446,7 @@ export function ApplicationDetail({ id }: { id: string }) {
             <h2 className="text-2xl font-bold tracking-tight">{app.reference_number}</h2>
             <p className="text-muted-foreground text-sm">{app.full_name} · {app.business_name || "Individual"}</p>
           </div>
-          <span className={`text-xs uppercase px-2 py-1 rounded font-medium ${STATUS_COLORS[app.status] || "bg-blue-50 text-blue-700"}`}>{app.status.replace(/_/g, " ")}</span>
+          <span className={`text-xs uppercase px-2 py-1 rounded font-medium ${STATUS_COLORS[app.status] || "bg-blue-50 text-blue-700"}`}>{enumLabel(app.status)}</span>
         </div>
       </div>
 
@@ -631,14 +632,14 @@ export function ApplicationDetail({ id }: { id: string }) {
                     eventType === "NOTE_ADDED" ? "Internal notes updated" :
                     eventType === "DOCUMENT_REVIEW" ? "Compliance document reviewed" :
                     eventType === "DOCUMENT_SUBMITTED" ? "Compliance document submitted" :
-                    (h.new_status || "").replace(/_/g, " ")
+                    enumLabel(h.new_status || "")
                   return (
                     <li key={i} className="ml-5">
                       <span className={`absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full ${dotColor} ring-4 ring-background`} />
                       <div className="flex flex-wrap items-baseline gap-2">
                         <span className="font-medium text-sm">{label}</span>
                         {eventType === "STATUS_CHANGE" && h.previous_status && h.previous_status !== h.new_status && (
-                          <span className="text-xs text-muted-foreground">from {h.previous_status.replace(/_/g, " ")}</span>
+                          <span className="text-xs text-muted-foreground">from {enumLabel(h.previous_status)}</span>
                         )}
                         {h.changed_by_name && <span className="text-xs text-muted-foreground">by {h.changed_by_name}</span>}
                         <span className="text-xs text-muted-foreground ml-auto">{new Date(h.created_at).toLocaleString()}</span>

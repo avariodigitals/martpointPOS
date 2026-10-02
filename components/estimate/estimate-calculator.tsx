@@ -35,7 +35,7 @@ import {
   type EstimateResult,
 } from "@/lib/estimate-calculator"
 
-const WHATSAPP_NUMBER = "+2348036028069"
+const WHATSAPP_NUMBER = "+2348037978230"
 
 const STEPS = ["Business", "Scale", "Requirements", "Estimate", "Contact"] as const
 

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Loader2, Building2, Receipt, CreditCard, RefreshCw, Award, BookOpen, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
+import { enumLabel } from "@/lib/utils"
 
 function fmtMoney(amount: number, currency = "NGN") {
   return formatMoney(amount, currency)
@@ -144,7 +145,7 @@ export default function BusinessFinancePage() {
         key: `pay-${p.id}`,
         date: String(p.paid_at || p.created_at || "").slice(0, 10),
         reference: p.payment_reference,
-        description: `Payment received · ${String(p.payment_method || "").replace(/_/g, " ")}`,
+        description: `Payment received · ${enumLabel(String(p.payment_method || ""))}`,
         charge: 0,
         payment: Number(p.amount) || 0,
         balance: 0,
@@ -436,7 +437,7 @@ export default function BusinessFinancePage() {
                   {payments.map((p) => (
                     <tr key={p.id} className="border-t border-border">
                       <td className="px-4 py-2 font-medium">{p.payment_reference}</td>
-                      <td className="px-4 py-2">{p.payment_method}</td>
+                      <td className="px-4 py-2">{enumLabel(p.payment_method)}</td>
                       <td className="px-4 py-2">{fmtMoney(p.amount, p.currency)}</td>
                       <td className="px-4 py-2"><StatusBadge status={p.status} /></td>
                       <td className="px-4 py-2">{fmtDate(p.paid_at)}</td>

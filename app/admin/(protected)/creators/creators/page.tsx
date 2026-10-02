@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Search } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface CreatorRow {
   id: string
@@ -109,7 +110,7 @@ export default function AdminCreatorsPage() {
                     <td className="p-4 text-xs">{c.levelLabel || "Starter"}</td>
                     <td className="p-4">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_CLASS[c.status] || "bg-muted"}`}>
-                        {c.status.replace(/_/g, " ")}
+                        {enumLabel(c.status)}
                       </span>
                     </td>
                     <td className="p-4 text-xs text-muted-foreground whitespace-nowrap">

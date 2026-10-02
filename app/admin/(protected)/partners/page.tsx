@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Handshake, FileText, Clock, AlertCircle, CheckCircle2, UserCheck, PauseCircle } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface Stats {
   applications: number
@@ -132,7 +133,7 @@ export default function AdminPartnersPage() {
             {/* Filters */}
             <div className="flex flex-wrap gap-2 mb-4">
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1.5 text-sm">
-                {STATUS_FILTERS.map((s) => <option key={s} value={s}>{s ? s.replace(/_/g, " ") : "All statuses"}</option>)}
+                {STATUS_FILTERS.map((s) => <option key={s} value={s}>{s ? enumLabel(s) : "All statuses"}</option>)}
               </select>
               <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1.5 text-sm">
                 {TYPE_FILTERS.map((t) => <option key={t} value={t}>{t ? TYPE_LABELS[t] : "All types"}</option>)}
@@ -165,7 +166,7 @@ export default function AdminPartnersPage() {
                         <td className="py-2 pr-3">{TYPE_LABELS[a.requested_partner_type] || a.requested_partner_type}</td>
                         <td className="py-2 pr-3">{[a.city, a.state, a.country].filter(Boolean).join(", ") || "—"}</td>
                         <td className="py-2 pr-3 text-xs text-muted-foreground">{a.submitted_at ? new Date(a.submitted_at).toLocaleDateString() : "—"}</td>
-                        <td className="py-2 pr-3"><span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[a.status] || "bg-gray-100 text-gray-700"}`}>{a.status.replace(/_/g, " ")}</span></td>
+                        <td className="py-2 pr-3"><span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[a.status] || "bg-gray-100 text-gray-700"}`}>{enumLabel(a.status)}</span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -202,7 +203,7 @@ export default function AdminPartnersPage() {
                         <td className="py-2 pr-3">{TYPE_LABELS[p.partner_type] || p.partner_type}</td>
                         <td className="py-2 pr-3">{[p.city, p.state, p.country].filter(Boolean).join(", ") || "—"}</td>
                         <td className="py-2 pr-3 text-xs text-muted-foreground">{p.partner_since ? new Date(p.partner_since).toLocaleDateString() : "—"}</td>
-                        <td className="py-2 pr-3"><span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[p.status] || "bg-gray-100 text-gray-700"}`}>{p.status}</span></td>
+                        <td className="py-2 pr-3"><span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[p.status] || "bg-gray-100 text-gray-700"}`}>{enumLabel(p.status)}</span></td>
                         <td className="py-2 pr-3">{p.public_profile_enabled ? "Yes" : "No"}</td>
                       </tr>
                     ))}

@@ -6,6 +6,7 @@ import { useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, AlertTriangle, ArrowLeft, ArrowRight, Plus, X } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface Incident {
   id: string
@@ -237,9 +238,9 @@ export default function BusinessIncidentsPage() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold">{i.type}</p>
+                        <p className="text-sm font-semibold">{enumLabel(i.type)}</p>
                         <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${SEVERITY_COLORS[i.severity]}`}>{i.severity}</span>
-                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[i.status]}`}>{i.status}</span>
+                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[i.status]}`}>{enumLabel(i.status)}</span>
                       </div>
                       <p className="text-sm mt-0.5 line-clamp-1">{i.summary || "—"}</p>
                       <p className="text-xs text-muted-foreground">Owner: {i.owner?.name || "Unassigned"} · {fmt(i.created_at)}</p>

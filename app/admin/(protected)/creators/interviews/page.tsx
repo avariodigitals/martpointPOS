@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2, CalendarClock, Video } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface InterviewRow {
   id: string
@@ -73,7 +74,7 @@ export default function CreatorInterviewsPage() {
                       <Video className="w-3.5 h-3.5" /> Join
                     </a>
                   )}
-                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">{iv.status}</span>
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">{enumLabel(iv.status)}</span>
                 </div>
               </CardContent>
             </Card>

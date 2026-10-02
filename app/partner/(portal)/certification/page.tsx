@@ -5,6 +5,7 @@ import { listPartnerCertifications, CERTIFICATION_STATUS_LABELS, type Certificat
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Award, ExternalLink, BadgeCheck } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 const CERTIFICATION_CATEGORIES = ["Certification"]
 
@@ -93,7 +94,7 @@ export default async function PartnerCertificationPage() {
                     <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center text-green-600"><Award className="w-4 h-4" /></div>
                     <div className="flex-1">
                       <p className="text-sm font-semibold">{r.title}</p>
-                      <p className="text-xs text-muted-foreground">{r.category}</p>
+                      <p className="text-xs text-muted-foreground">{enumLabel(r.category)}</p>
                       {r.description && <p className="text-xs text-muted-foreground mt-1">{r.description}</p>}
                     </div>
                   </div>

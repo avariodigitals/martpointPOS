@@ -17,6 +17,7 @@ import {
   resolveCreatorRef,
   recordCreatorReferral,
 } from "@/lib/creator-attribution"
+import { resolveSubmissionToken } from "@/lib/creator-challenges"
 
 const bookSchema = z.object({
   fullName: z.string().trim().min(2).max(200),
@@ -70,6 +71,8 @@ export async function POST(request: Request) {
   // Creator attribution via the ?ref= cookie.
   const ref = await readCreatorRef()
   const creator = ref ? await resolveCreatorRef(ref.code) : null
+  const subRef = ref?.submissionToken ? await resolveSubmissionToken(ref.submissionToken) : null
+  const validSubRef = subRef && subRef.creatorId === creator?.id ? subRef : null
 
   // 1. Create the lead (graceful — a duplicate submission still gets a meeting)
   const leadId = crypto.randomUUID()
@@ -89,6 +92,8 @@ export async function POST(request: Request) {
     referring_partner_code: referringPartnerCode,
     referring_creator_code: creator?.referralCode ?? null,
     creator_id: creator?.id ?? null,
+    creator_challenge_id: validSubRef?.challengeId ?? null,
+    creator_submission_id: validSubRef?.submissionId ?? null,
     utm_source: ref?.utmSource ?? null,
     utm_medium: ref?.utmMedium ?? null,
     utm_campaign: ref?.utmCampaign ?? null,
@@ -105,8 +110,9 @@ export async function POST(request: Request) {
   // Creator funnel events — the lead is both a LEAD and a booked DEMO.
   if (creator) {
     const utm = { source: ref?.utmSource, medium: ref?.utmMedium, campaign: ref?.utmCampaign, content: ref?.utmContent }
-    void recordCreatorReferral({ creatorId: creator.id, referralCode: creator.referralCode, eventType: "LEAD", leadId, utm })
-    void recordCreatorReferral({ creatorId: creator.id, referralCode: creator.referralCode, eventType: "DEMO", leadId, utm })
+    const subIds = { challengeId: validSubRef?.challengeId ?? null, submissionId: validSubRef?.submissionId ?? null }
+    void recordCreatorReferral({ creatorId: creator.id, referralCode: creator.referralCode, eventType: "LEAD", leadId, utm, ...subIds, dedupeKey: `LEAD:${leadId}` })
+    void recordCreatorReferral({ creatorId: creator.id, referralCode: creator.referralCode, eventType: "DEMO", leadId, utm, ...subIds, dedupeKey: `DEMO:${leadId}` })
   }
 
   // 2. Create the meeting row as PENDING, then let confirmMeetingSlot do the

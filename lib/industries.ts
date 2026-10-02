@@ -13,10 +13,15 @@ import {
   Cloud, Lock, ClipboardCheck, History, HeadphonesIcon,
   Snowflake, Flame, Fish, Zap, MonitorPlay,
   Wine,
+  Scale, Sofa, Globe, Drumstick, FlaskConical, Factory, Palette,
+  ShoppingBag, Activity, BookMarked,
 } from "lucide-react"
 
 export interface IndustryData {
   name: string
+  /** Label shown in business-type form dropdowns. Defaults to `name`; set when a
+   *  business type spans multiple industry pages or needs a different form label. */
+  formLabel?: string
   slug: string
   category: string
   product: "retail" | "erp"
@@ -52,6 +57,7 @@ export interface IndustryData {
 
 export const supermarkets: IndustryData = {
   name: "Supermarkets",
+  formLabel: "Supermarket",
   slug: "supermarkets",
   category: "Food & Grocery",
   product: "retail",
@@ -114,6 +120,7 @@ export const supermarkets: IndustryData = {
 
 export const restaurants: IndustryData = {
   name: "Restaurants",
+  formLabel: "Restaurant",
   slug: "restaurants",
   category: "Restaurants & Food",
   product: "retail",
@@ -176,6 +183,7 @@ export const restaurants: IndustryData = {
 
 export const pharmacies: IndustryData = {
   name: "Pharmacies",
+  formLabel: "Pharmacy",
   slug: "pharmacies",
   category: "Health",
   product: "retail",
@@ -238,6 +246,7 @@ export const pharmacies: IndustryData = {
 
 export const electronicsStores: IndustryData = {
   name: "Electronics Stores",
+  formLabel: "Electronics",
   slug: "electronics-stores",
   category: "Electronics",
   product: "retail",
@@ -300,6 +309,7 @@ export const electronicsStores: IndustryData = {
 
 export const fashionStores: IndustryData = {
   name: "Fashion Stores",
+  formLabel: "Fashion",
   slug: "fashion-stores",
   category: "Fashion & Beauty",
   product: "retail",
@@ -362,6 +372,7 @@ export const fashionStores: IndustryData = {
 
 export const beautyAndSalons: IndustryData = {
   name: "Beauty & Salons",
+  formLabel: "Salon & Barbershop",
   slug: "beauty-and-salons",
   category: "Fashion & Beauty",
   product: "retail",
@@ -486,6 +497,7 @@ export const multiBranchRetail: IndustryData = {
 
 export const miniMarts: IndustryData = {
   name: "Mini Marts",
+  formLabel: "Mini Mart",
   slug: "mini-marts",
   category: "Food & Grocery",
   product: "retail",
@@ -541,6 +553,7 @@ export const miniMarts: IndustryData = {
 
 export const groceryStores: IndustryData = {
   name: "Grocery Stores",
+  formLabel: "Grocery Store",
   slug: "grocery-stores",
   category: "Food & Grocery",
   product: "retail",
@@ -596,6 +609,7 @@ export const groceryStores: IndustryData = {
 
 export const provisionStores: IndustryData = {
   name: "Provision Stores",
+  formLabel: "Provision Store",
   slug: "provision-stores",
   category: "Food & Grocery",
   product: "retail",
@@ -651,6 +665,7 @@ export const provisionStores: IndustryData = {
 
 export const convenienceStores: IndustryData = {
   name: "Convenience Stores",
+  formLabel: "Convenience Store",
   slug: "convenience-stores",
   category: "Food & Grocery",
   product: "retail",
@@ -761,6 +776,7 @@ export const fastFood: IndustryData = {
 
 export const bakeries: IndustryData = {
   name: "Bakeries",
+  formLabel: "Bakery & Cake Studio",
   slug: "bakeries",
   category: "Restaurants & Food",
   product: "retail",
@@ -816,6 +832,7 @@ export const bakeries: IndustryData = {
 
 export const cakeShops: IndustryData = {
   name: "Cake Shops",
+  formLabel: "Bakery & Cake Studio",
   slug: "cake-shops",
   category: "Restaurants & Food",
   product: "retail",
@@ -871,6 +888,7 @@ export const cakeShops: IndustryData = {
 
 export const cafes: IndustryData = {
   name: "Cafés",
+  formLabel: "Cafe",
   slug: "cafes",
   category: "Restaurants & Food",
   product: "retail",
@@ -926,6 +944,7 @@ export const cafes: IndustryData = {
 
 export const pizzaShops: IndustryData = {
   name: "Pizza Shops",
+  formLabel: "Pizza Shop",
   slug: "pizza-shops",
   category: "Restaurants & Food",
   product: "retail",
@@ -1036,6 +1055,7 @@ export const shawarma: IndustryData = {
 
 export const juiceBars: IndustryData = {
   name: "Juice Bars",
+  formLabel: "Juice Bar",
   slug: "juice-bars",
   category: "Restaurants & Food",
   product: "retail",
@@ -1150,8 +1170,133 @@ export const barsAndLounges: IndustryData = {
   ],
 }
 
+export const canteenFoodCourt: IndustryData = {
+  name: "Canteens & Food Courts",
+  formLabel: "Canteen / Food Court",
+  slug: "canteen-food-court",
+  category: "Restaurants & Food",
+  product: "retail",
+  description: "Serve staff canteens, school cafeterias and food-court stalls with a fast till, prepaid meal plans and daily cost control.",
+  seo: {
+    title: "Canteen & Food Court POS Software in Nigeria — MartPoint Retail",
+    description: "Run canteens, cafeterias and food-court stalls with a fast till, meal plans and real-time stock. MartPoint Retail is built for high-volume African food service.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Feed the Crowd Without Losing Count",
+    paragraph: "Canteens and food courts win or lose on speed at lunch rush and control of ingredients. MartPoint Retail keeps the line moving, tracks every plate and shows you exactly what each day earned.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a canteen/food court and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: Timer, title: "Lunch Rush Queues", desc: "Hundreds of customers in one short window. A slow till means abandoned trays and lost sales." },
+    { icon: Receipt, title: "Meal Ticket Fraud", desc: "Paper tickets and verbal tabs get reused or miscounted. Money slips away unnoticed." },
+    { icon: Package, title: "Ingredient Waste", desc: "Rice, oil and protein usage is never reconciled with plates sold. Cost per meal stays a guess." },
+    { icon: HandCoins, title: "Prepaid Balance Errors", desc: "Staff and students on meal plans are tracked in notebooks. Balances are disputed daily." },
+    { icon: Users, title: "Multi-Stall Confusion", desc: "Each stall or counter keeps its own book. You cannot see the whole operation at once." },
+    { icon: BarChart3, title: "No Per-Day Profit", desc: "Busy days feel profitable, but you cannot prove it. Waste and leakage hide the real number." },
+  ],
+  solutions: [
+    { icon: ShoppingCart, title: "Rush-Hour Till", desc: "Quick keys for every meal and combo. Serve a customer in seconds, even at peak." },
+    { icon: QrCode, title: "Meal Plans & Vouchers", desc: "Sell prepaid meal plans and vouchers with balances tracked per customer." },
+    { icon: Package, title: "Ingredient-Level Stock", desc: "Link menu items to ingredients so every plate sold deducts stock automatically." },
+    { icon: Building2, title: "Multi-Stall Dashboard", desc: "See every counter, stall or location in one view — sales, stock and staff." },
+    { icon: Users, title: "Per-Shift Accountability", desc: "Every sale tied to a cashier login. Voids and discounts tracked per shift." },
+    { icon: BarChart3, title: "Daily Profit Reports", desc: "Sales, cost and profit per day and per stall — ready at close, no spreadsheets." },
+  ],
+  capabilities: [
+    { icon: ShoppingCart, title: "Fast Counter Sales", desc: "Quick keys and combos keep queues moving at lunch rush." },
+    { icon: QrCode, title: "Prepaid Meal Plans", desc: "Staff and student meal credits with automatic balance deduction." },
+    { icon: Package, title: "Recipe Stock Deduction", desc: "Ingredients deducted per plate so cost per meal is always known." },
+    { icon: Users, title: "Staff & Shift Tracking", desc: "Sales, voids and refunds per cashier per shift." },
+    { icon: WifiOff, title: "Works Offline", desc: "Keep serving through network outages; everything syncs later." },
+    { icon: Building2, title: "Multi-Stall Control", desc: "Compare stalls and locations from one dashboard." },
+  ],
+  whyMartPoint: [
+    "Built for African canteens and food courts: meal plans, rush-hour speed and ingredient costing included.",
+    "Offline mode keeps the line moving even when the network drops at peak.",
+    "Simple enough for counter staff to learn in hours.",
+    "Local support that understands high-volume food service.",
+  ],
+  testimonial: {
+    quote: "We serve over 400 staff lunches a day across two counters. MartPoint ended the meal-ticket arguments and I can finally see what each day actually makes.",
+    author: "Mrs. Kikelomo A.",
+    role: "Canteen Manager, Ikeja",
+    initials: "KA",
+  },
+  faqs: [
+    { q: "Can MartPoint handle prepaid meal plans?", a: "Yes. Sell meal plans or vouchers per customer — balances deduct automatically with each meal served." },
+    { q: "Does it work for multiple stalls or counters?", a: "Yes. Each stall or counter records sales independently while you see everything from one dashboard." },
+    { q: "Can it track ingredient cost per meal?", a: "Yes. Link menu items to ingredients so stock and cost are deducted automatically per plate." },
+    { q: "Does the till work offline during lunch rush?", a: "Yes. Sales keep running without internet and sync automatically when the connection returns." },
+  ],
+}
+
+export const butcherShop: IndustryData = {
+  name: "Butcher & Meat Shops",
+  formLabel: "Butcher / Meat Shop",
+  slug: "butcher-shops",
+  category: "Restaurants & Food",
+  product: "retail",
+  description: "Sell meat by kilogram or cut, track cold-room stock and manage bulk orders for your butcher shop or meat market.",
+  seo: {
+    title: "Butcher & Meat Shop POS Software in Nigeria — MartPoint Retail",
+    description: "Price meat by weight or cut, control cold-room stock and manage restaurant and bulk orders. MartPoint Retail is built for African butcher shops.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Every Kilogram Accounted For",
+    paragraph: "Meat margins disappear in inaccurate weighing, spoilage and untracked credit to restaurants. MartPoint Retail prices by weight or cut, watches your cold room and shows true profit per day.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a butcher/meat shop and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: Scale, title: "Weight Pricing Errors", desc: "Prices calculated by hand per kilo invite mistakes and short-changing — in both directions." },
+    { icon: Package, title: "Cold-Room Blindness", desc: "Stock in the cold room is guessed, not counted. Shortages show up too late." },
+    { icon: AlertTriangle, title: "Spoilage Losses", desc: "Meat that stays too long becomes waste. Without freshness tracking, spoilage eats margin." },
+    { icon: HandCoins, title: "Restaurant Credit Untracked", desc: "Bulk buyers and restaurants take stock on credit. Balances live in memory and notebooks." },
+    { icon: Timer, title: "Morning Rush Chaos", desc: "Early-morning queues mean rushed weighing, wrong change and unrecorded sales." },
+    { icon: BarChart3, title: "No Margin per Cut", desc: "You cannot tell which cuts or meats actually make money after bones and waste." },
+  ],
+  solutions: [
+    { icon: Scale, title: "Weigh & Price", desc: "Price per kilogram or per piece with automatic totals. No mental arithmetic at the counter." },
+    { icon: Package, title: "Cold-Room Stock Control", desc: "Track stock by meat type and cut with real-time deduction on every sale." },
+    { icon: AlertTriangle, title: "Freshness & Waste Log", desc: "Record ageing stock and waste so spoilage is measured, not guessed." },
+    { icon: HandCoins, title: "Bulk & Credit Orders", desc: "Restaurant and wholesale orders with balances tracked per customer." },
+    { icon: ShoppingCart, title: "Fast Counter Checkout", desc: "Quick keys for common cuts keep the morning queue moving." },
+    { icon: BarChart3, title: "Margin per Cut", desc: "See profit by meat type and cut — know what to buy more of." },
+  ],
+  capabilities: [
+    { icon: Scale, title: "Weight-Based Pricing", desc: "Sell by kilo, gram or piece with automatic price calculation." },
+    { icon: Drumstick, title: "Cut-Level Inventory", desc: "Beef, goat, chicken and more tracked by cut and weight." },
+    { icon: HandCoins, title: "Wholesale Accounts", desc: "Standing orders, credit limits and balances for bulk buyers." },
+    { icon: AlertTriangle, title: "Spoilage Tracking", desc: "Log waste and shrinkage to see true cost per day." },
+    { icon: WifiOff, title: "Works Offline", desc: "Cold rooms and market stalls keep selling without internet." },
+    { icon: BarChart3, title: "Daily Meat Reports", desc: "Sales, waste and profit per day at a glance." },
+  ],
+  whyMartPoint: [
+    "Built for meat sellers: weight pricing, cold-room stock and wholesale credit included.",
+    "Works offline in markets and cold rooms where connectivity is poor.",
+    "Simple enough for counter staff — weigh, tap, done.",
+    "Local support that understands butcher and meat-shop operations.",
+  ],
+  testimonial: {
+    quote: "We supply restaurants every morning and used to lose track of who owed what. Now every kilogram and every credit balance is in the system, and my daily numbers finally make sense.",
+    author: "Musa D.",
+    role: "Owner, City Meat Shop, Abuja",
+    initials: "MD",
+  },
+  faqs: [
+    { q: "Can MartPoint price meat by weight?", a: "Yes. Sell per kilogram, gram or piece — totals are calculated automatically at checkout." },
+    { q: "Can I track cold-room stock?", a: "Yes. Stock is tracked by meat type and cut and deducted in real time with every sale." },
+    { q: "Does it manage credit for restaurants and bulk buyers?", a: "Yes. Record bulk orders and credit balances per customer so nothing is forgotten." },
+    { q: "Can I log spoilage and waste?", a: "Yes. Waste and shrinkage are logged daily so you see the true cost and margin per cut." },
+  ],
+}
+
 export const medicalStores: IndustryData = {
   name: "Medical Stores",
+  formLabel: "Medical Store",
   slug: "medical-stores",
   category: "Health",
   product: "retail",
@@ -1207,6 +1352,7 @@ export const medicalStores: IndustryData = {
 
 export const clinics: IndustryData = {
   name: "Clinics",
+  formLabel: "Clinic",
   slug: "clinics",
   category: "Health",
   product: "retail",
@@ -1262,6 +1408,7 @@ export const clinics: IndustryData = {
 
 export const hospitals: IndustryData = {
   name: "Hospitals",
+  formLabel: "Hospital",
   slug: "hospitals",
   category: "Health",
   product: "erp",
@@ -1317,6 +1464,7 @@ export const hospitals: IndustryData = {
 
 export const diagnosticCentres: IndustryData = {
   name: "Diagnostic Centres",
+  formLabel: "Diagnostic Centre",
   slug: "diagnostic-centres",
   category: "Health",
   product: "retail",
@@ -1370,8 +1518,70 @@ export const diagnosticCentres: IndustryData = {
   ],
 }
 
+export const physiotherapy: IndustryData = {
+  name: "Physiotherapy & Rehabilitation",
+  slug: "physiotherapy",
+  category: "Health",
+  product: "retail",
+  description: "Schedule therapy sessions, manage treatment plans and track session packages for physiotherapy and rehabilitation centres.",
+  seo: {
+    title: "Physiotherapy & Rehabilitation Clinic Software in Nigeria — MartPoint Retail",
+    description: "Schedule appointments, manage treatment plans, session packages and patient payments for physiotherapy and rehabilitation centres. Built for African clinics.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "More Time With Patients, Less Time on Paperwork",
+    paragraph: "Physiotherapy runs on repeat sessions, treatment plans and therapist schedules. MartPoint Retail keeps appointments, session packages and patient payments organised so your centre stays focused on recovery.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a physiotherapy/rehabilitation centre and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: CalendarDays, title: "Missed & Double-Booked Sessions", desc: "Appointments tracked in a diary clash or get forgotten. Empty treatment beds cost revenue." },
+    { icon: ClipboardList, title: "Scattered Treatment Notes", desc: "Each patient's progress lives in paper files. Continuity suffers when therapists change." },
+    { icon: Receipt, title: "Session Package Leakage", desc: "Ten-session packages ticked off by hand get used twice or forgotten entirely." },
+    { icon: Users, title: "Therapist Schedule Clashes", desc: "Two patients, one therapist. Without shared scheduling, conflicts happen daily." },
+    { icon: HandCoins, title: "Payment Gaps", desc: "Balances, part-payments and family payers are hard to reconcile at month end." },
+    { icon: BarChart3, title: "No Utilisation Insight", desc: "You cannot see which treatments, therapists or time slots earn the most." },
+  ],
+  solutions: [
+    { icon: CalendarDays, title: "Session Scheduling", desc: "Book, reschedule and track every appointment per therapist and treatment room." },
+    { icon: ClipboardList, title: "Treatment Plans", desc: "Record diagnoses, plans and progress notes against each patient's history." },
+    { icon: Receipt, title: "Session Packages", desc: "Sell multi-session packages that deduct automatically per visit." },
+    { icon: Users, title: "Therapist Calendars", desc: "Each therapist's day is visible at a glance — no more clashes." },
+    { icon: HandCoins, title: "Payments & Balances", desc: "Track deposits, balances and payers per patient automatically." },
+    { icon: BarChart3, title: "Centre Reports", desc: "Utilisation, revenue and attendance by therapist, treatment and day." },
+  ],
+  capabilities: [
+    { icon: CalendarDays, title: "Appointment Booking", desc: "Per-therapist and per-room scheduling with patient history." },
+    { icon: ClipboardList, title: "Patient Records", desc: "Treatment plans, notes and visit history in one place." },
+    { icon: Receipt, title: "Session Packages", desc: "Prepaid bundles that deduct automatically per attendance." },
+    { icon: HandCoins, title: "Payment Tracking", desc: "Balances, deposits and receipts for every patient." },
+    { icon: Activity, title: "Therapist Management", desc: "Schedules, caseloads and performance per therapist." },
+    { icon: WifiOff, title: "Works Offline", desc: "Reception keeps working through network outages." },
+  ],
+  whyMartPoint: [
+    "Built for clinics that run on repeat visits: scheduling, session packages and patient records included.",
+    "Offline-capable so the front desk never stops working.",
+    "Simple for receptionists and therapists — no IT team required.",
+    "Local support that understands health and therapy businesses.",
+  ],
+  testimonial: {
+    quote: "Session packages used to be ticks in a notebook and constant arguments with patients. Now every visit deducts automatically and my therapists' diaries finally agree with the front desk.",
+    author: "Dr. Funmi O.",
+    role: "Director, Rehabilitation Centre, Lagos",
+    initials: "FO",
+  },
+  faqs: [
+    { q: "Can MartPoint manage session packages?", a: "Yes. Sell multi-session packages that deduct automatically each time the patient attends." },
+    { q: "Does it support multiple therapists?", a: "Yes. Each therapist has a schedule and caseload, and bookings never clash." },
+    { q: "Can I keep treatment and progress notes per patient?", a: "Yes. Treatment plans, progress notes and visit history are recorded per patient." },
+    { q: "Does it track patient balances and payments?", a: "Yes. Deposits, part-payments and outstanding balances are tracked per patient." },
+  ],
+}
+
 export const boutiques: IndustryData = {
   name: "Boutiques",
+  formLabel: "Boutique",
   slug: "boutiques",
   category: "Fashion & Beauty",
   product: "retail",
@@ -1427,6 +1637,7 @@ export const boutiques: IndustryData = {
 
 export const shoeStores: IndustryData = {
   name: "Shoe Stores",
+  formLabel: "Shoe Store",
   slug: "shoe-stores",
   category: "Fashion & Beauty",
   product: "retail",
@@ -1482,6 +1693,7 @@ export const shoeStores: IndustryData = {
 
 export const cosmeticsStores: IndustryData = {
   name: "Cosmetics Stores",
+  formLabel: "Beauty & Cosmetics",
   slug: "cosmetics-stores",
   category: "Fashion & Beauty",
   product: "retail",
@@ -1537,6 +1749,7 @@ export const cosmeticsStores: IndustryData = {
 
 export const perfumeShops: IndustryData = {
   name: "Perfume Shops",
+  formLabel: "Perfume Shop",
   slug: "perfume-shops",
   category: "Fashion & Beauty",
   product: "retail",
@@ -1592,6 +1805,7 @@ export const perfumeShops: IndustryData = {
 
 export const barbershops: IndustryData = {
   name: "Barbershops",
+  formLabel: "Salon & Barbershop",
   slug: "barbershops",
   category: "Fashion & Beauty",
   product: "retail",
@@ -1647,6 +1861,7 @@ export const barbershops: IndustryData = {
 
 export const jewelleryStores: IndustryData = {
   name: "Jewellery Stores",
+  formLabel: "Jewellery Store",
   slug: "jewellery-stores",
   category: "Fashion & Beauty",
   product: "retail",
@@ -1700,8 +1915,256 @@ export const jewelleryStores: IndustryData = {
   ],
 }
 
+export const beautySpa: IndustryData = {
+  name: "Beauty Spas",
+  formLabel: "Beauty Spa",
+  slug: "beauty-spas",
+  category: "Fashion & Beauty",
+  product: "retail",
+  description: "Manage appointments, therapist schedules, treatment packages and product sales for your spa, massage or wellness centre.",
+  seo: {
+    title: "Beauty Spa & Wellness POS Software in Nigeria — MartPoint Retail",
+    description: "Book appointments, sell treatment packages and retail products, and track therapist performance for your spa or wellness centre. Built for African spas.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Fill Every Bed. Wow Every Client.",
+    paragraph: "Spas run on appointments, packages and repeat clients. MartPoint Retail keeps bookings, therapist schedules and product sales in one place so every slot is filled and every visit is remembered.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a beauty spa/wellness centre and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: CalendarDays, title: "Empty Appointment Slots", desc: "Gaps between bookings waste your most expensive asset — therapist time." },
+    { icon: ClipboardList, title: "Client Preferences Lost", desc: "Pressure, oils and allergies live in therapists' heads. Clients repeat themselves every visit." },
+    { icon: Receipt, title: "Package Abuse", desc: "Prepaid treatment packages tracked on paper get overused or disputed." },
+    { icon: Users, title: "Commission Disputes", desc: "Therapist commissions calculated by hand lead to monthly arguments." },
+    { icon: Package, title: "Retail Stock Leaks", desc: "Oils, creams and scrubs leave the shelf untracked. Product sales are rarely reconciled." },
+    { icon: BarChart3, title: "No Repeat-Visit Insight", desc: "You cannot see which clients are lapsing or which treatments keep them coming back." },
+  ],
+  solutions: [
+    { icon: CalendarDays, title: "Appointment & Bed Scheduling", desc: "Book clients to therapists and rooms, fill gaps and avoid double-booking." },
+    { icon: Sparkles, title: "Client Profiles", desc: "Preferences, allergies and visit history attached to every client." },
+    { icon: Receipt, title: "Packages & Memberships", desc: "Sell treatment bundles and memberships with automatic deduction per visit." },
+    { icon: Users, title: "Therapist Commission", desc: "Services and product sales per therapist tracked automatically for fair payout." },
+    { icon: Package, title: "Retail Product Sales", desc: "Sell spa products over the counter with stock that stays honest." },
+    { icon: BarChart3, title: "Retention Reports", desc: "See repeat rate, lapsing clients and best-earning treatments." },
+  ],
+  capabilities: [
+    { icon: CalendarDays, title: "Smart Booking", desc: "Appointments per therapist, room and treatment type." },
+    { icon: Sparkles, title: "Client Records", desc: "Preferences, contraindications and full visit history." },
+    { icon: Receipt, title: "Packages & Memberships", desc: "Prepaid bundles and memberships with auto-deduction." },
+    { icon: ShoppingCart, title: "Retail Checkout", desc: "Sell products alongside services in one sale." },
+    { icon: Users, title: "Commission Tracking", desc: "Per-therapist service and product earnings." },
+    { icon: WifiOff, title: "Works Offline", desc: "Reception keeps running through outages." },
+  ],
+  whyMartPoint: [
+    "Built for spas and wellness centres: bookings, packages, commissions and retail in one system.",
+    "Works offline so the front desk never stops during outages.",
+    "Simple enough for receptionists to learn in a single day.",
+    "Local support that understands spa and wellness operations.",
+  ],
+  testimonial: {
+    quote: "Our therapists used to argue over commissions every month and packages were tracked on paper. Now everything is automatic — bookings, deductions, commissions — and our repeat rate has visibly improved.",
+    author: "Adaeze I.",
+    role: "Owner, Serenity Spa, Lekki",
+    initials: "AI",
+  },
+  faqs: [
+    { q: "Can clients book specific therapists?", a: "Yes. Appointments are booked per therapist and room, so clients get who they asked for and nothing clashes." },
+    { q: "Does it handle prepaid packages and memberships?", a: "Yes. Sell treatment bundles or memberships and each visit deducts automatically — no paper tally." },
+    { q: "Can I sell products alongside services?", a: "Yes. Retail items and services can be sold in one transaction with stock deducted automatically." },
+    { q: "Does it calculate therapist commissions?", a: "Yes. Services and product sales are attributed per therapist, making commission payout simple." },
+  ],
+}
+
+export const makeupArtist: IndustryData = {
+  name: "Makeup Artists",
+  formLabel: "Makeup Artist",
+  slug: "makeup-artists",
+  category: "Fashion & Beauty",
+  product: "retail",
+  description: "Book clients, manage bridal and event jobs, track deposits and keep kit stock under control as a makeup artist.",
+  seo: {
+    title: "Makeup Artist Booking & Business Software in Nigeria — MartPoint Retail",
+    description: "Manage bookings, bridal packages, deposits and client notes as a makeup artist in Nigeria. MartPoint Retail keeps your calendar and cash organised.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Booked Solid. Never Double-Booked.",
+    paragraph: "Makeup artistry is a calendar business — weddings, shoots and events booked months ahead, often in chats. MartPoint Retail keeps your bookings, deposits and client notes in one place so no date is lost and no payment forgotten.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I'm a makeup artist and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: CalendarDays, title: "Double Bookings", desc: "Wedding season overlaps get messy when bookings live in WhatsApp chats and memory." },
+    { icon: HandCoins, title: "Deposit Chasing", desc: "Clients reserve dates without paying. You chase deposits manually — or lose the slot." },
+    { icon: ClipboardList, title: "Client Look Notes Lost", desc: "Shade matches, skin prep and trial notes are buried in old chats." },
+    { icon: Package, title: "Kit Stock Untracked", desc: "Foundations and consumables run out mid-job. You never know what is left." },
+    { icon: Receipt, title: "Informal Pricing", desc: "Quotes vary client to client with no record of what was promised." },
+    { icon: BarChart3, title: "No Job Profitability", desc: "Travel, assistants and products eat into fees you never measure." },
+  ],
+  solutions: [
+    { icon: CalendarDays, title: "Booking Calendar", desc: "Every job, trial and event on one calendar — conflicts visible instantly." },
+    { icon: HandCoins, title: "Deposits & Balances", desc: "Record deposits per booking and see outstanding balances before the event." },
+    { icon: ClipboardList, title: "Client Notes", desc: "Skin profile, shade matches and agreed looks saved per client." },
+    { icon: Package, title: "Kit Inventory", desc: "Track products and consumables so the kit is never caught short." },
+    { icon: Receipt, title: "Packages & Quotes", desc: "Bridal, owambe and studio packages priced and recorded consistently." },
+    { icon: BarChart3, title: "Per-Job Reports", desc: "Revenue and costs per booking — know which jobs are worth it." },
+  ],
+  capabilities: [
+    { icon: CalendarDays, title: "Booking Calendar", desc: "Jobs, trials and events in one conflict-free calendar." },
+    { icon: HandCoins, title: "Deposit Tracking", desc: "Deposits and balances per client and per event." },
+    { icon: Palette, title: "Client Look Notes", desc: "Shade matches, skin prep and references per client." },
+    { icon: Package, title: "Kit Stock", desc: "Products and consumables tracked as they are used." },
+    { icon: Receipt, title: "Packages & Invoices", desc: "Bridal and event packages billed professionally." },
+    { icon: WifiOff, title: "Works Offline", desc: "Record bookings and payments from any venue." },
+  ],
+  whyMartPoint: [
+    "Built for freelance artists: bookings, deposits and kit stock without the admin headache.",
+    "Works offline — record a booking from a venue with no signal.",
+    "Affordable for a solo artist, powerful enough to grow into a studio.",
+    "Local support that understands creative businesses.",
+  ],
+  testimonial: {
+    quote: "I nearly double-booked two brides the same Saturday — that was my wake-up call. Now my calendar, deposits and client notes live in MartPoint and nothing slips.",
+    author: "Temi A.",
+    role: "Makeup Artist, Lagos",
+    initials: "TA",
+  },
+  faqs: [
+    { q: "Can I track deposits per booking?", a: "Yes. Record deposits against each booking and see outstanding balances before the event date." },
+    { q: "Does it handle bridal and group packages?", a: "Yes. Create packages for bridal trains and group bookings with one clear invoice." },
+    { q: "Can I keep notes on each client's look?", a: "Yes. Save skin profiles, shade matches and trial notes so every repeat booking starts prepared." },
+    { q: "Does it work on the go?", a: "Yes. It works offline and syncs later — perfect for venue jobs with poor network." },
+  ],
+}
+
+export const makeupStudio: IndustryData = {
+  name: "Makeup Studios",
+  formLabel: "Makeup Studio",
+  slug: "makeup-studios",
+  category: "Fashion & Beauty",
+  product: "retail",
+  description: "Run your makeup studio — chairs, artists, bookings and product sales — with every day's takings accounted for.",
+  seo: {
+    title: "Makeup Studio POS & Booking Software in Nigeria — MartPoint Retail",
+    description: "Schedule chairs and artists, bill group bookings and sell products for your makeup studio. MartPoint Retail keeps studio operations in one place.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Every Chair Booked. Every Product Counted.",
+    paragraph: "A makeup studio juggles artists, chairs, bridal parties and retail shelves at once. MartPoint Retail connects bookings, staff commissions and product stock so the studio runs itself while you focus on the artistry.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a makeup studio and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: CalendarDays, title: "Chair Downtime", desc: "Artists idle while clients wait for a favourite. Notebook scheduling wastes capacity." },
+    { icon: Users, title: "Commission Disputes", desc: "Who did which face? Monthly commission maths ends in arguments." },
+    { icon: Package, title: "Retail Stock Shrinkage", desc: "Lashes, powders and palettes sold or used on clients are never reconciled." },
+    { icon: Receipt, title: "Group Bookings Chaos", desc: "Bridal trains and group glam sessions billed ad hoc — money gets missed." },
+    { icon: ClipboardList, title: "Client History Lost", desc: "Repeat clients expect you to remember their look, shades and skin needs." },
+    { icon: BarChart3, title: "No Daily Takings View", desc: "Cash, transfer and POS payments pile up with no clean end-of-day total." },
+  ],
+  solutions: [
+    { icon: CalendarDays, title: "Chair & Artist Scheduling", desc: "Book clients to chairs and artists — full capacity, no clashes." },
+    { icon: Users, title: "Artist Commission", desc: "Services and product sales attributed per artist automatically." },
+    { icon: Package, title: "Retail & Consumable Stock", desc: "Track products sold and kit consumables used per job." },
+    { icon: Receipt, title: "Group & Bridal Billing", desc: "One invoice for the whole train — deposits and balances included." },
+    { icon: ClipboardList, title: "Client Profiles", desc: "Skin notes, shades and past looks on file for every client." },
+    { icon: BarChart3, title: "Daily Studio Reports", desc: "Takings, bookings and commissions reconciled at close." },
+  ],
+  capabilities: [
+    { icon: CalendarDays, title: "Studio Scheduling", desc: "Chairs, artists and bookings managed in one calendar." },
+    { icon: Users, title: "Commission Tracking", desc: "Per-artist service and retail earnings, automatically." },
+    { icon: Package, title: "Product Inventory", desc: "Retail shelves and kit consumables tracked together." },
+    { icon: Receipt, title: "Group Billing", desc: "Bridal parties and group sessions on one invoice." },
+    { icon: ClipboardList, title: "Client Records", desc: "Shades, skin notes and history per client." },
+    { icon: WifiOff, title: "Works Offline", desc: "The studio keeps running through outages." },
+  ],
+  whyMartPoint: [
+    "Built for studios: multi-artist scheduling, commissions and retail stock in one system.",
+    "Group and bridal bookings handled cleanly — deposits to final balance.",
+    "Offline-capable so a network dip never stops a fully booked Saturday.",
+    "Local support that understands beauty businesses.",
+  ],
+  testimonial: {
+    quote: "Three artists, one studio and endless commission arguments — until MartPoint. Now bookings, sales and commissions are automatic and our bridal bookings are billed properly.",
+    author: "Chidinma E.",
+    role: "Founder, Glow Studio, Enugu",
+    initials: "CE",
+  },
+  faqs: [
+    { q: "Can I schedule multiple artists and chairs?", a: "Yes. Bookings are assigned to artists and chairs so capacity is used fully without clashes." },
+    { q: "Does it track artist commissions?", a: "Yes. Every service and product sale is attributed to the artist, making commission payout automatic." },
+    { q: "Can I bill a whole bridal train on one invoice?", a: "Yes. Group bookings are billed together with deposits and balances tracked." },
+    { q: "Does it manage retail product sales too?", a: "Yes. Products and services can be sold in the same transaction with stock updated automatically." },
+  ],
+}
+
+export const skincareOrganic: IndustryData = {
+  name: "Skincare & Organic Cosmetics",
+  slug: "skincare-organic-cosmetics",
+  category: "Fashion & Beauty",
+  product: "retail",
+  description: "Batch-track organic skincare products, manage expiry dates and grow repeat customers for your skincare and cosmetics business.",
+  seo: {
+    title: "Skincare & Organic Cosmetics POS Software in Nigeria — MartPoint Retail",
+    description: "Track batches and expiry dates, manage custom formulations and build repeat customers for your skincare or organic cosmetics shop. Built for African beauty brands.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Fresh Batches. Loyal Customers. Real Profit.",
+    paragraph: "Skincare and organic cosmetics live or die by freshness, consistency and trust. MartPoint Retail tracks every batch and expiry date, remembers every client's skin profile and keeps online and counter sales reconciled.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a skincare/organic cosmetics business and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: AlertTriangle, title: "Expiry & Batch Risk", desc: "Organic products have short shelf lives. One expired jar sold can cost a client's trust forever." },
+    { icon: Package, title: "Small-Batch Chaos", desc: "Production batches mixed on shelves make stock counts meaningless." },
+    { icon: ClipboardList, title: "Custom Formulations", desc: "Client-specific mixes and recipes live in notebooks. Consistency suffers across batches." },
+    { icon: Sparkles, title: "Skin Profiles Forgotten", desc: "Clients' skin types, sensitivities and what worked before are never recorded." },
+    { icon: Receipt, title: "WhatsApp Orders Unreconciled", desc: "DM sales paid by transfer are easy to miss and hard to audit." },
+    { icon: BarChart3, title: "No Repurchase Insight", desc: "You cannot see which products bring clients back — or which sit and expire." },
+  ],
+  solutions: [
+    { icon: Package, title: "Batch & Expiry Tracking", desc: "Every batch dated and deducted first-in-first-out, with alerts before stock spoils." },
+    { icon: ClipboardList, title: "Formulation Records", desc: "Save custom mixes per client so every repeat order is consistent." },
+    { icon: Sparkles, title: "Client Skin Profiles", desc: "Skin type, concerns and purchase history recorded per customer." },
+    { icon: ShoppingCart, title: "Omnichannel Checkout", desc: "Counter, WhatsApp and online orders all land in one sales record." },
+    { icon: AlertTriangle, title: "Expiry Alerts", desc: "Get warned before batches expire — discount or pull them in time." },
+    { icon: BarChart3, title: "Repeat-Purchase Reports", desc: "See repurchase rates and dead stock at a glance." },
+  ],
+  capabilities: [
+    { icon: Package, title: "Batch Tracking", desc: "Production batches with FIFO deduction and traceability." },
+    { icon: AlertTriangle, title: "Expiry Alerts", desc: "Notifications before products pass their shelf life." },
+    { icon: Sparkles, title: "Skin Profiles", desc: "Client skin types, sensitivities and purchase history." },
+    { icon: ClipboardList, title: "Custom Orders", desc: "Formulation notes and bespoke orders recorded per client." },
+    { icon: ShoppingCart, title: "Multi-Channel Sales", desc: "Counter, WhatsApp and online orders reconciled together." },
+    { icon: WifiOff, title: "Works Offline", desc: "Keep selling at pop-ups and markets without internet." },
+  ],
+  whyMartPoint: [
+    "Built for skincare brands: batch and expiry tracking, formulations and client profiles included.",
+    "One system for counter sales, WhatsApp orders and your online storefront.",
+    "Offline mode keeps market days and pop-ups selling.",
+    "Local support that understands beauty and cosmetics retail.",
+  ],
+  testimonial: {
+    quote: "I nearly ruined my brand selling an expired batch I did not know was on the shelf. MartPoint's batch tracking and expiry alerts paid for themselves in the first month.",
+    author: "Ngozi U.",
+    role: "Founder, Organic Skincare Brand, Abuja",
+    initials: "NU",
+  },
+  faqs: [
+    { q: "Can MartPoint track batch numbers and expiry dates?", a: "Yes. Every batch is dated and tracked, with automatic alerts before products expire." },
+    { q: "Can I record custom formulations per client?", a: "Yes. Save formulation notes against each client so bespoke orders are repeatable and consistent." },
+    { q: "Does it combine shop and online orders?", a: "Yes. Counter, WhatsApp and online orders all feed one stock and sales record." },
+    { q: "Can I see which products clients repurchase?", a: "Yes. Repurchase and dead-stock reports show which products build loyalty and which expire on the shelf." },
+  ],
+}
+
 export const phoneShops: IndustryData = {
   name: "Phone Shops",
+  formLabel: "Phone Accessories",
   slug: "phone-shops",
   category: "Electronics",
   product: "retail",
@@ -1757,6 +2220,7 @@ export const phoneShops: IndustryData = {
 
 export const computerStores: IndustryData = {
   name: "Computer Stores",
+  formLabel: "Computer Store",
   slug: "computer-stores",
   category: "Electronics",
   product: "retail",
@@ -1812,6 +2276,7 @@ export const computerStores: IndustryData = {
 
 export const gadgetStores: IndustryData = {
   name: "Gadget Stores",
+  formLabel: "Gadget Store",
   slug: "gadget-stores",
   category: "Electronics",
   product: "retail",
@@ -1867,6 +2332,7 @@ export const gadgetStores: IndustryData = {
 
 export const applianceStores: IndustryData = {
   name: "Appliance Stores",
+  formLabel: "Appliance Store",
   slug: "appliance-stores",
   category: "Electronics",
   product: "retail",
@@ -1922,6 +2388,7 @@ export const applianceStores: IndustryData = {
 
 export const hardwareStores: IndustryData = {
   name: "Hardware Stores",
+  formLabel: "Building Materials",
   slug: "hardware-stores",
   category: "Building Materials",
   product: "retail",
@@ -1977,6 +2444,7 @@ export const hardwareStores: IndustryData = {
 
 export const paintStores: IndustryData = {
   name: "Paint Stores",
+  formLabel: "Paint Store",
   slug: "paint-stores",
   category: "Building Materials",
   product: "retail",
@@ -2032,6 +2500,7 @@ export const paintStores: IndustryData = {
 
 export const plumbingStores: IndustryData = {
   name: "Plumbing Stores",
+  formLabel: "Plumbing Store",
   slug: "plumbing-stores",
   category: "Building Materials",
   product: "retail",
@@ -2085,8 +2554,194 @@ export const plumbingStores: IndustryData = {
   ],
 }
 
+export const generalRetail: IndustryData = {
+  name: "General Retail",
+  slug: "general-retail",
+  category: "General & Specialty Retail",
+  product: "retail",
+  description: "Run any retail shop — provisions, household goods or mixed merchandise — with fast checkout, stock control and daily profit reports.",
+  seo: {
+    title: "General Retail POS Software in Nigeria — MartPoint Retail",
+    description: "POS and inventory software for general retail shops selling mixed goods. Fast checkout, stock control, credit tracking and daily profit reports.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "One Till for Everything You Sell",
+    paragraph: "General retail means hundreds of different items — some barcoded, many not. MartPoint Retail keeps every item, price and kobo accounted for, from a single-counter shop to a busy general merchandise store.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a general retail shop and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: Store, title: "Too Many Different Items", desc: "Mixed stock with no barcodes makes pricing a memory game. Staff guess — or call you for every price." },
+    { icon: Receipt, title: "Cashier Leakage", desc: "Unrecorded sales and manual price changes quietly drain profit." },
+    { icon: Package, title: "Invisible Slow Stock", desc: "Dead items hold shelf space while best-sellers run out unnoticed." },
+    { icon: HandCoins, title: "Customer Debt Untracked", desc: "Credit sales written in notebooks get forgotten. Money owed never returns." },
+    { icon: Timer, title: "Slow Manual Checkout", desc: "Handwritten receipts create queues and errors during rush hours." },
+    { icon: BarChart3, title: "No Profit Visibility", desc: "You bank money daily but cannot say what the shop actually earned." },
+  ],
+  solutions: [
+    { icon: Store, title: "Flexible Catalogue", desc: "Barcode or manual items, variants and quick keys — priced once, right forever." },
+    { icon: ShoppingCart, title: "Fast Mixed Checkout", desc: "Scan what scans, tap quick keys for the rest. Queues keep moving." },
+    { icon: AlertTriangle, title: "Low-Stock Alerts", desc: "Best-sellers flagged before they run out, and dead stock is exposed." },
+    { icon: HandCoins, title: "Credit & Debtors", desc: "Customer credit tracked per person with balances always visible." },
+    { icon: Users, title: "Staff Accountability", desc: "Every sale, void and discount tied to a cashier login." },
+    { icon: BarChart3, title: "Daily Profit Reports", desc: "Sales, margins and closing stock ready at the end of every day." },
+  ],
+  capabilities: [
+    { icon: Package, title: "Any-Item Stock", desc: "Mixed goods, variants and unbarcoded items all tracked." },
+    { icon: ShoppingCart, title: "Quick-Key Checkout", desc: "Barcode scanning plus quick keys for items without codes." },
+    { icon: HandCoins, title: "Customer Credit", desc: "Debtor balances and repayment history per customer." },
+    { icon: Users, title: "Staff Roles", desc: "Per-cashier logins with sales, voids and discounts tracked." },
+    { icon: WifiOff, title: "Works Offline", desc: "Keep selling through outages; syncs when you are back." },
+    { icon: Building2, title: "Multi-Branch Ready", desc: "Grow from one counter to many branches on one system." },
+  ],
+  whyMartPoint: [
+    "Built for African general trade: mixed stock, credit sales and offline mode included.",
+    "No IT team required — set up in a day and train staff in hours.",
+    "Scales from a single counter to multiple branches without switching systems.",
+    "Local support that understands everyday retail, not a ticket queue abroad.",
+  ],
+  testimonial: {
+    quote: "My shop sells a bit of everything and pricing was always a headache for new staff. With MartPoint every item has a price, every sale is recorded, and I finally know my daily profit.",
+    author: "Chukwuma O.",
+    role: "Owner, General Merchandise Store, Onitsha",
+    initials: "CO",
+  },
+  faqs: [
+    { q: "Can I sell items without barcodes?", a: "Yes. Use quick keys or search for unbarcoded items — everything still gets tracked and priced correctly." },
+    { q: "Does it track customer credit?", a: "Yes. Record credit sales per customer and see outstanding balances and repayment history anytime." },
+    { q: "Does it work without internet?", a: "Yes. Sales and stock updates keep running offline and sync when the connection returns." },
+    { q: "Can it grow with me to more branches?", a: "Yes. Add branches and see stock and sales for every location from one dashboard." },
+  ],
+}
+
+export const bookshop: IndustryData = {
+  name: "Bookshops",
+  formLabel: "Bookshop",
+  slug: "bookshops",
+  category: "General & Specialty Retail",
+  product: "retail",
+  description: "Manage thousands of titles, school-list seasons and stationery sales with title-level stock control for your bookshop.",
+  seo: {
+    title: "Bookshop POS & Inventory Software in Nigeria — MartPoint Retail",
+    description: "Track books by title, author and subject, survive back-to-school season and sell stationery alongside. MartPoint Retail is built for African bookshops.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Never Lose a Sale Over a Missing Title",
+    paragraph: "A bookshop lives on its catalogue — thousands of titles, seasonal school lists and stationery on the side. MartPoint Retail keeps every title findable, every school list stocked and every sale recorded.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a bookshop and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: BookMarked, title: "Thousands of Titles", desc: "Hundreds of titles across subjects and classes. Finding stock takes longer than selling it." },
+    { icon: CalendarDays, title: "Back-to-School Rush", desc: "A few weeks make the year — and stockouts during school-list season cost the most." },
+    { icon: AlertTriangle, title: "Exam List Stockouts", desc: "WAEC, JAMB and school-set titles run out exactly when demand peaks." },
+    { icon: Package, title: "Dead Stock Piles", desc: "Old editions and slow titles tie up cash on shelves you cannot see." },
+    { icon: Receipt, title: "Supplier Returns Untracked", desc: "Unsold and damaged books go back to suppliers, but credit notes are never reconciled." },
+    { icon: Users, title: "Staff Cannot Find Stock", desc: "A customer asks for a title and staff cannot say if it is in stock — or on which shelf." },
+  ],
+  solutions: [
+    { icon: BookOpen, title: "Title-Level Catalogue", desc: "Track every book by title, author, publisher and class — searchable in seconds." },
+    { icon: AlertTriangle, title: "Seasonal Reorder Alerts", desc: "Get warned before school-list titles run out during the rush." },
+    { icon: ShoppingCart, title: "Fast Checkout", desc: "Scan or search any title and serve the next parent in the queue." },
+    { icon: Receipt, title: "Returns & Credits", desc: "Record supplier returns and track credit notes until they are settled." },
+    { icon: BarChart3, title: "Season & Subject Reports", desc: "See which subjects, classes and seasons drive your revenue." },
+    { icon: MapPin, title: "Shelf Locations", desc: "Tag items by shelf or section so staff find titles instantly." },
+  ],
+  capabilities: [
+    { icon: BookOpen, title: "Title Search", desc: "Find any book by title, author or subject in seconds." },
+    { icon: Tag, title: "Books & Stationery", desc: "Sell books, stationery and supplies in the same sale." },
+    { icon: AlertTriangle, title: "Reorder Alerts", desc: "Low-stock warnings before peak seasons hit." },
+    { icon: Receipt, title: "Supplier Returns", desc: "Track returned stock and credit notes per supplier." },
+    { icon: WifiOff, title: "Works Offline", desc: "Keep selling through network outages." },
+    { icon: BarChart3, title: "Seasonal Reports", desc: "Sales by season, subject and title." },
+  ],
+  whyMartPoint: [
+    "Built for bookshops: huge catalogues, school-list seasons and stationery sales handled out of the box.",
+    "Import your title list in bulk — no manual entry of thousands of books.",
+    "Works offline so the back-to-school rush never stops for network issues.",
+    "Local support that understands bookselling in Africa.",
+  ],
+  testimonial: {
+    quote: "School-list season used to be chaos — parents queuing while we hunted for titles. Now staff find any book in seconds and I can see which school lists to stock ahead.",
+    author: "Mr. Adeyemi F.",
+    role: "Owner, Bookshop & Stationery Store, Ibadan",
+    initials: "AF",
+  },
+  faqs: [
+    { q: "Can I import a large book catalogue?", a: "Yes. Import titles in bulk and organise by subject, class or publisher — searchable instantly at the counter." },
+    { q: "Can I sell stationery alongside books?", a: "Yes. Books, stationery and any other items can be sold in the same transaction." },
+    { q: "Does it help me prepare for school-list season?", a: "Yes. Sales reports show which titles and lists drove last season so you can stock ahead." },
+    { q: "Can I track returns to suppliers?", a: "Yes. Record supplier returns and track the credit notes until they are settled." },
+  ],
+}
+
+export const furnitureStores: IndustryData = {
+  name: "Furniture Stores",
+  formLabel: "Furniture",
+  slug: "furniture-stores",
+  category: "General & Specialty Retail",
+  product: "retail",
+  description: "Track showroom pieces, manage made-to-order jobs, customer deposits and deliveries for your furniture business.",
+  seo: {
+    title: "Furniture Store POS Software in Nigeria — MartPoint Retail",
+    description: "Manage showroom stock, custom orders, deposits and deliveries for furniture stores and showrooms. MartPoint Retail is built for African furniture businesses.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "From Showroom Floor to Customer Door, Track It All",
+    paragraph: "Furniture is big-ticket, made-to-order and instalment-driven. MartPoint Retail tracks every unique piece, every deposit and every delivery so high-value stock never slips through the cracks.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a furniture store/showroom and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: Sofa, title: "Every Piece Is Unique", desc: "Fabric, colour and finish make each item one-of-a-kind. Generic stock lists cannot describe them." },
+    { icon: HandCoins, title: "Deposits & Part-Payments", desc: "Customers pay in instalments over weeks. Balances tracked on paper invite disputes." },
+    { icon: Timer, title: "Made-to-Order Delays", desc: "Custom jobs stall in the workshop with no status visible to you or the customer." },
+    { icon: MapPin, title: "Delivery Chaos", desc: "Deliveries coordinated by phone calls. Items arrive late, damaged or at the wrong address." },
+    { icon: Package, title: "Slow-Moving Showroom Stock", desc: "Expensive pieces sit for months while you cannot see which styles actually sell." },
+    { icon: Users, title: "Commission Disputes", desc: "Showroom staff argue over who closed which sale at month end." },
+  ],
+  solutions: [
+    { icon: Sofa, title: "Item-Level Records", desc: "Every piece tracked with material, dimensions, cost, price and photos." },
+    { icon: HandCoins, title: "Deposit Tracking", desc: "Deposits and instalment balances per customer and per item — always accurate." },
+    { icon: ClipboardList, title: "Order & Workshop Status", desc: "Track custom orders from deposit through production to delivery." },
+    { icon: MapPin, title: "Delivery Scheduling", desc: "Plan deliveries, assign drivers and record what went where." },
+    { icon: BarChart3, title: "Showroom Analytics", desc: "See which styles, ranges and price points move fastest." },
+    { icon: Users, title: "Sales Attribution", desc: "Every sale tied to the staff member who closed it." },
+  ],
+  capabilities: [
+    { icon: Sofa, title: "Unique Item Stock", desc: "Track one-of-a-kind pieces with photos, materials and dimensions." },
+    { icon: HandCoins, title: "Instalment Payments", desc: "Deposits and balances per customer over any period." },
+    { icon: ClipboardList, title: "Custom Orders", desc: "Made-to-order jobs tracked from order to delivery." },
+    { icon: MapPin, title: "Delivery Management", desc: "Schedule and record deliveries with customer details." },
+    { icon: Building2, title: "Multi-Showroom", desc: "Compare locations and transfer stock between showrooms." },
+    { icon: WifiOff, title: "Works Offline", desc: "Keep selling on the showroom floor without internet." },
+  ],
+  whyMartPoint: [
+    "Built for furniture retail: unique items, deposits, instalments and deliveries included.",
+    "Custom and made-to-order work tracked from workshop to customer door.",
+    "Works offline so showroom sales never stop for network issues.",
+    "Local support that understands big-ticket, low-volume retail.",
+  ],
+  testimonial: {
+    quote: "Customers pay deposits and collect over months — tracking that on paper was a disaster. MartPoint keeps every balance and every piece straight, and my showroom reports finally mean something.",
+    author: "Ibrahim S.",
+    role: "Owner, Furniture Showroom, Kano",
+    initials: "IS",
+  },
+  faqs: [
+    { q: "Can I track deposits and instalment payments?", a: "Yes. Record deposits and part-payments per customer and per item — balances are always accurate." },
+    { q: "Does it handle made-to-order work?", a: "Yes. Custom orders move through stages from deposit to production to delivery, all tracked." },
+    { q: "Can I record deliveries?", a: "Yes. Schedule deliveries and record what was delivered to which customer and when." },
+    { q: "Can each unique piece be tracked separately?", a: "Yes. Every item carries its own details — material, colour, dimensions, cost and price." },
+  ],
+}
+
 export const agroDealers: IndustryData = {
   name: "Agro Dealers",
+  formLabel: "Agro Dealer",
   slug: "agro-dealers",
   category: "Agriculture",
   product: "retail",
@@ -2142,6 +2797,7 @@ export const agroDealers: IndustryData = {
 
 export const feedStores: IndustryData = {
   name: "Feed Stores",
+  formLabel: "Feed Store",
   slug: "feed-stores",
   category: "Agriculture",
   product: "retail",
@@ -2252,6 +2908,7 @@ export const autoParts: IndustryData = {
 
 export const tyreShops: IndustryData = {
   name: "Tyre Shops",
+  formLabel: "Tyre Shop",
   slug: "tyre-shops",
   category: "Automotive",
   product: "retail",
@@ -2307,6 +2964,7 @@ export const tyreShops: IndustryData = {
 
 export const automobile: IndustryData = {
   name: "Automobile",
+  formLabel: "Car Dealership",
   slug: "automobile",
   category: "Automotive",
   product: "retail",
@@ -2363,6 +3021,7 @@ export const automobile: IndustryData = {
 
 export const digitalCreator: IndustryData = {
   name: "Digital Creator",
+  formLabel: "Creator / Digital Store",
   slug: "digital-creator",
   category: "Digital & Creative",
   product: "retail",
@@ -2414,6 +3073,68 @@ export const digitalCreator: IndustryData = {
     { q: "How do I stop people from sharing my course links?", a: "You can issue unique access tokens or links per customer, making it easy to control who gets in." },
     { q: "Can I see which product makes the most money?", a: "Yes. Revenue and profit reports by product, bundle and month show exactly what is working." },
     { q: "Does it confirm payments automatically?", a: "Sales staff can mark payments confirmed and the customer is automatically given access." },
+  ],
+}
+
+export const onlineStore: IndustryData = {
+  name: "Online Stores",
+  formLabel: "Online Store",
+  slug: "online-stores",
+  category: "Digital & Creative",
+  product: "retail",
+  description: "Run your online shop — catalogue, orders, payments and delivery — connected to the same stock as your physical store.",
+  seo: {
+    title: "Online Store & E-commerce Software in Nigeria — MartPoint Retail",
+    description: "Sell online with a storefront connected to real stock. Orders, payments and deliveries managed in one place. Built for African online sellers.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Sell Online Without the Inventory Chaos",
+    paragraph: "Online selling fails when your catalogue, stock and orders live in different places. MartPoint Retail gives you a storefront connected to real inventory, so a sale anywhere updates stock everywhere.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run an online store and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: Globe, title: "Orders Scattered in DMs", desc: "WhatsApp, Instagram and website orders live in different inboxes. Some never get fulfilled." },
+    { icon: Package, title: "Overselling Stock", desc: "You sell online what already sold in the shop. Refunds and apologies follow." },
+    { icon: Receipt, title: "Payment Confirmation Chasing", desc: "Screenshot receipts and disputed transfers make online payment messy." },
+    { icon: MapPin, title: "Delivery Blindness", desc: "Customers ask \u2018where is my order?\u2019 and you honestly do not know." },
+    { icon: Timer, title: "Manual Order Entry", desc: "Every online order is re-typed into your records. Errors multiply." },
+    { icon: BarChart3, title: "No Channel Profit View", desc: "You cannot compare online versus walk-in performance." },
+  ],
+  solutions: [
+    { icon: ShoppingBag, title: "Online Storefront", desc: "Your catalogue online with live prices and stock — orders arrive structured, not as chats." },
+    { icon: Package, title: "Shared Stock Sync", desc: "One inventory for shop and online — a sale anywhere updates everywhere." },
+    { icon: Receipt, title: "Payment Tracking", desc: "Record and confirm payments per order with a clean audit trail." },
+    { icon: MapPin, title: "Delivery Status", desc: "Track every order from packed to delivered — customers get real answers." },
+    { icon: Zap, title: "Instant Order Capture", desc: "Online orders enter the system directly — no re-typing, no omissions." },
+    { icon: BarChart3, title: "Channel Analytics", desc: "Compare online versus in-store sales, margins and top products." },
+  ],
+  capabilities: [
+    { icon: ShoppingBag, title: "Storefront", desc: "Publish your catalogue on your own online storefront." },
+    { icon: Globe, title: "Your Own Domain", desc: "Sell under your own store name and web address." },
+    { icon: Package, title: "Unified Stock", desc: "One inventory shared between online and physical sales." },
+    { icon: Receipt, title: "Order Payments", desc: "Track and confirm payment per order." },
+    { icon: MapPin, title: "Delivery Tracking", desc: "Order status from packed to delivered." },
+    { icon: WifiOff, title: "Works Offline", desc: "In-store sales keep running even when you are offline." },
+  ],
+  whyMartPoint: [
+    "Built for African online sellers: storefront, unified stock and order tracking included.",
+    "One system for walk-in, WhatsApp and web orders — no more overselling.",
+    "No web developer needed — your storefront is part of the product.",
+    "Local support that understands online selling realities.",
+  ],
+  testimonial: {
+    quote: "I sold on Instagram and kept apologising for items that had already sold in the shop. Now my online storefront shares the same stock, and every order lands in one place.",
+    author: "Yetunde B.",
+    role: "Owner, Online Fashion Store, Lagos",
+    initials: "YB",
+  },
+  faqs: [
+    { q: "Does MartPoint include an online storefront?", a: "Yes. You get an online storefront with your live catalogue — and you can use your own domain." },
+    { q: "Does online stock stay in sync with my shop?", a: "Yes. Online and in-store sales share one inventory, so you never oversell." },
+    { q: "Can I track deliveries per order?", a: "Yes. Update each order from packed to delivered and always answer \u2018where is my order?\u2019 with confidence." },
+    { q: "Can I still record WhatsApp orders?", a: "Yes. Enter DM orders in seconds so every channel ends up in the same sales record." },
   ],
 }
 
@@ -2582,8 +3303,71 @@ export const tailoring: IndustryData = {
   ],
 }
 
+export const serviceBusiness: IndustryData = {
+  name: "Service Businesses",
+  formLabel: "Service Business",
+  slug: "service-business",
+  category: "Services",
+  product: "retail",
+  description: "Invoice clients, track jobs and collect payments for service businesses — repairs, cleaning, consulting, security and more.",
+  seo: {
+    title: "Service Business Management Software in Nigeria — MartPoint Retail",
+    description: "Quote, schedule, invoice and collect payments for service businesses. MartPoint keeps jobs, staff and client balances organised.",
+  },
+  hero: {
+    label: "MartPoint Retail",
+    headline: "Bill Every Job. Collect Every Payment.",
+    paragraph: "Service businesses leak revenue between the job and the invoice. MartPoint Retail keeps quotes, jobs, schedules and client balances connected so every job is billed and every payment is collected.",
+    ctaText: "See It In Action",
+    waQuery: "Hi, I run a service business and I'm interested in MartPoint Retail. Can we talk?",
+  },
+  painPoints: [
+    { icon: Receipt, title: "Unbilled Jobs", desc: "Work gets done but invoicing lags — or never happens. Revenue leaks silently." },
+    { icon: HandCoins, title: "Chasing Payments", desc: "Outstanding balances live in chats and memory. Collection is awkward and slow." },
+    { icon: CalendarDays, title: "Missed Appointments", desc: "Jobs scheduled in diaries clash or get forgotten. Clients lose trust." },
+    { icon: Users, title: "Field Staff Unaccountable", desc: "You cannot tell which staff did which job, or what they charged." },
+    { icon: ClipboardList, title: "Quotes Lost in Chat", desc: "Estimates sent over WhatsApp are never followed up or converted." },
+    { icon: BarChart3, title: "No Service Profitability", desc: "You cannot see which services or clients actually make money." },
+  ],
+  solutions: [
+    { icon: ClipboardList, title: "Job & Invoice Flow", desc: "Quote, approve, deliver, invoice — every job tracked end to end." },
+    { icon: HandCoins, title: "Payment Tracking", desc: "Balances per client with receipts recorded for every payment." },
+    { icon: CalendarDays, title: "Job Scheduling", desc: "Book jobs and appointments so nothing clashes or gets missed." },
+    { icon: Users, title: "Staff Assignment", desc: "Assign jobs to staff and see who delivered what, when." },
+    { icon: Receipt, title: "Quotes That Convert", desc: "Send professional quotations and convert them to invoices in one step." },
+    { icon: BarChart3, title: "Service Reports", desc: "Revenue and profit by service line, client and staff member." },
+  ],
+  capabilities: [
+    { icon: ClipboardList, title: "Job Management", desc: "Track every job from quote to completion." },
+    { icon: Receipt, title: "Invoicing", desc: "Professional invoices and receipts for every job." },
+    { icon: HandCoins, title: "Client Balances", desc: "Outstanding payments tracked per client." },
+    { icon: CalendarDays, title: "Scheduling", desc: "Jobs and appointments on one shared calendar." },
+    { icon: Users, title: "Team Tracking", desc: "Jobs and sales attributed to staff." },
+    { icon: WifiOff, title: "Works Offline", desc: "Record jobs and payments from the field without internet." },
+  ],
+  whyMartPoint: [
+    "Built for service businesses: jobs, invoices, scheduling and client balances in one place.",
+    "Sell products alongside services when you need to — one system handles both.",
+    "Works offline so field staff can record jobs anywhere.",
+    "Local support that understands service businesses, not just retail.",
+  ],
+  testimonial: {
+    quote: "We finished jobs and forgot to bill some of them — I know that now because MartPoint shows me everything. Quotes, jobs and payments are finally in one place.",
+    author: "Emeka A.",
+    role: "MD, Facility Services Company, Port Harcourt",
+    initials: "EA",
+  },
+  faqs: [
+    { q: "Can I use it if I sell services, not products?", a: "Yes. MartPoint handles services, products or both — jobs, invoices and payments all in one place." },
+    { q: "Does it send quotations and invoices?", a: "Yes. Create professional quotes, convert them to invoices and record payments against each." },
+    { q: "Can I track which staff handled which job?", a: "Yes. Jobs and sales are attributed to staff members so accountability is built in." },
+    { q: "Does it track outstanding client balances?", a: "Yes. Every client's balance and payment history is visible at a glance." },
+  ],
+}
+
 export const distributors: IndustryData = {
   name: "Distributors",
+  formLabel: "Distributor",
   slug: "distributors",
   category: "Enterprise",
   product: "erp",
@@ -2639,6 +3423,7 @@ export const distributors: IndustryData = {
 
 export const wholesalers: IndustryData = {
   name: "Wholesalers",
+  formLabel: "Wholesaler",
   slug: "wholesalers",
   category: "Enterprise",
   product: "erp",
@@ -2694,6 +3479,7 @@ export const wholesalers: IndustryData = {
 
 export const manufacturers: IndustryData = {
   name: "Manufacturers",
+  formLabel: "Manufacturer",
   slug: "manufacturers",
   category: "Enterprise",
   product: "erp",
@@ -2747,8 +3533,132 @@ export const manufacturers: IndustryData = {
   ],
 }
 
+export const nylonPolythene: IndustryData = {
+  name: "Nylon & Polythene Manufacturing",
+  slug: "nylon-polythene-manufacturing",
+  category: "Enterprise",
+  product: "erp",
+  description: "Control raw materials, production runs, waste and customer orders for nylon and polythene manufacturing plants.",
+  seo: {
+    title: "Nylon & Polythene Manufacturing ERP in Nigeria — MartPoint Enterprise",
+    description: "ERP for nylon and polythene manufacturers in Africa — raw material stock, extrusion and cutting runs, waste tracking and order management in one platform.",
+  },
+  hero: {
+    label: "MartPoint Enterprise",
+    headline: "From Resin to Rolls, Control Every Production Run",
+    paragraph: "Nylon and polythene plants lose margin in untracked resin, offcut waste and production runs nobody reconciles. MartPoint Enterprise connects raw materials, production, stock and orders so every kilogram is accounted for.",
+    ctaText: "Book an Enterprise Demo",
+    waQuery: "Hi, I run a nylon/polythene manufacturing plant and I'm interested in MartPoint Enterprise. Can we talk?",
+  },
+  painPoints: [
+    { icon: Package, title: "Raw Material Blindness", desc: "Resin, masterbatch and additives are issued to the floor without reconciliation. Stock is always estimated." },
+    { icon: Factory, title: "Production Runs Untracked", desc: "Extrusion and cutting runs are reported verbally. Output per machine per shift is a guess." },
+    { icon: AlertTriangle, title: "Waste & Offcut Losses", desc: "Trimmings and rejected rolls pile up uncounted — or leave the gate as free stock." },
+    { icon: Receipt, title: "Order-to-Delivery Gaps", desc: "Customer orders for sizes and gauges get mixed up between production and dispatch." },
+    { icon: BarChart3, title: "No True Cost per KG", desc: "Power, waste and material costs are never tied to output. You price on instinct." },
+    { icon: Building2, title: "Plant Data Silos", desc: "Multiple machines, shifts or plants run their own books. Consolidation takes days." },
+  ],
+  solutions: [
+    { icon: Package, title: "Raw Material Control", desc: "Issue and return resin and additives per run — real stock, not estimates." },
+    { icon: Factory, title: "Production Tracking", desc: "Log output, waste and downtime per machine, shift and product gauge." },
+    { icon: AlertTriangle, title: "Waste Accounting", desc: "Offcuts and rejects are recorded, and re-processable stock is tracked separately." },
+    { icon: Receipt, title: "Order & Dispatch Flow", desc: "From customer order to production allocation to delivery — one connected record." },
+    { icon: BarChart3, title: "Cost per Kilogram", desc: "Material, power and labour rolled into a true cost per kg of output." },
+    { icon: Building2, title: "Multi-Plant Visibility", desc: "Machines, shifts and plants consolidated in one live dashboard." },
+  ],
+  capabilities: [
+    { icon: Package, title: "Material Stock", desc: "Resin, masterbatch and additives issued and reconciled per run." },
+    { icon: Factory, title: "Production Runs", desc: "Output and downtime logged per machine, shift and gauge." },
+    { icon: AlertTriangle, title: "Waste & Regrind", desc: "Offcuts, rejects and recyclable material tracked." },
+    { icon: Receipt, title: "Order Management", desc: "Customer orders by size and gauge through to dispatch." },
+    { icon: BarChart3, title: "Costing per KG", desc: "True unit cost with material, power and waste included." },
+    { icon: Building2, title: "Multi-Plant", desc: "Consolidated reporting across plants and shifts." },
+  ],
+  whyMartPoint: [
+    "Built for African manufacturing: production runs, waste and material costing included.",
+    "Enterprise security with role-based access for floor staff, supervisors and management.",
+    "Scales from one extrusion line to multiple plants without re-platforming.",
+    "Local implementation team with manufacturing experience.",
+  ],
+  testimonial: {
+    quote: "We never knew our real cost per kilogram — resin vanished and waste was invisible. MartPoint showed us where the margin was leaking within the first month.",
+    author: "Engr. Tunde M.",
+    role: "GM, Nylon Manufacturing Plant, Ogun",
+    initials: "TM",
+  },
+  faqs: [
+    { q: "Can it calculate cost per kilogram of output?", a: "Yes. Raw material, power and waste figures roll into a true cost per kg for every production run." },
+    { q: "Does it track waste and recyclable offcuts?", a: "Yes. Rejects, trimmings and regrind stock are recorded separately so nothing disappears." },
+    { q: "Can it handle multiple machines or plants?", a: "Yes. Production is logged per machine and shift, and consolidated across plants in one dashboard." },
+    { q: "Does it manage customer orders by size and gauge?", a: "Yes. Orders are recorded with specifications and tracked through production to dispatch." },
+  ],
+}
+
+export const scientificLabSupplies: IndustryData = {
+  name: "Scientific & Laboratory Suppliers",
+  formLabel: "Scientific Equipment & Laboratory Supplies",
+  slug: "scientific-lab-supplies",
+  category: "Enterprise",
+  product: "erp",
+  description: "Distribute laboratory equipment, reagents and consumables with batch tracking, expiry control and institutional account management.",
+  seo: {
+    title: "Scientific & Laboratory Supplies ERP in Nigeria — MartPoint Enterprise",
+    description: "ERP for scientific equipment and laboratory supply companies — batch and expiry control, institutional accounts, tenders and order management in one platform.",
+  },
+  hero: {
+    label: "MartPoint Enterprise",
+    headline: "Supply Science With Precision",
+    paragraph: "Laboratory suppliers carry high-value, expiry-sensitive stock for hospitals, universities and research centres. MartPoint Enterprise keeps every batch, specification and institutional account under control.",
+    ctaText: "Book an Enterprise Demo",
+    waQuery: "Hi, I run a scientific/laboratory supplies business and I'm interested in MartPoint Enterprise. Can we talk?",
+  },
+  painPoints: [
+    { icon: Microscope, title: "Complex Catalogues", desc: "Thousands of SKUs with specifications, grades and pack sizes. Wrong-item shipments are costly." },
+    { icon: Snowflake, title: "Expiry & Storage Risk", desc: "Reagents and chemicals expire or need cold storage. Poor rotation means write-offs." },
+    { icon: Package, title: "Batch Traceability", desc: "Institutions demand batch records for recalls and audits. Paper trails are not enough." },
+    { icon: Receipt, title: "Institutional Credit", desc: "Hospitals and universities buy on contract terms with long payment cycles." },
+    { icon: ClipboardList, title: "Tender & Quote Chaos", desc: "Bids and quotations prepared ad hoc, tracked in inboxes, rarely followed through." },
+    { icon: BarChart3, title: "No Margin by Line", desc: "Equipment, reagents and consumables have wildly different margins you cannot compare." },
+  ],
+  solutions: [
+    { icon: FlaskConical, title: "Specification Catalogue", desc: "Every SKU carries grade, pack size, specification and storage requirements." },
+    { icon: Snowflake, title: "Expiry & Storage Control", desc: "FIFO rotation, expiry alerts and cold-storage flagging per item." },
+    { icon: Package, title: "Batch Traceability", desc: "Batch numbers recorded at receipt and tracked to each customer delivery." },
+    { icon: Receipt, title: "Institutional Accounts", desc: "Contract pricing, credit limits and long-cycle receivables per institution." },
+    { icon: ClipboardList, title: "Quotations & Tenders", desc: "Professional quotes and tender records converted to orders in one step." },
+    { icon: BarChart3, title: "Line Profitability", desc: "Margin by product line, customer and contract — visible daily." },
+  ],
+  capabilities: [
+    { icon: FlaskConical, title: "Spec Catalogue", desc: "SKUs with grades, pack sizes and specifications." },
+    { icon: Snowflake, title: "Expiry Control", desc: "FIFO rotation and alerts for expiry-sensitive stock." },
+    { icon: Package, title: "Batch Records", desc: "Full traceability from receipt to customer delivery." },
+    { icon: Receipt, title: "Contract Accounts", desc: "Institutional pricing, credit terms and receivables." },
+    { icon: ClipboardList, title: "Tenders & Quotes", desc: "Structured quotations and tender tracking." },
+    { icon: Building2, title: "Multi-Branch", desc: "Warehouses and sales offices on one platform." },
+  ],
+  whyMartPoint: [
+    "Built for scientific supply: batch traceability, expiry control and institutional accounts included.",
+    "Enterprise security with role-based access for warehouse, sales and finance teams.",
+    "Audit-ready records for institutional compliance and recalls.",
+    "Local implementation team with B2B distribution experience.",
+  ],
+  testimonial: {
+    quote: "Our hospital clients demand batch records for everything. MartPoint gives us traceability from receipt to delivery, and tender follow-ups no longer live in someone's inbox.",
+    author: "Dr. Chika N.",
+    role: "CEO, Laboratory Supplies Company, Lagos",
+    initials: "CN",
+  },
+  faqs: [
+    { q: "Can MartPoint track batch numbers for recalls?", a: "Yes. Batches are recorded at receipt and traced to each customer delivery, so recalls and audits are covered." },
+    { q: "Does it manage expiry dates on reagents?", a: "Yes. Expiry-sensitive items rotate FIFO with alerts before they become write-offs." },
+    { q: "Can it handle institutional credit terms?", a: "Yes. Contract pricing, credit limits and long-cycle receivables are tracked per institution." },
+    { q: "Does it support tenders and formal quotations?", a: "Yes. Quotations and tender records are kept in the system and convert to orders in one step." },
+  ],
+}
+
 export const frozenFoods: IndustryData = {
   name: "Frozen Foods",
+  formLabel: "Frozen Foods Retailer",
   slug: "frozen-foods",
   category: "Food & Grocery",
   product: "retail",
@@ -2807,6 +3717,7 @@ export const frozenFoods: IndustryData = {
 
 export const bukkaMamaPut: IndustryData = {
   name: "Bukka / Mama Put",
+  formLabel: "Buka / Mama Put",
   slug: "bukka-mama-put",
   category: "Restaurants & Food",
   product: "retail",
@@ -2865,16 +3776,17 @@ export const bukkaMamaPut: IndustryData = {
 
 export const allIndustries: IndustryData[] = [
   supermarkets, miniMarts, groceryStores, provisionStores, convenienceStores, frozenFoods,
-  restaurants, fastFood, bukkaMamaPut, bakeries, cakeShops, cafes, pizzaShops, shawarma, juiceBars, barsAndLounges,
-  pharmacies, medicalStores, clinics, hospitals, diagnosticCentres,
-  fashionStores, boutiques, shoeStores, cosmeticsStores, perfumeShops, beautyAndSalons, barbershops, jewelleryStores,
+  restaurants, fastFood, bukkaMamaPut, bakeries, cakeShops, cafes, pizzaShops, shawarma, juiceBars, canteenFoodCourt, butcherShop, barsAndLounges,
+  pharmacies, medicalStores, clinics, hospitals, diagnosticCentres, physiotherapy,
+  fashionStores, boutiques, shoeStores, cosmeticsStores, skincareOrganic, perfumeShops, beautyAndSalons, barbershops, beautySpa, makeupArtist, makeupStudio, jewelleryStores,
   electronicsStores, phoneShops, computerStores, gadgetStores, applianceStores,
   hardwareStores, paintStores, plumbingStores,
   agroDealers, feedStores,
   autoParts, tyreShops, automobile,
-  laundry, printing, tailoring,
-  digitalCreator,
-  distributors, wholesalers, manufacturers,
+  generalRetail, bookshop, furnitureStores,
+  laundry, printing, tailoring, serviceBusiness,
+  digitalCreator, onlineStore,
+  distributors, wholesalers, manufacturers, nylonPolythene, scientificLabSupplies,
   multiBranchRetail,
 ]
 
@@ -2895,15 +3807,17 @@ export const categoryOrder = [
   "Building Materials",
   "Agriculture",
   "Automotive",
+  "General & Specialty Retail",
   "Services",
   "Digital & Creative",
   "Enterprise",
 ]
 
-// All options used by forms. Includes dedicated industry pages + extras.
+// All options used by forms. Derived from the industry list — formLabel where a
+// business type spans multiple industry pages or needs a different form label —
+// plus extras not tied to a dedicated industry page.
 export const businessTypeOptions = [
-  ...allIndustries.map((i) => i.name),
+  ...new Set(allIndustries.map((i) => i.formLabel ?? i.name)),
   "Frozen Foods (Cow, Pig, Chicken, Fish)",
-  "Bukka / Mama Put",
   "Other",
 ]

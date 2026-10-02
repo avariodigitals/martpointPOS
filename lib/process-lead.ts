@@ -7,6 +7,7 @@ import {
   resolveCreatorRef,
   recordCreatorReferral,
 } from "@/lib/creator-attribution"
+import { resolveSubmissionToken } from "@/lib/creator-challenges"
 
 export interface LeadInput {
   fullName: string
@@ -23,6 +24,9 @@ export interface LeadInput {
   partnerCode?: string | null
   /** Creator referral code (MP-<digits>) — disjoint from partner codes. */
   creatorCode?: string | null
+  /** Submission-level tracking token (?s=sub_…) — resolves to the exact
+   *  challenge submission the visitor came from. */
+  creatorSubmissionToken?: string | null
   utm?: { source?: string | null; medium?: string | null; campaign?: string | null; content?: string | null } | null
   /** Platform-scoped dedupe key, e.g. "tiktok:12345". Requires migration 061. */
   externalId?: string | null
@@ -51,6 +55,7 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
     source,
     partnerCode,
     creatorCode,
+    creatorSubmissionToken,
     utm,
     externalId,
   } = input
@@ -66,6 +71,12 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
     typeof creatorCode === "string" && CREATOR_REF_PATTERN.test(creatorCode.trim())
       ? await resolveCreatorRef(creatorCode.trim())
       : null
+
+  // Submission-level attribution (?s=sub_…): resolves to the exact approved
+  // submission + challenge the visitor came through, when present and still
+  // owned by the referring creator.
+  const submissionRef = creatorSubmissionToken ? await resolveSubmissionToken(creatorSubmissionToken) : null
+  const validSubmissionRef = submissionRef && submissionRef.creatorId === creator?.id ? submissionRef : null
 
   const lead = {
     id: crypto.randomUUID(),
@@ -102,6 +113,8 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
       referring_partner_code: referringPartnerCode,
       referring_creator_code: creator?.referralCode ?? null,
       creator_id: creator?.id ?? null,
+      creator_challenge_id: validSubmissionRef?.challengeId ?? null,
+      creator_submission_id: validSubmissionRef?.submissionId ?? null,
       utm_source: utm?.source ?? null,
       utm_medium: utm?.medium ?? null,
       utm_campaign: utm?.campaign ?? null,
@@ -156,7 +169,10 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
       referralCode: creator.referralCode,
       eventType: "LEAD",
       leadId: lead.id,
+      challengeId: validSubmissionRef?.challengeId ?? null,
+      submissionId: validSubmissionRef?.submissionId ?? null,
       utm,
+      dedupeKey: `LEAD:${lead.id}`,
     })
   }
 
@@ -232,7 +248,7 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
         body: JSON.stringify({
           messaging_product: "whatsapp",
           recipient_type: "individual",
-          to: "+2348036028069",
+          to: "+2348037978230",
           type: "text",
           text: {
             body: `New MartPoint Lead:\n${fullName} — ${businessName}\nPhone: ${phone}\nProduct: ${productInterest}\n\nReply to follow up.`,

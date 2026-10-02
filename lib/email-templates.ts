@@ -2363,6 +2363,118 @@ Payment reference: {{paymentReference}}
 Best regards,
 MartPoint Creator Network`,
   },
+
+  {
+    key: "invoice_sent",
+    label: "Invoice",
+    description: "Invoice email sent to a business when an invoice is issued or resent.",
+    variables: ["contactName", "businessName", "invoiceNumber", "issueDate", "dueDate", "itemsSummary", "itemsHtml", "total", "balance", "notes"],
+    subject: "Invoice {{invoiceNumber}} from MartPoint — {{businessName}}",
+    text: `Hi {{contactName}},
+
+Please find your invoice for {{businessName}} below.
+
+Invoice: {{invoiceNumber}}
+Issued: {{issueDate}}
+Due: {{dueDate}}
+
+{{itemsSummary}}
+
+Total: {{total}}
+Balance due: {{balance}}
+
+{{notes}}
+
+A PDF copy of this invoice is attached.
+
+To pay by bank transfer, quote the invoice number as the payment reference and send proof of payment in reply to this email.
+
+Best regards,
+MartPoint Billing`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{contactName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Please find your invoice for <strong>{{businessName}}</strong> below.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin-bottom:24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="font-size:14px; color:#6b7280; padding-bottom:4px;">Invoice</td>
+                        <td align="right" style="font-size:15px; font-weight:600; color:#111827; padding-bottom:4px;">{{invoiceNumber}}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:14px; color:#6b7280; padding-bottom:4px;">Issued</td>
+                        <td align="right" style="font-size:15px; color:#111827; padding-bottom:4px;">{{issueDate}}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:14px; color:#6b7280; padding-bottom:4px;">Due</td>
+                        <td align="right" style="font-size:15px; font-weight:600; color:#111827; padding-bottom:4px;">{{dueDate}}</td>
+                      </tr>
+                    </table>
+                    <div style="border-top:1px solid #e5e7eb; margin:8px 0; padding-top:12px; font-size:14px; line-height:1.7; color:#374151;">{{itemsHtml}}</div>
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-top:1px solid #e5e7eb; margin-top:8px; padding-top:12px;">
+                      <tr>
+                        <td style="font-size:14px; color:#6b7280; padding-top:12px;">Total</td>
+                        <td align="right" style="font-size:15px; font-weight:600; color:#111827; padding-top:12px;">{{total}}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:14px; color:#6b7280;">Balance due</td>
+                        <td align="right" style="font-size:18px; font-weight:700; color:#0057FF;">{{balance}}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:14px; line-height:1.6; margin:0 0 16px; color:#374151;">{{notes}}</p>
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#6b7280;">
+                To pay by bank transfer, quote the invoice number as the payment reference and send proof of payment in reply to this email.
+              </p>`,
+      { eyebrow: "Billing", title: "Invoice {{invoiceNumber}}", signoff: "MartPoint Billing" }
+    ),
+  },
+
+  {
+    key: "invoice_payment_reminder",
+    label: "Invoice Payment Reminder",
+    description: "Payment reminder sent for an unpaid invoice (manual or automated).",
+    variables: ["contactName", "businessName", "invoiceNumber", "dueDate", "balance", "dueText"],
+    subject: "Payment reminder — Invoice {{invoiceNumber}} ({{balance}})",
+    text: `Hi {{contactName}},
+
+This is a friendly reminder that invoice {{invoiceNumber}} for {{businessName}} is {{dueText}}.
+
+Balance due: {{balance}}
+Due date: {{dueDate}}
+
+A PDF copy of the invoice is attached for reference.
+
+To pay by bank transfer, quote the invoice number as the payment reference and send proof of payment in reply to this email. If you have already paid, please disregard this message.
+
+Best regards,
+MartPoint Billing`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{contactName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                This is a friendly reminder that invoice <strong>{{invoiceNumber}}</strong> for <strong>{{businessName}}</strong> is {{dueText}}.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin-bottom:24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Balance due</p>
+                    <p style="font-size:22px; font-weight:700; color:#0057FF; margin:0 0 12px;">{{balance}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Due date</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{dueDate}}</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#6b7280;">
+                To pay by bank transfer, quote the invoice number as the payment reference and send proof of payment in reply to this email. If you have already paid, please disregard this message.
+              </p>`,
+      { eyebrow: "Billing", title: "Payment reminder", signoff: "MartPoint Billing" }
+    ),
+  },
 ]
 
 const templateMap = new Map(EMAIL_TEMPLATES.map((t) => [t.key, t]))

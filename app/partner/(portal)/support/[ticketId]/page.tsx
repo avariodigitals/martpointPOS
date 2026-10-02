@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, LifeBuoy, ArrowLeft, Send } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface BusinessInfo {
   business_name?: string | null
@@ -229,7 +230,7 @@ export default function PartnerSupportDetailPage({
                 </div>
                 <div>
                   <p className="text-muted-foreground">Category</p>
-                  <p className="font-medium">{ticket.category}</p>
+                  <p className="font-medium">{enumLabel(ticket.category)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Updated</p>
@@ -289,7 +290,7 @@ export default function PartnerSupportDetailPage({
                 <ul className="space-y-2 text-sm">
                   {events.map((e) => (
                     <li key={e.id} className="flex items-start gap-2 p-2 rounded-md bg-muted/20">
-                      <span className="font-medium">{e.event_type}</span>
+                      <span className="font-medium">{enumLabel(e.event_type)}</span>
                       {e.previous_value !== undefined && e.new_value !== undefined && e.previous_value !== null && e.new_value !== null && (
                         <span className="text-muted-foreground">
                           {e.previous_value} → {e.new_value}

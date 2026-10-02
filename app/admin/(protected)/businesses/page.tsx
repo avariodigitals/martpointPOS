@@ -29,6 +29,7 @@ interface Business {
 }
 
 import type { BusinessStatus, BusinessSource } from "@/lib/businesses"
+import { enumLabel } from "@/lib/utils"
 
 interface ConvertibleLead {
   id: string
@@ -371,7 +372,7 @@ export default function AdminBusinessesPage() {
                   <Link href={`/admin/businesses/${b.id}`} className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold">{b.businessName}</p>
-                      <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[b.status] || "bg-gray-100 text-gray-700"}`}>{b.status}</span>
+                      <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[b.status] || "bg-gray-100 text-gray-700"}`}>{enumLabel(b.status)}</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{b.primaryContactName} · {b.primaryEmail} · {b.primaryPhone}</p>
                     <p className="text-xs text-muted-foreground">{[b.city, b.state, b.country].filter(Boolean).join(", ") || "No location"} · {b.businessType || "No type"} · Source: {b.source}</p>

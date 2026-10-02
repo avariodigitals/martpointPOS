@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Play, Plus, X } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
+import { enumLabel } from "@/lib/utils"
 
 function formatNgn(n: number | string | undefined | null) {
   const v = typeof n === "string" ? Number.parseFloat(n) : Number(n)
@@ -585,7 +586,7 @@ export default function CommercialSectionPage() {
                   <tr className="border-b text-left text-muted-foreground">
                     {columns.slice(0, 8).map((c) => (
                       <th key={c} className="whitespace-nowrap px-3 py-2 font-medium capitalize">
-                        {c.replace(/_/g, " ")}
+                        {enumLabel(c)}
                       </th>
                     ))}
                     <th className="px-3 py-2 font-medium">Actions</th>

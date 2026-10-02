@@ -8,7 +8,7 @@ import autoTable from "jspdf-autotable"
  */
 
 export const BRAND_BLUE: [number, number, number] = [0, 87, 255]
-export const BRAND_COMPANY_LINES = ["MartPoint", "hello@martpoint.com.ng", "+234 803 602 8069", "www.martpoint.com.ng"]
+export const BRAND_COMPANY_LINES = ["MartPoint", "hello@martpoint.com.ng", "+234 803 797 8230", "www.martpoint.com.ng"]
 
 export const NOT_APPLICABLE = "Not applicable"
 export function orNA(value: string | null | undefined): string {

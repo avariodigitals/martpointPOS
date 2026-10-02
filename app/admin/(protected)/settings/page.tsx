@@ -162,15 +162,15 @@ export default function AdminSettingsPage() {
     priceText: "₦99,999 / Year",
     priceSubtext: "1 branch · 5 users · Standard Online Store included.",
     ctaText: "Get Started on WhatsApp",
-    ctaLink: "https://wa.me/+2348036028069",
+    ctaLink: "https://wa.me/+2348037978230",
   })
   const [header, setHeader] = useState<HeaderSettings>({
     logo: "/logo.webp",
     favicon: "/icon.webp",
     ctaText: "Book Demo",
-    ctaLink: "https://wa.me/+2348036028069",
+    ctaLink: "https://wa.me/+2348037978230",
     secondaryCtaText: "Request Quote",
-    secondaryCtaLink: "https://wa.me/+2348036028069",
+    secondaryCtaLink: "https://wa.me/+2348037978230",
   })
   const [footer, setFooter] = useState<FooterSettings>({
     logo: "/logo.webp",
@@ -190,13 +190,13 @@ export default function AdminSettingsPage() {
       usersIncluded: 5,
       branchAddonPrice: "₦50,000 / Year",
       ctaText: "Get Started",
-      ctaLink: "https://wa.me/+2348036028069",
+      ctaLink: "https://wa.me/+2348037978230",
     },
     cloudPlans: [
-      { id: "basic", name: "Basic", price: "₦99,999", badge: "", description: "For a single store getting started.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
-      { id: "standard", name: "Standard", price: "₦249,999", badge: "Popular", description: "For growing businesses with a few branches.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
-      { id: "premium", name: "Premium", price: "₦499,999", badge: "", description: "For established multi-branch retailers.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
-      { id: "enterprise-retail", name: "Enterprise Retail", price: "₦999,999", badge: "", description: "Our largest Retail Cloud capacity tier.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348036028069" },
+      { id: "basic", name: "Basic", price: "₦99,999", badge: "", description: "For a single store getting started.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348037978230" },
+      { id: "standard", name: "Standard", price: "₦249,999", badge: "Popular", description: "For growing businesses with a few branches.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348037978230" },
+      { id: "premium", name: "Premium", price: "₦499,999", badge: "", description: "For established multi-branch retailers.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348037978230" },
+      { id: "enterprise-retail", name: "Enterprise Retail", price: "₦999,999", badge: "", description: "Our largest Retail Cloud capacity tier.", ctaText: "Get Started", ctaLink: "https://wa.me/+2348037978230" },
     ],
     offline: {
       name: "MartPoint Retail Offline",
@@ -210,7 +210,7 @@ export default function AdminSettingsPage() {
       branchAddonPrice: "₦100,000 one-time",
       supportRenewal: "₦150,000 / Year",
       ctaText: "Request Offline Setup",
-      ctaLink: "https://wa.me/+2348036028069",
+      ctaLink: "https://wa.me/+2348037978230",
     },
     erp: [
       {
@@ -224,7 +224,7 @@ export default function AdminSettingsPage() {
         usersIncluded: 5,
         branchAddonPrice: "",
         ctaText: "Get Started",
-        ctaLink: "https://wa.me/+2348036028069",
+        ctaLink: "https://wa.me/+2348037978230",
       },
       {
         name: "Scale",
@@ -237,7 +237,7 @@ export default function AdminSettingsPage() {
         usersIncluded: 10,
         branchAddonPrice: "",
         ctaText: "Get Started",
-        ctaLink: "https://wa.me/+2348036028069",
+        ctaLink: "https://wa.me/+2348037978230",
       },
       {
         name: "Corporate",
@@ -492,7 +492,7 @@ export default function AdminSettingsPage() {
                   value={settings.whatsappNumber}
                   onChange={(e) => setSettings({ ...settings, whatsappNumber: e.target.value })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="+2348036028069"
+                  placeholder="+2348037978230"
                 />
               </div>
               <div>

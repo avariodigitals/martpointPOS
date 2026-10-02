@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Headset, ArrowLeft } from "lucide-react"
+import { enumLabel } from "@/lib/utils"
 
 interface SupportTicket {
   id: string
@@ -120,8 +121,8 @@ export default function BusinessSupportPage() {
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-semibold">{t.ticket_number}</p>
-                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[t.status]}`}>{t.status}</span>
-                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[t.priority]}`}>{t.priority}</span>
+                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[t.status]}`}>{enumLabel(t.status)}</span>
+                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[t.priority]}`}>{enumLabel(t.priority)}</span>
                       </div>
                       <p className="text-sm mt-0.5">{t.subject}</p>
                       <p className="text-xs text-muted-foreground">{t.category} · Opened {fmtDate(t.created_at)}</p>
@@ -156,7 +157,7 @@ export default function BusinessSupportPage() {
                 >
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-semibold">{t.ticket_number}</p>
-                    <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[t.status]}`}>{t.status}</span>
+                    <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[t.status]}`}>{enumLabel(t.status)}</span>
                   </div>
                   <p className="text-sm mt-0.5">{t.subject}</p>
                   <p className="text-xs text-muted-foreground">Resolved {fmtDate(t.resolved_at || t.created_at)}</p>

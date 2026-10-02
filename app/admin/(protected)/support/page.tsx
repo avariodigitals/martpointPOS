@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, LifeBuoy, ArrowRight, Plus, X } from "lucide-react"
+import { enumLabel, ticketStatusLabel } from "@/lib/utils"
 
 interface BusinessInfo {
   business_name?: string | null
@@ -255,7 +256,7 @@ export default function AdminSupportPage() {
                 <div>
                   <label className="block text-xs font-medium mb-1">Source</label>
                   <select value={source} onChange={(e) => setSource(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                    {SOURCES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+                    {SOURCES.map((s) => <option key={s} value={s}>{enumLabel(s)}</option>)}
                   </select>
                 </div>
               </div>
@@ -263,13 +264,13 @@ export default function AdminSupportPage() {
                 <div>
                   <label className="block text-xs font-medium mb-1">Category</label>
                   <select value={createCategory} onChange={(e) => setCreateCategory(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                    {CATEGORIES.filter((c) => c).map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
+                    {CATEGORIES.filter((c) => c).map((c) => <option key={c} value={c}>{enumLabel(c)}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1">Priority</label>
                   <select value={createPriority} onChange={(e) => setCreatePriority(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                    {PRIORITIES.filter((p) => p).map((p) => <option key={p} value={p}>{p}</option>)}
+                    {PRIORITIES.filter((p) => p).map((p) => <option key={p} value={p}>{enumLabel(p)}</option>)}
                   </select>
                 </div>
               </div>
@@ -320,19 +321,19 @@ export default function AdminSupportPage() {
             <div>
               <label className="block text-xs font-medium mb-1">Status</label>
               <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                {STATUSES.map((s) => <option key={s || "all"} value={s}>{s || "All"}</option>)}
+                {STATUSES.map((s) => <option key={s || "all"} value={s}>{s ? ticketStatusLabel(s) : "All"}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Priority</label>
               <select value={priority} onChange={(e) => setPriority(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                {PRIORITIES.map((p) => <option key={p || "all"} value={p}>{p || "All"}</option>)}
+                {PRIORITIES.map((p) => <option key={p || "all"} value={p}>{p ? enumLabel(p) : "All"}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Category</label>
               <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                {CATEGORIES.map((c) => <option key={c || "all"} value={c}>{c || "All"}</option>)}
+                {CATEGORIES.map((c) => <option key={c || "all"} value={c}>{c ? enumLabel(c) : "All"}</option>)}
               </select>
             </div>
             <div>
@@ -389,24 +390,24 @@ export default function AdminSupportPage() {
                       <td className="px-4 py-2">{t.business?.business_name || (t.creator ? `${t.creator.full_name} · Creator` : "—")}</td>
                       <td className="px-4 py-2 max-w-xs truncate">{t.subject}</td>
                       <td className="px-4 py-2">
-                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium bg-muted">
-                          {t.category}
+                        <span className="text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium bg-muted">
+                          {enumLabel(t.category)}
                         </span>
                       </td>
                       <td className="px-4 py-2">
-                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[t.priority] || "bg-gray-100"}`}>
-                          {t.priority}
+                        <span className={`text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[t.priority] || "bg-gray-100"}`}>
+                          {enumLabel(t.priority)}
                         </span>
                       </td>
                       <td className="px-4 py-2">
-                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[t.status] || "bg-gray-100"}`}>
-                          {t.status}
+                        <span className={`text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[t.status] || "bg-gray-100"}`}>
+                          {ticketStatusLabel(t.status)}
                         </span>
                       </td>
                       <td className="px-4 py-2">{t.admin?.name || "Unassigned"}</td>
                       <td className="px-4 py-2">
-                        <span className={`text-[10px] uppercase font-medium ${SLA_COLORS[t.sla_state || ""] || "text-muted-foreground"}`}>
-                          {t.sla_state || "—"}
+                        <span className={`text-[10px] font-medium ${SLA_COLORS[t.sla_state || ""] || "text-muted-foreground"}`}>
+                          {t.sla_state ? enumLabel(t.sla_state) : "—"}
                         </span>
                       </td>
                       <td className="px-4 py-2">

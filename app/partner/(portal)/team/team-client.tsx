@@ -11,6 +11,7 @@ import {
   type PartnerUserRole,
   partnerUserHasPermission,
 } from "@/lib/partner-permissions"
+import { enumLabel } from "@/lib/utils"
 
 interface PartnerUser {
   id: string
@@ -159,7 +160,7 @@ export function PartnerTeamClient({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full font-medium ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{u.status}</span>
+                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full font-medium ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{enumLabel(u.status)}</span>
                     {canManage && u.status === "ACTIVE" && (
                       <Button size="sm" variant="outline" onClick={() => updateStatus(u.id, "SUSPENDED")}><UserX className="w-3.5 h-3.5" /></Button>
                     )}

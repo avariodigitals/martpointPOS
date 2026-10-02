@@ -46,7 +46,7 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
   const defaults: PublicSiteSettings = {
     companyName: "MartPoint",
     contactEmail: "hello@martpoint.com.ng",
-    whatsappNumber: "+2348036028069",
+    whatsappNumber: "+2348037978230",
     phone: "+2348037978230",
     accountNumber: "",
     logo: "/logo.webp",

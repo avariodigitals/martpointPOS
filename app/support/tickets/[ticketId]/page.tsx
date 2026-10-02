@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, LifeBuoy, ArrowLeft, Send } from "lucide-react"
+import { enumLabel, ticketStatusLabel } from "@/lib/utils"
 
 interface Ticket {
   id: string
@@ -178,19 +179,19 @@ export default function CustomerTicketDetailPage({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
                 <p className="text-muted-foreground">Status</p>
-                <span className={`inline-flex text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[ticket.status] || "bg-gray-100"}`}>
-                  {ticket.status.replace(/_/g, " ")}
+                <span className={`inline-flex text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[ticket.status] || "bg-gray-100"}`}>
+                  {ticketStatusLabel(ticket.status, true)}
                 </span>
               </div>
               <div>
                 <p className="text-muted-foreground">Priority</p>
-                <span className={`inline-flex text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[ticket.priority] || "bg-gray-100"}`}>
-                  {ticket.priority}
+                <span className={`inline-flex text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[ticket.priority] || "bg-gray-100"}`}>
+                  {enumLabel(ticket.priority)}
                 </span>
               </div>
               <div>
                 <p className="text-muted-foreground">Category</p>
-                <p className="font-medium">{ticket.category.replace(/_/g, " ")}</p>
+                <p className="font-medium">{enumLabel(ticket.category)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Updated</p>
@@ -257,7 +258,7 @@ export default function CustomerTicketDetailPage({
               <ul className="space-y-2 text-sm">
                 {events.map((e) => (
                   <li key={e.id} className="flex items-start gap-2 p-2 rounded-md bg-muted/20">
-                    <span className="font-medium">{e.event_type.replace(/_/g, " ")}</span>
+                    <span className="font-medium">{enumLabel(e.event_type)}</span>
                     {e.previous_value !== null && e.new_value !== null && e.previous_value !== undefined && e.new_value !== undefined && (
                       <span className="text-muted-foreground">{e.previous_value} → {e.new_value}</span>
                     )}

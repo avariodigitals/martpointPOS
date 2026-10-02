@@ -23,10 +23,9 @@ interface LearningItem {
   videoUrl: string | null
   externalUrl: string | null
   durationSeconds: number | null
-  passScore: number
-  maxAttempts: number
-  questionsCount: number
-  businessType: string[] | null
+  assessmentConfig: { passingScore?: number; maxAttempts?: number; showIncorrect?: boolean }
+  questionCount: number
+  businessTypes: string[]
 }
 
 interface Question {
@@ -90,9 +89,9 @@ export default function AdminLearningPage() {
       durationSeconds: it.durationSeconds ? String(it.durationSeconds) : "",
       required: it.required, isOnboardingStep: it.isOnboardingStep,
       onboardingOrder: it.onboardingOrder ? String(it.onboardingOrder) : "",
-      sortOrder: String(it.sortOrder), passScore: String(it.passScore),
-      maxAttempts: String(it.maxAttempts),
-      businessType: (it.businessType || []).join(", "),
+      sortOrder: String(it.sortOrder), passScore: String(it.assessmentConfig?.passingScore ?? 70),
+      maxAttempts: String(it.assessmentConfig?.maxAttempts ?? 3),
+      businessType: (it.businessTypes || []).join(", "),
     })
     setMsg(null)
     setQuestionsFor(null)
@@ -114,9 +113,12 @@ export default function AdminLearningPage() {
       isOnboardingStep: form.isOnboardingStep,
       onboardingOrder: form.onboardingOrder ? Number(form.onboardingOrder) : null,
       sortOrder: Number(form.sortOrder) || 0,
-      passScore: Number(form.passScore) || 70,
-      maxAttempts: Number(form.maxAttempts) || 3,
-      businessType: form.businessType ? form.businessType.split(",").map((s) => s.trim()).filter(Boolean) : null,
+      assessmentConfig: {
+        passingScore: Number(form.passScore) || 70,
+        maxAttempts: Number(form.maxAttempts) || 3,
+        showIncorrect: true,
+      },
+      businessTypes: form.businessType ? form.businessType.split(",").map((s) => s.trim()).filter(Boolean) : [],
     }
     try {
       const url = editing === "new" ? "/api/admin/creators/learning" : `/api/admin/creators/learning/${editing}`
@@ -243,7 +245,7 @@ export default function AdminLearningPage() {
                       <p className="font-medium">{it.title}</p>
                       <p className="text-xs text-muted-foreground font-mono">{it.slug}</p>
                     </td>
-                    <td className="p-3 text-xs">{it.type}{it.type === "ASSESSMENT" ? ` · ${it.questionsCount}q` : ""}</td>
+                    <td className="p-3 text-xs">{it.type}{it.type === "ASSESSMENT" ? ` · ${it.questionCount}q` : ""}</td>
                     <td className="p-3 text-xs">{it.category}</td>
                     <td className="p-3 text-xs space-x-1">
                       {it.required && <span className="rounded-full bg-red-100 text-red-700 px-2 py-0.5">Required</span>}

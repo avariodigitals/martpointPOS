@@ -124,7 +124,12 @@ export async function listAllLearning(): Promise<LearningContent[]> {
     .select(LEARNING_SELECT)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false })
-  return (((data || []) as unknown as Record<string, unknown>[])).map(mapLearning)
+  const items = (((data || []) as unknown as Record<string, unknown>[])).map(mapLearning)
+  const { data: qs } = await supabase.from("creator_assessment_questions").select("content_id")
+  const counts = new Map<string, number>()
+  for (const q of qs || []) counts.set(q.content_id as string, (counts.get(q.content_id as string) ?? 0) + 1)
+  for (const it of items) it.questionCount = counts.get(it.id) ?? 0
+  return items
 }
 
 export async function getLearningBySlug(

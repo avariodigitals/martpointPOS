@@ -86,7 +86,7 @@ WHERE NOT EXISTS (
 INSERT INTO creator_learning_content (
   title, slug, type, category, description, body,
   required, is_onboarding_step, onboarding_order, sort_order, status,
-  pass_score, max_attempts
+  assessment_config
 )
 SELECT
   'Creator Onboarding Assessment',
@@ -95,7 +95,7 @@ SELECT
   'A short check that you are ready to participate in Creator Challenges.',
   'Answer the questions below. You need 70% to pass. If you do not pass, review the lessons and try again.',
   true, true, 11, 100, 'PUBLISHED',
-  70, 3
+  '{"passingScore":70,"maxAttempts":3,"showIncorrect":true}'::jsonb
 WHERE NOT EXISTS (
   SELECT 1 FROM creator_learning_content c WHERE c.slug = 'creator-onboarding-assessment'
 );

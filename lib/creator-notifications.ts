@@ -25,6 +25,7 @@ export type CreatorNotificationTemplate =
   | "creator_assessment_retry"
   | "creator_new_lesson"
   | "creator_new_resource"
+  | "creator_announcement"
   | "creator_challenge_announced"
   | "creator_submission_received"
   | "creator_submission_decision"

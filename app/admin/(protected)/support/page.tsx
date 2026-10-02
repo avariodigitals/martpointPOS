@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,6 +9,11 @@ import { Loader2, LifeBuoy, ArrowRight, Plus, X } from "lucide-react"
 
 interface BusinessInfo {
   business_name?: string | null
+}
+
+interface CreatorInfo {
+  full_name?: string | null
+  creator_id?: string | null
 }
 
 interface AdminInfo {
@@ -23,6 +29,7 @@ interface Ticket {
   priority: string
   status: string
   business?: BusinessInfo
+  creator?: CreatorInfo
   admin?: AdminInfo
   first_response_due_at?: string | null
   resolution_due_at?: string | null
@@ -32,7 +39,7 @@ interface Ticket {
 
 const STATUSES = ["", "NEW", "ASSIGNED", "IN_PROGRESS", "WAITING_CUSTOMER", "WAITING_PARTNER", "ESCALATED", "RESOLVED", "CLOSED", "CANCELLED"]
 const PRIORITIES = ["", "LOW", "NORMAL", "HIGH", "URGENT"]
-const CATEGORIES = ["", "SOFTWARE", "LOGIN_ACCOUNT", "POS", "INVENTORY", "PRODUCTS", "REPORTS", "ONLINE_STORE", "CONFIGURATION", "TRAINING", "BILLING", "LICENSING", "SECURITY", "PRIVACY_DATA", "HARDWARE_GUIDANCE", "FEATURE_REQUEST", "PARTNER_COMPLAINT", "OTHER"]
+const CATEGORIES = ["", "SOFTWARE", "LOGIN_ACCOUNT", "POS", "INVENTORY", "PRODUCTS", "REPORTS", "ONLINE_STORE", "CONFIGURATION", "TRAINING", "BILLING", "LICENSING", "SECURITY", "PRIVACY_DATA", "HARDWARE_GUIDANCE", "FEATURE_REQUEST", "PARTNER_COMPLAINT", "CREATOR_NETWORK", "OTHER"]
 const SOURCES = ["WHATSAPP", "EMAIL", "DIRECT", "PHONE", "PORTAL", "ADMIN", "OTHER"]
 
 const STATUS_COLORS: Record<string, string> = {
@@ -67,7 +74,8 @@ export default function AdminSupportPage() {
 
   const [status, setStatus] = useState("")
   const [priority, setPriority] = useState("")
-  const [category, setCategory] = useState("")
+  const searchParams = useSearchParams()
+  const [category, setCategory] = useState(searchParams.get("category") || "")
   const [search, setSearch] = useState("")
 
   const [params, setParams] = useState<URLSearchParams>(new URLSearchParams())
@@ -378,7 +386,7 @@ export default function AdminSupportPage() {
                   {tickets.map((t) => (
                     <tr key={t.id} className="border-t border-border">
                       <td className="px-4 py-2 font-medium">{t.ticket_number}</td>
-                      <td className="px-4 py-2">{t.business?.business_name || "—"}</td>
+                      <td className="px-4 py-2">{t.business?.business_name || (t.creator ? `${t.creator.full_name} · Creator` : "—")}</td>
                       <td className="px-4 py-2 max-w-xs truncate">{t.subject}</td>
                       <td className="px-4 py-2">
                         <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium bg-muted">

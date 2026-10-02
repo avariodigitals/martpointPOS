@@ -16,6 +16,8 @@ const DEFAULTS = {
   autoAiReview: true,
   requireOnboardingBeforeSubmissions: true,
   minimumAge: 18,
+  supportWhatsApp: "",
+  supportEmail: "",
 }
 
 const schema = z.object({
@@ -23,6 +25,8 @@ const schema = z.object({
   autoAiReview: z.boolean().optional(),
   requireOnboardingBeforeSubmissions: z.boolean().optional(),
   minimumAge: z.number().int().min(13).max(25).optional(),
+  supportWhatsApp: z.string().trim().max(30).optional(),
+  supportEmail: z.string().trim().email().max(200).or(z.literal("")).optional(),
 })
 
 export async function GET() {

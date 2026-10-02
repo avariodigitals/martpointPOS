@@ -17,10 +17,11 @@ export type SupportPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT"
 export type SupportTicket = {
   id: string
   ticket_number: string
-  business_id: string
+  business_id?: string | null
+  creator_id?: string | null
   partner_id?: string | null
   complained_about_partner_id?: string | null
-  created_by_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "SYSTEM"
+  created_by_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM"
   created_by_id?: string | null
   source: string
   category: string
@@ -43,7 +44,7 @@ export type SupportTicket = {
 export type SupportMessage = {
   id: string
   ticket_id: string
-  author_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "SYSTEM"
+  author_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM"
   author_id?: string | null
   message: string
   visibility: "PUBLIC" | "INTERNAL"
@@ -55,7 +56,7 @@ export type SupportEvent = {
   id: string
   ticket_id: string
   event_type: string
-  actor_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "SYSTEM"
+  actor_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM"
   actor_id?: string | null
   previous_value?: string | null
   new_value?: string | null
@@ -98,7 +99,7 @@ export type SupportAuditAction =
   | "SUPPORT_INTERNAL_NOTE_ADDED"
 
 export async function logSupportAudit(
-  actorType: "ADMIN" | "PARTNER" | "CUSTOMER" | "SYSTEM",
+  actorType: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM",
   actorId: string | null | undefined,
   action: SupportAuditAction,
   entityId: string,
@@ -233,6 +234,7 @@ export function isTicketVisibleToPartner(ticket: SupportTicket, partnerId: strin
 
 export async function canPartnerViewTicket(partnerId: string, ticket: SupportTicket, partnerUserId?: string): Promise<boolean> {
   if (!isTicketVisibleToPartner(ticket, partnerId)) return false
+  if (!ticket.business_id) return false // creator tickets are not partner-visible
   const access = await canPartnerAccessBusiness(partnerId, ticket.business_id, {
     partnerUserId,
     userPermission: "support:view_assigned",
@@ -253,10 +255,11 @@ export async function canPartnerManageTicket(partnerId: string, ticket: SupportT
    ───────────────────────────────────────────────────────────────────────────── */
 
 export async function createTicket(input: {
-  business_id: string
+  business_id?: string | null
+  creator_id?: string | null
   partner_id?: string | null
   complained_about_partner_id?: string | null
-  created_by_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "SYSTEM"
+  created_by_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM"
   created_by_id?: string | null
   source: string
   category: string
@@ -294,7 +297,7 @@ export async function createTicket(input: {
 
 export async function addMessage(
   ticketId: string,
-  authorType: "ADMIN" | "PARTNER" | "CUSTOMER" | "SYSTEM",
+  authorType: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM",
   authorId: string | null | undefined,
   message: string,
   visibility: "PUBLIC" | "INTERNAL" = "PUBLIC",
@@ -343,7 +346,7 @@ export async function addMessage(
 export async function addEvent(
   ticketId: string,
   eventType: string,
-  actorType: "ADMIN" | "PARTNER" | "CUSTOMER" | "SYSTEM",
+  actorType: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM",
   actorId: string | null | undefined,
   metadata?: Record<string, unknown>,
   previousValue?: string,

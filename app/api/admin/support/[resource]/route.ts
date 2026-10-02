@@ -3,6 +3,7 @@ import { getSession } from "@/lib/admin-auth"
 import { hasSupportAdminAction, isSensitiveSupportCategory } from "@/lib/support-permissions"
 import type { SupportAdminAction } from "@/lib/support-permissions"
 import { supabase } from "@/lib/supabase"
+import { pushCreatorNotification } from "@/lib/creator-notifications"
 import {
   createTicket,
   addMessage,
@@ -121,7 +122,7 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
       let q = supabase
         .from("support_tickets")
         .select(
-          "*, business:business_id (business_name, primary_contact_name, primary_email), admin:assigned_admin_user_id (name), partner:assigned_partner_id (display_name)"
+          "*, business:business_id (business_name, primary_contact_name, primary_email), creator:creator_id (full_name, creator_id, email), admin:assigned_admin_user_id (name), partner:assigned_partner_id (display_name)"
         )
         .order("created_at", { ascending: false })
 
@@ -147,8 +148,8 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
       const enriched = await Promise.all(
         visible.map(async (t: any) => {
           const slaState = await getSlaState(t.resolution_due_at as string | null)
-          const summary: any = { business: t.business }
-          if (id) {
+          const summary: any = { business: t.business, creator: t.creator }
+          if (id && t.business_id) {
             const [{ data: ent }, { data: sub }] = await Promise.all([
               supabase.from("business_entitlements").select("*").eq("business_id", t.business_id).maybeSingle(),
               supabase
@@ -181,7 +182,8 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
             (t: any) =>
               t.ticket_number?.toLowerCase().includes(s) ||
               t.subject?.toLowerCase().includes(s) ||
-              t.business?.business_name?.toLowerCase().includes(s)
+              t.business?.business_name?.toLowerCase().includes(s) ||
+              t.creator?.full_name?.toLowerCase().includes(s)
           )
         )
       }
@@ -355,6 +357,20 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         return err("Forbidden", 403)
       }
       const msg = await addMessage(data.ticketId, "ADMIN", actor.id, data.message, visibility, data.attachment_path)
+
+      // Creator tickets: notify the creator in-portal when the team replies publicly.
+      if (visibility === "PUBLIC") {
+        const { data: t } = await supabase.from("support_tickets").select("creator_id, ticket_number").eq("id", data.ticketId).maybeSingle()
+        if (t?.creator_id) {
+          void pushCreatorNotification({
+            creatorId: t.creator_id,
+            type: "SUPPORT",
+            title: `Reply on ticket ${t.ticket_number}`,
+            body: String(data.message).slice(0, 200),
+            link: `/creator/support/${data.ticketId}`,
+          })
+        }
+      }
       return ok(msg)
     }
 

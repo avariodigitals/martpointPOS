@@ -4,12 +4,15 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Settings } from "lucide-react"
+import { BroadcastCard } from "./broadcast-card"
 
 interface CreatorSettings {
   applicationsOpen: boolean
   autoAiReview: boolean
   requireOnboardingBeforeSubmissions: boolean
   minimumAge: number
+  supportWhatsApp: string
+  supportEmail: string
 }
 
 function Toggle({
@@ -44,6 +47,8 @@ export default function CreatorSettingsPage() {
     autoAiReview: true,
     requireOnboardingBeforeSubmissions: true,
     minimumAge: 18,
+    supportWhatsApp: "",
+    supportEmail: "",
   })
   const [message, setMessage] = useState("")
 
@@ -107,6 +112,33 @@ export default function CreatorSettingsPage() {
       </Card>
 
       <Card>
+        <CardHeader><CardTitle className="text-sm">Creator support contact</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Shown in the creator portal as direct contact for the Creator/Digital team. Leave blank to hide an option.
+          </p>
+          <div className="rounded-lg border p-4">
+            <label className="block text-sm font-medium mb-1">WhatsApp number</label>
+            <input
+              type="text" placeholder="+234 800 000 0000"
+              value={settings.supportWhatsApp}
+              onChange={(e) => setSettings((s) => ({ ...s, supportWhatsApp: e.target.value }))}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="rounded-lg border p-4">
+            <label className="block text-sm font-medium mb-1">Support email</label>
+            <input
+              type="email" placeholder="creators@martpoint.com.ng"
+              value={settings.supportEmail}
+              onChange={(e) => setSettings((s) => ({ ...s, supportEmail: e.target.value }))}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle className="text-sm">Automation</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <Toggle
@@ -123,6 +155,8 @@ export default function CreatorSettingsPage() {
           />
         </CardContent>
       </Card>
+
+      <BroadcastCard />
 
       <div className="flex items-center gap-3">
         <Button onClick={save} disabled={saving}>

@@ -54,6 +54,7 @@ export default function AdminCreatorDetailPage() {
   const [reason, setReason] = useState("")
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState("")
+  const [notif, setNotif] = useState({ title: "", body: "", sendEmail: false })
 
   const load = useCallback(() => {
     return fetch(`/api/admin/creators/creators/${id}`)
@@ -300,6 +301,40 @@ export default function AdminCreatorDetailPage() {
                   Remove Creator
                 </Button>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Send notification</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <input className={inputCls} placeholder="Title" value={notif.title} onChange={(e) => setNotif((n) => ({ ...n, title: e.target.value }))} />
+              <textarea className={inputCls} rows={3} placeholder="Message" value={notif.body} onChange={(e) => setNotif((n) => ({ ...n, body: e.target.value }))} />
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input type="checkbox" className="h-3.5 w-3.5" checked={notif.sendEmail} onChange={(e) => setNotif((n) => ({ ...n, sendEmail: e.target.checked }))} />
+                Also send as email
+              </label>
+              <Button
+                size="sm" className="w-full" disabled={busy || !notif.title.trim() || !notif.body.trim()}
+                onClick={async () => {
+                  setBusy(true)
+                  setToast("")
+                  try {
+                    const res = await fetch("/api/admin/creators/broadcast", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ audience: "SELECTED", creatorIds: [id], title: notif.title, body: notif.body, sendEmail: notif.sendEmail }),
+                    })
+                    const d = await res.json()
+                    setToast(res.ok ? "Notification sent." : d.error || "Failed to send.")
+                    if (res.ok) setNotif({ title: "", body: "", sendEmail: false })
+                  } finally {
+                    setBusy(false)
+                    setTimeout(() => setToast(""), 4000)
+                  }
+                }}
+              >
+                Send to this creator
+              </Button>
             </CardContent>
           </Card>
 

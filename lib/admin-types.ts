@@ -100,6 +100,7 @@ export const CREATOR_PERMISSIONS = [
   "creator.assessment.manage",
   "creator.report.view",
   "creator.settings.manage",
+  "creator.notifications.send",
 ] as const
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {

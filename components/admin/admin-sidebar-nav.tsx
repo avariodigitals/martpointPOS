@@ -12,6 +12,7 @@ import {
   FileText,
   MousePointerClick,
   HelpCircle,
+  LifeBuoy,
   Users,
   Funnel,
   Landmark,
@@ -133,6 +134,7 @@ const navItems: NavItem[] = [
   { href: "/admin/creators/kit", label: "Creator Kit", icon: FolderOpen, page: "creator.resource.manage", section: "Creator Network" },
   { href: "/admin/creators/guides", label: "Business Guides", icon: Building2, page: "creator.learning.manage", section: "Creator Network" },
   { href: "/admin/creators/faqs", label: "Creator FAQs", icon: HelpCircle, page: "creator.learning.manage", section: "Creator Network" },
+  { href: "/admin/support?category=CREATOR_NETWORK", label: "Creator Support", icon: LifeBuoy, page: "creator.view", section: "Creator Network" },
   { href: "/admin/creators/reports", label: "Reports", icon: BarChart3, page: "creator.report.view", section: "Creator Network" },
   { href: "/admin/creators/settings", label: "Creator Settings", icon: Settings, page: "creator.settings.manage", section: "Creator Network" },
 

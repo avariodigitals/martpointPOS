@@ -41,7 +41,8 @@ interface PartnerInfo {
 interface Ticket {
   id: string
   ticket_number: string
-  business_id: string
+  business_id?: string | null
+  creator_id?: string | null
   partner_id?: string | null
   subject: string
   description?: string | null
@@ -49,6 +50,7 @@ interface Ticket {
   priority: string
   status: string
   business?: BusinessSummary
+  creator?: { full_name?: string | null; creator_id?: string | null; email?: string | null }
   business_summary?: { business?: BusinessSummary; entitlement?: BusinessSummary["entitlement"]; subscription?: BusinessSummary["subscription"] }
   admin?: AdminInfo
   partner?: PartnerInfo
@@ -98,7 +100,7 @@ const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"]
 const CATEGORIES = [
   "SOFTWARE", "LOGIN_ACCOUNT", "POS", "INVENTORY", "PRODUCTS", "REPORTS", "ONLINE_STORE",
   "CONFIGURATION", "TRAINING", "BILLING", "LICENSING", "SECURITY", "PRIVACY_DATA",
-  "HARDWARE_GUIDANCE", "FEATURE_REQUEST", "PARTNER_COMPLAINT", "OTHER",
+  "HARDWARE_GUIDANCE", "FEATURE_REQUEST", "PARTNER_COMPLAINT", "CREATOR_NETWORK", "OTHER",
 ]
 
 const STATUS_COLORS: Record<string, string> = {
@@ -291,9 +293,15 @@ export default function AdminSupportDetailPage({
           <p className="text-muted-foreground">{ticket.subject}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => router.push(`/admin/businesses/${ticket.business_id}`)}>
-            Open Business
-          </Button>
+          {ticket.business_id ? (
+            <Button size="sm" variant="outline" onClick={() => router.push(`/admin/businesses/${ticket.business_id}`)}>
+              Open Business
+            </Button>
+          ) : ticket.creator_id ? (
+            <Button size="sm" variant="outline" onClick={() => router.push(`/admin/creators/creators/${ticket.creator_id}`)}>
+              Open Creator
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -420,7 +428,7 @@ export default function AdminSupportDetailPage({
             <CardContent className="space-y-3 text-sm">
               <div>
                 <p className="text-muted-foreground">Business</p>
-                <p className="font-medium">{summary?.business_name || "—"}</p>
+                <p className="font-medium">{summary?.business_name || (ticket.creator ? `${ticket.creator.full_name} · Creator` : "—")}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Contact</p>

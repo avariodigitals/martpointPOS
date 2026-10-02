@@ -2236,6 +2236,22 @@ MartPoint Creator Network`,
   },
 
   {
+    key: "creator_announcement",
+    label: "Creator Announcement",
+    description: "Custom broadcast message from MartPoint to creators.",
+    variables: ["fullName", "title", "body", "linkUrl", "portalUrl"],
+    subject: "{{title}}",
+    text: `Hi {{fullName}},
+
+{{body}}
+
+{{linkUrl}}
+
+Best regards,
+MartPoint Creator Network`,
+  },
+
+  {
     key: "creator_challenge_announced",
     label: "New Creator Challenge",
     description: "Announces a new challenge to creators.",

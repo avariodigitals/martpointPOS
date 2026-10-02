@@ -14,6 +14,7 @@ import {
   BookOpen,
   Map,
   HelpCircle,
+  LifeBuoy,
   Bell,
   User,
   LogOut,
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
   { href: "/creator/kit", label: "Creator Kit", icon: FolderOpen },
   { href: "/creator/knowledge-base", label: "Knowledge Base", icon: BookOpen },
   { href: "/creator/faq", label: "FAQ", icon: HelpCircle },
+  { href: "/creator/support", label: "Help & Support", icon: LifeBuoy },
   { href: "/creator/notifications", label: "Notifications", icon: Bell },
   { href: "/creator/profile", label: "Profile", icon: User },
 ]

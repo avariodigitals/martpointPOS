@@ -4,6 +4,11 @@ name: Apply Supabase migration
 # to the linked database using the SUPABASE_DB_URL repository secret —
 # the same connection the nightly backup uses. Actions logs provide the
 # audit trail; no credentials leave GitHub.
+#
+# Safety: requires typing the exact environment name to confirm the target.
+# There is currently only the production project — when a staging project
+# exists, add its connection string as a separate secret and extend the
+# environment input to choose between them.
 
 on:
   workflow_dispatch:
@@ -12,6 +17,12 @@ on:
         description: "Migration filename inside supabase/migrations/ (e.g. 068_creator_support.sql)"
         required: true
         type: string
+      environment:
+        description: "Target database — must be typed exactly"
+        required: true
+        type: choice
+        options:
+          - production
 
 concurrency:
   group: supabase-migrations
@@ -21,6 +32,9 @@ jobs:
   apply:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Use a GitHub Environment so required-reviewer protection can be added
+    # later without changing this file (Settings → Environments → production).
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v7
@@ -32,7 +46,7 @@ jobs:
             *[!a-zA-Z0-9._-]*|*..*|*/*) echo "Invalid filename: $FILE"; exit 1 ;;
           esac
           test -f "supabase/migrations/$FILE" || { echo "Not found: supabase/migrations/$FILE"; exit 1; }
-          echo "Applying: $FILE"
+          echo "Applying: $FILE → ${{ inputs.environment }}"
         env:
           FILE: ${{ inputs.file }}
 

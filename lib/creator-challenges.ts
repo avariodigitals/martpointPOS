@@ -603,6 +603,24 @@ export async function hasBlockingFlags(submissionId: string): Promise<boolean> {
 
 /* ───────────────────────────  Metrics  ─────────────────────────── */
 
+/** Challenge-level policy knobs read from creator_challenges.scoring_config:
+ *  - metricWindowDays: judge each submission on the snapshot nearest
+ *    published_at + N days (comparable window regardless of publish date)
+ *  - maxCashAwardsPerCreator: award-stacking cap (Pilot 001 = 1) */
+export interface ChallengePolicy {
+  metricWindowDays: number | null
+  maxCashAwardsPerCreator: number | null
+}
+export function challengePolicy(challenge: ChallengeRow): ChallengePolicy {
+  const cfg = challenge.scoring_config ?? {}
+  const wd = Number(cfg.metricWindowDays)
+  const cap = Number(cfg.maxCashAwardsPerCreator)
+  return {
+    metricWindowDays: Number.isFinite(wd) && wd > 0 ? wd : null,
+    maxCashAwardsPerCreator: Number.isFinite(cap) && cap > 0 ? cap : null,
+  }
+}
+
 /** Latest metric snapshot per submission, preferring snapshots captured at or
  *  before the cutoff; verified flag + source are preserved. Never mutates. */
 export async function latestMetricsForSubmission(
@@ -627,6 +645,60 @@ export async function latestMetricsForSubmission(
     : { data: null }
   const row = before?.[0] ?? (await base).data?.[0]
   return (row as MetricSnapshot | undefined) ?? null
+}
+
+/** Snapshot nearest to `published_at + windowDays`, never after the challenge
+ *  cutoff. Gives every submission a comparable measurement window regardless
+ *  of when in the period it was published. Falls back to the latest snapshot
+ *  at/before the cutoff, then to the earliest available. */
+export async function windowMetricsForSubmission(
+  submissionId: string,
+  publishedAt: string | null,
+  windowDays: number,
+  cutoff?: string | null,
+): Promise<MetricSnapshot | null> {
+  if (!isSupabaseConfigured()) return null
+  const { data } = await supabase
+    .from("creator_submission_metrics")
+    .select("*")
+    .eq("submission_id", submissionId)
+    .lte("captured_at", cutoff ?? "9999-12-31")
+    .order("captured_at", { ascending: true })
+  const rows = (data ?? []) as MetricSnapshot[]
+  if (rows.length === 0) return null
+  if (!publishedAt) return rows[rows.length - 1]
+  const target = new Date(publishedAt).getTime() + windowDays * 86400_000
+  const atOrBefore = rows.filter((m) => new Date(m.captured_at).getTime() <= target)
+  return atOrBefore.length ? atOrBefore[atOrBefore.length - 1] : rows[0]
+}
+
+/** Lead statuses treated as MartPoint-verified qualified enquiries. Anything
+ *  below Qualified is a raw submission — tracked, but it does not decide
+ *  conversion awards. */
+const QUALIFIED_LEAD_STATUSES = ["Qualified", "Proposal", "Won"]
+
+/** LEAD/DEMO referrals whose linked lead reached a qualified status. */
+export async function qualifiedOutcomeCounts(submissionId: string) {
+  const { data } = await supabase
+    .from("creator_referrals")
+    .select("event_type, lead_id")
+    .eq("submission_id", submissionId)
+    .in("event_type", ["LEAD", "DEMO"])
+    .not("lead_id", "is", null)
+  const leadIds = [...new Set((data ?? []).map((r) => r.lead_id as string))]
+  if (leadIds.length === 0) return { leads: 0, demos: 0 }
+  const { data: leadRows } = await supabase
+    .from("leads").select("id, status").in("id", leadIds)
+  const qualified = new Set(
+    (leadRows ?? []).filter((l) => QUALIFIED_LEAD_STATUSES.includes(l.status as string)).map((l) => l.id),
+  )
+  let leads = 0, demos = 0
+  for (const r of data ?? []) {
+    if (!qualified.has(r.lead_id as string)) continue
+    if (r.event_type === "LEAD") leads++
+    else demos++
+  }
+  return { leads, demos }
 }
 
 export async function recordMetricSnapshot(
@@ -786,7 +858,12 @@ export interface AwardCandidate {
   demos: number
   signups: number
   conversions: number
+  qualifiedLeads: number
+  qualifiedDemos: number
   followers: number | null
+  /** APPLICATION_UNVERIFIED when the baseline comes from the creator's
+   *  application form (self-reported) rather than MartPoint performance data. */
+  baselineSource: "APPLICATION_UNVERIFIED" | null
   computedScore: number
   scoreBreakdown: Record<string, number>
   metricsVerified: boolean
@@ -856,12 +933,16 @@ export async function computeAwardCandidates(
 
   const cutoff = challenge.performance_cutoff
   const cfg = award.scoring_config ?? {}
+  const policy = challengePolicy(challenge)
   const candidates: AwardCandidate[] = []
 
   for (const sub of approved) {
     if (disqualified.has(sub.creator_id)) continue
-    const metrics = await latestMetricsForSubmission(sub.id, cutoff)
+    const metrics = policy.metricWindowDays
+      ? await windowMetricsForSubmission(sub.id, sub.published_at, policy.metricWindowDays, cutoff)
+      : await latestMetricsForSubmission(sub.id, cutoff)
     const refs = await referralCountsForSubmission(sub.id)
+    const qualified = await qualifiedOutcomeCounts(sub.id)
     const fl = flagsBySub.get(sub.id) ?? { count: 0, blocking: false }
 
     const views = num(metrics?.views)
@@ -879,6 +960,7 @@ export async function computeAwardCandidates(
 
     const computed = computeScore(award.award_type, cfg, {
       views, engagement, clicks, leads, demos, signups, conversions,
+      qualifiedLeads: qualified.leads, qualifiedDemos: qualified.demos,
       followers, judgeScore, verified: metrics?.verified ?? refs.clicks + refs.leads > 0,
     })
 
@@ -891,7 +973,10 @@ export async function computeAwardCandidates(
       platform: sub.platform,
       verifiedViews: views,
       engagement, clicks, leads, demos, signups, conversions,
+      qualifiedLeads: qualified.leads,
+      qualifiedDemos: qualified.demos,
       followers,
+      baselineSource: followers != null ? "APPLICATION_UNVERIFIED" : null,
       computedScore: computed.total,
       scoreBreakdown: computed.breakdown,
       metricsVerified: metrics?.verified ?? false,
@@ -918,6 +1003,8 @@ interface ScoreInputs {
   demos: number
   signups: number
   conversions: number
+  qualifiedLeads: number
+  qualifiedDemos: number
   followers: number | null
   judgeScore: number | null
   verified: boolean
@@ -938,10 +1025,13 @@ function computeScore(
       break
     }
     case "CONVERSION": {
-      breakdown.leads = m.leads * w("leadsWeight", 1)
-      breakdown.demos = m.demos * w("demosWeight", 2)
+      // Only MartPoint-verified qualified enquiries decide this award; raw
+      // form submissions are a weak tiebreaker signal at most.
+      breakdown.qualifiedLeads = m.qualifiedLeads * w("qualifiedLeadsWeight", 2)
+      breakdown.qualifiedDemos = m.qualifiedDemos * w("qualifiedDemosWeight", 5)
       breakdown.signups = m.signups * w("signupsWeight", 3)
-      breakdown.conversions = m.conversions * w("conversionsWeight", 5)
+      breakdown.conversions = m.conversions * w("conversionsWeight", 8)
+      breakdown.rawLeads = (m.leads + m.demos) * w("rawWeight", 0.1)
       break
     }
     case "CREATIVE": {
@@ -1005,6 +1095,36 @@ export async function finalizeAwardWinners(
   for (const w of winners) {
     if (w.submissionId && (await hasBlockingFlags(w.submissionId))) {
       return { ok: false, error: "A selected winner's submission has unresolved high-severity flags. Review flags before finalising." }
+    }
+  }
+
+  // Award-stacking cap (e.g. Pilot 001: one cash award per creator). Awards
+  // are expected to be finalised in precedence order (sort_order); when a
+  // creator already holds a cash award, the admin must pick the next-ranked
+  // candidate for subsequent cash awards. Non-cash awards are unaffected.
+  const policy = challengePolicy(challenge)
+  if (policy.maxCashAwardsPerCreator != null && (award.cash_amount_kobo ?? 0) > 0) {
+    const { data: cashWinners } = await supabase
+      .from("creator_challenge_winners")
+      .select("creator_id, creator_challenge_awards!inner(title, cash_amount_kobo)")
+      .eq("challenge_id", challenge.id)
+      .gt("creator_challenge_awards.cash_amount_kobo", 0)
+    const held = new Map<string, string>()
+    for (const w of cashWinners ?? []) {
+      held.set(w.creator_id as string, (w.creator_challenge_awards as { title?: string } | null)?.title ?? "a cash award")
+    }
+    const heldCount = new Map<string, number>()
+    for (const w of cashWinners ?? []) {
+      heldCount.set(w.creator_id as string, (heldCount.get(w.creator_id as string) ?? 0) + 1)
+    }
+    for (const w of winners) {
+      const existing = heldCount.get(w.creatorId) ?? 0
+      if (existing >= policy.maxCashAwardsPerCreator) {
+        return {
+          ok: false,
+          error: `This creator already holds cash award "${held.get(w.creatorId)}" — the challenge caps cash awards at ${policy.maxCashAwardsPerCreator} per creator. Apply award precedence and select the next-ranked candidate.`,
+        }
+      }
     }
   }
 

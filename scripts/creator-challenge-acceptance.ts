@@ -132,6 +132,7 @@ async function main() {
           terms: `${QA_TAG} terms: joining does not guarantee a reward. MartPoint decides winners.`,
           leaderboardVisible: true,
           minSubmissions: 1, maxSubmissions: 3,
+          scoringConfig: { metricWindowDays: 7, maxCashAwardsPerCreator: 1 },
         },
       }),
     })
@@ -157,7 +158,7 @@ async function main() {
       body: JSON.stringify({
         action: "replace_awards", awards: [
           { awardType: "OVERALL", title: "QA Overall Creator", winnersCount: 1, cashAmountNaira: 1, nonCashReward: "QA badge", judgingCriteria: "Combined score" },
-          { awardType: "RISING", title: "QA Rising Creator", winnersCount: 1, nonCashReward: "QA shout-out" },
+          { awardType: "RISING", title: "QA Rising Creator", winnersCount: 1, cashAmountNaira: 1, nonCashReward: "QA shout-out" },
         ],
       }),
     })
@@ -431,12 +432,18 @@ async function main() {
     const { body: reward } = await db(`creator_rewards?id=eq.${winRow?.[0]?.reward_id}&select=source,status,award_id,creator_id`)
     check("reward is PENDING CHALLENGE_AWARD", reward?.[0]?.source === "CHALLENGE_AWARD" && reward?.[0]?.status === "PENDING", JSON.stringify(reward))
 
-    // RISING award — multiple winners allowed test via winners_count? it's 1; finalize it too
+    // Cash-award cap (maxCashAwardsPerCreator=1): A already holds OVERALL cash
     r = await api(`/api/admin/creators/challenges/${challengeId}/winners`, adminCookie, {
       method: "POST",
       body: JSON.stringify({ awardId: awardRisingId, winners: [{ creatorId: CREATOR_A.id, position: 1 }], confirm: true }),
     })
-    check("second award finalised", r.status === 200, JSON.stringify(r.body)?.slice(0, 120))
+    check("second cash award to same creator blocked", r.status === 400, `status=${r.status} ${JSON.stringify(r.body)?.slice(0, 140)}`)
+
+    r = await api(`/api/admin/creators/challenges/${challengeId}/winners`, adminCookie, {
+      method: "POST",
+      body: JSON.stringify({ awardId: awardRisingId, winners: [{ creatorId: creatorBId, position: 1 }], confirm: true }),
+    })
+    check("cash award to a different creator allowed", r.status === 200, JSON.stringify(r.body)?.slice(0, 120))
 
     /* ═══ 14. Communications ═══ */
     console.log("13. Communications")

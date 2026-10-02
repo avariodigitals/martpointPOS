@@ -13,3 +13,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Non-200 = keep last known state on installs (fail-open) — never return `active:0` on a backend error.
 - Mapping lives in `lib/status-feed.ts` (tested in `__tests__/status-feed.test.ts`): a `scheduled` maintenance announces on installs immediately (banner shows the window, e.g. "… · Oct 5, 01:00 → Oct 5, 03:00 WAT") and drops off once `scheduled_until` passes; `verifying` maps to `monitoring`; a live incident outranks a maintenance window, then impact rank, then newest.
 - The banner links to `/status` (public page) with `target="_blank"`.
+
+## Creator Network — deferred enhancements
+- Admin cannot create a support ticket on behalf of a creator (admin ticket create requires `business_id`; creator tickets require `creator_id` + `CREATOR_NETWORK` per `support_tickets_owner_check`/`support_tickets_creator_category_check` in migration 068). Revisit only if staff start logging creator calls/WhatsApp conversations formally.

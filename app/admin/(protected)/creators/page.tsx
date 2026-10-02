@@ -21,13 +21,15 @@ interface Stats {
   totalLeads: number
   rewardsPaidKobo: number
   learning?: {
-    startedOnboarding: number
-    completedOnboarding: number
+    totalCreators: number
+    started: number
+    completed: number
     completionRate: number
-    avgCompletionHours: number | null
+    avgCompletionDays: number | null
     assessmentAttempts: number
+    assessmentPasses: number
     assessmentPassRate: number
-    incompleteRequired: { title: string; pending: number }[]
+    incompleteLessons: { contentId: string; title: string; incomplete: number }[]
   }
 }
 
@@ -81,7 +83,7 @@ export default function CreatorsDashboardPage() {
         <Card>
           <CardContent className="p-5">
             <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><MapPin className="w-4 h-4" /> Creators by state</h3>
-            {!stats || stats.creatorsByState.length === 0 ? (
+            {!stats?.creatorsByState?.length ? (
               <p className="text-sm text-muted-foreground">No creators yet.</p>
             ) : (
               <ul className="space-y-2">
@@ -98,7 +100,7 @@ export default function CreatorsDashboardPage() {
         <Card>
           <CardContent className="p-5">
             <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><MapPin className="w-4 h-4" /> Applications by state</h3>
-            {!stats || stats.applicationsByState.length === 0 ? (
+            {!stats?.applicationsByState?.length ? (
               <p className="text-sm text-muted-foreground">No applications yet.</p>
             ) : (
               <ul className="space-y-2">
@@ -119,10 +121,10 @@ export default function CreatorsDashboardPage() {
               <p className="text-sm text-muted-foreground">No learning data yet.</p>
             ) : (
               <ul className="space-y-2 text-sm">
-                <li className="flex justify-between"><span>Started onboarding</span><span className="font-semibold">{stats.learning.startedOnboarding}</span></li>
-                <li className="flex justify-between"><span>Completed</span><span className="font-semibold">{stats.learning.completedOnboarding}</span></li>
+                <li className="flex justify-between"><span>Started onboarding</span><span className="font-semibold">{stats.learning.started}</span></li>
+                <li className="flex justify-between"><span>Completed</span><span className="font-semibold">{stats.learning.completed}</span></li>
                 <li className="flex justify-between"><span>Completion rate</span><span className="font-semibold">{stats.learning.completionRate}%</span></li>
-                <li className="flex justify-between"><span>Avg. time to complete</span><span className="font-semibold">{stats.learning.avgCompletionHours != null ? `${stats.learning.avgCompletionHours}h` : "—"}</span></li>
+                <li className="flex justify-between"><span>Avg. time to complete</span><span className="font-semibold">{stats.learning.avgCompletionDays != null ? `${stats.learning.avgCompletionDays}d` : "—"}</span></li>
                 <li className="flex justify-between"><span>Assessment pass rate</span><span className="font-semibold">{stats.learning.assessmentPassRate}%</span></li>
               </ul>
             )}
@@ -131,14 +133,14 @@ export default function CreatorsDashboardPage() {
         <Card>
           <CardContent className="p-5">
             <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><ListChecks className="w-4 h-4" /> Required lessons pending</h3>
-            {!stats?.learning || stats.learning.incompleteRequired.length === 0 ? (
+            {!stats?.learning?.incompleteLessons?.length ? (
               <p className="text-sm text-muted-foreground">All active creators have completed required lessons — or none are configured.</p>
             ) : (
               <ul className="space-y-2">
-                {stats.learning.incompleteRequired.slice(0, 10).map((l) => (
-                  <li key={l.title} className="flex items-center justify-between text-sm">
+                {stats.learning.incompleteLessons.slice(0, 10).map((l) => (
+                  <li key={l.contentId} className="flex items-center justify-between text-sm">
                     <span className="text-foreground">{l.title}</span>
-                    <span className="font-semibold">{l.pending} pending</span>
+                    <span className="font-semibold">{l.incomplete} pending</span>
                   </li>
                 ))}
               </ul>

@@ -103,42 +103,42 @@ WHERE NOT EXISTS (
 INSERT INTO creator_assessment_questions (
   content_id, question, type, options, correct_keys, sort_order, feedback
 )
-SELECT a.id, q.question, q.type, q.options::jsonb, q.correct_keys::jsonb, q.sort_order, q.feedback
+SELECT a.id, q.question, q.type, q.options::jsonb, q.correct_keys::text[], q.sort_order, q.feedback
 FROM creator_learning_content a
-JOIN (VALUES
+CROSS JOIN (VALUES
   (
     'What should you use when showing the MartPoint product in your content?',
     'SINGLE',
     '[{"key":"a","text":"Screenshots I design myself to look like MartPoint"},{"key":"b","text":"Official screenshots and assets from the Creator Kit"},{"key":"c","text":"Any app screenshot that looks similar"}]',
-    '["b"]', 1,
+    '{b}', 1,
     'Always use official assets from the Creator Kit — never fabricate the interface.'
   ),
   (
     'Joining the Creator Network guarantees monthly payment.',
     'TRUE_FALSE',
     '[]',
-    '["false"]', 2,
+    '{false}', 2,
     'Joining does not guarantee payment — earnings come from challenge rewards and referral programmes under published terms.'
   ),
   (
     'Which of these should lead your content?',
     'SINGLE',
     '[{"key":"a","text":"A full feature list"},{"key":"b","text":"A real problem the business owner faces"},{"key":"c","text":"How much MartPoint costs"}]',
-    '["b"]', 3,
+    '{b}', 3,
     'Lead with the business problem, not the feature list.'
   ),
   (
     'Select all that apply before submitting challenge content:',
     'MULTI',
     '[{"key":"a","text":"The content follows the challenge brief"},{"key":"b","text":"The link is publicly viewable"},{"key":"c","text":"I used approved MartPoint assets"},{"key":"d","text":"I promised merchants guaranteed profit"}]',
-    '["a","b","c"]', 4,
+    '{a,b,c}', 4,
     'Submissions must follow the brief, be publicly viewable and use approved assets. Never promise guaranteed profit.'
   ),
   (
     'Who makes the final decision on your content submission?',
     'SINGLE',
     '[{"key":"a","text":"An automated system"},{"key":"b","text":"The MartPoint review team"},{"key":"c","text":"Other creators"}]',
-    '["b"]', 5,
+    '{b}', 5,
     'All submissions are reviewed by the MartPoint team.'
   )
 ) AS q(question, type, options, correct_keys, sort_order, feedback)

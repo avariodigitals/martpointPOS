@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,12 +41,14 @@ export function TicketThread({ ticket, messages }: { ticket: Ticket; messages: M
   const router = useRouter()
   const [reply, setReply] = useState("")
   const [busy, setBusy] = useState(false)
+  const inFlight = useRef(false)
   const [error, setError] = useState("")
   const closed = ticket.status === "CLOSED" || ticket.status === "CANCELLED"
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
-    if (!reply.trim()) return
+    if (!reply.trim() || inFlight.current) return
+    inFlight.current = true
     setBusy(true)
     setError("")
     try {
@@ -63,6 +65,7 @@ export function TicketThread({ ticket, messages }: { ticket: Ticket; messages: M
       setReply("")
       router.refresh()
     } finally {
+      inFlight.current = false
       setBusy(false)
     }
   }

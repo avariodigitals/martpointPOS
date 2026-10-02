@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Megaphone } from "lucide-react"
@@ -20,6 +20,7 @@ export function BroadcastCard() {
   const [form, setForm] = useState({ title: "", body: "", link: "" })
   const [sendEmail, setSendEmail] = useState(false)
   const [busy, setBusy] = useState(false)
+  const inFlight = useRef(false)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
@@ -30,6 +31,8 @@ export function BroadcastCard() {
   }, [])
 
   async function send() {
+    if (inFlight.current) return // synchronous guard against double-click before `busy` re-renders
+    inFlight.current = true
     setBusy(true)
     setMessage(null)
     try {
@@ -53,6 +56,7 @@ export function BroadcastCard() {
       setMessage({ ok: true, text: `Sent to ${data.recipients} creator${data.recipients === 1 ? "" : "s"}${data.emailsSent ? ` · ${data.emailsSent} emails` : ""}.` })
       setForm({ title: "", body: "", link: "" })
     } finally {
+      inFlight.current = false
       setBusy(false)
     }
   }

@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, LifeBuoy, MessageCircle, Mail, Plus } from "lucide-react"
+import { Loader2, LifeBuoy, MessageCircle, Mail, Plus, Clock } from "lucide-react"
 
 const TOPICS = [
   "Account & Login",
@@ -43,16 +43,19 @@ export function SupportClient({
   creatorName,
   supportWhatsApp,
   supportEmail,
+  supportHours,
 }: {
   creatorName: string
   supportWhatsApp: string
   supportEmail: string
+  supportHours: string
 }) {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ topic: TOPICS[0], subject: "", message: "" })
   const [busy, setBusy] = useState(false)
+  const inFlight = useRef(false)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
   async function load() {
@@ -69,6 +72,8 @@ export function SupportClient({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (inFlight.current) return
+    inFlight.current = true
     setBusy(true)
     setMessage(null)
     try {
@@ -87,6 +92,7 @@ export function SupportClient({
       setCreating(false)
       load()
     } finally {
+      inFlight.current = false
       setBusy(false)
     }
   }
@@ -99,14 +105,32 @@ export function SupportClient({
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <LifeBuoy className="w-5 h-5" /> Help &amp; Support
+            <LifeBuoy className="w-5 h-5" /> Creator Support
           </h2>
-          <p className="text-muted-foreground">Talk to the MartPoint Creator Team — trackable tickets plus direct contact.</p>
+          <p className="text-muted-foreground">
+            Our Creator Team typically responds during MartPoint support hours{supportHours ? ` — ${supportHours}` : ""}.
+            Replies may not be instant, but every ticket is tracked until it&apos;s resolved.
+          </p>
         </div>
         {!creating && (
           <Button onClick={() => setCreating(true)}><Plus className="w-4 h-4 mr-1" /> New ticket</Button>
         )}
       </div>
+
+      <Card className="border-retail/30 bg-retail/5">
+        <CardContent className="pt-4 flex items-start gap-3">
+          <Clock className="w-4 h-4 text-retail mt-0.5 shrink-0" />
+          <div className="text-sm space-y-1">
+            <p className="font-medium">How to reach us</p>
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              <span className="font-medium text-foreground">Tickets (below)</span> are the official channel —
+              tracked, assigned and answered in order.{supportHours ? ` Support hours: ${supportHours}.` : ""}{" "}
+              {waDigits && <><span className="font-medium text-foreground">WhatsApp</span> is for quick assistance during those hours. </>}
+              {supportEmail && <><span className="font-medium text-foreground">Email</span> is available for formal communication.</>}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {(waDigits || supportEmail) && (
         <Card>
@@ -120,6 +144,7 @@ export function SupportClient({
                 className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
               >
                 <MessageCircle className="w-4 h-4 text-green-600" /> WhatsApp
+                <span className="text-[10px] text-muted-foreground font-normal">quick assistance</span>
               </a>
             )}
             {supportEmail && (
@@ -128,10 +153,11 @@ export function SupportClient({
                 className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
               >
                 <Mail className="w-4 h-4 text-retail" /> {supportEmail}
+                <span className="text-[10px] text-muted-foreground font-normal">formal</span>
               </a>
             )}
             <p className="w-full text-xs text-muted-foreground">
-              Prefer a trackable answer? Open a ticket below — you can follow the conversation and replies right here.
+              For anything you need answered or resolved, open a ticket — it&apos;s the channel we officially track and respond through.
             </p>
           </CardContent>
         </Card>
@@ -173,7 +199,9 @@ export function SupportClient({
           {loading ? (
             <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
           ) : tickets.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">No tickets yet — open one above or reach the team on WhatsApp.</p>
+            <p className="text-sm text-muted-foreground py-6 text-center">
+              No tickets yet — open one above{waDigits ? " or reach the team on WhatsApp" : ""}.
+            </p>
           ) : (
             <ul className="divide-y">
               {tickets.map((t) => (

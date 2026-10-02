@@ -9,10 +9,31 @@
 ALTER TABLE support_tickets
   ALTER COLUMN business_id DROP NOT NULL;
 
+-- ON DELETE RESTRICT (not SET NULL): creators are only ever status-changed
+-- (ACTIVE/SUSPENDED/REMOVED) — nothing hard-deletes them. RESTRICT makes any
+-- future hard-delete attempt fail loudly instead of orphaning ticket history.
 ALTER TABLE support_tickets
-  ADD COLUMN IF NOT EXISTS creator_id UUID REFERENCES creators(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS creator_id UUID REFERENCES creators(id) ON DELETE RESTRICT;
 
 CREATE INDEX IF NOT EXISTS support_tickets_creator_idx ON support_tickets (creator_id);
+
+-- Ownership integrity: every ticket has exactly one owner — a business XOR a
+-- creator. Existing rows verified: 0 rows in support_tickets at apply time,
+-- and every creation path (admin, customer portal, creator portal) always
+-- sets exactly one owner.
+ALTER TABLE support_tickets
+  DROP CONSTRAINT IF EXISTS support_tickets_owner_check;
+ALTER TABLE support_tickets
+  ADD CONSTRAINT support_tickets_owner_check
+  CHECK ((business_id IS NOT NULL) <> (creator_id IS NOT NULL));
+
+-- Category linkage: CREATOR_NETWORK ⇔ creator-owned. Prevents a creator ticket
+-- being filed under a business category and vice versa.
+ALTER TABLE support_tickets
+  DROP CONSTRAINT IF EXISTS support_tickets_creator_category_check;
+ALTER TABLE support_tickets
+  ADD CONSTRAINT support_tickets_creator_category_check
+  CHECK ((category = 'CREATOR_NETWORK') = (creator_id IS NOT NULL));
 
 -- created_by_type: add CREATOR
 ALTER TABLE support_tickets

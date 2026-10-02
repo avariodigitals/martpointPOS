@@ -331,4 +331,5 @@ export const AUDIT_ENTITIES = {
   CREATOR_GUIDE: "creator_business_guide",
   CREATOR_FAQ: "creator_faq",
   CREATOR_KB_LINK: "creator_kb_link",
+  CREATOR_SOCIAL_CHANGE_REQUEST: "creator_social_change_request",
 } as const

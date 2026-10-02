@@ -78,6 +78,7 @@ Content does **not** require the creator to personally own a MartPoint-powered b
 ## 7. Rising Creator baseline
 
 - Pilot 001 uses application-provided `followers` / `typical_views` (`creator_social_profiles`) as the baseline — internally flagged `baselineSource: APPLICATION_UNVERIFIED` in candidate data.
+- Declared social profiles are review-locked: creator add/edit/removal requests queue in `creator_social_change_requests` and apply only after `creator.manage` approval (Admin / Digital Marketer), so baselines cannot silently change post-approval.
 - Challenge performance is always measured/verified separately.
 - Future challenges should switch the baseline to MartPoint historical creator performance once a track record exists.
 - Suggested `scoring_config` on the RISING award: `{"minViews": 500, "minEngagement": 0, "engagementRateWeight": 100, "reachVsFollowingWeight": 10, "conversionsWeight": 2, "judgingWeight": 0.5}` — minimums prevent tiny-denominator wins.

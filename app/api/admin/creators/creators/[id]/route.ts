@@ -17,7 +17,7 @@ export async function GET(
   const creator = await getCreatorById(id)
   if (!creator) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const [notes, stats, socials, flags] = await Promise.all([
+  const [notes, stats, socials, flags, socialRequests] = await Promise.all([
     listCreatorAdminNotes({ creatorId: id }),
     getCreatorOverviewStats(id),
     isSupabaseConfigured()
@@ -26,7 +26,16 @@ export async function GET(
     isSupabaseConfigured()
       ? supabase.from("creator_flags").select("*").eq("creator_id", id).order("created_at", { ascending: false }).then((r) => r.data || [])
       : Promise.resolve([]),
+    isSupabaseConfigured()
+      ? supabase
+          .from("creator_social_change_requests")
+          .select("id, social_profile_id, request_type, payload, note, status, created_at")
+          .eq("creator_id", id)
+          .eq("status", "PENDING")
+          .order("created_at", { ascending: true })
+          .then((r) => r.data || [])
+      : Promise.resolve([]),
   ])
 
-  return NextResponse.json({ creator, notes, stats, socials, flags })
+  return NextResponse.json({ creator, notes, stats, socials, flags, socialRequests })
 }

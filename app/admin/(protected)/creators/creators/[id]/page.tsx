@@ -20,6 +20,11 @@ interface Stats {
 }
 interface Note { id: string; note: string; authorName: string | null; createdAt: string }
 interface Social { id: string; platform: string; profile_url: string; followers: number | null }
+interface SocialRequest {
+  id: string; social_profile_id: string | null; request_type: "ADD" | "UPDATE" | "REMOVE"
+  payload: { platform?: string; profileUrl?: string; username?: string | null; followers?: number | null }
+  note: string | null; status: string; created_at: string
+}
 interface Flag { id: string; type: string; severity: string; description: string; status: string; created_at: string }
 interface LearningProgressRow {
   contentId: string; title: string; type: string; required: boolean
@@ -94,6 +99,8 @@ export default function AdminCreatorDetailPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
   const [socials, setSocials] = useState<Social[]>([])
+  const [socialRequests, setSocialRequests] = useState<SocialRequest[]>([])
+  const [reqNotes, setReqNotes] = useState<Record<string, string>>({})
   const [flags, setFlags] = useState<Flag[]>([])
   const [learning, setLearning] = useState<LearningDetail | null>(null)
   const [reason, setReason] = useState("")
@@ -110,6 +117,7 @@ export default function AdminCreatorDetailPage() {
           setStats(d.stats)
           setNotes(d.notes || [])
           setSocials(d.socials || [])
+          setSocialRequests(d.socialRequests || [])
           setFlags(d.flags || [])
         }
       })
@@ -127,6 +135,7 @@ export default function AdminCreatorDetailPage() {
           setStats(d.stats)
           setNotes(d.notes || [])
           setSocials(d.socials || [])
+          setSocialRequests(d.socialRequests || [])
           setFlags(d.flags || [])
         }
         setLoading(false)
@@ -171,6 +180,26 @@ export default function AdminCreatorDetailPage() {
       const d = await res.json()
       setToast(res.ok ? `Creator ${status.toLowerCase().replace("_", " ")}` : d.error || "Failed")
       if (res.ok) await load()
+    } finally {
+      setBusy(false)
+      setTimeout(() => setToast(""), 5000)
+    }
+  }
+
+  async function decideSocialRequest(requestId: string, action: "approve" | "reject") {
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/admin/creators/social-requests/${requestId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, reviewNote: reqNotes[requestId]?.trim() || null }),
+      })
+      const d = await res.json()
+      setToast(res.ok ? `Request ${action === "approve" ? "approved" : "declined"}` : d.error || "Failed")
+      if (res.ok) {
+        setReqNotes((n) => { const next = { ...n }; delete next[requestId]; return next })
+        await load()
+      }
     } finally {
       setBusy(false)
       setTimeout(() => setToast(""), 5000)
@@ -322,6 +351,41 @@ export default function AdminCreatorDetailPage() {
                   </a>
                 </div>
               ))}
+
+              {socialRequests.length > 0 && (
+                <div className="pt-2 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Pending change requests</p>
+                  {socialRequests.map((r) => (
+                    <div key={r.id} className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-sm space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium">
+                          {enumLabel(r.request_type)} profile
+                          {r.payload.platform ? ` · ${enumLabel(r.payload.platform)}` : ""}
+                        </p>
+                        <span className="text-[10px] text-muted-foreground">{new Date(r.created_at).toLocaleDateString("en-GB")}</span>
+                      </div>
+                      {r.request_type !== "REMOVE" && r.payload.profileUrl && (
+                        <p className="text-xs break-all">
+                          {r.payload.profileUrl}
+                          {r.payload.username ? ` · ${r.payload.username}` : ""}
+                          {r.payload.followers != null ? ` · ${r.payload.followers.toLocaleString()} followers` : ""}
+                        </p>
+                      )}
+                      {r.note && <p className="text-xs text-muted-foreground italic">“{r.note}”</p>}
+                      <input
+                        className={inputCls}
+                        placeholder="Review note (required to decline)"
+                        value={reqNotes[r.id] || ""}
+                        onChange={(e) => setReqNotes((n) => ({ ...n, [r.id]: e.target.value }))}
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={busy} onClick={() => decideSocialRequest(r.id, "approve")}>Approve</Button>
+                        <Button size="sm" variant="outline" className="text-red-600" disabled={busy} onClick={() => decideSocialRequest(r.id, "reject")}>Decline</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

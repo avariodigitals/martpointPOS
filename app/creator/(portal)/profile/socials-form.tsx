@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Pencil, Trash2, Star, Check, X } from "lucide-react"
+import { Loader2, Plus, Pencil, Trash2, Star, Check, X, Clock } from "lucide-react"
 
 const PLATFORMS = [
   { value: "TIKTOK", label: "TikTok" },
@@ -28,22 +28,57 @@ export interface SocialRow {
   isPrimary: boolean
 }
 
+interface ChangeRequest {
+  id: string
+  requestType: "ADD" | "UPDATE" | "REMOVE"
+  payload: { platform?: string; profileUrl?: string; username?: string | null; followers?: number | null }
+  note: string | null
+  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED"
+  reviewNote: string | null
+  createdAt: string
+}
+
+const requestTypeLabel: Record<string, string> = {
+  ADD: "Add profile",
+  UPDATE: "Change profile",
+  REMOVE: "Remove profile",
+}
+
 interface Draft {
   platform: string
   profileUrl: string
   username: string
   followers: string
+  note: string
 }
 
-const emptyDraft: Draft = { platform: "TIKTOK", profileUrl: "", username: "", followers: "" }
+const emptyDraft: Draft = { platform: "TIKTOK", profileUrl: "", username: "", followers: "", note: "" }
 
 export function SocialsManager({ initial }: { initial: SocialRow[] }) {
   const [rows, setRows] = useState<SocialRow[]>(initial)
+  const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft>({ ...emptyDraft })
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+
+  useEffect(() => {
+    fetch("/api/creator/profile/socials")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.requests) setRequests(d.requests) })
+      .catch(() => {})
+  }, [])
+
+  async function refreshRequests() {
+    try {
+      const res = await fetch("/api/creator/profile/socials")
+      const d = res.ok ? await res.json() : null
+      if (d?.requests) setRequests(d.requests)
+    } catch {
+      // best-effort
+    }
+  }
 
   function draftPayload(d: Draft) {
     return {
@@ -51,6 +86,7 @@ export function SocialsManager({ initial }: { initial: SocialRow[] }) {
       profileUrl: d.profileUrl.trim(),
       username: d.username.trim() || null,
       followers: d.followers ? Number(d.followers) : null,
+      note: d.note.trim() || null,
     }
   }
 
@@ -65,13 +101,13 @@ export function SocialsManager({ initial }: { initial: SocialRow[] }) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setMessage({ ok: false, text: data.error || "Failed to add profile." })
+        setMessage({ ok: false, text: data.error || "Failed to submit request." })
         return
       }
-      setRows((r) => [...r, { id: data.id, isPrimary: false, ...draftPayload(draft) } as SocialRow])
       setDraft({ ...emptyDraft })
       setAdding(false)
-      setMessage({ ok: true, text: "Profile added." })
+      setMessage({ ok: true, text: "Request submitted — it appears once the MartPoint team approves it." })
+      await refreshRequests()
     } finally {
       setBusy(false)
     }
@@ -88,12 +124,12 @@ export function SocialsManager({ initial }: { initial: SocialRow[] }) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setMessage({ ok: false, text: data.error || "Failed to update profile." })
+        setMessage({ ok: false, text: data.error || "Failed to submit request." })
         return
       }
-      setRows((r) => r.map((x) => (x.id === id ? { ...x, ...draftPayload(draft) } : x)))
       setEditingId(null)
-      setMessage({ ok: true, text: "Profile updated." })
+      setMessage({ ok: true, text: "Change request submitted for review." })
+      await refreshRequests()
     } finally {
       setBusy(false)
     }
@@ -104,8 +140,23 @@ export function SocialsManager({ initial }: { initial: SocialRow[] }) {
     setMessage(null)
     try {
       const res = await fetch(`/api/creator/profile/socials?id=${id}`, { method: "DELETE" })
-      if (res.ok) setRows((r) => r.filter((x) => x.id !== id))
-      else setMessage({ ok: false, text: "Failed to remove profile." })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setMessage({ ok: true, text: "Removal request submitted for review." })
+        await refreshRequests()
+      } else {
+        setMessage({ ok: false, text: data.error || "Failed to submit request." })
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function cancelRequest(requestId: string) {
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/creator/profile/socials?request=${requestId}`, { method: "DELETE" })
+      if (res.ok) setRequests((rs) => rs.filter((r) => r.id !== requestId))
     } finally {
       setBusy(false)
     }
@@ -127,26 +178,32 @@ export function SocialsManager({ initial }: { initial: SocialRow[] }) {
 
   function draftFields() {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium mb-1">Platform</label>
-          <select className={inputCls} value={draft.platform} onChange={(e) => setDraft({ ...draft, platform: e.target.value })}>
-            {PLATFORMS.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium mb-1">Platform</label>
+            <select className={inputCls} value={draft.platform} onChange={(e) => setDraft({ ...draft, platform: e.target.value })}>
+              {PLATFORMS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">Profile URL</label>
+            <input className={inputCls} placeholder="https://…" value={draft.profileUrl} onChange={(e) => setDraft({ ...draft, profileUrl: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">Username / handle</label>
+            <input className={inputCls} placeholder="@yourhandle" value={draft.username} onChange={(e) => setDraft({ ...draft, username: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">Followers</label>
+            <input className={inputCls} type="number" min={0} value={draft.followers} onChange={(e) => setDraft({ ...draft, followers: e.target.value })} />
+          </div>
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1">Profile URL</label>
-          <input className={inputCls} placeholder="https://…" value={draft.profileUrl} onChange={(e) => setDraft({ ...draft, profileUrl: e.target.value })} />
-        </div>
-        <div>
-          <label className="block text-xs font-medium mb-1">Username / handle</label>
-          <input className={inputCls} placeholder="@yourhandle" value={draft.username} onChange={(e) => setDraft({ ...draft, username: e.target.value })} />
-        </div>
-        <div>
-          <label className="block text-xs font-medium mb-1">Followers</label>
-          <input className={inputCls} type="number" min={0} value={draft.followers} onChange={(e) => setDraft({ ...draft, followers: e.target.value })} />
+          <label className="block text-xs font-medium mb-1">Reason for change <span className="text-muted-foreground">(optional)</span></label>
+          <input className={inputCls} placeholder="e.g. New handle after rebrand" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
         </div>
       </div>
     )
@@ -164,11 +221,11 @@ export function SocialsManager({ initial }: { initial: SocialRow[] }) {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          These are the accounts you publish on. Keep them current — MartPoint uses them to verify your content and credit your work.
+          These are the accounts you publish on. MartPoint uses them to verify your content and score challenges, so changes go to the team for a quick review — you&apos;ll be notified when it&apos;s approved.
         </p>
 
         {rows.length === 0 && !adding && (
-          <p className="text-sm text-muted-foreground">No social profiles yet — add the platforms you post on.</p>
+          <p className="text-sm text-muted-foreground">No social profiles yet — request the platforms you post on.</p>
         )}
 
         {rows.map((s) => (
@@ -178,7 +235,7 @@ export function SocialsManager({ initial }: { initial: SocialRow[] }) {
                 {draftFields()}
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => saveEdit(s.id)} disabled={busy}>
-                    {busy ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />} Save
+                    {busy ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />} Submit for review
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}><X className="w-4 h-4 mr-1" /> Cancel</Button>
                 </div>
@@ -200,16 +257,16 @@ export function SocialsManager({ initial }: { initial: SocialRow[] }) {
                     </Button>
                   )}
                   <Button
-                    size="icon" variant="ghost" className="h-7 w-7" title="Edit"
+                    size="icon" variant="ghost" className="h-7 w-7" title="Request change"
                     onClick={() => {
                       setEditingId(s.id)
                       setAdding(false)
-                      setDraft({ platform: s.platform, profileUrl: s.profileUrl, username: s.username || "", followers: s.followers != null ? String(s.followers) : "" })
+                      setDraft({ platform: s.platform, profileUrl: s.profileUrl, username: s.username || "", followers: s.followers != null ? String(s.followers) : "", note: "" })
                     }}
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" title="Remove" onClick={() => remove(s.id)} disabled={busy}>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" title="Request removal" onClick={() => remove(s.id)} disabled={busy}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -223,10 +280,43 @@ export function SocialsManager({ initial }: { initial: SocialRow[] }) {
             {draftFields()}
             <div className="flex gap-2">
               <Button size="sm" onClick={addRow} disabled={busy || !draft.profileUrl.trim()}>
-                {busy ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />} Add profile
+                {busy ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />} Submit for review
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>
             </div>
+          </div>
+        )}
+
+        {requests.length > 0 && (
+          <div className="pt-1 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">Change requests</p>
+            {requests.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium flex items-center gap-2">
+                    {requestTypeLabel[r.requestType] || r.requestType}
+                    {r.payload.platform ? ` · ${platformLabel(r.payload.platform)}` : ""}
+                    {r.status === "PENDING" && <Clock className="w-3.5 h-3.5 text-amber-500" />}
+                  </p>
+                  {r.payload.profileUrl && <p className="text-xs text-muted-foreground break-all">{r.payload.profileUrl}</p>}
+                  {r.status === "REJECTED" && r.reviewNote && <p className="text-xs text-red-500">{r.reviewNote}</p>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-xs font-medium ${
+                    r.status === "PENDING" ? "text-amber-600" :
+                    r.status === "APPROVED" ? "text-green-600" :
+                    "text-muted-foreground"
+                  }`}>
+                    {r.status === "PENDING" ? "In review" : r.status === "APPROVED" ? "Approved" : r.status === "REJECTED" ? "Declined" : "Cancelled"}
+                  </span>
+                  {r.status === "PENDING" && (
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => cancelRequest(r.id)} disabled={busy}>
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

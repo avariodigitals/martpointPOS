@@ -474,6 +474,86 @@ async function main() {
     })
     check("creator cannot finalise winners", r.status === 401 || r.status === 403 || r.status === 302, `status=${r.status}`)
 
+    /* ═══ 17. Social profile change requests (migration 071) ═══ */
+    console.log("16. Social change requests")
+    const { status: tblStatus } = await db(`creator_social_change_requests?select=id&limit=1`)
+    if (tblStatus === 200) {
+      const qaProfileUrl = `https://tiktok.com/@${QA_TAG.toLowerCase()}`
+      r = await api("/api/creator/profile/socials", creatorCookie, {
+        method: "POST",
+        body: JSON.stringify({ platform: "TIKTOK", profileUrl: qaProfileUrl, username: "@qa", followers: 10, note: QA_TAG }),
+      })
+      check("add request queued (not applied)", r.status === 200 && r.body?.pending === true, JSON.stringify(r.body)?.slice(0, 120))
+      const { body: profCheck } = await db(`creator_social_profiles?profile_url=eq.${encodeURIComponent(qaProfileUrl)}&select=id`)
+      check("add not applied before approval", (profCheck ?? []).length === 0)
+
+      r = await api(`/api/admin/creators/social-requests?status=PENDING&creatorId=${CREATOR_A.id}`, adminCookie)
+      const addReq = (r.body?.requests ?? []).find((x: any) => x.note === QA_TAG)
+      check("admin sees pending request", !!addReq, `status=${r.status}`)
+
+      r = await api(`/api/admin/creators/social-requests/${addReq?.id}`, adminCookie, { method: "POST", body: JSON.stringify({ action: "approve" }) })
+      check("admin approves add", r.status === 200, `status=${r.status}`)
+      const { body: profCheck2 } = await db(`creator_social_profiles?profile_url=eq.${encodeURIComponent(qaProfileUrl)}&creator_id=eq.${CREATOR_A.id}&select=id,is_primary`)
+      const newProfileId = profCheck2?.[0]?.id
+      check("profile created on approval", !!newProfileId)
+
+      // Direct field edits must queue, not apply
+      r = await api("/api/creator/profile/socials", creatorCookie, {
+        method: "PATCH",
+        body: JSON.stringify({ id: newProfileId, followers: 99999 }),
+      })
+      check("follower edit queued", r.status === 200 && r.body?.pending === true)
+      const { body: profCheck3 } = await db(`creator_social_profiles?id=eq.${newProfileId}&select=followers`)
+      check("followers unchanged pending review", profCheck3?.[0]?.followers !== 99999)
+
+      r = await api("/api/creator/profile/socials", creatorCookie, {
+        method: "PATCH",
+        body: JSON.stringify({ id: newProfileId, username: "@qa2" }),
+      })
+      check("second pending request on same profile blocked", r.status === 409, `status=${r.status}`)
+
+      const { body: updReqRows } = await db(`creator_social_change_requests?social_profile_id=eq.${newProfileId}&status=eq.PENDING&select=id`)
+      const updReqId = updReqRows?.[0]?.id
+      r = await api(`/api/admin/creators/social-requests/${updReqId}`, adminCookie, { method: "POST", body: JSON.stringify({ action: "reject" }) })
+      check("reject without note blocked", r.status === 400, `status=${r.status}`)
+      r = await api(`/api/admin/creators/social-requests/${updReqId}`, adminCookie, { method: "POST", body: JSON.stringify({ action: "reject", reviewNote: QA_TAG }) })
+      check("reject with note works", r.status === 200)
+
+      // isPrimary stays instant (cosmetic)
+      r = await api("/api/creator/profile/socials", creatorCookie, {
+        method: "PATCH",
+        body: JSON.stringify({ id: newProfileId, isPrimary: true }),
+      })
+      check("isPrimary still instant", r.status === 200 && !r.body?.pending)
+
+      // Removal requires approval
+      r = await api(`/api/creator/profile/socials?id=${newProfileId}`, creatorCookie, { method: "DELETE" })
+      check("remove request queued", r.status === 200 && r.body?.pending === true)
+      const { body: rmReqRows } = await db(`creator_social_change_requests?social_profile_id=eq.${newProfileId}&request_type=eq.REMOVE&status=eq.PENDING&select=id`)
+      r = await api(`/api/admin/creators/social-requests/${rmReqRows?.[0]?.id}`, adminCookie, { method: "POST", body: JSON.stringify({ action: "approve" }) })
+      check("admin approves removal", r.status === 200)
+      const { body: profCheck4 } = await db(`creator_social_profiles?id=eq.${newProfileId}&select=id`)
+      check("profile removed on approval", (profCheck4 ?? []).length === 0)
+
+      // Creator can cancel own pending request
+      r = await api("/api/creator/profile/socials", creatorCookie, {
+        method: "POST",
+        body: JSON.stringify({ platform: "YOUTUBE", profileUrl: `https://youtube.com/@${QA_TAG.toLowerCase()}`, note: QA_TAG }),
+      })
+      const { body: cancelRows } = await db(`creator_social_change_requests?creator_id=eq.${CREATOR_A.id}&status=eq.PENDING&select=id`)
+      r = await api(`/api/creator/profile/socials?request=${cancelRows?.[0]?.id}`, creatorCookie, { method: "DELETE" })
+      check("creator cancels own pending request", r.status === 200)
+
+      // Auth isolation
+      r = await api(`/api/admin/creators/social-requests/${addReq?.id}`, creatorCookie, { method: "POST", body: JSON.stringify({ action: "approve" }) })
+      check("creator cannot review requests", r.status === 401 || r.status === 403 || r.status === 302, `status=${r.status}`)
+
+      await db(`creator_social_change_requests?creator_id=eq.${CREATOR_A.id}&note=eq.${QA_TAG}`, { method: "DELETE" })
+      await db(`creator_social_change_requests?payload->>profileUrl=like.*${QA_TAG.toLowerCase()}*`, { method: "DELETE" })
+    } else {
+      console.log("  SKIP  migration 071 not applied yet")
+    }
+
   } finally {
     /* ═══ Cleanup — QA rows only ═══ */
     console.log("\nCleanup")

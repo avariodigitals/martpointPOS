@@ -1,7 +1,8 @@
 import { requireCreatorSession } from "@/lib/creator-auth"
-import { getApplicationSocialProfiles, creatorTrackingUrl, CREATOR_PLATFORM_LABELS } from "@/lib/creators"
+import { getApplicationSocialProfiles, creatorTrackingUrl } from "@/lib/creators"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProfileForm } from "./profile-form"
+import { SocialsManager } from "./socials-form"
 
 export default async function CreatorProfilePage() {
   const { creator } = await requireCreatorSession()
@@ -33,24 +34,16 @@ export default async function CreatorProfilePage() {
         }}
       />
 
-      {socials.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm font-medium">Connected Profiles</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {socials.map((s) => (
-              <div key={s.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
-                <div>
-                  <p className="font-medium">{CREATOR_PLATFORM_LABELS[s.platform] || s.platform}{s.username ? ` · ${s.username}` : ""}</p>
-                  <a href={s.profileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-retail hover:underline break-all">{s.profileUrl}</a>
-                </div>
-                {s.followers != null && (
-                  <span className="text-xs text-muted-foreground shrink-0">{s.followers.toLocaleString()} followers</span>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      <SocialsManager
+        initial={socials.map((s) => ({
+          id: s.id,
+          platform: s.platform,
+          profileUrl: s.profileUrl,
+          username: s.username,
+          followers: s.followers,
+          isPrimary: s.isPrimary,
+        }))}
+      />
     </div>
   )
 }

@@ -39,6 +39,50 @@ interface LearningDetail {
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 
+const READINESS_LABELS: Record<string, string> = {
+  NOT_STARTED: "Not started",
+  IN_PROGRESS: "Onboarding in progress",
+  ASSESSMENT_REQUIRED: "Assessment required",
+  READY: "Creator Ready",
+}
+
+/** Maps the API's CreatorLearningDetail shape onto this page's display model.
+ * The API returns { onboarding, lessons:[{content,progress}], attempts, resourceDownloads }. */
+function normalizeLearning(d: any): LearningDetail | null {
+  if (!d || !d.onboarding) return null
+  const ob = d.onboarding
+  return {
+    readiness: ob.readiness || "NOT_STARTED",
+    onboarding: {
+      pct: ob.progressPct ?? 0,
+      requiredTotal: ob.requiredTotal ?? 0,
+      requiredDone: ob.requiredCompleted ?? 0,
+      completedAt: ob.completedAt ?? null,
+      readinessLabel: READINESS_LABELS[ob.readiness] || ob.readiness || "Not started",
+    },
+    progress: (d.lessons || []).map((l: any) => ({
+      contentId: l.content?.id,
+      title: l.content?.title || "Untitled",
+      type: l.content?.type || "",
+      required: !!l.content?.required,
+      status: l.progress?.status || "NOT_STARTED",
+      score: l.progress?.score ?? null,
+      videoPercent: l.progress?.progressPct ?? 0,
+      completedAt: l.progress?.completedAt ?? null,
+      lastActivityAt: l.progress?.startedAt ?? null,
+    })),
+    attempts: (d.attempts || []).map((a: any) => ({
+      contentId: "",
+      title: a.contentTitle || "Assessment",
+      score: a.score ?? 0,
+      passed: !!a.passed,
+      attemptNumber: a.attemptNo ?? 0,
+      submittedAt: a.submittedAt || "",
+    })),
+    downloads: d.resourceDownloads ?? 0,
+  }
+}
+
 export default function AdminCreatorDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -89,7 +133,7 @@ export default function AdminCreatorDetailPage() {
       .catch(() => { if (!cancelled) setLoading(false) })
     fetch(`/api/admin/creators/creators/${id}/learning`)
       .then((res) => res.ok ? res.json() : null)
-      .then((d) => { if (!cancelled && d) setLearning(d) })
+      .then((d) => { if (!cancelled) setLearning(normalizeLearning(d)) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [id])
@@ -107,7 +151,7 @@ export default function AdminCreatorDetailPage() {
       setToast(res.ok ? "Learning progress reset" : d.error || "Failed")
       if (res.ok) {
         const r2 = await fetch(`/api/admin/creators/creators/${id}/learning`)
-        if (r2.ok) setLearning(await r2.json())
+        if (r2.ok) setLearning(normalizeLearning(await r2.json()))
       }
     } finally {
       setBusy(false)

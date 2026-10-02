@@ -298,7 +298,14 @@ async function main() {
     })
     check("creator-only ?ref link still works", r.status === 200 && r.body?.ok === true)
 
-    // Lead via processLead lib (HTTP path is captcha-gated on the live site)
+    // Lead via processLead lib (HTTP path is captcha-gated on the live site).
+    // Node 20 lacks native WebSocket — supabase realtime init needs the
+    // constructor to exist; this path never subscribes so a stub suffices.
+    if (typeof (globalThis as { WebSocket?: unknown }).WebSocket === "undefined") {
+      ;(globalThis as { WebSocket?: unknown }).WebSocket = class {
+        constructor() { throw new Error("WebSocket unavailable in QA script") }
+      }
+    }
     const { processLead } = await import("../lib/process-lead")
     const leadRes: any = await processLead({
       fullName: `${QA_TAG} Lead`, businessName: `${QA_TAG} Shop`,

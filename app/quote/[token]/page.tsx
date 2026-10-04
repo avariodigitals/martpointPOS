@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Loader2, AlertCircle, Check, X, Download, MessageCircle, FileText, Clock } from "lucide-react"
-import { formatNgnFull, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/quotations"
+import { formatNgnFull, replaceCurrencySymbols, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/quotations"
 import { generateQuotationPdf, bankDetailLines } from "@/lib/quotation-pdf"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
 
@@ -305,7 +305,7 @@ export default function PublicQuotePage() {
           {quote.payment_terms && (
             <div className="rounded-md bg-muted/30 p-4 text-sm whitespace-pre-line">
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Payment Terms</p>
-              {quote.payment_terms}
+              {replaceCurrencySymbols(quote.payment_terms)}
             </div>
           )}
 
@@ -323,7 +323,7 @@ export default function PublicQuotePage() {
           {quote.notes_public && (
             <div className="rounded-md bg-muted/30 p-4 text-sm whitespace-pre-line">
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Notes</p>
-              {quote.notes_public}
+              {replaceCurrencySymbols(quote.notes_public)}
             </div>
           )}
 

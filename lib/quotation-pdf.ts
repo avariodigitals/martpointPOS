@@ -3,6 +3,7 @@
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
 import type { Quotation, QuotationItem, LeadSummary } from "./quotations"
+import { replaceCurrencySymbols } from "./quotations"
 
 function formatPdfNgn(n: number): string {
   return `NGN ${n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -258,7 +259,7 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
 
   if (quote.payment_terms) {
     writeBandHeading("Payment Terms")
-    writeBand(quote.payment_terms, { size: 9, gap: 10 })
+    writeBand(replaceCurrencySymbols(quote.payment_terms), { size: 9, gap: 10 })
   }
 
   if (accountNumber) {
@@ -273,9 +274,12 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
   // compare y positions while both are on the same page.
   if (!leftPaged && bandY < totalsY) bandY = totalsY
   bandY += 14
+  // Notes span the full page width (totals column has already ended), so they
+  // don't unnecessarily split to a second page.
+  bandW = pageWNum - margin * 2
   if (quote.notes_public) {
     writeBandHeading("Notes:")
-    writeBand(quote.notes_public, { size: 9 })
+    writeBand(replaceCurrencySymbols(quote.notes_public), { size: 9 })
   }
 
   // Footer is drawn on every page at a fixed bottom position so it is never disturbed.

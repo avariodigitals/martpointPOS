@@ -22,7 +22,7 @@ import {
   Pencil,
   Copy,
 } from "lucide-react"
-import { formatNgnFull, recalculateQuote, buildWhatsAppLink, buildQuoteWhatsAppMessage, buildQuotePublicUrl } from "@/lib/quotations"
+import { formatNgnFull, replaceCurrencySymbols, recalculateQuote, buildWhatsAppLink, buildQuoteWhatsAppMessage, buildQuotePublicUrl } from "@/lib/quotations"
 import { generateQuotationPdf } from "@/lib/quotation-pdf"
 import type { Quotation, QuotationItemInput, QuoteDiscountType } from "@/lib/quotations"
 
@@ -1117,14 +1117,14 @@ export default function QuotationsPage() {
             {showView.payment_terms && (
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Payment Terms</p>
-                <p className="text-sm whitespace-pre-line">{showView.payment_terms}</p>
+                <p className="text-sm whitespace-pre-line">{replaceCurrencySymbols(showView.payment_terms)}</p>
               </div>
             )}
 
             {showView.notes_public && (
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Public Notes</p>
-                <p className="text-sm whitespace-pre-line">{showView.notes_public}</p>
+                <p className="text-sm whitespace-pre-line">{replaceCurrencySymbols(showView.notes_public)}</p>
               </div>
             )}
 

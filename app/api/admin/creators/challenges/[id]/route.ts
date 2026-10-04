@@ -349,19 +349,21 @@ export async function POST(request: Request, { params }: Params) {
       if (missing.length > 0) {
         return NextResponse.json({ error: "Challenge is incomplete", missing }, { status: 400 })
       }
-      // Freeze rules at activation
+    }
+
+    if (body.action === "activate") {
+      // Freeze rules at activation — not at schedule, so SCHEDULED challenges
+      // remain editable before going live.
       await supabase.from("creator_challenges").update({
         rules_frozen_at: new Date().toISOString(),
       }).eq("id", challenge.id)
       await snapshotRules(challenge.id, { id: session.userId, name: session.name ?? session.username })
 
-      if (body.action === "activate") {
-        void notifyChallengeAudience(challenge, "ELIGIBLE", {
-          title: `New challenge: ${challenge.name}`,
-          body: `${challenge.description ?? "A new creator challenge is live."} Join now to participate.`,
-          sendEmail: true,
-        })
-      }
+      void notifyChallengeAudience(challenge, "ELIGIBLE", {
+        title: `New challenge: ${challenge.name}`,
+        body: `${challenge.description ?? "A new creator challenge is live."} Join now to participate.`,
+        sendEmail: true,
+      })
     }
 
     const next = STATUS_FOR_ACTION[body.action]

@@ -116,6 +116,58 @@ export function formatNgnFull(n: number): string {
   return `₦${n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+/** Map of common currency symbols to their ISO 4217 codes.
+ *  Used to sanitise free-text fields before PDF rendering, because jsPDF's
+ *  standard fonts do not support these Unicode characters. */
+const CURRENCY_SYMBOL_MAP: Record<string, string> = {
+  "\u20A6": "NGN", // ₦ Naira
+  "\u0024": "USD", // $ Dollar
+  "\u20AC": "EUR", // € Euro
+  "\u00A3": "GBP", // £ Pound
+  "\u00A5": "JPY", // ¥ Yen
+  "\u20B5": "GHS", // ₵ Cedi
+  "\u20A9": "KRW", // ₩ Won
+  "\u20AA": "ILS", // ₪ Shekel
+  "\u20B1": "PHP", // ₱ Peso
+  "\u20B9": "INR", // ₹ Rupee
+  "\u20BD": "RUB", // ₽ Ruble
+  "\u20B4": "UAH", // ₴ Hryvnia
+  "\u20B8": "KZT", // ₸ Tenge
+  "\u20BA": "TRY", // ₺ Lira
+  "\u20AB": "VND", // ₫ Dong
+  "\u0E3F": "THB", // ฿ Baht
+  "\u20B2": "PYG", // ₲ Guarani
+  "\u20A1": "CRC", // ₡ Colón
+  "\u20AD": "LAK", // ₭ Kip
+  "\u20AE": "MNT", // ₮ Tugrik
+  "KSh": "KES", // Kenyan Shilling (text)
+  "TSh": "TZS", // Tanzanian Shilling (text)
+  "USh": "UGX", // Ugandan Shilling (text)
+}
+
+/** Replace common currency symbols with their ISO 4217 codes.
+ *  jsPDF's built-in fonts only support Windows-1252 / Latin-1, so Unicode
+ *  currency characters like ₦ (U+20A6) cause text-layout corruption.
+ *  Use this before rendering free-text fields that may contain them. */
+export function replaceCurrencySymbols(text: string): string {
+  let result = text
+  // Replace multi-character text symbols first.
+  result = result.replaceAll("KSh", "KES")
+  result = result.replaceAll("TSh", "TZS")
+  result = result.replaceAll("USh", "UGX")
+  // Then replace single Unicode currency characters.
+  const singleChars = ["\u20A6", "\u0024", "\u20AC", "\u00A3", "\u00A5",
+    "\u20B5", "\u20A9", "\u20AA", "\u20B1", "\u20B9", "\u20BD", "\u20B4",
+    "\u20B8", "\u20BA", "\u20AB", "\u0E3F", "\u20B2", "\u20A1", "\u20AD",
+    "\u20AE"]
+  for (const ch of singleChars) {
+    if (ch in CURRENCY_SYMBOL_MAP) {
+      result = result.replaceAll(ch, CURRENCY_SYMBOL_MAP[ch])
+    }
+  }
+  return result
+}
+
 export interface ComputedQuotationItem extends QuotationItemInput {
   lineTotal: number
 }

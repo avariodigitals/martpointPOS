@@ -218,6 +218,7 @@ const ACTIONS: Record<SectionKey, { name: string; label: string }[]> = {
     { name: "reverse", label: "Reverse" },
     { name: "allocate", label: "Allocate" },
     { name: "receipt", label: "Issue Receipt" },
+    { name: "send_receipt", label: "Email Receipt / Resend Confirmation" },
   ],
   subscriptions: [
     { name: "activate", label: "Activate" },

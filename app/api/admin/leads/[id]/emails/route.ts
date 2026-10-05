@@ -28,7 +28,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 
   if (error) {
     console.error("[Lead Emails GET]", error)
-    return NextResponse.json({ error: "Failed to load email thread" }, { status: 500 })
+    // Surface the underlying cause (e.g. missing/mismatched table) so the
+    // admin Email tab isn't left with only a generic message when the schema
+    // is out of sync. Keep the stable message for the common case.
+    return NextResponse.json(
+      { error: "Failed to load email thread", detail: error.message },
+      { status: 500 },
+    )
   }
 
   const emails = (data || []).map((row) => mapLeadEmail(row as Record<string, unknown>))

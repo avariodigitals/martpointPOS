@@ -624,6 +624,16 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
   } catch (err) {
     console.error("[confirmPayment] ledger post", err)
   }
+
+  // Email the payment confirmation + receipt to the client (best-effort; a
+  // failure here must never roll back the confirmation). Dynamically imported
+  // to avoid a module cycle (payment-emails imports createReceipt from here).
+  try {
+    const { sendPaymentConfirmationEmail } = await import("./payment-emails")
+    await sendPaymentConfirmationEmail(paymentId, { type: "ADMIN", id: actorId || confirmedBy })
+  } catch (err) {
+    console.error("[confirmPayment] confirmation email failed:", err)
+  }
 }
 
 export async function allocatePayment(input: PaymentAllocationInput) {

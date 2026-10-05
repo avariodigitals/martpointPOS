@@ -25,6 +25,10 @@ export interface SessionPayload {
   username: string
   role: UserRole
   name: string
+  /** Issued-at timestamp (ms epoch). Added at login. */
+  iat: number
+  /** Last-activity timestamp (ms epoch). Sliding on admin activity. */
+  lastActive: number
 }
 
 /* ───────────────────────────  Permissions  ───────────────────────────

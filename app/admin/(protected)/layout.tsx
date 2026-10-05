@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { getSession } from "@/lib/admin-auth"
 import { AdminSidebarNav } from "@/components/admin/admin-sidebar-nav"
 import { PermissionGuard } from "@/components/admin/permission-guard"
+import { AdminSessionTimeoutWatcher } from "@/components/admin/admin-session-timeout-watcher"
 
 export default async function AdminProtectedLayout({
   children,
@@ -16,6 +17,7 @@ export default async function AdminProtectedLayout({
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background">
+      <AdminSessionTimeoutWatcher />
       <AdminSidebarNav userName={session.name || session.username} userRole={session.role} />
 
       {/* Main Content */}

@@ -2365,6 +2365,69 @@ MartPoint Creator Network`,
   },
 
   {
+    key: "payment_received",
+    label: "Payment Confirmation / Receipt",
+    description: "Sent to a business when a payment is confirmed, with a receipt PDF attached.",
+    variables: ["contactName", "businessName", "receiptNumber", "invoiceNumber", "paymentReference", "amount", "paymentMethod", "paidAt"],
+    subject: "Payment received — {{amount}} (Receipt {{receiptNumber}})",
+    text: `Hi {{contactName}},
+
+Thank you — we have received your payment for {{businessName}}.
+
+Receipt: {{receiptNumber}}
+Invoice: {{invoiceNumber}}
+Payment reference: {{paymentReference}}
+Amount paid: {{amount}}
+Method: {{paymentMethod}}
+Paid on: {{paidAt}}
+
+A PDF copy of your receipt is attached.
+
+If you believe this payment was recorded in error, please reply to this email.
+
+Best regards,
+MartPoint Billing`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{contactName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Thank you — we have received your payment for <strong>{{businessName}}</strong>.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin-bottom:24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="font-size:14px; color:#6b7280; padding-bottom:4px;">Receipt</td>
+                        <td align="right" style="font-size:15px; font-weight:600; color:#111827; padding-bottom:4px;">{{receiptNumber}}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:14px; color:#6b7280; padding-bottom:4px;">Invoice</td>
+                        <td align="right" style="font-size:15px; color:#111827; padding-bottom:4px;">{{invoiceNumber}}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:14px; color:#6b7280; padding-bottom:4px;">Payment reference</td>
+                        <td align="right" style="font-size:15px; color:#111827; padding-bottom:4px;">{{paymentReference}}</td>
+                      </tr>
+                    </table>
+                    <div style="border-top:1px solid #e5e7eb; margin:12px 0; padding-top:12px;">
+                      <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Amount paid</p>
+                      <p style="font-size:22px; font-weight:700; color:#0057FF; margin:0 0 12px;">{{amount}}</p>
+                      <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Method</p>
+                      <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 4px;">{{paymentMethod}}</p>
+                      <p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Paid on</p>
+                      <p style="font-size:15px; color:#111827; margin:0;">{{paidAt}}</p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#6b7280;">
+                A PDF copy of your receipt is attached. If you believe this payment was recorded in error, please reply to this email.
+              </p>`,
+      { eyebrow: "Billing", title: "Payment received", signoff: "MartPoint Billing" }
+    ),
+  },
+
+  {
     key: "invoice_sent",
     label: "Invoice",
     description: "Invoice email sent to a business when an invoice is issued or resent.",

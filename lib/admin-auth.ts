@@ -11,6 +11,32 @@ export type { User, UserRole, SessionPayload }
 
 const ADMIN_COOKIE_NAME = "admin-session"
 
+/* ───────────────────────────  INACTIVITY TIMEOUT  ───────────────────────────
+ * Admin sessions are signed cookies, so the idle window is enforced by the
+ * server using the `iat`/`lastActive` timestamps carried in the payload.
+ *
+ * Global configuration — admins are signed out after ADMIN_SESSION_TIMEOUT_MINUTES
+ * of inactivity. Only affects the admin portal; the public website is untouched.
+ * Defaults to 30 minutes when unset. Set 0 to disable the timeout entirely.
+ */
+export function getAdminSessionTimeoutMs(): number {
+  const raw = process.env.ADMIN_SESSION_TIMEOUT_MINUTES
+  if (!raw) return 30 * 60 * 1000
+  const minutes = Number(raw)
+  if (!Number.isFinite(minutes) || minutes <= 0) return 0
+  return minutes * 60 * 1000
+}
+
+const ADMIN_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // hard ceiling (7 days)
+
+export function isAdminSessionExpired(payload: SessionPayload): boolean {
+  const timeout = getAdminSessionTimeoutMs()
+  if (timeout <= 0) return false
+  const lastActive = typeof payload.lastActive === "number" ? payload.lastActive : payload.iat
+  if (typeof lastActive !== "number") return false // legacy session without timestamps
+  return Date.now() - lastActive > timeout
+}
+
 /* ───────────────────────────  USER STORE (Supabase)  ─────────────────────────── */
 
 function mapUser(row: Record<string, unknown>): User {
@@ -169,7 +195,15 @@ export async function authenticateUser(username: string, password: string): Prom
   if (!user) return null
   if (user.status !== "ACTIVE") return null
   if (!verifyPassword(password, user.passwordHash)) return null
-  return { userId: user.id, username: user.username, role: user.role, name: user.name }
+  const now = Date.now()
+  return {
+    userId: user.id,
+    username: user.username,
+    role: user.role,
+    name: user.name,
+    iat: now,
+    lastActive: now,
+  }
 }
 
 export async function setSessionCookie(payload: SessionPayload) {
@@ -179,7 +213,7 @@ export async function setSessionCookie(payload: SessionPayload) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: ADMIN_COOKIE_MAX_AGE,
     path: "/",
   })
 }
@@ -188,7 +222,34 @@ export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(ADMIN_COOKIE_NAME)
   if (!token?.value) return null
-  return verifySession(token.value, isSessionPayload)
+  const payload = verifySession(token.value, isSessionPayload)
+  if (!payload) return null
+  // Enforce the global inactivity timeout. Expired sessions are cleared.
+  if (isAdminSessionExpired(payload)) {
+    cookieStore.delete(ADMIN_COOKIE_NAME)
+    return null
+  }
+  return payload
+}
+
+/**
+ * Sliding refresh: if the session is still within the idle window, bump
+ * `lastActive` to now and re-issue the cookie. Returns the refreshed session,
+ * or null if the session is missing/expired (caller clears the cookie).
+ */
+export async function refreshSessionActivity(): Promise<SessionPayload | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(ADMIN_COOKIE_NAME)
+  if (!token?.value) return null
+  const payload = verifySession(token.value, isSessionPayload)
+  if (!payload) return null
+  if (isAdminSessionExpired(payload)) {
+    cookieStore.delete(ADMIN_COOKIE_NAME)
+    return null
+  }
+  const refreshed: SessionPayload = { ...payload, lastActive: Date.now() }
+  await setSessionCookie(refreshed)
+  return refreshed
 }
 
 export async function isAdminAuthenticated(): Promise<boolean> {

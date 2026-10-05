@@ -249,7 +249,7 @@ export function LeadDetailModal({
       .then((data) => {
         if (cancelled) return
         if (data.error) {
-          setEmailsError(data.error)
+          setEmailsError(data.detail ? `${data.error} — ${data.detail}` : data.error)
           setEmails([])
         } else {
           setEmails(data.emails || [])

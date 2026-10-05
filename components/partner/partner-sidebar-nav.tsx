@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { useState } from "react"
 import {
   LayoutDashboard,
   Building2,
@@ -19,6 +20,8 @@ import {
   Wallet,
   FileQuestion,
   ClipboardList,
+  Menu,
+  X,
   type LucideIcon,
 } from "lucide-react"
 import { partnerUserHasPermission, type PartnerUserRole, type PartnerOrgCapability, type PartnerPermission } from "@/lib/partner-permissions"
@@ -64,6 +67,7 @@ export function PartnerSidebarNav({
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   const visibleItems = navItems.filter((item) => {
     if (item.permission && !partnerUserHasPermission(userRole, item.permission as PartnerPermission)) return false
@@ -79,19 +83,31 @@ export function PartnerSidebarNav({
 
   return (
     <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-white/10 bg-[#0A0F1C] text-white">
-      <div className="p-6">
-        <h1 className="text-lg font-bold text-white">Partner Portal</h1>
-        <p className="text-xs text-gray-400 mt-1 truncate">{partnerName}</p>
-        <p className="text-[10px] text-gray-500 font-mono mt-0.5">{partnerId}</p>
+      <div className="p-4 md:p-6 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg font-bold text-white">Partner Portal</h1>
+          <p className="text-xs text-gray-400 mt-1 truncate">{partnerName}</p>
+          <p className="text-[10px] text-gray-500 font-mono mt-0.5">{partnerId}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMobileOpen((v) => !v)}
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileOpen}
+          className="md:hidden shrink-0 p-2 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+        >
+          {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
       </div>
 
-      <nav className="px-4 pb-2 space-y-1">
+      <nav className={`px-4 pb-2 space-y-1 ${mobileOpen ? "block" : "hidden"} md:block`}>
         {visibleItems.map((item) => {
           const active = pathname === item.href
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setMobileOpen(false)}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 active
                   ? "bg-retail text-white"
@@ -105,7 +121,7 @@ export function PartnerSidebarNav({
         })}
       </nav>
 
-      <div className="px-4 pb-4 mt-auto">
+      <div className={`px-4 pb-4 mt-auto ${mobileOpen ? "block" : "hidden"} md:block`}>
         <div className="pt-4 border-t border-white/10">
           <div className="mb-3 px-3">
             <p className="text-xs font-medium text-white">{userName}</p>

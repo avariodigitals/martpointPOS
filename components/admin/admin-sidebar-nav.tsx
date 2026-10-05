@@ -51,6 +51,8 @@ import {
   CalendarClock,
   GraduationCap,
   FolderOpen,
+  Menu,
+  X,
 } from "lucide-react"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
@@ -174,6 +176,7 @@ export function AdminSidebarNav({
   // Collapsed/expanded state per section, persisted across navigations.
   // null = not yet hydrated from localStorage → fall back to "section with active page is open".
   const [openSections, setOpenSections] = useState<Record<string, boolean> | null>(null)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
     let stored: Record<string, boolean> = {}
@@ -211,12 +214,23 @@ export function AdminSidebarNav({
 
   return (
     <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-white/10 bg-[#0A0F1C] text-white">
-      <div className="p-6">
-        <h1 className="text-xl font-bold text-white">MartPoint Control Centre</h1>
-        <p className="text-xs text-gray-400 mt-1">Operational source of truth</p>
+      <div className="p-4 md:p-6 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-white">MartPoint Control Centre</h1>
+          <p className="text-xs text-gray-400 mt-1">Operational source of truth</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMobileOpen((v) => !v)}
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileOpen}
+          className="md:hidden shrink-0 p-2 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+        >
+          {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
       </div>
 
-      <nav className="px-4 pb-2 space-y-6">
+      <nav className={`px-4 pb-2 space-y-6 ${mobileOpen ? "block" : "hidden"} md:block`}>
         {Object.entries(grouped).map(([section, items]) => {
           const open = isOpen(section, items)
           return (
@@ -238,6 +252,7 @@ export function AdminSidebarNav({
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => setMobileOpen(false)}
                     className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                       active
                         ? "bg-retail text-white"
@@ -256,7 +271,7 @@ export function AdminSidebarNav({
         })}
       </nav>
 
-      <div className="px-4 pb-4">
+      <div className={`px-4 pb-4 ${mobileOpen ? "block" : "hidden"} md:block`}>
         <div className="pt-4 border-t border-white/10">
           <div className="mb-3 px-3">
             <p className="text-xs font-medium text-white">{userName}</p>

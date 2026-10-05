@@ -107,6 +107,16 @@ function QuestionnaireStatusBadge({ status }: { status?: string | null }) {
   return <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${colors[label] || colors["Not Sent"]}`}>{label}</span>
 }
 
+const PRODUCT_INTEREST_LABELS: Record<string, string> = {
+  retail: "Retail",
+  erp: "ERP",
+}
+
+/** Short badge label for a lead's product interest. */
+function productInterestLabel(interest: string, fallback: string): string {
+  return PRODUCT_INTEREST_LABELS[interest] ?? fallback
+}
+
 export default function AdminLeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
@@ -250,7 +260,7 @@ export default function AdminLeadsPage() {
   const productCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     filteredLeads.forEach((l) => {
-      const label = l.productInterest === "retail" ? "Retail" : l.productInterest === "erp" ? "ERP" : "Not Sure"
+      const label = productInterestLabel(l.productInterest, "Not Sure")
       counts[label] = (counts[label] || 0) + 1
     })
     return counts
@@ -977,13 +987,21 @@ export default function AdminLeadsPage() {
                           <Phone className="w-3 h-3 shrink-0" />
                           <span>{lead.phone}</span>
                         </div>
-                        <div className="mt-2 flex items-center gap-2">
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
                             {lead.source}
                           </span>
                           <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
-                            {lead.productInterest === "retail" ? "Retail" : lead.productInterest === "erp" ? "ERP" : "?"}
+                            {productInterestLabel(lead.productInterest, "?")}
                           </span>
+                          {lead.businessType && (
+                            <span
+                              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium max-w-full truncate"
+                              title={resolvedIndustry(lead) || lead.businessType}
+                            >
+                              {lead.businessType}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1053,7 +1071,7 @@ export default function AdminLeadsPage() {
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{lead.email}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{lead.phone}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                      {lead.productInterest === "retail" ? "Retail" : lead.productInterest === "erp" ? "ERP" : "Not Sure"}
+                      {productInterestLabel(lead.productInterest, "Not Sure")}
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">

@@ -441,6 +441,7 @@ export default function PartnerProspectsPage() {
                 <select className={inputCls} value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}>
                   <option value="">Select source</option>
                   <option>Website</option>
+                  <option>Google Search</option>
                   <option>WhatsApp</option>
                   <option>Referral</option>
                   <option>Event</option>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
 
 interface LocationFieldsProps {
@@ -23,29 +23,69 @@ export function LocationFields({
   inputClassName = inputClsDefault,
   disabled = false,
 }: LocationFieldsProps) {
+  const [customCities, setCustomCities] = useState<string[]>([])
+  const [otherMode, setOtherMode] = useState(false)
+  const requestedRef = useRef<Set<string>>(new Set())
+
   const stateOptions = useMemo(() => getStatesForCountry(country), [country])
-  const cityOptions = useMemo(() => getCitiesForState(country, state), [country, state])
+  const canonicalCityOptions = useMemo(() => getCitiesForState(country, state), [country, state])
+  const cityOptions = useMemo(() => {
+    const merged = [...new Set([...canonicalCityOptions, ...customCities])]
+    return merged
+  }, [canonicalCityOptions, customCities])
 
   const hasCountry = Boolean(country) && COUNTRIES.some((c) => c.name === country)
 
+  // Load admin-adopted custom cities for the selected country+state.
+  useEffect(() => {
+    let cancelled = false
+    if (!country || !state) return
+    fetch(`/api/locations/cities?country=${encodeURIComponent(country)}&state=${encodeURIComponent(state)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return
+        setCustomCities(d.success ? d.cities || [] : [])
+      })
+      .catch(() => {
+        if (!cancelled) setCustomCities([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [country, state])
+
+  // Whether the currently selected city is a known (canonical or adopted) city.
+  const isKnown = city !== "" && cityOptions.some((c) => c.toLowerCase() === city.toLowerCase())
+  // Type-in mode for the State when the selected country has no state list.
+  const showOtherState = hasCountry && stateOptions.length === 0
+  // Typing mode: "Other" chosen, or the current value isn't a known drop-down entry.
+  const showOtherCity = hasCountry && state !== "" && (otherMode || (!isKnown && city !== ""))
+
   // Reset state when the selected country no longer supports the current state.
+  // (Scheduled so the state update doesn't run synchronously in the effect body.)
   useEffect(() => {
     if (state && !stateOptions.includes(state)) {
-      onChange({ state: "", city: "" })
+      const timer = setTimeout(() => onChange({ state: "", city: "" }), 0)
+      return () => clearTimeout(timer)
     }
   }, [country, stateOptions, state, onChange])
 
-  // Reset city when the selected state no longer supports the current city.
-  useEffect(() => {
-    if (city && !cityOptions.includes(city)) {
-      onChange({ city: "" })
-    }
-  }, [state, cityOptions, city, onChange])
-
-  const showOtherState = hasCountry && stateOptions.length === 0
-  const showOtherCity = hasCountry && state !== "" && cityOptions.length === 0
-
   const countryNames = useMemo(() => COUNTRIES.map((c) => c.name), [])
+
+  // Route a custom city for admin authorisation (fire-and-forget, once per value).
+  const requestCustomCity = (value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed || !country || !state) return
+    if (cityOptions.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return
+    const key = `${country}|${state}|${trimmed.toLowerCase()}`
+    if (requestedRef.current.has(key)) return
+    requestedRef.current.add(key)
+    fetch("/api/locations/city-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ country, state, city: trimmed }),
+    }).catch(() => {})
+  }
 
   return (
     <>
@@ -55,7 +95,10 @@ export function LocationFields({
           disabled={disabled}
           className={inputClassName}
           value={country}
-          onChange={(e) => onChange({ country: e.target.value, state: "", city: "" })}
+          onChange={(e) => {
+            setOtherMode(false)
+            onChange({ country: e.target.value, state: "", city: "" })
+          }}
         >
           <option value="">Select country</option>
           {countryNames.map((c) => (
@@ -85,7 +128,10 @@ export function LocationFields({
             disabled={disabled}
             className={inputClassName}
             value={state}
-            onChange={(e) => onChange({ state: e.target.value, city: "" })}
+            onChange={(e) => {
+              setOtherMode(false)
+              onChange({ state: e.target.value, city: "" })
+            }}
           >
             <option value="">Select state</option>
             {stateOptions.map((s) => (
@@ -109,14 +155,23 @@ export function LocationFields({
             className={inputClassName}
             value={city}
             onChange={(e) => onChange({ city: e.target.value })}
-            placeholder="City"
+            onBlur={() => requestCustomCity(city)}
+            placeholder="Type your city"
           />
         ) : (
           <select
             disabled={disabled}
             className={inputClassName}
             value={city}
-            onChange={(e) => onChange({ city: e.target.value })}
+            onChange={(e) => {
+              if (e.target.value === "__other__") {
+                setOtherMode(true)
+                onChange({ city: "" })
+              } else {
+                setOtherMode(false)
+                onChange({ city: e.target.value })
+              }
+            }}
           >
             <option value="">Select city</option>
             {cityOptions.map((c) => (
@@ -124,6 +179,7 @@ export function LocationFields({
                 {c}
               </option>
             ))}
+            <option value="__other__">Other</option>
           </select>
         )}
       </div>

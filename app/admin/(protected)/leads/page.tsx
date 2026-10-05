@@ -1211,6 +1211,7 @@ export default function AdminLeadsPage() {
                 >
                   <option value="manual">Manual Entry</option>
                   <option value="website">Website</option>
+                  <option value="google-search">Google Search</option>
                   <option value="whatsapp">WhatsApp</option>
                   <option value="referral">Referral</option>
                   <option value="social-media">Social Media</option>

@@ -168,7 +168,7 @@ const PLAN_FEATURES: Record<CloudPlanId, string[]> = {
  * Cell values: string = shown as-is; "yes" = included check; "soon" = coming-soon badge;
  * "no" = not included dash.
  */
-export type CellValue = string | "yes" | "soon" | "no"
+export type CellValue = string | "yes" | "soon" | "no" | "addon"
 
 export interface ComparisonGroup {
   title: string
@@ -188,7 +188,7 @@ export const COMPARISON_GROUPS: ComparisonGroup[] = [
       { label: "Services", values: ["100", "300", "500", "1,000"] },
       { label: "Media storage", values: ["2 GB", "5 GB", "10 GB", "20 GB"] },
       { label: "Storefront", values: ["1", "1", "1", "1"] },
-      { label: "Custom domain", values: ["1", "1", "1", "1"] },
+      { label: "Custom domain", values: ["addon", "addon", "addon", "addon"] },
     ],
   },
   {

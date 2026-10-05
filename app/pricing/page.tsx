@@ -90,6 +90,13 @@ function Cell({ value }: { value: CellValue }) {
   if (value === "no") {
     return <Minus className="w-4 h-4 text-muted-foreground/50 mx-auto" aria-label="Not included" />
   }
+  if (value === "addon") {
+    return (
+      <span className="inline-block rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+        Add-on
+      </span>
+    )
+  }
   return <span className="text-sm font-medium text-foreground whitespace-nowrap">{value}</span>
 }
 
@@ -145,7 +152,7 @@ const PRICING_FAQS = [
   },
   {
     q: "What costs are not included in the licence?",
-    a: "Payment gateway fees, SMS/messaging, paid email, verification lookups, AI usage, domain registration or renewal, custom design, integrations, hardware, onsite work and travel are charged separately unless your accepted offer expressly bundles them. Connecting your own domain is included within your plan's domain allowance — buying the domain is not.",
+    a: "Payment gateway fees, SMS/messaging, paid email, verification lookups, AI usage, domain registration or renewal, custom design, integrations, hardware, onsite work and travel are charged separately unless your accepted offer expressly bundles them. A custom domain is an add-on and is billed separately.",
   },
 ]
 
@@ -222,7 +229,10 @@ export default async function PricingPage() {
                               <p className="text-base font-bold text-foreground whitespace-nowrap">
                                 {p.displayName}
                               </p>
-                              <p className="text-xs font-normal text-muted-foreground mt-1 whitespace-nowrap">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-1 whitespace-nowrap">
+                                Starting from
+                              </p>
+                              <p className="text-xs font-normal text-muted-foreground mt-0.5 whitespace-nowrap">
                                 {p.priceText}<span className="text-muted-foreground/70"> / year</span>
                               </p>
                             </th>
@@ -268,7 +278,7 @@ export default async function PricingPage() {
                   </table>
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground text-center">
-                  Main products are active top-level catalogue items. Product variations count active sellable inventory records, including simple items. Domain allowance covers connecting a domain you own — domain purchase and renewal are billed separately.
+                  Main products are active top-level catalogue items. Product variations count active sellable inventory records, including simple items. A custom domain is an add-on — domain purchase, connection and renewal are billed separately.
                 </p>
               </div>
 

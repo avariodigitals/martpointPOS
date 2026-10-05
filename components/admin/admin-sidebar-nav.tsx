@@ -81,6 +81,7 @@ const navItems: NavItem[] = [
   { href: "/admin/customers", label: "Customers", icon: Users, page: "customers", section: "Customers" },
   { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, page: "customers", section: "Customers" },
   { href: "/admin/businesses", label: "Businesses", icon: Building2, page: "businesses", section: "Customers" },
+  { href: "/admin/city-requests", label: "City Requests", icon: MapPin, page: "businesses", section: "Customers" },
   { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardCheck, page: "onboarding", section: "Customers" },
   { href: "/admin/customer-success", label: "Customer Success", icon: Activity, page: "customer_success", section: "Customers" },
   { href: "/admin/support", label: "Support", icon: Ticket, page: "support", section: "Customers" },

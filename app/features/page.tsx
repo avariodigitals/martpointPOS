@@ -263,7 +263,7 @@ const featureSections: FeatureSection[] = [
       { icon: PackageCheck, title: "Publish from your catalogue", desc: "Products you mark for online go live with photos and prices." },
       { icon: ShoppingBag, title: "Cart, checkout & orders", desc: "Customers order online; you manage fulfilment inside MartPoint." },
       { icon: CreditCard, title: "Online payments", desc: "Accept cards, transfers and more via Paystack, Flutterwave or Moniepoint." },
-      { icon: Globe, title: "Your own domain", desc: "Connect one custom domain on any plan." },
+      { icon: Globe, title: "Your own domain", desc: "Connect a custom domain as an add-on." },
       { icon: ChartLine, title: "Store analytics", desc: "See orders, visits and which products sell online." },
     ],
     more: [

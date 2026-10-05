@@ -32,6 +32,7 @@ import {
   Globe,
   ArrowUpRight,
   Video,
+  Search,
 } from "lucide-react"
 
 export interface Lead {
@@ -848,6 +849,7 @@ export function LeadDetailModal({
                   >
                     <option value="manual">Manual Entry</option>
                     <option value="website">Website</option>
+                    <option value="google-search">Google Search</option>
                     <option value="whatsapp">WhatsApp</option>
                     <option value="referral">Referral</option>
                     <option value="social-media">Social Media</option>
@@ -1682,6 +1684,7 @@ function formatSource(source: string): { sourceLabel: string; sourcePartner?: st
 
   const map: Record<string, string> = {
     website: "Website",
+    "google-search": "Google Search",
     whatsapp: "WhatsApp",
     referral: "Referral",
     "social-media": "Social Media",
@@ -1698,6 +1701,7 @@ function sourceIcon(source: string): React.ReactNode {
   if (source.includes("partner")) return <TrendingUp className="w-3 h-3" />
   if (source === "whatsapp") return <Smartphone className="w-3 h-3" />
   if (source === "website") return <Globe className="w-3 h-3" />
+  if (source === "google-search") return <Search className="w-3 h-3" />
   if (source === "email") return <Mail className="w-3 h-3" />
   return <ArrowUpRight className="w-3 h-3" />
 }

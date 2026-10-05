@@ -165,6 +165,7 @@ function normalizeSource(source: string): BusinessSource {
   }
   // Common lead sources like "website", "manual", "referral" etc.
   if (s === "MANUAL") return "DIRECT"
+  if (s === "GOOGLE-SEARCH") return "WEBSITE"
   return "OTHER"
 }
 

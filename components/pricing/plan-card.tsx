@@ -18,7 +18,7 @@ export function PlanCard({ plan }: { plan: ResolvedCloudPlan }) {
         </div>
       )}
       <h3 className="text-lg font-bold text-foreground mt-2">{plan.displayName}</h3>
-      <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Annual licence</p>
+      <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Starting from</p>
       <div className="mt-1 flex flex-col items-start">
         <span className={`text-3xl sm:text-4xl font-extrabold ${isHighlighted ? "text-retail" : "text-foreground"}`}>
           {plan.priceText}
@@ -46,7 +46,7 @@ export function PlanCard({ plan }: { plan: ResolvedCloudPlan }) {
         </li>
         <li className="flex items-center gap-2 text-foreground">
           <Check className="w-4 h-4 text-retail shrink-0" />
-          {plan.limits.storefronts} storefront{plan.limits.storefronts !== 1 ? "s" : ""} · {plan.limits.customDomains} custom domain{plan.limits.customDomains !== 1 ? "s" : ""}
+          {plan.limits.storefronts} storefront{plan.limits.storefronts !== 1 ? "s" : ""}
         </li>
       </ul>
 

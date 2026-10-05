@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recalculateQuote, buildQuotePublicUrl, buildQuoteEmailHtml, mapQuotation } from "@/lib/quotations"
+import { resolveIndustryName } from "@/lib/industries"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import type { Quotation } from "@/lib/quotations"
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
 
     let q = supabase
       .from("lead_quotations")
-      .select("*, lead:leads (full_name, business_name, email, phone, product_interest), items:lead_quotation_items(*)")
+      .select("*, lead:leads (full_name, business_name, email, phone, product_interest, business_type, industry), items:lead_quotation_items(*)")
       .order("created_at", { ascending: false })
 
     if (leadId) q = q.eq("lead_id", leadId)
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
       notesPublic,
       notesInternal,
       paymentTerms,
+      industry,
       items,
       discountType,
       discountValue,
@@ -84,6 +86,7 @@ export async function POST(request: Request) {
       notesPublic?: string
       notesInternal?: string
       paymentTerms?: string
+      industry?: string
       items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number; taxRate?: number | null }>
       discountType?: string
       discountValue?: number
@@ -102,13 +105,18 @@ export async function POST(request: Request) {
 
     const leadRes = await supabase
       .from("leads")
-      .select("id, full_name, business_name, email, phone, product_interest")
+      .select("id, full_name, business_name, email, phone, product_interest, business_type, industry")
       .eq("id", leadId)
       .single()
 
     if (leadRes.error || !leadRes.data) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 })
     }
+
+    const leadIndustry =
+      resolveIndustryName(
+        industry || (leadRes.data.industry as string) || (leadRes.data.business_type as string) || ""
+      ) || null
 
     const quoteDiscountType = discountType === "percent" || discountType === "fixed" ? discountType : "none"
     const quoteDiscountValue = Math.max(0, Number(discountValue) || 0)
@@ -150,6 +158,7 @@ export async function POST(request: Request) {
         notes_public: notesPublic || null,
         notes_internal: notesInternal || null,
         payment_terms: paymentTerms || null,
+        industry: leadIndustry,
         created_by: session?.username || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -184,7 +193,7 @@ export async function POST(request: Request) {
 
     const { data: fullQuote, error: fullError } = await supabase
       .from("lead_quotations")
-      .select("*, lead:leads (full_name, business_name, email, phone, product_interest), items:lead_quotation_items(*)")
+      .select("*, lead:leads (full_name, business_name, email, phone, product_interest, business_type, industry), items:lead_quotation_items(*)")
       .eq("id", created.id)
       .single()
 

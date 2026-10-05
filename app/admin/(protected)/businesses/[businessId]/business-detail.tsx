@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import type { Business, BusinessStatus, BusinessBranch, BusinessUser, OnboardingStages, OnboardingStageKey } from "@/lib/businesses"
 import { ONBOARDING_STAGES } from "@/lib/businesses"
+import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
 import { LocationFields } from "@/components/location-fields"
 import { enumLabel } from "@/lib/utils"
 
@@ -135,7 +136,7 @@ export function BusinessDetail({
     primaryEmail: business.primaryEmail,
     primaryPhone: business.primaryPhone,
     businessType: business.businessType,
-    industry: business.industry,
+    industry: resolveIndustryName(business.industry || business.businessType),
     country: business.country,
     state: business.state,
     city: business.city,
@@ -201,7 +202,7 @@ export function BusinessDetail({
       primaryEmail: business.primaryEmail,
       primaryPhone: business.primaryPhone,
       businessType: business.businessType,
-      industry: business.industry,
+      industry: resolveIndustryName(business.industry || business.businessType),
       country: business.country,
       state: business.state,
       city: business.city,
@@ -488,7 +489,10 @@ export function BusinessDetail({
                   <Detail label="Phone" value={business.primaryPhone} />
                   <Detail label="Website" value={business.website} />
                   <Detail label="Business type" value={business.businessType} />
-                  <Detail label="Industry" value={business.industry} />
+                  <Detail
+                    label="Industry"
+                    value={resolveIndustryName(business.industry || business.businessType) || "—"}
+                  />
                   <Detail label="Country" value={business.country} />
                   <Detail label="State" value={business.state} />
                   <Detail label="City" value={business.city} />
@@ -527,8 +531,38 @@ export function BusinessDetail({
                   <Field label="Email"><input className={inputCls} value={form.primaryEmail} onChange={(e) => setForm({ ...form, primaryEmail: e.target.value })} /></Field>
                   <Field label="Phone"><input className={inputCls} value={form.primaryPhone} onChange={(e) => setForm({ ...form, primaryPhone: e.target.value })} /></Field>
                   <Field label="Website"><input className={inputCls} value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></Field>
-                  <Field label="Business type"><input className={inputCls} value={form.businessType} onChange={(e) => setForm({ ...form, businessType: e.target.value })} /></Field>
-                  <Field label="Industry"><input className={inputCls} value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} /></Field>
+                  <Field label="Business type">
+                    <select
+                      className={inputCls}
+                      value={form.businessType}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          businessType: e.target.value,
+                          industry: resolveIndustryName(e.target.value) || prev.industry,
+                        }))
+                      }
+                    >
+                      <option value="">Select...</option>
+                      {businessTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                      {form.businessType && !businessTypeOptions.includes(form.businessType) && (
+                        <option value={form.businessType}>{form.businessType} (saved)</option>
+                      )}
+                    </select>
+                  </Field>
+                  <Field label="Industry">
+                    <select
+                      className={inputCls}
+                      value={form.industry}
+                      onChange={(e) => setForm({ ...form, industry: e.target.value })}
+                    >
+                      <option value="">Select...</option>
+                      {industryOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                      {form.industry && !industryOptions.includes(form.industry) && (
+                        <option value={form.industry}>{form.industry} (saved)</option>
+                      )}
+                    </select>
+                  </Field>
                   <LocationFields
                     country={form.country}
                     state={form.state}

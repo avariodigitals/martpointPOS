@@ -12,6 +12,7 @@ interface GeneralSettings {
   phone: string
   companyName: string
   accountNumber: string
+  googleReviewUrl: string
 }
 
 interface MartpointEntitySettings {
@@ -119,6 +120,7 @@ export default function AdminSettingsPage() {
     phone: "",
     companyName: "",
     accountNumber: "",
+    googleReviewUrl: "",
   })
   const [social, setSocial] = useState<SocialSettings>({
     facebook: "",
@@ -514,6 +516,19 @@ export default function AdminSettingsPage() {
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder={"Bank Name: Access Bank\nAccount Number: 0123456789\nAccount Name: Company Ltd\n(shown on quotations)"}
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Google Review URL</label>
+                <input
+                  type="url"
+                  value={settings.googleReviewUrl || ""}
+                  onChange={(e) => setSettings({ ...settings, googleReviewUrl: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="https://g.page/r/.../review"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Used by the “Rate us on Google” prompts on customer stories and testimonials. Leave blank to hide them.
+                </p>
               </div>
             </CardContent>
             <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">

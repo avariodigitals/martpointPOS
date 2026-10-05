@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recalculateQuote, buildQuotePublicUrl, buildQuoteEmailHtml } from "@/lib/quotations"
+import { resolveIndustryName } from "@/lib/industries"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
@@ -19,7 +20,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const { data, error } = await supabase
       .from("lead_quotations")
-      .select("*, lead:leads (full_name, business_name, email, phone, product_interest), items:lead_quotation_items(*)")
+      .select("*, lead:leads (full_name, business_name, email, phone, product_interest, business_type, industry), items:lead_quotation_items(*)")
       .eq("id", id)
       .single()
 
@@ -71,6 +72,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       notesPublic,
       notesInternal,
       paymentTerms,
+      industry,
       status,
       items,
       discountType,
@@ -84,6 +86,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       notesPublic?: string
       notesInternal?: string
       paymentTerms?: string
+      industry?: string
       status?: string
       items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number; taxRate?: number | null }>
       discountType?: string
@@ -130,6 +133,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       total_amount: totals.total,
       updated_at: new Date().toISOString(),
     }
+    if (industry !== undefined) {
+      updatePayload.industry = industry ? resolveIndustryName(industry) : null
+    }
     if (status && allowedStatuses.includes(status as string)) {
       updatePayload.status = status
     }
@@ -165,7 +171,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const { data: fullQuote, error: fullError } = await supabase
       .from("lead_quotations")
-      .select("*, lead:leads (full_name, business_name, email, phone, product_interest), items:lead_quotation_items(*)")
+      .select("*, lead:leads (full_name, business_name, email, phone, product_interest, business_type, industry), items:lead_quotation_items(*)")
       .eq("id", id)
       .single()
 
@@ -192,6 +198,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
             email: leadRaw.email as string,
             phone: leadRaw.phone as string,
             productInterest: leadRaw.product_interest as string,
+            businessType: (leadRaw.business_type as string) || undefined,
+            industry: (leadRaw.industry as string) || undefined,
           }
         : undefined,
       items: itemsRaw.map((it) => ({

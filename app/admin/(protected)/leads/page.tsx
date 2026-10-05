@@ -21,7 +21,7 @@ import {
 } from "lucide-react"
 import { LeadDetailModal } from "@/components/admin/lead-detail-modal"
 import { COUNTRIES, STATES, CITIES } from "@/lib/locations"
-import { businessTypeOptions } from "@/lib/industries"
+import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
 import { ADVANCED_QUESTIONNAIRE_FIELDS } from "@/lib/questionnaire-catalog"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 
@@ -48,6 +48,7 @@ interface Lead {
   email: string
   phone: string
   businessType: string
+  industry?: string
   productInterest: string
   branches: string
   staffSize: string
@@ -65,6 +66,13 @@ interface Lead {
   businessId?: string | null
   submittedAt: string
   updatedAt: string
+}
+
+/** Canonical industry for a lead, shown under its business type when the two
+ *  differ (e.g. business type "Fashion" → industry "Fashion Stores"). */
+function resolvedIndustry(lead: Lead): string {
+  const canonical = resolveIndustryName(lead.industry || lead.businessType)
+  return canonical && canonical !== lead.businessType ? canonical : ""
 }
 
 const PIPELINE_STAGES: Lead["status"][] = ["New", "Contacted", "Qualified", "Proposal", "Won", "Lost"]
@@ -128,6 +136,7 @@ export default function AdminLeadsPage() {
     email: "",
     phone: "",
     businessType: "",
+    industry: "",
     productInterest: "retail",
     branches: "1",
     staffSize: "1-5",
@@ -350,6 +359,7 @@ export default function AdminLeadsPage() {
           email: "",
           phone: "",
           businessType: "",
+          industry: "",
           productInterest: "retail",
           branches: "1",
           staffSize: "1-5",
@@ -1006,6 +1016,7 @@ export default function AdminLeadsPage() {
                   </th>
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Business</th>
+                  <th className="px-4 py-3 font-medium">Business Type</th>
                   <th className="px-4 py-3 font-medium">Email</th>
                   <th className="px-4 py-3 font-medium">Phone</th>
                   <th className="px-4 py-3 font-medium">Product</th>
@@ -1033,6 +1044,12 @@ export default function AdminLeadsPage() {
                     </td>
                     <td className="px-4 py-3 font-medium whitespace-nowrap">{lead.fullName}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{lead.businessName}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="text-muted-foreground">{lead.businessType || "—"}</span>
+                      {resolvedIndustry(lead) && (
+                        <span className="block text-[10px] text-muted-foreground/70">{resolvedIndustry(lead)}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{lead.email}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{lead.phone}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
@@ -1082,7 +1099,7 @@ export default function AdminLeadsPage() {
                 ))}
                 {filteredLeads.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">
                       No leads match your filters.
                     </td>
                   </tr>
@@ -1153,7 +1170,13 @@ export default function AdminLeadsPage() {
                 <label className="block text-xs font-medium mb-1">Business Type *</label>
                 <select
                   value={addForm.businessType}
-                  onChange={(e) => setAddForm((prev) => ({ ...prev, businessType: e.target.value }))}
+                  onChange={(e) =>
+                    setAddForm((prev) => ({
+                      ...prev,
+                      businessType: e.target.value,
+                      industry: resolveIndustryName(e.target.value),
+                    }))
+                  }
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="">Select...</option>
@@ -1161,6 +1184,22 @@ export default function AdminLeadsPage() {
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Industry</label>
+                <select
+                  value={addForm.industry}
+                  onChange={(e) => setAddForm((prev) => ({ ...prev, industry: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Auto (from business type)</option>
+                  {industryOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Used for lead reporting and quote templates.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Product Interest *</label>
@@ -1290,8 +1329,7 @@ export default function AdminLeadsPage() {
                   <div className={`w-2 h-12 rounded-full shrink-0 ${STAGE_COLORS[lead.status]}`} />
                   <div>
                     <p className="text-base font-semibold">{lead.fullName}</p>
-                    <p className="text-sm text-muted-foreground">{lead.businessName} · {lead.businessType}</p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">{lead.businessName} · {lead.industry || lead.businessType}</p>                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {lead.email}</span>
                       <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> {lead.phone}</span>
                     </div>

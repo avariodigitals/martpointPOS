@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Building2, Plus, ArrowRight, X, Search, CheckCircle2, Ban, PauseCircle, Trash2, Save } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
-import { allIndustries, businessTypeOptions } from "@/lib/industries"
+import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
 
 const BUSINESS_TYPE_OPTIONS = businessTypeOptions
-const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
+// Canonical industries only — a business must land in an exact industry so it
+// counts on the dashboard. (The business *type* list keeps its "Other" option.)
+const INDUSTRY_OPTIONS = industryOptions
 
 interface Business {
   id: string
@@ -495,7 +497,13 @@ export default function AdminBusinessesPage() {
                 <label className="block text-xs font-medium mb-1">Business type</label>
                 <select
                   value={createForm.businessType}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, businessType: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      businessType: e.target.value,
+                      industry: resolveIndustryName(e.target.value) || prev.industry,
+                    }))
+                  }
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="">Select business type</option>

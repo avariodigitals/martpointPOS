@@ -55,6 +55,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
           .join(" ")
           .trim(),
         payment_terms: (src.payment_terms as string | null) || null,
+        industry: (src.industry as string | null) || null,
         created_by: session?.username || null,
         sent_at: null,
         allow_changes: Boolean(src.allow_changes),

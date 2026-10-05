@@ -13,6 +13,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { SectionHeader } from "@/components/shared/section-header"
+import { GoogleReviewCTA } from "@/components/shared/google-review"
 import { readSettings } from "@/lib/settings"
 import { resolveCloudPlans } from "@/lib/pricing-plans"
 import { PlanCard } from "@/components/pricing/plan-card"
@@ -777,6 +778,15 @@ export default async function MartPointRetailPage() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Rate us on Google */}
+            <div className="mt-12 max-w-2xl mx-auto">
+              <GoogleReviewCTA
+                compact
+                title="Happy with MartPoint? Rate us on Google"
+                description="Share your experience once on Google — it helps other retailers find us, and you skip writing the same testimonial twice."
+              />
             </div>
 
             {/* Trusted By Logos */}

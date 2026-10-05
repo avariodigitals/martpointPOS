@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { SectionHeader } from "@/components/shared/section-header"
+import { GoogleReviewCTA } from "@/components/shared/google-review"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import Image from "next/image"
@@ -223,6 +224,15 @@ export default function CustomerStoriesPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Rate us on Google */}
+        <section className="w-full bg-background border-b border-border py-14 md:py-20">
+          <div className="container-martpoint">
+            <div className="max-w-2xl mx-auto">
+              <GoogleReviewCTA title="Worked with us? Rate us on Google" />
             </div>
           </div>
         </section>

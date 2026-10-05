@@ -21,6 +21,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Users,
+  Layers,
 } from "lucide-react"
 import {
   parseControlPeriod,
@@ -30,6 +31,7 @@ import {
   getPartnerSnapshot,
   getCustomerSnapshot,
   getSupportSnapshot,
+  getIndustrySnapshot,
   type ControlCentrePeriod,
   type RequiresAttentionItem,
   CONTROL_CENTRE_PERIODS,
@@ -216,13 +218,14 @@ export default async function ControlCentrePage({
   const raw = Array.isArray(sp?.period) ? sp.period[0] : sp?.period
   const period = parseControlPeriod(raw)
 
-  const [metrics, attention, financial, partner, customer, support] = await Promise.all([
+  const [metrics, attention, financial, partner, customer, support, industry] = await Promise.all([
     getControlCentreMetrics(period),
     getRequiresAttention(),
     getFinancialSnapshot(period),
     getPartnerSnapshot(period),
     getCustomerSnapshot(),
     getSupportSnapshot(period),
+    getIndustrySnapshot(),
   ])
 
   const totalHealth =
@@ -291,6 +294,12 @@ export default async function ControlCentrePage({
           label="Renewals Due"
           icon={CalendarClock}
           href="/admin/finance/commercial/renewals"
+        />
+        <StatCard
+          value={fmtNumber(industry.industriesDeployed)}
+          label="Industries Deployed"
+          icon={Layers}
+          href="/admin/businesses"
         />
       </div>
 
@@ -400,6 +409,71 @@ export default async function ControlCentrePage({
 
       {/* ─── Operational Sections ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SectionCard
+          title="Industry Footprint"
+          description="Deployed businesses and leads, grouped by industry"
+          icon={Layers}
+        >
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-medium mb-2">
+                Deployed ({fmtNumber(industry.totalDeployed)})
+              </p>
+              {industry.deployedByIndustry.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No deployed businesses yet.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                  {industry.deployedByIndustry.map((row) => (
+                    <div key={row.name} className="flex items-center justify-between gap-2 text-xs">
+                      <span
+                        className={`truncate ${row.canonical ? "text-muted-foreground" : "italic text-muted-foreground/50"}`}
+                      >
+                        {row.name}
+                      </span>
+                      <span
+                        className={`tabular-nums ${row.canonical ? "font-semibold" : "text-muted-foreground/60"}`}
+                      >
+                        {row.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {industry.unresolvedDeployed > 0 && (
+                <p className="mt-2 text-[10px] italic text-muted-foreground/70">
+                  {fmtNumber(industry.unresolvedDeployed)} not mapped to an industry — excluded from the count
+                  above.
+                </p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-medium mb-2">
+                Leads ({fmtNumber(industry.totalLeads)})
+              </p>
+              {industry.leadsByIndustry.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No leads yet.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                  {industry.leadsByIndustry.slice(0, 12).map((row) => (
+                    <div key={row.name} className="flex items-center justify-between gap-2 text-xs">
+                      <span
+                        className={`truncate ${row.canonical ? "text-muted-foreground" : "italic text-muted-foreground/50"}`}
+                      >
+                        {row.name}
+                      </span>
+                      <span
+                        className={`tabular-nums ${row.canonical ? "font-semibold" : "text-muted-foreground/60"}`}
+                      >
+                        {row.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </SectionCard>
+
         <SectionCard
           title="Financial Snapshot"
           description={`Revenue, outstanding, renewals and commission for ${period}`}

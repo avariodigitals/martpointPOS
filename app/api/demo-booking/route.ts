@@ -4,6 +4,7 @@ import { z } from "zod"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { verifyCaptchaToken } from "@/lib/captcha"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { resolveIndustryName } from "@/lib/industries"
 import { isValidTimeZone } from "@/lib/scheduling"
 import {
   MEETING_SELECT,
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
     email: body.email,
     phone: body.phone,
     business_type: body.businessType,
+    industry: resolveIndustryName(body.businessType),
     product_interest: body.productInterest || "not-sure",
     branches: "1",
     staff_size: "1-5",

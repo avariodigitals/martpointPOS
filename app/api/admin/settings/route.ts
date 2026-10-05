@@ -52,6 +52,7 @@ function getDefaultSettings() {
       phone: "+2348037978230",
       companyName: "MartPoint",
       accountNumber: "",
+      googleReviewUrl: "https://g.page/r/Cb5Gukc0lQW8EBM/review",
     },
     email: {
       provider: "resend",

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Loader2, Star, AlertCircle, Check, ThumbsUp, ThumbsDown } from "lucide-react"
+import { Loader2, Star, AlertCircle, Check, ThumbsUp, ThumbsDown, ExternalLink } from "lucide-react"
 
 const STEPS = [
   { key: "deployment", label: "Deployment", description: "Getting your MartPoint system installed and ready for use." },
@@ -34,9 +34,14 @@ export default function CustomerFeedbackPage() {
   const [mood, setMood] = useState<"pleased" | "neutral" | "unhappy">("neutral")
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [googleReviewUrl, setGoogleReviewUrl] = useState("")
 
   useEffect(() => {
     if (!token) return
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => setGoogleReviewUrl(data?.general?.googleReviewUrl || ""))
+      .catch(() => {})
     fetch(`/api/customer-feedback?token=${encodeURIComponent(token)}`)
       .then((res) => res.json())
       .then((data) => {
@@ -119,6 +124,23 @@ export default function CustomerFeedbackPage() {
           <p className="text-sm text-muted-foreground">
             Your feedback has been recorded. We use it to keep improving your experience.
           </p>
+          {googleReviewUrl && (
+            <>
+              <p className="mt-5 text-sm text-muted-foreground">
+                Would you also share the same feedback as a Google review? It only takes a
+                minute and helps other businesses find us.
+              </p>
+              <a
+                href={googleReviewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-retail px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-retail/90"
+              >
+                Post my review on Google
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </>
+          )}
         </div>
       </div>
     )

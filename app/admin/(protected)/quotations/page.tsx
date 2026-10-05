@@ -21,10 +21,16 @@ import {
   Eye,
   Pencil,
   Copy,
+  Calculator,
+  Sparkles,
 } from "lucide-react"
 import { formatNgnFull, replaceCurrencySymbols, recalculateQuote, buildWhatsAppLink, buildQuoteWhatsAppMessage, buildQuotePublicUrl } from "@/lib/quotations"
 import { generateQuotationPdf } from "@/lib/quotation-pdf"
 import type { Quotation, QuotationItemInput, QuoteDiscountType } from "@/lib/quotations"
+import { industryOptions, resolveIndustryName } from "@/lib/industries"
+import { resolveQuoteTemplate, quoteTemplateOptions } from "@/lib/quote-templates"
+import { buildEstimatorOutput, estimatorCatalogItems } from "@/lib/internal-estimator"
+import { resolveCloudPlans, type ResolvedCloudPlan } from "@/lib/pricing-plans"
 
 interface Lead {
   id: string
@@ -33,6 +39,8 @@ interface Lead {
   email: string
   phone: string
   productInterest: string
+  businessType?: string
+  industry?: string
 }
 
 interface QuoteForm {
@@ -42,6 +50,7 @@ interface QuoteForm {
   notesPublic: string
   notesInternal: string
   paymentTerms: string
+  industry: string
   items: QuotationItemInput[]
   discountType: QuoteDiscountType
   discountValue: number
@@ -58,7 +67,7 @@ interface CatalogItem {
   description: string | null
   price: number
   currency: string
-  type: "Product" | "Plan" | "Service"
+  type: "Product" | "Plan" | "Service" | "Add-on"
 }
 
 interface TaxRate {
@@ -74,7 +83,19 @@ export default function QuotationsPage() {
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
+  const [cloudPlans, setCloudPlans] = useState<ResolvedCloudPlan[]>([])
   const [taxRates, setTaxRates] = useState<TaxRate[]>([])
+
+  // Quick internal estimator (plans + capacity add-ons → quote lines).
+  const [showEstimator, setShowEstimator] = useState(false)
+  const [estimator, setEstimator] = useState({
+    branches: 1,
+    users: 5,
+    products: 500,
+    variations: 0,
+    services: 0,
+    mediaGb: 0,
+  })
   const [logoUrl, setLogoUrl] = useState("")
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
@@ -91,6 +112,7 @@ export default function QuotationsPage() {
     notesPublic: "",
     notesInternal: "",
     paymentTerms: "",
+    industry: "",
     items: [{ ...initialItem }],
     discountType: "none",
     discountValue: 0,
@@ -150,6 +172,20 @@ export default function QuotationsPage() {
         const products = (qData.products || []) as Record<string, unknown>[]
         const plans = (qData.plans || []) as Record<string, unknown>[]
         const services = (qData.services || []) as Record<string, unknown>[]
+
+        // Live Retail Cloud plans + annual add-ons (same catalogue as /pricing) so
+        // sales can quote a licence without leaving the quotation screen.
+        const resolvedPlans = resolveCloudPlans(sData as Record<string, unknown>)
+        setCloudPlans(resolvedPlans)
+        const pricingCatalog: CatalogItem[] = estimatorCatalogItems(resolvedPlans).map((c) => ({
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          price: c.price,
+          currency: "NGN",
+          type: c.type,
+        }))
+
         const catalog: CatalogItem[] = [
           ...products.map((p) => ({
             id: p.id as string,
@@ -175,6 +211,7 @@ export default function QuotationsPage() {
             currency: (s.currency as string) || "NGN",
             type: "Service" as const,
           })),
+          ...pricingCatalog,
         ].sort((a, b) => a.name.localeCompare(b.name))
         setCatalogItems(catalog)
       } catch (e) {
@@ -225,6 +262,7 @@ export default function QuotationsPage() {
       notesPublic: "",
       notesInternal: "",
       paymentTerms: "",
+      industry: "",
       items: [{ ...initialItem }],
       discountType: "none",
       discountValue: 0,
@@ -243,6 +281,7 @@ export default function QuotationsPage() {
       notesPublic: qt.notes_public || "",
       notesInternal: qt.notes_internal || "",
       paymentTerms: qt.payment_terms || "",
+      industry: qt.industry || qt.lead?.industry || resolveIndustryName(qt.lead?.businessType || ""),
       items: (qt.items || []).map((it) => ({
         description: it.description,
         quantity: it.quantity,
@@ -283,6 +322,7 @@ export default function QuotationsPage() {
         notesPublic: form.notesPublic,
         notesInternal: form.notesInternal,
         paymentTerms: form.paymentTerms,
+        industry: form.industry,
         items: form.items,
         discountType: form.discountType,
         discountValue: form.discountValue,
@@ -711,7 +751,21 @@ export default function QuotationsPage() {
                 <select
                   disabled={!!editingId}
                   value={form.leadId}
-                  onChange={(e) => setForm((prev) => ({ ...prev, leadId: e.target.value }))}
+                  onChange={(e) => {
+                    const leadId = e.target.value
+                    const lead = leads.find((l) => l.id === leadId)
+                    const industry = lead?.industry || resolveIndustryName(lead?.businessType || "")
+                    setForm((prev) => {
+                      const tpl = industry ? resolveQuoteTemplate(industry) : null
+                      return {
+                        ...prev,
+                        leadId,
+                        industry: industry || prev.industry,
+                        paymentTerms: !prev.paymentTerms && tpl ? tpl.paymentTerms : prev.paymentTerms,
+                        notesPublic: !prev.notesPublic && tpl ? tpl.publicNotes : prev.notesPublic,
+                      }
+                    })
+                  }}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="">Select a lead</option>
@@ -726,6 +780,47 @@ export default function QuotationsPage() {
                     {selectedLead.email} · {selectedLead.phone}
                   </p>
                 )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Industry</label>
+                  <select
+                    value={form.industry}
+                    onChange={(e) => setForm((prev) => ({ ...prev, industry: e.target.value }))}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Select industry...</option>
+                    {industryOptions.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Apply industry template</label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const industry = e.target.value
+                      const tpl = industry ? resolveQuoteTemplate(industry) : null
+                      if (!tpl) return
+                      setForm((prev) => ({
+                        ...prev,
+                        industry: industry || prev.industry,
+                        paymentTerms: tpl.paymentTerms,
+                        notesPublic: tpl.publicNotes,
+                      }))
+                    }}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Apply template to notes &amp; terms...</option>
+                    {quoteTemplateOptions().map((opt) => (
+                      <option key={`${opt.group}:${opt.value || "default"}`} value={opt.value}>
+                        {opt.group === "General" ? opt.label : `${opt.group} — ${opt.label}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -748,6 +843,98 @@ export default function QuotationsPage() {
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   />
                 </div>
+              </div>
+
+              {/* Quick internal estimator — size the deal, then apply as quote lines */}
+              <div className="rounded-xl border border-border bg-muted/20">
+                <button
+                  type="button"
+                  onClick={() => setShowEstimator((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <Calculator className="w-4 h-4 text-blue-600" />
+                    Quick estimator
+                    <span className="text-xs font-normal text-muted-foreground">
+                      — check what applies, then apply as quote lines
+                    </span>
+                  </span>
+                  <span className="text-xs text-muted-foreground">{showEstimator ? "Hide" : "Open"}</span>
+                </button>
+                {showEstimator && (() => {
+                  const output = buildEstimatorOutput(estimator, cloudPlans)
+                  const fields = [
+                    ["branches", "Branches"],
+                    ["users", "Named users"],
+                    ["products", "Main products"],
+                    ["variations", "Product variations"],
+                    ["services", "Services"],
+                    ["mediaGb", "Media (GB)"],
+                  ] as const
+                  return (
+                    <div className="px-4 pb-4 border-t border-border space-y-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4">
+                        {fields.map(([key, label]) => (
+                          <div key={key}>
+                            <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                              {label}
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={estimator[key]}
+                              onChange={(e) =>
+                                setEstimator((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+                              }
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="rounded-lg border border-border bg-background p-3 text-sm space-y-2">
+                        <p className="font-medium flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-blue-600" /> {output.planName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{output.summary}</p>
+                        <ul className="text-xs space-y-1 pt-1">
+                          <li className="flex justify-between">
+                            <span>Annual licence</span>
+                            <span>{formatNgnFull(output.planAnnual)}</span>
+                          </li>
+                          {output.addons.map((a) => (
+                            <li key={a.id} className="flex justify-between text-muted-foreground">
+                              <span>{a.label} × {a.quantity}</span>
+                              <span>{formatNgnFull(a.amount)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="flex justify-between font-semibold border-t border-border pt-2">
+                          <span>Estimated annual total</span>
+                          <span>{formatNgnFull(output.total)}</span>
+                        </div>
+                        {output.warnings.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground">{output.warnings[0]}</p>
+                        )}
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          setForm((prev) => ({
+                            ...prev,
+                            items: output.items.map((it) => ({ ...initialItem, ...it })),
+                          }))
+                          setShowEstimator(false)
+                        }}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1" />
+                        Apply {output.items.length} line{output.items.length === 1 ? "" : "s"} to quote
+                      </Button>
+                    </div>
+                  )
+                })()}
               </div>
 
               <div>

@@ -40,6 +40,7 @@ export interface PublicSiteSettings {
   phone: string
   accountNumber: string
   logo: string
+  googleReviewUrl: string
 }
 
 export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
@@ -50,6 +51,7 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
     phone: "+2348037978230",
     accountNumber: "",
     logo: "/logo.webp",
+    googleReviewUrl: "https://g.page/r/Cb5Gukc0lQW8EBM/review",
   }
 
   try {
@@ -64,6 +66,7 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
       phone: String(general.phone || defaults.phone),
       accountNumber: String(general.accountNumber || ""),
       logo: String(header.logo || defaults.logo),
+      googleReviewUrl: String(general.googleReviewUrl ?? defaults.googleReviewUrl),
     }
   } catch (err) {
     console.error("[settings] getPublicSiteSettings", err)

@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { getIndustryByName, resolveIndustryName } from "./industries"
 import type { AdminTask } from "./tasks"
 
 export type ControlCentrePeriod = "today" | "7d" | "30d" | "this_month" | "quarter" | "year"
@@ -543,6 +544,167 @@ export async function getCustomerSnapshot(): Promise<CustomerSnapshot> {
   }
 
   return { health, onboarding, churned }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   INDUSTRY FOOTPRINT
+   Leads counted by industry, and deployed businesses counted by industry.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+export interface IndustryCount {
+  name: string
+  count: number
+  /** True when `name` is a canonical industry from the code registry
+   *  (lib/industries.ts). "Unspecified", "Other" and leftover free text are
+   *  false, and are excluded from `industriesDeployed`. */
+  canonical: boolean
+}
+
+export interface IndustrySnapshot {
+  /** Leads grouped by industry (industry column, falling back to business type). */
+  leadsByIndustry: IndustryCount[]
+  /** Deployed businesses grouped by industry. */
+  deployedByIndustry: IndustryCount[]
+  totalLeads: number
+  /** Total deployed businesses across all industries. */
+  totalDeployed: number
+  /** Number of distinct *canonical* industries with at least one deployed business. */
+  industriesDeployed: number
+  /** Deployed businesses whose industry could not be resolved to a canonical
+   *  industry (blank, "Other", or free text). Counted in `totalDeployed` but
+   *  deliberately not in `industriesDeployed`. */
+  unresolvedDeployed: number
+}
+
+export async function getIndustrySnapshot(): Promise<IndustrySnapshot> {
+  const zero: IndustrySnapshot = {
+    leadsByIndustry: [],
+    deployedByIndustry: [],
+    totalLeads: 0,
+    totalDeployed: 0,
+    industriesDeployed: 0,
+    unresolvedDeployed: 0,
+  }
+  if (!isSupabaseConfigured()) return zero
+
+  const [leadsRes, businessesRes, deploymentsRes] = await Promise.all([
+    supabase.from("leads").select("industry, business_type"),
+    supabase.from("businesses").select("id, industry, business_type, status"),
+    supabase.from("business_deployments").select("business_id, status"),
+  ])
+
+  const isMissingTable = (error: { code?: string } | null) => error?.code === "PGRST205"
+
+  const leadRows =
+    (leadsRes.data as IndustryLeadRow[] | null) || []
+  const businessRows =
+    (businessesRes.data as IndustryBusinessRow[] | null) || []
+  const deploymentRows =
+    (deploymentsRes.data as IndustryDeploymentRow[] | null) || []
+
+  if (leadsRes.error && !isMissingTable(leadsRes.error)) {
+    console.warn("[getIndustrySnapshot] leads", leadsRes.error.message)
+  }
+  if (businessesRes.error && !isMissingTable(businessesRes.error)) {
+    console.warn("[getIndustrySnapshot] businesses", businessesRes.error.message)
+  }
+
+  return summarizeIndustries(leadRows, businessRows, deploymentRows)
+}
+
+export interface IndustryLeadRow {
+  industry: string | null
+  business_type: string | null
+}
+
+export interface IndustryBusinessRow extends IndustryLeadRow {
+  id: string
+  status: string
+}
+
+export interface IndustryDeploymentRow {
+  business_id: string
+  status: string
+}
+
+/** Statuses that make a business count as deployed, on its own record… */
+export const DEPLOYED_BUSINESS_STATUSES = ["ACTIVE", "GO_LIVE_APPROVED"]
+/** …or via a deployment record. */
+export const DEPLOYED_DEPLOYMENT_STATUSES = ["LIVE", "PROVISIONED"]
+
+/**
+ * Pure aggregation behind {@link getIndustrySnapshot}.
+ *
+ * Two rules matter for the dashboard:
+ *  1. Values are resolved through `resolveIndustryName` at read time, so a
+ *     legacy stored value ("Fashion Retailer") folds into the exact industry
+ *     ("Fashion Stores") instead of becoming a phantom industry.
+ *  2. Only *canonical* industries count toward `industriesDeployed`.
+ *     "Unspecified", "Other" and leftover free text are reported separately in
+ *     `unresolvedDeployed` so they can never inflate the headline number.
+ */
+export function summarizeIndustries(
+  leadRows: IndustryLeadRow[],
+  businessRows: IndustryBusinessRow[],
+  deploymentRows: IndustryDeploymentRow[]
+): IndustrySnapshot {
+  const industryOf = (industry: string | null, businessType: string | null): string =>
+    resolveIndustryName((industry || "").trim() || businessType || "") || "Unspecified"
+
+  const isCanonical = (name: string): boolean => Boolean(getIndustryByName(name))
+
+  // Canonical industries first, then by volume — unresolved buckets are shown
+  // but sorted to the bottom so the real industries read at a glance.
+  const toSorted = (counts: Map<string, number>): IndustryCount[] =>
+    [...counts.entries()]
+      .map(([name, count]) => ({ name, count, canonical: isCanonical(name) }))
+      .sort(
+        (a, b) =>
+          Number(b.canonical) - Number(a.canonical) ||
+          b.count - a.count ||
+          a.name.localeCompare(b.name)
+      )
+
+  const leadCounts = new Map<string, number>()
+  for (const l of leadRows) {
+    const name = industryOf(l.industry, l.business_type)
+    leadCounts.set(name, (leadCounts.get(name) || 0) + 1)
+  }
+
+  // A business counts as deployed when it is live/approved, or when it has a
+  // provisioned/live deployment record. Counted once per business.
+  const businessMap = new Map(businessRows.map((b) => [b.id, b]))
+  const deployedIds = new Set<string>()
+  for (const b of businessRows) {
+    if (DEPLOYED_BUSINESS_STATUSES.includes(b.status)) deployedIds.add(b.id)
+  }
+  for (const d of deploymentRows) {
+    if (DEPLOYED_DEPLOYMENT_STATUSES.includes(d.status)) deployedIds.add(d.business_id)
+  }
+
+  const deployedCounts = new Map<string, number>()
+  let totalDeployed = 0
+  for (const id of deployedIds) {
+    // Skip ids with no business row (an orphan deployment record): counting one
+    // would make the total disagree with the sum of the per-industry rows.
+    const b = businessMap.get(id)
+    if (!b) continue
+    totalDeployed += 1
+    const name = industryOf(b.industry, b.business_type)
+    deployedCounts.set(name, (deployedCounts.get(name) || 0) + 1)
+  }
+
+  const deployedByIndustry = toSorted(deployedCounts)
+  return {
+    leadsByIndustry: toSorted(leadCounts),
+    deployedByIndustry,
+    totalLeads: leadRows.length,
+    totalDeployed,
+    industriesDeployed: deployedByIndustry.filter((r) => r.canonical).length,
+    unresolvedDeployed: deployedByIndustry
+      .filter((r) => !r.canonical)
+      .reduce((sum, r) => sum + r.count, 0),
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

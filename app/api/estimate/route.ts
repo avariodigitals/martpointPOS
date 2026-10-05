@@ -6,6 +6,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { readSettings } from "@/lib/settings"
+import { resolveIndustryName } from "@/lib/industries"
 import {
   buildEstimate,
   buildPricingFromSettings,
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
         email,
         phone,
         business_type: businessType,
+        industry: resolveIndustryName(businessType),
         product_interest: productInterest,
         branches,
         staff_size: staffSize,

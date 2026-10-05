@@ -3821,3 +3821,95 @@ export const businessTypeOptions = [
   "Frozen Foods (Cow, Pig, Chicken, Fish)",
   "Other",
 ]
+
+/* ─── Canonical industry helpers ───
+ * "Business type" is the customer-facing form label (e.g. "Supermarket").
+ * "Industry" is the canonical registry name (e.g. "Supermarkets"), used for
+ * reporting/counting and for selecting the right quote template. These helpers
+ * keep the two vocabularies aligned without a database table.
+ */
+
+/** Canonical industry names, sorted — the values stored in `leads.industry`,
+ *  `lead_quotations.industry` and `businesses.industry`. */
+export const industryOptions: string[] = [...new Set(allIndustries.map((i) => i.name))].sort((a, b) =>
+  a.localeCompare(b)
+)
+
+export function getIndustryByName(name?: string | null): IndustryData | undefined {
+  if (!name) return undefined
+  const v = name.trim().toLowerCase()
+  return allIndustries.find((i) => i.name.toLowerCase() === v)
+}
+
+export function getIndustryBySlug(slug?: string | null): IndustryData | undefined {
+  if (!slug) return undefined
+  const v = slug.trim().toLowerCase()
+  return allIndustries.find((i) => i.slug.toLowerCase() === v)
+}
+
+/** Escapes a string for literal use inside a RegExp. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+/** Collapses to lowercase alphanumerics so "Skin Care" === "skincare". */
+function normalizeIndustryToken(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
+/** True when `needle` occurs in `haystack` as a whole word run — so "Other"
+ *  does NOT match "Physi(other)apy", while "Organic" still matches
+ *  "Skincare & Organic Cosmetics". */
+function containsWordRun(haystack: string, needle: string): boolean {
+  if (!needle) return false
+  return new RegExp(`(^|[^a-z0-9])${escapeRegExp(needle)}([^a-z0-9]|$)`, "i").test(haystack)
+}
+
+/** Resolve any of: canonical name, business-type form label, or slug → canonical
+ *  industry name. Falls back to the trimmed input so free-text is never lost.
+ *
+ *  Matching order (first hit wins):
+ *    1. exact name / form label / slug
+ *    2. normalised prefix in either direction — "Skin Care" → "Skincare &
+ *       Organic Cosmetics", "Mini Mart" → "Mini Marts", "Fashion Retailer" →
+ *       "Fashion Stores", "Frozen Foods (Cow, Pig, …)" → "Frozen Foods"
+ *    3. whole-word run — "Organic Cosmetics" → "Skincare & Organic Cosmetics"
+ *
+ *  Step 3 deliberately requires word boundaries. A plain substring test used to
+ *  send "Other" to "Physiotherapy & Rehabilitation", which silently applied the
+ *  wrong payment terms and split the dashboard's industry counts. */
+export function resolveIndustryName(value?: string | null): string {
+  if (!value) return ""
+  const trimmed = value.trim()
+  if (!trimmed) return ""
+  const v = trimmed.toLowerCase()
+
+  const parts = (i: IndustryData) => [i.name, i.formLabel ?? "", i.slug]
+
+  const exact = allIndustries.find((i) => parts(i).some((p) => p.toLowerCase() === v))
+  if (exact) return exact.name
+
+  const nv = normalizeIndustryToken(trimmed)
+  if (nv) {
+    const prefixed = allIndustries.find((i) =>
+      parts(i).some((p) => {
+        const n = normalizeIndustryToken(p)
+        return n !== "" && (n.startsWith(nv) || nv.startsWith(n))
+      })
+    )
+    if (prefixed) return prefixed.name
+  }
+
+  const wordRun = allIndustries.find((i) =>
+    [i.name, i.formLabel ?? ""].some((p) => containsWordRun(p, trimmed))
+  )
+  if (wordRun) return wordRun.name
+
+  return trimmed
+}
+
+/** Canonical slug for an industry name/business-type label. */
+export function resolveIndustrySlug(value?: string | null): string {
+  const name = resolveIndustryName(value)
+  return getIndustryByName(name)?.slug ?? ""
+}

@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from("lead_quotations")
-      .select("*, lead:leads (full_name, business_name, email, phone, product_interest), items:lead_quotation_items(*)")
+      .select("*, lead:leads (full_name, business_name, email, phone, product_interest, business_type, industry), items:lead_quotation_items(*)")
       .eq("public_token", token)
       .single()
 
@@ -80,6 +80,8 @@ export async function GET(request: Request) {
         email: leadRaw.email,
         phone: leadRaw.phone,
         product_interest: leadRaw.product_interest,
+        business_type: leadRaw.business_type,
+        industry: leadRaw.industry,
       } : null,
       items: itemsRaw.map((it: Record<string, unknown>) => ({
         ...it,

@@ -3,6 +3,7 @@
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
 import type { Quotation, QuotationItem, LeadSummary } from "./quotations"
+import { resolveIndustryName } from "./industries"
 import { replaceCurrencySymbols } from "./quotations"
 
 function formatPdfNgn(n: number): string {
@@ -110,9 +111,11 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
 
   doc.setFontSize(10)
   doc.setTextColor(107, 114, 128)
+  const industryLabel = resolveIndustryName(quote.industry || lead.industry || lead.businessType)
   const clientLines = [
     lead.fullName,
     lead.businessName,
+    industryLabel ? `Industry: ${industryLabel}` : "",
     lead.email,
     lead.phone,
   ].filter(Boolean)

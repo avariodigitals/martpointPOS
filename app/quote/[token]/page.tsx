@@ -50,6 +50,8 @@ export default function PublicQuotePage() {
             email: leadRaw.email || "",
             phone: leadRaw.phone || "",
             productInterest: leadRaw.product_interest || "",
+            businessType: leadRaw.business_type || "",
+            industry: leadRaw.industry || "",
           })
           if (data.changeRequest) {
             setChangeRequest({
@@ -188,6 +190,11 @@ export default function PublicQuotePage() {
           </div>
           <h1 className="text-2xl md:text-3xl font-bold">Quotation {quote.quote_number}</h1>
           <p className="mt-2 text-muted-foreground">Prepared for {lead.fullName} — {lead.businessName}</p>
+          {(quote.industry || lead.industry) && (
+            <p className="mt-1 text-xs uppercase tracking-wide text-muted-foreground/80">
+              {quote.industry || lead.industry} industry
+            </p>
+          )}
         </div>
 
         {error && (

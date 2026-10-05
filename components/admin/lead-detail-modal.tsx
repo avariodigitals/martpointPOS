@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { businessTypeOptions } from "@/lib/industries"
+import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 import {
   X,
@@ -22,6 +22,7 @@ import {
   Copy,
   User,
   Tag,
+  Layers,
   GitBranch,
   Users,
   ShoppingBag,
@@ -42,6 +43,7 @@ export interface Lead {
   email: string
   phone: string
   businessType: string
+  industry?: string
   productInterest: string
   branches: string
   staffSize: string
@@ -173,6 +175,7 @@ export function LeadDetailModal({
     email: lead.email,
     phone: lead.phone,
     businessType: lead.businessType,
+    industry: lead.industry || resolveIndustryName(lead.businessType) || "",
     productInterest: lead.productInterest,
     branches: lead.branches,
     staffSize: lead.staffSize,
@@ -295,6 +298,7 @@ export function LeadDetailModal({
         email: updated.email,
         phone: updated.phone,
         businessType: updated.businessType,
+        industry: updated.industry || resolveIndustryName(updated.businessType) || "",
         productInterest: updated.productInterest,
         branches: updated.branches,
         staffSize: updated.staffSize,
@@ -694,6 +698,7 @@ export function LeadDetailModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <InfoCard icon={<Building2 className="w-4 h-4" />} label="Business Name" value={lead.businessName} />
                 <InfoCard icon={<Tag className="w-4 h-4" />} label="Business Type" value={lead.businessType || "—"} />
+                <InfoCard icon={<Layers className="w-4 h-4" />} label="Industry" value={lead.industry || resolveIndustryName(lead.businessType) || "—"} />
                 <InfoCard icon={<ShoppingBag className="w-4 h-4" />} label="Product Interest" value={productLabel} />
                 <InfoCard icon={<GitBranch className="w-4 h-4" />} label="Branches" value={lead.branches} />
                 <InfoCard icon={<Users className="w-4 h-4" />} label="Staff Size" value={lead.staffSize} />
@@ -791,13 +796,35 @@ export function LeadDetailModal({
                   <label className={labelClass}>Business Type *</label>
                   <select
                     value={editForm.businessType}
-                    onChange={(e) => setEditForm((p) => ({ ...p, businessType: e.target.value }))}
+                    onChange={(e) =>
+                      setEditForm((p) => ({
+                        ...p,
+                        businessType: e.target.value,
+                        industry: resolveIndustryName(e.target.value) || p.industry,
+                      }))
+                    }
                     className={inputClass}
                   >
                     <option value="">Select...</option>
                     {BUSINESS_TYPES.map((t) => (
                       <option key={t} value={t}>{t}</option>
                     ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Industry</label>
+                  <select
+                    value={editForm.industry}
+                    onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))}
+                    className={inputClass}
+                  >
+                    <option value="">Unspecified</option>
+                    {industryOptions.map((i) => (
+                      <option key={i} value={i}>{i}</option>
+                    ))}
+                    {editForm.industry && !industryOptions.includes(editForm.industry) && (
+                      <option value={editForm.industry}>{editForm.industry}</option>
+                    )}
                   </select>
                 </div>
                 <div>

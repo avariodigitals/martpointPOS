@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { convertLeadToBusiness } from "@/lib/businesses"
+import { resolveIndustryName } from "@/lib/industries"
 import { auditContextFromSession } from "@/lib/audit"
 import { nextInvoiceNumber, recalculateInvoice } from "@/lib/finance-commercial"
 
@@ -48,7 +49,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         targetBusinessId = existingBusiness.id as string
       } else {
         // Convert the lead to a business (requires status Won).
-        const conversion = await convertLeadToBusiness(quote.lead_id as string, actor)
+        const quoteLead = Array.isArray(quote.lead)
+          ? (quote.lead[0] as Record<string, unknown> | undefined)
+          : (quote.lead as Record<string, unknown> | undefined)
+        const industry = resolveIndustryName(
+          (quote.industry as string | null) ||
+            (quoteLead?.industry as string) ||
+            (quoteLead?.business_type as string) ||
+            ""
+        )
+        const conversion = await convertLeadToBusiness(quote.lead_id as string, actor, { industry })
         if (!conversion.ok || !conversion.business) {
           return NextResponse.json(
             { error: conversion.error || "Could not convert lead to business. Mark the lead as Won first." },

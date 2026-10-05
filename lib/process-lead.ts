@@ -1,5 +1,6 @@
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { resolveIndustryName } from "@/lib/industries"
 import { sendEmail } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import {
@@ -104,6 +105,7 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
       email: lead.email,
       phone: lead.phone,
       business_type: lead.businessType,
+      industry: resolveIndustryName(lead.businessType),
       product_interest: lead.productInterest,
       branches: lead.branches,
       staff_size: lead.staffSize,

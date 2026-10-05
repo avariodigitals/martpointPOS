@@ -1,3 +1,5 @@
+import { resolveIndustryName } from "./industries"
+
 export interface LeadSummary {
   id: string
   fullName: string
@@ -5,6 +7,8 @@ export interface LeadSummary {
   email: string
   phone: string
   productInterest: string
+  businessType?: string
+  industry?: string
 }
 
 export interface QuotationItemInput {
@@ -65,6 +69,8 @@ export interface Quotation {
   notes_public: string | null
   notes_internal: string | null
   payment_terms: string | null
+  /** Canonical industry name (from lib/industries.ts) used for reporting and templates. */
+  industry?: string | null
   converted_business_id: string | null
   converted_invoice_id: string | null
   public_token: string
@@ -345,6 +351,8 @@ export function mapQuotation(row: Record<string, unknown>): Quotation {
     notes_public: (row.notes_public as string | null) || null,
     notes_internal: (row.notes_internal as string | null) || null,
     payment_terms: (row.payment_terms as string | null) || null,
+    // Resolved so a legacy stored value still reads as the exact industry.
+    industry: resolveIndustryName((row.industry as string) || "") || null,
     converted_business_id: (row.converted_business_id as string | null) || null,
     converted_invoice_id: (row.converted_invoice_id as string | null) || null,
     public_token: row.public_token as string,
@@ -364,6 +372,11 @@ export function mapQuotation(row: Record<string, unknown>): Quotation {
           email: leadRaw.email as string,
           phone: leadRaw.phone as string,
           productInterest: leadRaw.product_interest as string,
+          businessType: (leadRaw.business_type as string) || undefined,
+          industry:
+            resolveIndustryName(
+              (leadRaw.industry as string) || (leadRaw.business_type as string) || ""
+            ) || undefined,
         }
       : undefined,
     items: itemsRaw.map((it) => ({

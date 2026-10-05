@@ -1,5 +1,6 @@
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { resolveIndustryName } from "./industries"
 import { getSignedResourceUrl } from "./partner-service"
 
 const BROCHURE_CATEGORIES = ["Brochure", "Product Brochures"]
@@ -65,6 +66,7 @@ export async function createBrochureLead(input: BrochureLeadInput): Promise<bool
     email: input.email,
     phone: input.phone,
     business_type: input.businessType,
+    industry: resolveIndustryName(input.businessType),
     product_interest: "not-sure",
     branches: "N/A",
     staff_size: "N/A",

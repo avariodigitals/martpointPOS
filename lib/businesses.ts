@@ -1,6 +1,7 @@
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
+import { resolveIndustryName } from "./industries"
 
 /* ───────────────────────────  Canonical Businesses  ───────────────────────────
  * A business is a real MartPoint customer/tenant. Leads remain sales history.
@@ -119,6 +120,7 @@ export interface LeadRow {
   email: string
   phone: string
   business_type: string
+  industry: string | null
   product_interest: string
   source: string
   status: string
@@ -248,7 +250,13 @@ export async function convertLeadToBusiness(
     primary_email: overrides?.primaryEmail ?? row.email,
     primary_phone: overrides?.primaryPhone ?? (responses.phone as string) ?? row.phone,
     business_type: overrides?.businessType ?? (responses.businessType as string) ?? row.business_type,
-    industry: overrides?.industry ?? (responses.industry as string) ?? "",
+    industry: resolveIndustryName(
+      (overrides?.industry as string) ||
+        (responses.industry as string) ||
+        (row.industry as string) ||
+        (row.business_type as string) ||
+        ""
+    ),
     country: overrides?.country ?? (responses.country as string) ?? "",
     state: overrides?.state ?? (responses.state as string) ?? "",
     city: overrides?.city ?? (responses.city as string) ?? "",

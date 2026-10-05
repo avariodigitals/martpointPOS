@@ -4,6 +4,7 @@ import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordAuditBatch, auditContextFromSession, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
+import { resolveIndustryName } from "@/lib/industries"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 
 interface LeadRecord {
@@ -13,6 +14,7 @@ interface LeadRecord {
   email: string
   phone: string
   businessType: string
+  industry?: string
   productInterest: string
   branches: string
   staffSize: string
@@ -66,6 +68,7 @@ export async function GET() {
     email: row.email,
     phone: row.phone,
     businessType: row.business_type,
+    industry: resolveIndustryName((row.industry as string | null) || row.business_type),
     productInterest: row.product_interest,
     branches: row.branches,
     staffSize: row.staff_size,
@@ -112,6 +115,7 @@ export async function PUT(request: Request) {
       email,
       phone,
       businessType,
+      industry,
       productInterest,
       branches,
       staffSize,
@@ -137,6 +141,7 @@ export async function PUT(request: Request) {
     if (email !== undefined) updateData.email = email
     if (phone !== undefined) updateData.phone = phone
     if (businessType !== undefined) updateData.business_type = businessType
+    if (industry !== undefined) updateData.industry = industry ? resolveIndustryName(industry) : null
     if (productInterest !== undefined) updateData.product_interest = productInterest
     if (branches !== undefined) updateData.branches = branches
     if (staffSize !== undefined) updateData.staff_size = staffSize
@@ -163,6 +168,7 @@ export async function PUT(request: Request) {
       email: data.email,
       phone: data.phone,
       businessType: data.business_type,
+      industry: data.industry ?? resolveIndustryName(data.business_type),
       productInterest: data.product_interest,
       branches: data.branches,
       staffSize: data.staff_size,
@@ -200,6 +206,7 @@ export async function POST(request: Request) {
       email,
       phone,
       businessType,
+      industry,
       productInterest,
       branches,
       staffSize,
@@ -217,6 +224,7 @@ export async function POST(request: Request) {
 
     const leadId = crypto.randomUUID()
     const now = new Date().toISOString()
+    const resolvedIndustry = industry ? resolveIndustryName(industry) : resolveIndustryName(businessType)
 
     const lead: LeadRecord = {
       id: leadId,
@@ -225,6 +233,7 @@ export async function POST(request: Request) {
       email,
       phone,
       businessType,
+      industry: resolvedIndustry,
       productInterest,
       branches,
       staffSize,
@@ -247,6 +256,7 @@ export async function POST(request: Request) {
         email,
         phone,
         business_type: businessType,
+        industry: resolvedIndustry,
         product_interest: productInterest,
         branches,
         staff_size: staffSize,

@@ -32,6 +32,7 @@ export async function GET() {
       companyName: (settings.general as Record<string, string>)?.companyName || "MartPoint",
       whatsappNumber: (settings.general as Record<string, string>)?.whatsappNumber || "",
       contactEmail: (settings.general as Record<string, string>)?.contactEmail || "",
+      googleReviewUrl: (settings.general as Record<string, string>)?.googleReviewUrl || "",
     },
   })
 }

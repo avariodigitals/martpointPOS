@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:finance": "vitest run --config vitest.config.ts",
-    "test:finance:watch": "vitest --config vitest.config.ts"
+    "test:finance:watch": "vitest --config vitest.config.ts",
+    "check:migrations": "npx tsx scripts/check-migrations.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

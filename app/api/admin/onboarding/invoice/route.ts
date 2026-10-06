@@ -4,7 +4,7 @@ import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail, REPLY_TO } from "@/lib/email"
-import { renderEmailTemplate } from "@/lib/email-templates"
+import { renderEmailTemplate, brandedEmailHtml, escapeHtml } from "@/lib/email-templates"
 import { getPublicSiteSettings } from "@/lib/settings"
 
 async function guardOnboardingAccess() {
@@ -72,7 +72,8 @@ export async function POST(request: Request) {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ""
       const formLink = `${baseUrl}/onboarding/${recordId}`.replace(/\/$/, "")
       const siteSettings = await getPublicSiteSettings()
-      const logoUrl = siteSettings.logo || "/logo.webp"
+      const logoRaw = siteSettings.logo || "/logo.webp"
+      const logoUrl = /^https?:/i.test(logoRaw) ? logoRaw : `${baseUrl.replace(/\/$/, "")}${logoRaw.startsWith("/") ? "" : "/"}${logoRaw}`
       const invoiceTpl = await renderEmailTemplate("onboarding_invoice", {
         fullName: record.full_name,
         businessName: record.business_name || record.full_name,
@@ -84,13 +85,12 @@ export async function POST(request: Request) {
         formLink,
       })
       const emailText = message ? `${message}${formLink ? `\n\nOnboarding form: ${formLink}` : ""}` : invoiceTpl.text
-      const emailHtml = `<div style="font-family:sans-serif;max-width:600px">
-        <img src="${logoUrl}" alt="MartPoint" style="max-height:48px;margin-bottom:16px;" />
-        <p>Hi ${record.full_name},</p>
-        <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${emailText.replace(/\n/g, "<br>")}</div>
-        ${formLink ? `<p><a href="${formLink}" style="color:#0057FF">Complete Onboarding Form</a></p>` : ""}
-        <p>Best regards,<br>MartPoint Team</p>
-      </div>`
+      const emailHtml = brandedEmailHtml(
+        `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Hi ${escapeHtml(record.full_name)},</p>
+         <div style="font-size:15px;line-height:1.6;color:#374151;background:#f9fafb;padding:16px;border-radius:8px;margin:0 0 24px;">${escapeHtml(emailText).replace(/\n/g, "<br>")}</div>
+         ${formLink ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;"><tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="${formLink}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Complete Onboarding Form</a></td></tr></table>` : ""}`,
+        { eyebrow: "Billing", title: invoiceTpl.subject, signoff: "MartPoint Team", logoUrl }
+      )
 
       await sendEmail({
         to: record.email,

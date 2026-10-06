@@ -338,7 +338,7 @@ export default function DistributorsPage() {
               </div>
               <div className="rounded-2xl border border-erp-muted bg-white p-8">
                 <blockquote className="text-lg text-foreground leading-relaxed italic">
-                  &ldquo;We used to run our distribution on spreadsheets and WhatsApp. MartPoint Enterprise gave us one source of truth. I can see stock across every warehouse, every dealer's credit balance and every rep's performance in real time. We have not had a stockout in three months.&rdquo;
+                  &ldquo;We used to run our distribution on spreadsheets and WhatsApp. MartPoint Enterprise gave us one source of truth. I can see stock across every warehouse, every dealer&apos;s credit balance and every rep&apos;s performance in real time. We have not had a stockout in three months.&rdquo;
                 </blockquote>
                 <div className="mt-6 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-erp/10 flex items-center justify-center text-erp font-bold text-sm">OA</div>

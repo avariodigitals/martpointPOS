@@ -287,7 +287,7 @@ export function PartnerApplicationForm() {
 
       {inviteToken && (
         <p className="text-sm rounded-md bg-retail/10 text-retail px-3 py-2 mb-4">
-          You've been invited to apply — we've pre-filled some of your details.
+          You&apos;ve been invited to apply — we&apos;ve pre-filled some of your details.
         </p>
       )}
 

@@ -336,7 +336,7 @@ describe("public status lookup", () => {
 
 describe("careers permissions", () => {
   it("Admin is authorized for every careers permission", () => {
-    const admin = { userId: "u1", username: "admin", role: "Admin" as const, name: "Admin" }
+    const admin = { userId: "u1", username: "admin", role: "Admin" as const, name: "Admin", iat: Date.now(), lastActive: Date.now() }
     for (const p of CAREERS_PERMISSIONS) {
       expect(authorize(admin, p)).toBe(true)
     }

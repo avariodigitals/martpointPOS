@@ -5,7 +5,7 @@ import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { generateSetupQuestions } from "@/lib/onboarding"
 import { sendEmail, REPLY_TO } from "@/lib/email"
-import { renderEmailTemplate } from "@/lib/email-templates"
+import { renderEmailTemplate, brandedEmailHtml, escapeHtml } from "@/lib/email-templates"
 import { auditContextFromSession } from "@/lib/audit"
 import { initiateOnboarding } from "@/lib/businesses"
 
@@ -162,12 +162,12 @@ export async function POST(request: Request) {
     const emailText = message
       ? `${message}\n\nComplete your onboarding form:\n${formLink}`
       : welcomeTpl.text
-    const emailHtml = `<div style="font-family:sans-serif;max-width:600px">
-      <h2 style="color:#0057FF">Welcome to MartPoint</h2>
-      <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${emailText.replace(/\n/g, "<br>")}</div>
-      <p><a href="${formLink}" style="color:#0057FF">Complete Onboarding Form</a></p>
-      <p>Best regards,<br>MartPoint Team</p>
-    </div>`
+    const emailHtml = brandedEmailHtml(
+      `<h1 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 16px;">Welcome to MartPoint</h1>
+       <div style="font-size:15px;line-height:1.6;color:#374151;background:#f9fafb;padding:16px;border-radius:8px;margin:0 0 24px;">${escapeHtml(emailText).replace(/\n/g, "<br>")}</div>
+       <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;"><tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="${formLink}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Complete Onboarding Form</a></td></tr></table>`,
+      { eyebrow: "Onboarding", title: "Welcome to MartPoint", signoff: "MartPoint Team" }
+    )
 
     const emailSent = await sendEmail({
       to: email,

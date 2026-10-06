@@ -195,7 +195,7 @@ describe("new careers permissions", () => {
   ]
 
   it("Admin is authorized for every new permission", () => {
-    const admin = { userId: "u1", username: "admin", role: "Admin" as const, name: "A" }
+    const admin = { userId: "u1", username: "admin", role: "Admin" as const, name: "A", iat: Date.now(), lastActive: Date.now() }
     for (const p of newPerms) expect(authorize(admin, p)).toBe(true)
   })
 

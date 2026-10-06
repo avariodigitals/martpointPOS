@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import QRCode from "qrcode"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
@@ -53,8 +54,8 @@ export default async function PartnerProfilePage({
                 Please check the Partner ID and try again.
               </p>
               <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-                <a href="/partners/verify" className="inline-flex items-center justify-center rounded-lg bg-retail text-white px-4 py-2 text-sm font-semibold">Try Another ID</a>
-                <a href="/partners/directory" className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold">Browse Directory</a>
+                <Link href="/partners/verify" className="inline-flex items-center justify-center rounded-lg bg-retail text-white px-4 py-2 text-sm font-semibold">Try Another ID</Link>
+                <Link href="/partners/directory" className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold">Browse Directory</Link>
               </div>
             </div>
           </div>
@@ -175,8 +176,8 @@ export default async function PartnerProfilePage({
             </div>
 
             <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-              <a href="/partners/directory" className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold">Browse Directory</a>
-              <a href="/partners/verify" className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold">Verify Another Partner</a>
+              <Link href="/partners/directory" className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold">Browse Directory</Link>
+              <Link href="/partners/verify" className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold">Verify Another Partner</Link>
             </div>
 
             <p className="mt-4 text-center">

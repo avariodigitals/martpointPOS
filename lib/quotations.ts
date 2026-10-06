@@ -1,4 +1,5 @@
 import { resolveIndustryName } from "./industries"
+import { brandedEmailHtml, escapeHtml } from "./email-templates"
 
 export interface LeadSummary {
   id: string
@@ -283,45 +284,27 @@ export function buildQuoteEmailHtml(
     ? new Date(quote.valid_until).toLocaleDateString("en-NG", { year: "numeric", month: "long", day: "numeric" })
     : "Not specified"
 
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>MartPoint Quotation ${quote.quote_number}</title>
-</head>
-<body style="margin:0;padding:0;background:#F8FAFC;font-family:Inter,system-ui,-apple-system,sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#F8FAFC;padding:24px 0;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #E5E7EB;">
-          <tr>
-            <td style="padding:32px 32px 0;">
-              <h1 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 8px;">Quotation ${quote.quote_number}</h1>
-              <p style="color:#6B7280;font-size:14px;margin:0;">Prepared for ${lead.fullName} — ${lead.businessName}</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:24px 32px;">
-              <p style="font-size:16px;color:#111827;font-weight:600;margin:0 0 16px;">Total: ${formatNgnFull(quote.total_amount)}</p>
-              <p style="font-size:14px;color:#6B7280;margin:0 0 4px;">Valid until: ${validUntil}</p>
-              ${quote.notes_public ? `<p style="font-size:14px;color:#6B7280;margin:0 0 24px;white-space:pre-line;">${quote.notes_public.replace(/</g, "&lt;")}</p>` : ""}
-              <a href="${publicUrl}" style="display:inline-block;background:#0057FF;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;">View Quotation</a>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:0 32px 32px;">
-              <p style="font-size:12px;color:#9CA3AF;margin:0;">If the button does not work, copy and paste this link into your browser:</p>
-              <p style="font-size:12px;color:#0057FF;margin:4px 0 0;word-break:break-all;">${publicUrl}</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim()
+  const body = `
+    <h1 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 8px;">Quotation ${escapeHtml(quote.quote_number)}</h1>
+    <p style="color:#6B7280;font-size:14px;margin:0 0 24px;">Prepared for ${escapeHtml(lead.fullName)} — ${escapeHtml(lead.businessName)}</p>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb;border-radius:8px;margin:0 0 24px;">
+      <tr>
+        <td style="padding:16px;">
+          <p style="font-size:14px;color:#6b7280;margin:0 0 4px;">Total</p>
+          <p style="font-size:22px;font-weight:700;color:#0057FF;margin:0 0 12px;">${formatNgnFull(quote.total_amount)}</p>
+          <p style="font-size:14px;color:#6b7280;margin:0 0 4px;">Valid until</p>
+          <p style="font-size:15px;font-weight:600;color:#111827;margin:0;">${escapeHtml(validUntil)}</p>
+        </td>
+      </tr>
+    </table>
+    ${quote.notes_public ? `<p style="font-size:14px;color:#6B7280;margin:0 0 24px;white-space:pre-line;">${escapeHtml(quote.notes_public)}</p>` : ""}
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+      <tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="${publicUrl}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">View Quotation</a></td></tr>
+    </table>
+    <p style="font-size:12px;color:#9CA3AF;margin:0;">If the button does not work, copy and paste this link into your browser:</p>
+    <p style="font-size:12px;color:#0057FF;margin:4px 0 0;word-break:break-all;">${escapeHtml(publicUrl)}</p>`
+
+  return brandedEmailHtml(body, { eyebrow: "Sales", title: `Quotation ${quote.quote_number}`, signoff: "MartPoint Sales Team" })
 }
 
 export function buildQuotePublicPageDescription(quote: Pick<Quotation, "quote_number" | "title">): string {

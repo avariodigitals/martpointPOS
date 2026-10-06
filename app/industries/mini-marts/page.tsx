@@ -210,7 +210,7 @@ export default function MiniMartsPage() {
             <div className="max-w-3xl mx-auto text-center mb-14">
               <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-4">MartPoint Intelligence</span>
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">Practical Recommendations For Your Store</h2>
-              <p className="mt-4 text-lg text-white/70 leading-relaxed max-w-2xl mx-auto">MartPoint learns your store's patterns and suggests what to stock, when to reorder and what to focus on before problems arise.</p>
+              <p className="mt-4 text-lg text-white/70 leading-relaxed max-w-2xl mx-auto">MartPoint learns your store&apos;s patterns and suggests what to stock, when to reorder and what to focus on before problems arise.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
               {intelligence.map((item) => (
@@ -236,7 +236,7 @@ export default function MiniMartsPage() {
                 <div className="w-12 h-12 rounded-full bg-retail/10 flex items-center justify-center text-retail font-bold text-base">FO</div>
                 <div className="text-left">
                   <div className="text-sm font-semibold text-foreground">Fatima O.</div>
-                  <div className="text-xs text-muted-foreground">Owner, Fatima's Mini Mart, Abuja</div>
+                  <div className="text-xs text-muted-foreground">Owner, Fatima&apos;s Mini Mart, Abuja</div>
                 </div>
               </div>
             </div>

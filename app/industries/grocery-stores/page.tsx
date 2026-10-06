@@ -238,7 +238,7 @@ export default function GroceryStoresPage() {
             <div className="max-w-3xl mx-auto text-center mb-14">
               <span className="inline-block text-xs font-semibold uppercase tracking-widest text-retail mb-4">MartPoint Intelligence</span>
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">Smart Recommendations For Your Grocery Store</h2>
-              <p className="mt-4 text-lg text-white/70 leading-relaxed max-w-2xl mx-auto">MartPoint learns your store's patterns and suggests what to stock, when to reorder and which suppliers to trust before problems cost you money.</p>
+              <p className="mt-4 text-lg text-white/70 leading-relaxed max-w-2xl mx-auto">MartPoint learns your store&apos;s patterns and suggests what to stock, when to reorder and which suppliers to trust before problems cost you money.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
               {intelligence.map((item) => (

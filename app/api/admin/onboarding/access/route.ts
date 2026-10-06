@@ -5,7 +5,7 @@ import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import type { EmailAttachment } from "@/lib/email"
-import { renderEmailTemplate } from "@/lib/email-templates"
+import { renderEmailTemplate, brandedEmailHtml } from "@/lib/email-templates"
 import { getPublicSiteSettings } from "@/lib/settings"
 
 async function guardOnboardingAccess() {
@@ -122,12 +122,13 @@ export async function POST(request: Request) {
     }
 
     const siteSettings = await getPublicSiteSettings()
-    const logoUrl = siteSettings.logo || "/logo.webp"
-    const emailHtml = `<div style="font-family:sans-serif;max-width:600px">
-      <img src="${logoUrl}" alt="MartPoint" style="max-height:48px;margin-bottom:16px;" />
-      <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${escapeHtml(emailText).replace(/\n/g, "<br>")}</div>
-      <p>Best regards,<br>MartPoint Team</p>
-    </div>`
+    const logoRaw = siteSettings.logo || "/logo.webp"
+    const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
+    const logoUrl = /^https?:/i.test(logoRaw) ? logoRaw : `${baseUrl}${logoRaw.startsWith("/") ? "" : "/"}${logoRaw}`
+    const emailHtml = brandedEmailHtml(
+      `<div style="font-size:15px;line-height:1.6;color:#374151;background:#f9fafb;padding:16px;border-radius:8px;margin:0;">${escapeHtml(emailText).replace(/\n/g, "<br>")}</div>`,
+      { eyebrow: "Onboarding", title: accessTpl.subject, signoff: "MartPoint Team", logoUrl }
+    )
 
     const sent = await sendEmail({
       to,

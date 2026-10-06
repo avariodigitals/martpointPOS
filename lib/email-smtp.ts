@@ -11,6 +11,7 @@
 import nodemailer from "nodemailer"
 import type { EmailMessage, EmailSettings } from "./email"
 import { writeEmailLog } from "./email"
+import { ensureBrandedHtml } from "./email-templates"
 
 export async function sendEmailViaSmtp(
   message: EmailMessage,
@@ -53,7 +54,7 @@ export async function sendEmailViaSmtp(
       to: toList.join(", "),
       subject: message.subject,
       text: message.text,
-      html: message.html,
+      html: message.skipBranding ? message.html : ensureBrandedHtml(message.html, { text: message.text }),
       replyTo: message.replyTo,
       attachments: message.attachments?.map((a) => ({
         filename: a.filename,

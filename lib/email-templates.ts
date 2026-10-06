@@ -48,29 +48,42 @@ export function statusPillHtml(label: string, tone: StatusTone): string {
 
 /* ───────────────────────────  Branded HTML shell  ───────────────────────────
  * Wraps a body fragment in the standard MartPoint email layout (gradient
- * header, white card, grey footer). {{variable}} placeholders inside `body`
- * are substituted at send time.
+ * header with the MartPoint wordmark + logo, white card, grey footer).
+ * {{variable}} placeholders inside `body` are substituted at send time.
+ *
+ * Exported so every email sender (lead outbound, onboarding, quotations,
+ * marketing, notifications) renders the same branded shell. When the site base
+ * URL is available the header shows the real logo image; otherwise it falls
+ * back to the MartPoint wordmark so it always looks intentional.
  */
-function brandedEmailHtml(body: string, opts: { eyebrow?: string; title?: string; signoff?: string } = {}): string {
-  const eyebrow = opts.eyebrow || "Partner Programme"
+export function brandedEmailHtml(
+  body: string,
+  opts: { eyebrow?: string; title?: string; signoff?: string; logoUrl?: string; preheader?: string } = {}
+): string {
+  const eyebrow = opts.eyebrow || "MartPoint"
   const title = opts.title || "MartPoint"
-  const signoff = opts.signoff || "MartPoint Partner Team"
-  return `<!DOCTYPE html>
+  const signoff = opts.signoff || "MartPoint Team"
+  const logoUrl = opts.logoUrl || `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/logo.webp`
+  const preheader = opts.preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(opts.preheader)}${"&zwnj;&nbsp;".repeat(20)}</div>`
+    : ""
+  return `${preheader}<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${title}</title>
+  <meta name="color-scheme" content="light" />
+  <title>${escapeHtml(title)}</title>
 </head>
-<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827;">
+<body style="margin:0; padding:0; background-color:#f5f6f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111827; -webkit-font-smoothing:antialiased;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f6f7; padding:40px 0;">
     <tr>
-      <td align="center">
+      <td align="center" style="padding:0 12px;">
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
           <tr>
-            <td style="padding:48px 40px 32px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
-              <div style="color:#ffffff; font-size:24px; font-weight:700; letter-spacing:-0.5px;">MartPoint</div>
-              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:6px;">${eyebrow}</div>
+            <td style="padding:40px 40px 28px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              <img src="${logoUrl}" alt="MartPoint" height="36" style="height:36px; display:inline-block; margin:0 auto;" />
+              <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:12px;">${escapeHtml(eyebrow)}</div>
             </td>
           </tr>
           <tr>
@@ -80,7 +93,8 @@ ${body}
           </tr>
           <tr>
             <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
-              <p style="font-size:12px; color:#6b7280; margin:0;">Best regards,<br/><strong>${signoff}</strong></p>
+              <p style="font-size:12px; color:#6b7280; margin:0; line-height:1.6;">Best regards,<br/><strong style="color:#374151;">${escapeHtml(signoff)}</strong></p>
+              <p style="font-size:12px; color:#9ca3af; margin:12px 0 0;">MartPoint &middot; martpoint.com.ng</p>
             </td>
           </tr>
         </table>
@@ -89,6 +103,35 @@ ${body}
   </table>
 </body>
 </html>`
+}
+
+/**
+ * Guarantee an outbound HTML email renders inside the branded MartPoint shell.
+ * - Full documents (a real <!DOCTYPE/ <html>) are assumed to be already
+ *   branded and pass through untouched — except legacy hand-rolled shells that
+ *   lack the MartPoint header, which we re-wrap.
+ * - Fragments and plain text are wrapped in the branded shell so no email can
+ *   ever go out looking unbranded.
+ */
+export function ensureBrandedHtml(
+  html: string | undefined,
+  opts: { eyebrow?: string; title?: string; signoff?: string; text?: string } = {}
+): string {
+  const isFullDoc = /<!DOCTYPE|<html[\s>]/i.test(html || "")
+  const alreadyBranded = /background:linear-gradient\(135deg,\s*#0057FF/i.test(html || "") || /alt="MartPoint"/i.test(html || "")
+
+  if (html && isFullDoc && alreadyBranded) return html
+
+  // Unwrap a full doc's <body> contents so we can re-house it in the branded shell.
+  let inner = html || ""
+  if (isFullDoc) {
+    const bodyMatch = inner.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+    inner = bodyMatch ? bodyMatch[1] : inner.replace(/<!DOCTYPE[^>]*>/i, "").replace(/<\/?html[^>]*>/gi, "").replace(/<head[\s\S]*?<\/head>/i, "")
+  } else if (!inner) {
+    inner = escapeHtml(opts.text || "").replace(/\n/g, "<br/>")
+  }
+
+  return brandedEmailHtml(inner.trim(), opts)
 }
 
 export const EMAIL_TEMPLATES: TemplateDefinition[] = [
@@ -979,6 +1022,18 @@ Complete your onboarding form:
 
 Best regards,
 MartPoint Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px;line-height:1.6;margin:0 0 24px;color:#374151;">
+                Welcome to MartPoint! To get your system up and running, we need a few critical details.
+              </p>
+              <div style="font-size:15px;line-height:1.6;color:#374151;background-color:#f9fafb;border-radius:8px;padding:16px;margin:0 0 24px;white-space:pre-line;">{{setupQuestions}}</div>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="{{formLink}}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Complete Onboarding Form</a></td></tr>
+              </table>
+              <p style="font-size:13px;line-height:1.5;margin:0;color:#6b7280;word-break:break-all;">Or copy and paste this link: <a href="{{formLink}}" style="color:#0057FF;text-decoration:underline;">{{formLink}}</a></p>`,
+      { eyebrow: "Onboarding", title: "Welcome to MartPoint", signoff: "MartPoint Team" }
+    ),
   },
   {
     key: "onboarding_invoice",
@@ -1000,6 +1055,27 @@ You can complete your onboarding here: {{formLink}}
 
 Best regards,
 MartPoint Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px;line-height:1.6;margin:0 0 24px;color:#374151;">Thank you for choosing MartPoint. Please find your invoice below.</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb;border-radius:8px;margin:0 0 24px;">
+                <tr><td style="padding:16px;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                    <tr><td style="font-size:14px;color:#6b7280;padding-bottom:6px;">Description</td><td align="right" style="font-size:15px;color:#111827;padding-bottom:6px;">{{description}}</td></tr>
+                    <tr><td style="font-size:14px;color:#6b7280;padding-bottom:6px;">Amount</td><td align="right" style="font-size:15px;color:#111827;padding-bottom:6px;">₦{{amount}}</td></tr>
+                    <tr><td style="font-size:14px;color:#6b7280;padding-bottom:6px;">Tax</td><td align="right" style="font-size:15px;color:#111827;padding-bottom:6px;">₦{{tax}}</td></tr>
+                    <tr><td style="font-size:14px;color:#6b7280;padding-bottom:6px;">Due date</td><td align="right" style="font-size:15px;color:#111827;padding-bottom:6px;">{{dueDate}}</td></tr>
+                  </table>
+                  <div style="border-top:1px solid #e5e7eb;margin-top:12px;padding-top:12px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td style="font-size:14px;color:#6b7280;">Total due</td><td align="right" style="font-size:20px;font-weight:700;color:#0057FF;">₦{{total}}</td></tr></table>
+                  </div>
+                </td></tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="{{formLink}}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Complete Onboarding</a></td></tr>
+              </table>`,
+      { eyebrow: "Billing", title: "Your MartPoint Invoice", signoff: "MartPoint Team" }
+    ),
   },
   {
     key: "onboarding_access",
@@ -1078,6 +1154,29 @@ For security, please sign in and change this temporary password as soon as possi
 Best regards,
 {{partnerName}}
 MartPoint Partner`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Hi {{contactName}},</p>
+              <p style="font-size:15px;line-height:1.6;margin:0 0 24px;color:#374151;">
+                Great news — <strong>{{partnerName}}</strong>, a certified MartPoint implementation partner, has finished installing and setting up MartPoint for <strong>{{businessName}}</strong>.
+              </p>
+              <p style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin:0 0 12px;">Your access details</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb;border-radius:8px;margin:0 0 24px;">
+                <tr><td style="padding:16px;">
+                  <p style="font-size:14px;color:#6b7280;margin:0 0 4px;">Store / Login URL</p>
+                  <p style="font-size:15px;font-weight:600;color:#0057FF;margin:0 0 12px;word-break:break-all;">{{softwareUrl}}</p>
+                  <p style="font-size:14px;color:#6b7280;margin:0 0 4px;">Admin Username / Email</p>
+                  <p style="font-size:15px;font-weight:600;color:#111827;margin:0 0 12px;">{{adminUsername}}</p>
+                  <p style="font-size:14px;color:#6b7280;margin:0 0 4px;">Temporary Password</p>
+                  <p style="font-size:15px;font-weight:600;color:#111827;margin:0;">{{tempPassword}}</p>
+                </td></tr>
+              </table>
+              <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;">For security, please sign in and change this temporary password as soon as possible, and do not share your login credentials with anyone who is not authorised to access your business account.</p>
+              <div style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;">{{messageBlock}}</div>
+              <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;">If an installation guide is attached to this email, please keep it handy — it walks you through the essentials of running your new store.</p>
+              <div style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;">{{supportBlock}}</div>
+              <p style="font-size:14px;line-height:1.6;color:#374151;margin:0;">We appreciate your patronage.</p>`,
+      { eyebrow: "Partner Programme", title: "Your store is ready", signoff: "{{partnerName}} · MartPoint Partner" }
+    ),
   },
   {
     key: "support_magic_link",
@@ -1093,6 +1192,16 @@ Click the link below to sign in to the MartPoint customer support portal for {{b
 
 This link expires in 15 minutes and can only be used from this device.
 If you did not request this link, you can ignore this email.`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Hi {{contactName}},</p>
+              <p style="font-size:15px;line-height:1.6;margin:0 0 24px;color:#374151;">Click the button below to sign in to the MartPoint customer support portal for <strong>{{businessName}}</strong>.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="{{link}}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Sign in to Support</a></td></tr>
+              </table>
+              <p style="font-size:13px;line-height:1.5;margin:0 0 16px;color:#6b7280;word-break:break-all;">Or copy and paste this link: <a href="{{link}}" style="color:#0057FF;text-decoration:underline;">{{link}}</a></p>
+              <p style="font-size:13px;line-height:1.5;margin:0;color:#6b7280;">This link expires in 15 minutes and can only be used from this device. If you did not request this link, you can ignore this email.</p>`,
+      { eyebrow: "Support", title: "Your sign-in link", signoff: "MartPoint Support" }
+    ),
   },
   {
     key: "quotation_subject",
@@ -1127,6 +1236,16 @@ If you have any questions, reply to this email.
 
 Best regards,
 MartPoint Sales Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px;line-height:1.6;margin:0 0 24px;color:#374151;">Your requested changes to quotation <strong>{{quoteNumber}}</strong> have been reviewed and a revised quotation is ready for you.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="{{publicUrl}}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">View Revised Quotation</a></td></tr>
+              </table>
+              <p style="font-size:13px;line-height:1.5;margin:0 0 16px;color:#6b7280;word-break:break-all;">Or copy and paste this link: <a href="{{publicUrl}}" style="color:#0057FF;text-decoration:underline;">{{publicUrl}}</a></p>
+              <p style="font-size:13px;line-height:1.5;margin:0;color:#6b7280;">If you have any questions, reply to this email.</p>`,
+      { eyebrow: "Sales", title: "Revised quotation", signoff: "MartPoint Sales Team" }
+    ),
   },
   {
     key: "quote_change_request_received",
@@ -1285,6 +1404,16 @@ It only takes a few minutes and the details you provide will help us tailor the 
 
 Best regards,
 MartPoint Sales Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px;line-height:1.6;margin:0 0 24px;color:#374151;">To prepare an accurate quote for <strong>{{businessName}}</strong>, please complete this short requirements questionnaire.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="{{questionnaireLink}}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Start Questionnaire</a></td></tr>
+              </table>
+              <p style="font-size:13px;line-height:1.5;margin:0 0 16px;color:#6b7280;word-break:break-all;">Or copy and paste this link: <a href="{{questionnaireLink}}" style="color:#0057FF;text-decoration:underline;">{{questionnaireLink}}</a></p>
+              <p style="font-size:13px;line-height:1.5;margin:0;color:#6b7280;">It only takes a few minutes and the details you provide will help us tailor the right MartPoint package for your business.</p>`,
+      { eyebrow: "Sales", title: "Requirements questionnaire", signoff: "MartPoint Sales Team" }
+    ),
   },
   {
     key: "lead_additional_questions",
@@ -1302,6 +1431,16 @@ This will only take a couple of minutes — you don't need to fill the full ques
 
 Best regards,
 MartPoint Sales Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px;line-height:1.6;margin:0 0 24px;color:#374151;">Thanks for completing our requirements questionnaire for <strong>{{businessName}}</strong>. To finalise your quote, we just need answers to a few additional questions.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
+                <tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="{{questionsLink}}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Answer Questions</a></td></tr>
+              </table>
+              <p style="font-size:13px;line-height:1.5;margin:0 0 16px;color:#6b7280;word-break:break-all;">Or copy and paste this link: <a href="{{questionsLink}}" style="color:#0057FF;text-decoration:underline;">{{questionsLink}}</a></p>
+              <p style="font-size:13px;line-height:1.5;margin:0;color:#6b7280;">This will only take a couple of minutes — you don't need to fill the full questionnaire again.</p>`,
+      { eyebrow: "Sales", title: "A few more questions", signoff: "MartPoint Sales Team" }
+    ),
   },
   {
     key: "customer_feedback",

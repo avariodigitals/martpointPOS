@@ -94,7 +94,7 @@ export default function AdminPayoutRequestsPage() {
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Wallet className="w-5 h-5" /> Payout Requests
           </h2>
-          <p className="text-muted-foreground">Partner withdrawal requests. Approving creates a payout batch of the partner's approved commissions.</p>
+          <p className="text-muted-foreground">Partner withdrawal requests. Approving creates a payout batch of the partner&apos;s approved commissions.</p>
         </div>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-sm w-40">
           <option value="PENDING">Pending</option>

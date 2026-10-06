@@ -1,7 +1,9 @@
-const sharp = require("sharp")
-const fs = require("fs")
-const path = require("path")
+import sharp from "sharp"
+import fs from "fs"
+import path from "path"
+import { fileURLToPath } from "url"
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const trustDir = path.join(__dirname, "..", "public", "trust")
 const files = fs.readdirSync(trustDir).filter((f) => f.endsWith(".png"))
 

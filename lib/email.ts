@@ -15,6 +15,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { ensureBrandedHtml } from "./email-templates"
 
 export type EmailProvider = "resend" | "brevo" | "smtp"
 
@@ -45,6 +46,8 @@ export interface EmailMessage {
   replyTo?: string
   /** Extra SMTP/API headers, e.g. List-Unsubscribe for marketing email. */
   headers?: Record<string, string>
+  /** Skip the automatic MartPoint branding wrap (rarely needed). */
+  skipBranding?: boolean
 }
 
 export interface SmtpSettings {
@@ -302,11 +305,17 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
     return false
   }
 
+  // Brand every outgoing email: any HTML fragment (or plain text) that is not
+  // already a fully-branded MartPoint document is wrapped in the standard shell.
+  const branded: EmailMessage = message.skipBranding
+    ? message
+    : { ...message, html: ensureBrandedHtml(message.html, { text: message.text }) }
+
   if (provider === "brevo") {
-    return sendViaBrevo(message, settings, from, toList, logBase)
+    return sendViaBrevo(branded, settings, from, toList, logBase)
   }
 
-  return sendViaResend(message, settings, from, toList, logBase)
+  return sendViaResend(branded, settings, from, toList, logBase)
 }
 
 /** Parse a "Display Name <email@domain.com>" string into sender parts. */

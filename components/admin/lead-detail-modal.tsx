@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
+import { cloneTemplateFields, getLeadAdditionalQuestionTemplate, LEAD_ADDITIONAL_QUESTION_TEMPLATES } from "@/lib/lead-additional-question-templates"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 import {
   X,
@@ -209,6 +210,7 @@ export function LeadDetailModal({
   const [questionRounds, setQuestionRounds] = useState<QuestionRound[]>([])
   const [roundsLoading, setRoundsLoading] = useState(false)
   const [roundFields, setRoundFields] = useState<QuestionnaireField[]>([])
+  const [selectedQuestionTemplateIndustry, setSelectedQuestionTemplateIndustry] = useState("")
   const [roundDraft, setRoundDraft] = useState({ label: "", type: "text", options: "", required: false })
   const [showRoundComposer, setShowRoundComposer] = useState(false)
   const [sendingRound, setSendingRound] = useState(false)
@@ -244,6 +246,8 @@ export function LeadDetailModal({
   const [meetingActionId, setMeetingActionId] = useState<string | null>(null)
   const [notesOpenId, setNotesOpenId] = useState<string | null>(null)
   const [notesDraft, setNotesDraft] = useState({ summary: "", actionItems: "", transcriptUrl: "", recordingUrl: "" })
+
+  const leadTemplate = getLeadAdditionalQuestionTemplate(lead.industry || lead.businessType || "")
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -415,6 +419,18 @@ export function LeadDetailModal({
     ])
     setRoundDraft({ label: "", type: "text", options: "", required: false })
     setShowRoundComposer(false)
+  }
+
+  const applyQuestionTemplate = (industry: string) => {
+    setSelectedQuestionTemplateIndustry(industry)
+    if (!industry) return
+
+    const template = getLeadAdditionalQuestionTemplate(industry)
+    if (!template) return
+    if (roundFields.length > 0 && !confirm("Loading this template will replace the questions currently in this round. Continue?")) return
+
+    setRoundFields(cloneTemplateFields(template))
+    setRoundMessage(`${template.label} template loaded. Review or remove questions before sending.`)
   }
 
   const sendRoundQuestions = async () => {
@@ -1336,6 +1352,25 @@ export function LeadDetailModal({
 
               <div className="rounded-lg border border-border p-4 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">New Questions</p>
+
+                <div>
+                  <label className={labelClass}>Question template by industry</label>
+                  <select
+                    value={selectedQuestionTemplateIndustry}
+                    onChange={(e) => applyQuestionTemplate(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Select an industry template...</option>
+                    {LEAD_ADDITIONAL_QUESTION_TEMPLATES.map((template) => (
+                      <option key={template.industry} value={template.industry}>
+                        {template.label}{leadTemplate?.industry === template.industry ? " (lead industry)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {leadTemplate && !selectedQuestionTemplateIndustry && (
+                    <p className="mt-1.5 text-xs text-muted-foreground">This lead is in {lead.industry}; select “{leadTemplate.label}” above to load its questions.</p>
+                  )}
+                </div>
 
                 {roundFields.length > 0 && (
                   <ul className="space-y-1.5">

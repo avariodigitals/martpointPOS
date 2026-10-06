@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Loader2, Search, AlertCircle } from "lucide-react"
@@ -37,7 +38,7 @@ export function VerifyPartnerClient() {
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
         Verify Partner
       </Button>
-      <p className="text-xs text-muted-foreground text-center">You can also search by business name in the <a href="/partners/directory" className="text-retail hover:underline">partner directory</a>.</p>
+      <p className="text-xs text-muted-foreground text-center">You can also search by business name in the <Link href="/partners/directory" className="text-retail hover:underline">partner directory</Link>.</p>
     </div>
   )
 }

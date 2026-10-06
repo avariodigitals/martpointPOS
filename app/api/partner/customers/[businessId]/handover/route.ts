@@ -6,7 +6,6 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import type { EmailAttachment } from "@/lib/email"
 import { renderEmailTemplate, escapeHtml } from "@/lib/email-templates"
-import { getPublicSiteSettings } from "@/lib/settings"
 import { checkRateLimit } from "@/lib/rate-limit"
 
 const MAX_ATTACHMENTS = 10
@@ -157,13 +156,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    const siteSettings = await getPublicSiteSettings()
-    const logoUrl = siteSettings.logo || "/logo.webp"
-    const emailHtml = `<div style="font-family:sans-serif;max-width:600px">
-      <img src="${logoUrl}" alt="MartPoint" style="max-height:48px;margin-bottom:16px;" />
-      <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0">${escapeHtml(tpl.text).replace(/\n/g, "<br>")}</div>
-      <p>Best regards,<br>${escapeHtml(partnerName)}<br>MartPoint Partner</p>
-    </div>`
+    const emailHtml = tpl.html || `<div style="font-size:15px;line-height:1.6;color:#374151;background:#f9fafb;padding:16px;border-radius:8px;margin:0;">${escapeHtml(tpl.text).replace(/\n/g, "<br>")}</div>`
 
     const sent = await sendEmail({
       to,

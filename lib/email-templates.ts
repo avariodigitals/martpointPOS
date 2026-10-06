@@ -56,17 +56,184 @@ export function statusPillHtml(label: string, tone: StatusTone): string {
  * URL is available the header shows the real logo image; otherwise it falls
  * back to the MartPoint wordmark so it always looks intentional.
  */
+export interface EmailFooterOptions {
+  /** Social profile URLs keyed by network (facebook, instagram, x/twitter, linkedin, youtube, tiktok). */
+  social?: Record<string, string | undefined>
+  contactEmail?: string
+  phone?: string
+  whatsappNumber?: string
+  companyName?: string
+  website?: string
+  address?: string
+  /** Absolute URL of the footer banner image. Defaults to `<site>/footerbanner.png`. */
+  bannerImageUrl?: string
+}
+
+/**
+ * Social networks shown in the email footer. Rendered as brand-coloured
+ * letter-mark "chips" — pure table/CSS markup with no external image, so they
+ * render identically in every mail client (Gmail, Outlook, Apple Mail, etc.).
+ */
+const SOCIAL_META: Record<string, { label: string; color: string; mark: string; slug: string }> = {
+  facebook: { label: "Facebook", color: "#1877F2", mark: "f", slug: "facebook" },
+  instagram: { label: "Instagram", color: "#E4405F", mark: "ig", slug: "instagram" },
+  twitter: { label: "X", color: "#111827", mark: "X", slug: "x" },
+  linkedin: { label: "LinkedIn", color: "#0A66C2", mark: "in", slug: "linkedin" },
+  youtube: { label: "YouTube", color: "#FF0000", mark: "▶", slug: "youtube" },
+  tiktok: { label: "TikTok", color: "#111827", mark: "♪", slug: "tiktok" },
+}
+
+function buildEmailFooter(signoff: string, opts: EmailFooterOptions): { cardFooter: string; banner: string } {
+  const year = new Date().getFullYear()
+  const company = opts.companyName || "MartPoint"
+  const website = (opts.website || "martpoint.com.ng").replace(/^https?:\/\//, "").replace(/\/$/, "")
+  const email = (opts.contactEmail || "").trim()
+  const phone = (opts.phone || "").trim()
+  const whatsapp = (opts.whatsappNumber || "").trim()
+
+  const social = Object.entries(opts.social || {})
+    .filter(([key, url]) => url && (url as string).trim() && SOCIAL_META[key])
+    .map(([key, url]) => ({ key, url: (url as string).trim(), ...SOCIAL_META[key] }))
+
+  const socialRow = social.length
+    ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto 18px;">
+        <tr>
+          ${social
+            .map(
+              (s) => `<td style="padding:0 4px;" valign="middle">
+                <a href="${escapeHtml(s.url)}" target="_blank" title="${escapeHtml(s.label)}" style="text-decoration:none;">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+                    <td width="34" height="34" align="center" valign="middle" style="width:34px; height:34px; border-radius:50%; background-color:${s.color}; color:#ffffff; font-family:Arial,Helvetica,sans-serif; font-size:14px; font-weight:700; line-height:34px; text-align:center;">${s.mark}</td>
+                  </tr></table>
+                </a>
+              </td>`,
+            )
+            .join("")}
+        </tr>
+      </table>`
+    : ""
+
+  const contactBits: string[] = []
+  if (email) contactBits.push(`<a href="mailto:${escapeHtml(email)}" style="color:#0057FF; text-decoration:none;">${escapeHtml(email)}</a>`)
+  if (phone) contactBits.push(`<a href="tel:${escapeHtml(phone.replace(/[^\d+]/g, ""))}" style="color:#0057FF; text-decoration:none;">${escapeHtml(phone)}</a>`)
+  if (whatsapp) {
+    const digits = whatsapp.replace(/[^\d]/g, "")
+    contactBits.push(`<a href="https://wa.me/${digits}" target="_blank" style="color:#0057FF; text-decoration:none;">WhatsApp</a>`)
+  }
+  const contactRow = contactBits.length
+    ? `<p style="font-size:13px; color:#6b7280; margin:0 0 16px; line-height:1.7;">${contactBits.join(' &nbsp;&middot;&nbsp; ')}</p>`
+    : ""
+
+  const cardFooter = `
+              <div style="padding:32px 40px 28px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
+                <p style="font-size:13px; color:#6b7280; margin:0 0 28px; line-height:1.6;">Best regards,<br/><strong style="color:#111827; font-size:14px;">${escapeHtml(signoff)}</strong></p>
+                ${socialRow}
+                ${contactRow}
+                <div style="border-top:1px solid #e5e7eb; margin-top:8px; padding-top:18px;">
+                  <p style="font-size:12px; color:#9ca3af; margin:0 0 4px; line-height:1.6;">&copy; ${year} ${escapeHtml(company)}. All rights reserved.</p>
+                  <p style="font-size:12px; color:#9ca3af; margin:0; line-height:1.6;">
+                    <a href="https://${escapeHtml(website)}" style="color:#9ca3af; text-decoration:underline;">${escapeHtml(website)}</a>
+                    &nbsp;&middot;&nbsp; Built in Africa for African businesses.
+                  </p>
+                </div>
+              </div>`
+
+  // Brand banner strip *after* (below) the card. Prefers the hosted MartPoint
+  // banner image (`/footerbanner.png`); falls back to a styled blue bar with a
+  // headline + CTA if the image is not configured. Centred within the column.
+  const bannerImage =
+    (opts.bannerImageUrl ?? `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/footerbanner.png`).trim()
+  const banner = bannerImage
+    ? `
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" align="center" style="max-width:600px; width:100%; margin:20px auto 0;">
+          <tr>
+            <td align="center" style="text-align:center;">
+              <a href="https://${escapeHtml(website)}" target="_blank" style="text-decoration:none; display:inline-block;">
+                <img src="${escapeHtml(bannerImage)}" alt="MartPoint — ${escapeHtml(company)}" width="600" style="display:block; width:100%; max-width:600px; height:auto; margin:0 auto; border:0; border-radius:12px; outline:none; text-decoration:none;" />
+              </a>
+            </td>
+          </tr>
+        </table>`
+    : `
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" align="center" style="max-width:600px; width:100%; margin:20px auto 0;">
+          <tr>
+            <td style="background-color:#0047CC; background-image:linear-gradient(135deg, #0057FF 0%, #003BB3 100%); border-radius:12px; padding:22px 32px; text-align:center;">
+              <p style="color:#ffffff; font-size:15px; font-weight:700; margin:0 0 4px; letter-spacing:-0.2px;">${escapeHtml(company)} &mdash; The operating system for African retail</p>
+              <p style="color:#DCE8FF; font-size:12px; margin:0 0 14px; line-height:1.6;">Sell smarter, manage stock, and delight your customers &mdash; all in one place.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
+                <tr>
+                  <td style="border-radius:8px; background-color:#ffffff;">
+                    <a href="https://${escapeHtml(website)}" target="_blank" style="display:inline-block; padding:10px 24px; font-size:13px; font-weight:600; color:#0057FF; text-decoration:none; border-radius:8px;">Visit ${escapeHtml(website)}</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>`
+
+  return { cardFooter, banner }
+}
+
+/**
+ * Default footer content for every branded email. Social profile URLs and
+ * contact details come from env vars so nothing is hard-coded per caller:
+ *   EMAIL_SOCIAL_FACEBOOK / INSTAGRAM / X / LINKEDIN / YOUTUBE / TIKTOK
+ *   EMAIL_CONTACT_EMAIL / EMAIL_PHONE / EMAIL_WEBSITE / EMAIL_COMPANY_ADDRESS
+ * Falls back to the known MartPoint profiles when unset.
+ */
+export function defaultEmailFooter(): EmailFooterOptions {
+  const env = (k: string, fallback = "") => (process.env[k] || fallback).trim()
+  const website = env("EMAIL_WEBSITE", "https://martpoint.com.ng")
+  return {
+    social: {
+      facebook: env("EMAIL_SOCIAL_FACEBOOK", "https://facebook.com/usemartpoint"),
+      instagram: env("EMAIL_SOCIAL_INSTAGRAM", "https://instagram.com/usemartpoint"),
+      twitter: env("EMAIL_SOCIAL_X", "https://x.com/usemartpoint"),
+      linkedin: env("EMAIL_SOCIAL_LINKEDIN", "https://www.linkedin.com/company/usemartpoint"),
+      youtube: env("EMAIL_SOCIAL_YOUTUBE", "https://www.youtube.com/@usemartpoint"),
+      tiktok: env("EMAIL_SOCIAL_TIKTOK", "https://www.tiktok.com/@usemartpoint"),
+    },
+    contactEmail: env("EMAIL_CONTACT_EMAIL", "sales@martpoint.com.ng"),
+    phone: env("EMAIL_PHONE", "+234 701 042 6993"),
+    whatsappNumber: env("EMAIL_WHATSAPP", "+2348037978230"),
+    companyName: env("EMAIL_COMPANY_NAME", "MartPoint Solutions"),
+    website,
+    address: env("EMAIL_COMPANY_ADDRESS"),
+  }
+}
+
 export function brandedEmailHtml(
   body: string,
-  opts: { eyebrow?: string; title?: string; signoff?: string; logoUrl?: string; preheader?: string } = {}
+  opts: {
+    eyebrow?: string
+    title?: string
+    signoff?: string
+    logoUrl?: string
+    logoWhiteUrl?: string | null
+    preheader?: string
+    footer?: EmailFooterOptions
+  } = {}
 ): string {
   const eyebrow = opts.eyebrow || "MartPoint"
   const title = opts.title || "MartPoint"
   const signoff = opts.signoff || "MartPoint Team"
-  const logoUrl = opts.logoUrl || `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/logo.webp`
   const preheader = opts.preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(opts.preheader)}${"&zwnj;&nbsp;".repeat(20)}</div>`
     : ""
+
+  // The header sits on a dark blue gradient, so it needs a WHITE (or
+  // white-on-transparent) logo — a coloured logo looks broken here. We use the
+  // white logo asset when available; otherwise we fall back to a crisp white
+  // "MartPoint" wordmark, which always looks right.
+  // `logoWhiteUrl: null` explicitly falls back to the wordmark; a string (or
+  // the configured default) renders the white logo image.
+  const whiteLogo = opts.logoWhiteUrl === null ? "" : (opts.logoWhiteUrl ?? getEmailWhiteLogoUrl() ?? "").trim()
+  const headerMark = whiteLogo
+    ? `<img src="${whiteLogo}" alt="MartPoint" width="126" height="36" style="width:126px; height:36px; display:inline-block; margin:0 auto; border:0; outline:none; text-decoration:none;" />`
+    : `<div style="color:#ffffff; font-size:26px; font-weight:700; letter-spacing:-0.5px; line-height:1;">MartPoint</div>`
+
+  const { cardFooter, banner } = buildEmailFooter(signoff, opts.footer || defaultEmailFooter())
+
   return `${preheader}<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -81,28 +248,35 @@ export function brandedEmailHtml(
       <td align="center" style="padding:0 12px;">
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:600px; width:100%;">
           <tr>
-            <td style="padding:40px 40px 28px; text-align:center; background:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
-              <img src="${logoUrl}" alt="MartPoint" height="36" style="height:36px; display:inline-block; margin:0 auto;" />
+            <td style="padding:40px 40px 28px; text-align:center; background-color:#0057FF; background-image:linear-gradient(135deg, #0057FF 0%, #003BB3 100%);">
+              ${headerMark}
               <div style="color:#E0EAFF; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-top:12px;">${escapeHtml(eyebrow)}</div>
             </td>
           </tr>
           <tr>
-            <td style="padding:40px;">
+            <td style="padding:40px 40px 48px;">
 ${body}
             </td>
           </tr>
-          <tr>
-            <td style="padding:24px 40px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
-              <p style="font-size:12px; color:#6b7280; margin:0; line-height:1.6;">Best regards,<br/><strong style="color:#374151;">${escapeHtml(signoff)}</strong></p>
-              <p style="font-size:12px; color:#9ca3af; margin:12px 0 0;">MartPoint &middot; martpoint.com.ng</p>
-            </td>
-          </tr>
+          ${cardFooter}
         </table>
+        ${banner}
       </td>
     </tr>
   </table>
 </body>
 </html>`
+}
+
+/**
+ * Absolute URL of the WHITE MartPoint logo for dark backgrounds (email headers).
+ * Defaults to `/logo-white.png` on the site (the white logo asset in `public/`).
+ * Override with `EMAIL_LOGO_WHITE_URL` if the asset moves or is hosted on a CDN.
+ */
+export function getEmailWhiteLogoUrl(): string | undefined {
+  const configured = (process.env.EMAIL_LOGO_WHITE_URL || "").trim()
+  if (configured) return configured
+  return `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/logo-white.png`
 }
 
 /**
@@ -115,10 +289,14 @@ ${body}
  */
 export function ensureBrandedHtml(
   html: string | undefined,
-  opts: { eyebrow?: string; title?: string; signoff?: string; text?: string } = {}
+  opts: { eyebrow?: string; title?: string; signoff?: string; text?: string; logoWhiteUrl?: string | null; footer?: EmailFooterOptions } = {}
 ): string {
   const isFullDoc = /<!DOCTYPE|<html[\s>]/i.test(html || "")
-  const alreadyBranded = /background:linear-gradient\(135deg,\s*#0057FF/i.test(html || "") || /alt="MartPoint"/i.test(html || "")
+  // A branded email always contains the MartPoint gradient header (with or
+  // without the white logo image) and the branded footer tagline.
+  const alreadyBranded =
+    /linear-gradient\(135deg,\s*#0057FF/i.test(html || "") ||
+    /MartPoint &middot; martpoint\.com\.ng/i.test(html || "")
 
   if (html && isFullDoc && alreadyBranded) return html
 

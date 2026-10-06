@@ -12,6 +12,27 @@ import nodemailer from "nodemailer"
 import type { EmailMessage, EmailSettings } from "./email"
 import { writeEmailLog } from "./email"
 import { ensureBrandedHtml } from "./email-templates"
+import { getEmailFooterSettings } from "./settings"
+
+/** Wrap SMTP HTML in the branded shell, resolving the footer from live settings. */
+async function brandedHtmlWithFooter(message: EmailMessage): Promise<string> {
+  try {
+    const f = await getEmailFooterSettings()
+    return ensureBrandedHtml(message.html, {
+      text: message.text,
+      footer: {
+        social: f.social,
+        contactEmail: f.contactEmail,
+        phone: f.phone,
+        whatsappNumber: f.whatsappNumber,
+        companyName: f.companyName,
+        website: f.website,
+      },
+    })
+  } catch {
+    return ensureBrandedHtml(message.html, { text: message.text })
+  }
+}
 
 export async function sendEmailViaSmtp(
   message: EmailMessage,
@@ -54,7 +75,7 @@ export async function sendEmailViaSmtp(
       to: toList.join(", "),
       subject: message.subject,
       text: message.text,
-      html: message.skipBranding ? message.html : ensureBrandedHtml(message.html, { text: message.text }),
+      html: message.skipBranding ? message.html : await brandedHtmlWithFooter(message),
       replyTo: message.replyTo,
       attachments: message.attachments?.map((a) => ({
         filename: a.filename,

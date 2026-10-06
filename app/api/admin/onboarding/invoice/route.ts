@@ -4,8 +4,7 @@ import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail, REPLY_TO } from "@/lib/email"
-import { renderEmailTemplate, brandedEmailHtml, escapeHtml } from "@/lib/email-templates"
-import { getPublicSiteSettings } from "@/lib/settings"
+import { renderEmailTemplate, brandedEmailHtml, escapeHtml, getEmailWhiteLogoUrl } from "@/lib/email-templates"
 
 async function guardOnboardingAccess() {
   const session = await getSession()
@@ -71,9 +70,7 @@ export async function POST(request: Request) {
     if (record.email) {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ""
       const formLink = `${baseUrl}/onboarding/${recordId}`.replace(/\/$/, "")
-      const siteSettings = await getPublicSiteSettings()
-      const logoRaw = siteSettings.logo || "/logo.webp"
-      const logoUrl = /^https?:/i.test(logoRaw) ? logoRaw : `${baseUrl.replace(/\/$/, "")}${logoRaw.startsWith("/") ? "" : "/"}${logoRaw}`
+      const logoWhiteUrl = getEmailWhiteLogoUrl()
       const invoiceTpl = await renderEmailTemplate("onboarding_invoice", {
         fullName: record.full_name,
         businessName: record.business_name || record.full_name,
@@ -89,7 +86,7 @@ export async function POST(request: Request) {
         `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Hi ${escapeHtml(record.full_name)},</p>
          <div style="font-size:15px;line-height:1.6;color:#374151;background:#f9fafb;padding:16px;border-radius:8px;margin:0 0 24px;">${escapeHtml(emailText).replace(/\n/g, "<br>")}</div>
          ${formLink ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;"><tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="${formLink}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Complete Onboarding Form</a></td></tr></table>` : ""}`,
-        { eyebrow: "Billing", title: invoiceTpl.subject, signoff: "MartPoint Team", logoUrl }
+        { eyebrow: "Billing", title: invoiceTpl.subject, signoff: "MartPoint Team", logoWhiteUrl }
       )
 
       await sendEmail({

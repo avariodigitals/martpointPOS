@@ -5,10 +5,56 @@ describe("brandedEmailHtml", () => {
   it("wraps a body fragment in the MartPoint shell", () => {
     const html = brandedEmailHtml("<p>Hello world</p>", { title: "Test" })
     expect(html).toContain("<!DOCTYPE html>")
-    expect(html).toContain("background:linear-gradient(135deg, #0057FF")
-    expect(html).toContain("alt=\"MartPoint\"")
+    expect(html).toContain("linear-gradient(135deg, #0057FF")
+    // Header must never render the coloured logo on the dark gradient.
+    expect(html).not.toContain("/logo.webp")
     expect(html).toContain("<p>Hello world</p>")
-    expect(html).toContain("MartPoint &middot; martpoint.com.ng")
+  })
+
+  it("renders a rich footer: social chips, contact, copyright and banner", () => {
+    const html = brandedEmailHtml("<p>x</p>", { signoff: "MartPoint Billing" })
+    // Social chips for every configured network.
+    for (const label of ["Facebook", "Instagram", "LinkedIn", "YouTube", "TikTok"]) {
+      expect(html).toContain(`title="${label}"`)
+    }
+    // Contact + copyright + banner image.
+    expect(html).toContain("mailto:sales@martpoint.com.ng")
+    expect(html).toContain(`&copy; ${new Date().getFullYear()} MartPoint Solutions. All rights reserved.`)
+    expect(html).toContain("/footerbanner.png")
+    expect(html).toContain("Best regards,<br/>")
+  })
+
+  it("falls back to a styled banner bar when no banner image is configured", () => {
+    const html = brandedEmailHtml("<p>x</p>", { footer: { bannerImageUrl: "" } })
+    expect(html).not.toContain("/footerbanner.png")
+    expect(html).toContain("The operating system for African retail")
+  })
+
+  it("omits social chips when none are configured", () => {
+    const html = brandedEmailHtml("<p>x</p>", { footer: { social: {}, contactEmail: "", phone: "" } })
+    expect(html).not.toContain('title="Facebook"')
+    expect(html).toContain("All rights reserved.")
+  })
+
+  it("uses the white logo in the header by default", () => {
+    const html = brandedEmailHtml("<p>x</p>")
+    expect(html).toContain("/logo-white.png")
+    expect(html).toContain('alt="MartPoint"')
+    // Never the coloured logo on the dark gradient.
+    expect(html).not.toContain("/logo.webp")
+  })
+
+  it("renders a custom white logo URL when provided", () => {
+    const html = brandedEmailHtml("<p>x</p>", { logoWhiteUrl: "https://cdn.test/logo-white.png" })
+    expect(html).toContain('src="https://cdn.test/logo-white.png"')
+    expect(html).toContain('alt="MartPoint"')
+  })
+
+  it("falls back to a white wordmark when the white logo is disabled", () => {
+    const html = brandedEmailHtml("<p>x</p>", { logoWhiteUrl: null })
+    expect(html).toContain("color:#ffffff; font-size:26px; font-weight:700")
+    expect(html).not.toContain("/logo-white.png")
+    expect(html).not.toContain("/logo.webp")
   })
 
   it("escapes the title and eyebrow", () => {

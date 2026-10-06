@@ -15,7 +15,8 @@
  */
 
 import { supabase, isSupabaseConfigured } from "./supabase"
-import { ensureBrandedHtml } from "./email-templates"
+import { ensureBrandedHtml, type EmailFooterOptions } from "./email-templates"
+import { getEmailFooterSettings } from "./settings"
 
 export type EmailProvider = "resend" | "brevo" | "smtp"
 
@@ -307,9 +308,26 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
 
   // Brand every outgoing email: any HTML fragment (or plain text) that is not
   // already a fully-branded MartPoint document is wrapped in the standard shell.
-  const branded: EmailMessage = message.skipBranding
-    ? message
-    : { ...message, html: ensureBrandedHtml(message.html, { text: message.text }) }
+  // The footer (social links, contact, copyright) is resolved from live admin
+  // settings so it always matches the site configuration.
+  let branded: EmailMessage = message
+  if (!message.skipBranding) {
+    let footer: EmailFooterOptions | undefined
+    try {
+      const f = await getEmailFooterSettings()
+      footer = {
+        social: f.social,
+        contactEmail: f.contactEmail,
+        phone: f.phone,
+        whatsappNumber: f.whatsappNumber,
+        companyName: f.companyName,
+        website: f.website,
+      }
+    } catch {
+      footer = undefined
+    }
+    branded = { ...message, html: ensureBrandedHtml(message.html, { text: message.text, footer }) }
+  }
 
   if (provider === "brevo") {
     return sendViaBrevo(branded, settings, from, toList, logBase)

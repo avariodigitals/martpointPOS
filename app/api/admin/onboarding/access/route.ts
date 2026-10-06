@@ -5,8 +5,7 @@ import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import type { EmailAttachment } from "@/lib/email"
-import { renderEmailTemplate, brandedEmailHtml } from "@/lib/email-templates"
-import { getPublicSiteSettings } from "@/lib/settings"
+import { renderEmailTemplate, brandedEmailHtml, getEmailWhiteLogoUrl } from "@/lib/email-templates"
 
 async function guardOnboardingAccess() {
   const session = await getSession()
@@ -121,13 +120,10 @@ export async function POST(request: Request) {
       }
     }
 
-    const siteSettings = await getPublicSiteSettings()
-    const logoRaw = siteSettings.logo || "/logo.webp"
-    const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
-    const logoUrl = /^https?:/i.test(logoRaw) ? logoRaw : `${baseUrl}${logoRaw.startsWith("/") ? "" : "/"}${logoRaw}`
+    const logoWhiteUrl = getEmailWhiteLogoUrl()
     const emailHtml = brandedEmailHtml(
       `<div style="font-size:15px;line-height:1.6;color:#374151;background:#f9fafb;padding:16px;border-radius:8px;margin:0;">${escapeHtml(emailText).replace(/\n/g, "<br>")}</div>`,
-      { eyebrow: "Onboarding", title: accessTpl.subject, signoff: "MartPoint Team", logoUrl }
+      { eyebrow: "Onboarding", title: accessTpl.subject, signoff: "MartPoint Team", logoWhiteUrl }
     )
 
     const sent = await sendEmail({

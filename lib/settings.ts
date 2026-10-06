@@ -43,6 +43,60 @@ export interface PublicSiteSettings {
   googleReviewUrl: string
 }
 
+/**
+ * Footer/social data for outbound emails, read from live admin settings
+ * (`settings.data.social`, `.general`, `.footer`). Falls back to known
+ * MartPoint defaults when a field is not configured.
+ */
+export interface EmailFooterSettings {
+  social: Record<string, string>
+  contactEmail: string
+  phone: string
+  whatsappNumber: string
+  companyName: string
+  website: string
+}
+
+export async function getEmailFooterSettings(): Promise<EmailFooterSettings> {
+  const defaults: EmailFooterSettings = {
+    social: {
+      facebook: "https://facebook.com/usemartpoint",
+      instagram: "https://instagram.com/usemartpoint",
+      twitter: "https://x.com/usemartpoint",
+      linkedin: "https://www.linkedin.com/company/usemartpoint",
+      youtube: "https://www.youtube.com/@usemartpoint",
+      tiktok: "https://www.tiktok.com/@usemartpoint",
+    },
+    contactEmail: "sales@martpoint.com.ng",
+    phone: "+234 701 042 6993",
+    whatsappNumber: "+2348037978230",
+    companyName: "MartPoint Solutions",
+    website: "https://martpoint.com.ng",
+  }
+
+  try {
+    const settings = await readSettings()
+    if (!settings) return defaults
+    const social = (settings.social as Record<string, string> | undefined) || {}
+    const general = (settings.general as Record<string, unknown> | undefined) || {}
+    // Only trust configured URLs that are real links (skip "", "#", "n/a").
+    const usable = Object.fromEntries(
+      Object.entries(social).filter(([, v]) => typeof v === "string" && /^https?:\/\//i.test(v.trim())),
+    )
+    return {
+      social: { ...defaults.social, ...usable },
+      contactEmail: String(general.contactEmail || defaults.contactEmail),
+      phone: String(general.phone || defaults.phone),
+      whatsappNumber: String(general.whatsappNumber || defaults.whatsappNumber),
+      companyName: String(general.companyName || defaults.companyName),
+      website: defaults.website,
+    }
+  } catch (err) {
+    console.error("[settings] getEmailFooterSettings", err)
+    return defaults
+  }
+}
+
 export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
   const defaults: PublicSiteSettings = {
     companyName: "MartPoint",

@@ -6,10 +6,12 @@ import {
   addMessage,
   changeStatus,
   escalateTicket,
+  createTicket,
   type SupportTicket,
   type SupportTicketStatus,
 } from "@/lib/support"
 import { supabase } from "@/lib/supabase"
+import { partnerUserHasPermission } from "@/lib/partner-permissions"
 
 function ok<T>(data: T) {
   return NextResponse.json({ success: true, data })
@@ -52,7 +54,9 @@ export async function GET(request: Request) {
       if (error || !data) return err("Ticket not found", 404)
 
       const ticket = data as SupportTicket
-      const canView = await canPartnerViewTicket(session.partnerId, ticket, session.partnerUserId)
+      const canView = ticket.requester_partner_id === session.partnerId
+        ? true
+        : await canPartnerViewTicket(session.partnerId, ticket, session.partnerUserId)
       if (!canView) return err("Forbidden", 403)
 
       const [{ data: messages }, { data: events }] = await Promise.all([
@@ -75,7 +79,7 @@ export async function GET(request: Request) {
     const { data, error } = await supabase
       .from("support_tickets")
       .select("*, business:business_id (business_name)")
-      .eq("assigned_partner_id", session.partnerId)
+      .or(`assigned_partner_id.eq.${session.partnerId},requester_partner_id.eq.${session.partnerId}`)
       .order("created_at", { ascending: false })
 
     if (error) return err(error.message, 500)
@@ -83,7 +87,9 @@ export async function GET(request: Request) {
     const visible = []
     for (const t of data || []) {
       const ticket = t as SupportTicket
-      const canView = await canPartnerViewTicket(session.partnerId, ticket, session.partnerUserId)
+      const canView = ticket.requester_partner_id === session.partnerId
+        ? true
+        : await canPartnerViewTicket(session.partnerId, ticket, session.partnerUserId)
       if (canView) visible.push(t)
     }
 
@@ -104,6 +110,30 @@ export async function POST(request: Request) {
     const { action, data } = body as { action: string; data: Record<string, unknown> }
     if (!action) return err("Missing action")
 
+    if (action === "create") {
+      if (!partnerUserHasPermission(session.role, "partner:support:create")) return err("Forbidden", 403)
+      const subject = typeof data?.subject === "string" ? data.subject.trim() : ""
+      const description = typeof data?.description === "string" ? data.description.trim() : ""
+      if (subject.length < 4 || subject.length > 200) return err("Subject must be between 4 and 200 characters")
+      if (description.length < 10 || description.length > 5000) return err("Please describe the issue in 10 to 5000 characters")
+      try {
+        const ticket = await createTicket({
+          requester_partner_id: session.partnerId,
+          created_by_type: "PARTNER",
+          created_by_id: session.partnerUserId,
+          source: "PARTNER",
+          category: "PARTNER_NETWORK",
+          priority: "NORMAL",
+          subject,
+          description,
+        })
+        return ok(ticket)
+      } catch (e) {
+        console.error("[partner/support] ticket creation failed", e)
+        return err("Could not create support ticket", 500)
+      }
+    }
+
     const ticketId = data.ticketId as string
     if (!ticketId) return err("Missing ticketId")
 
@@ -111,7 +141,9 @@ export async function POST(request: Request) {
     if (error || !row) return err("Ticket not found", 404)
     const ticket = row as SupportTicket
 
-    const canManage = await canPartnerManageTicket(session.partnerId, ticket, session.partnerUserId)
+    const canManage = ticket.requester_partner_id === session.partnerId
+      ? true
+      : await canPartnerManageTicket(session.partnerId, ticket, session.partnerUserId)
     if (!canManage) return err("Forbidden", 403)
 
     if (action === "reply") {

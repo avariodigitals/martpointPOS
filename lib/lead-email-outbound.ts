@@ -43,7 +43,7 @@ export function mapLeadEmail(row: Record<string, unknown>): LeadEmailRecord {
 
 export interface SendLeadEmailInput {
   leadId: string
-  to: string
+  to: string | string[]
   subject: string
   /** Plain-text body; the signature from settings is appended. */
   body: string
@@ -92,7 +92,7 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
         { subject: input.subject, text: textBody, html, replyTo: from, attachments: input.attachments },
         settings,
         from,
-        [input.to],
+        Array.isArray(input.to) ? input.to : [input.to],
       )
     : await sendEmail({
         to: input.to,
@@ -111,7 +111,7 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
       lead_id: input.leadId,
       direction: "outbound",
       from_email: from,
-      to_email: input.to,
+      to_email: Array.isArray(input.to) ? input.to.join(", ") : input.to,
       subject: input.subject,
       body_text: textBody,
       body_html: html,

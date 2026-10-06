@@ -111,7 +111,7 @@ export async function createQuestionRound(
 
   const { data: lead, error: leadError } = await supabase
     .from("leads")
-    .select("full_name, business_name, email")
+    .select("full_name, business_name, email, additional_email")
     .eq("id", input.leadId)
     .single()
   if (leadError || !lead) return { ok: false, error: "Lead not found" }
@@ -139,7 +139,8 @@ export async function createQuestionRound(
       { fullName: lead.full_name as string, businessName: lead.business_name as string },
       url
     )
-    const sent = await sendEmail({ to: email, subject, text: "", html, replyTo: REPLY_TO.noreply })
+    const recipients = [...new Set([lead.email as string, email, lead.additional_email as string | null].filter((value): value is string => Boolean(value)))]
+    const sent = await sendEmail({ to: recipients, subject, text: "", html, replyTo: REPLY_TO.noreply })
     if (!sent) return { ok: true, token, url, error: "Email delivery failed (link generated)" }
   }
 

@@ -67,6 +67,7 @@ export interface QuestionnaireLead {
   fullName: string
   businessName: string
   email: string
+  additionalEmail?: string | null
   phone: string
   status: string
   questionnaireToken: string | null
@@ -83,6 +84,7 @@ function mapQuestionnaireLead(row: Record<string, unknown>): QuestionnaireLead {
     fullName: row.full_name as string,
     businessName: row.business_name as string,
     email: row.email as string,
+    additionalEmail: (row.additional_email as string | null) ?? null,
     phone: row.phone as string,
     status: row.status as string,
     questionnaireToken: (row.questionnaire_token as string) ?? null,
@@ -139,7 +141,7 @@ export async function generateQuestionnaire(
     const email = input.email || mapped.email
     const { subject, html } = await buildQuestionnaireEmail(mapped, url)
     const sent = await sendEmail({
-      to: email,
+      to: [...new Set([mapped.email, email, mapped.additionalEmail].filter((value): value is string => Boolean(value)))],
       subject,
       text: "",
       html,

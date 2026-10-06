@@ -58,7 +58,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { data: lead, error: leadError } = await supabase
       .from("leads")
-      .select("id, email, full_name")
+      .select("id, email, additional_email, full_name")
       .eq("id", id)
       .single()
 
@@ -67,7 +67,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const result = await sendLeadEmail({
       leadId: id,
-      to: lead.email as string,
+      to: [...new Set([lead.email as string, lead.additional_email as string | null].filter((email): email is string => Boolean(email)))],
       subject: parsed.data.subject,
       body: parsed.data.body,
     })

@@ -46,6 +46,7 @@ interface Lead {
   fullName: string
   businessName: string
   email: string
+  additionalEmail?: string | null
   phone: string
   businessType: string
   industry?: string
@@ -144,6 +145,7 @@ export default function AdminLeadsPage() {
     fullName: "",
     businessName: "",
     email: "",
+    additionalEmail: "",
     phone: "",
     businessType: "",
     industry: "",
@@ -367,6 +369,7 @@ export default function AdminLeadsPage() {
           fullName: "",
           businessName: "",
           email: "",
+          additionalEmail: "",
           phone: "",
           businessType: "",
           industry: "",
@@ -1173,6 +1176,10 @@ export default function AdminLeadsPage() {
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="john@example.com"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Additional Email (copy)</label>
+                <input type="email" value={addForm.additionalEmail} onChange={(e) => setAddForm((prev) => ({ ...prev, additionalEmail: e.target.value }))} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="copy@example.com" />
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Phone *</label>

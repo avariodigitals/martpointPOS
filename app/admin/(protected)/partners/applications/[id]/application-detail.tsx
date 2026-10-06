@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import {
   Loader2, ArrowLeft, FileText, Download, Save, UserCheck, X, Check,
   AlertTriangle, ShieldCheck, RefreshCw, Send, CheckCircle, XCircle,
-  Clock, AlertCircle, Pencil, type LucideIcon,
+  Clock, AlertCircle, Pencil, CalendarDays, type LucideIcon,
 } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
 import { AgreementForm } from "./agreement-form"
@@ -112,11 +112,13 @@ interface AppDetail {
   reviewed_by_name?: string | null
 }
 
-type TabKey = "overview" | "timeline" | "compliance" | "actions"
+type TabKey = "overview" | "timeline" | "meetings" | "questions" | "compliance" | "actions"
 
 const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "overview", label: "Overview", icon: FileText },
   { key: "timeline", label: "Timeline", icon: Clock },
+  { key: "meetings", label: "Meetings", icon: CalendarDays },
+  { key: "questions", label: "Questions", icon: FileText },
   { key: "compliance", label: "Compliance Docs", icon: ShieldCheck },
   { key: "actions", label: "Actions & Notes", icon: UserCheck },
 ]
@@ -160,6 +162,16 @@ export function ApplicationDetail({ id }: { id: string }) {
 
   const [noteDraft, setNoteDraft] = useState("")
   const [savingNotes, setSavingNotes] = useState(false)
+  const [meetingTitle, setMeetingTitle] = useState("Partner application discussion")
+  const [meetingAt, setMeetingAt] = useState("")
+  const [meetingDuration, setMeetingDuration] = useState(30)
+  const [meetingLink, setMeetingLink] = useState("")
+  const [meetingMessage, setMeetingMessage] = useState("")
+  const [sendingMeeting, setSendingMeeting] = useState(false)
+  const [questionRounds, setQuestionRounds] = useState<{ id: string; title: string; fields: { name: string; label: string }[]; responses: Record<string, unknown>; status: string; created_at: string; submitted_at: string | null }[]>([])
+  const [questionTitle, setQuestionTitle] = useState("Additional Questions")
+  const [questionDraft, setQuestionDraft] = useState("")
+  const [sendingQuestions, setSendingQuestions] = useState(false)
 
   const [actionStatus, setActionStatus] = useState("")
   const [reason, setReason] = useState("")
@@ -204,6 +216,9 @@ export function ApplicationDetail({ id }: { id: string }) {
       setComplianceDocs(data.complianceDocuments || [])
       setSelectedDocTypes(data.requiredComplianceDocuments || [])
       setHistory(data.history || [])
+      const questionsRes = await fetch(`/api/admin/partners/applications/${id}/questions`)
+      const questionsData = await questionsRes.json()
+      setQuestionRounds(questionsData.rounds || [])
     } catch {
       setError("Failed to load application")
     } finally {
@@ -270,6 +285,48 @@ export function ApplicationDetail({ id }: { id: string }) {
       setSavingNotes(false)
       setTimeout(() => setActionMsg(""), 2500)
     }
+  }
+
+  async function inviteToMeeting() {
+    if (!meetingAt) { setActionMsg("Choose a meeting date and time."); return }
+    setSendingMeeting(true)
+    setActionMsg("")
+    try {
+      const res = await fetch(`/api/admin/partners/applications/${id}/meetings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: meetingTitle, scheduledAt: new Date(meetingAt).toISOString(), durationMinutes: meetingDuration, meetingLink, message: meetingMessage }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) { setActionMsg(data.error || "Could not send meeting invitation."); return }
+      setActionMsg(data.emailSent ? "Meeting invitation sent and added to the timeline." : "Meeting added to the timeline, but the invitation email could not be sent.")
+      setMeetingAt("")
+      setMeetingMessage("")
+      fetchDetail()
+    } finally {
+      setSendingMeeting(false)
+    }
+  }
+
+  async function sendQuestions() {
+    const lines = questionDraft.split("\n").map((line) => line.trim()).filter(Boolean)
+    if (!lines.length) { setActionMsg("Add at least one question."); return }
+    setSendingQuestions(true); setActionMsg("")
+    try {
+      const fields = lines.map((label, index) => ({ name: `question_${Date.now()}_${index}`, label, type: "textarea", required: true }))
+      const res = await fetch(`/api/admin/partners/applications/${id}/questions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: questionTitle, fields }) })
+      const data = await res.json()
+      if (!res.ok || !data.success) { setActionMsg(data.error || "Could not send questions."); return }
+      setActionMsg(data.emailSent ? "Questions sent to the applicant and added to the timeline." : `Question link created but email delivery failed: ${data.url}`)
+      setQuestionDraft(""); fetchDetail()
+    } finally { setSendingQuestions(false) }
+  }
+
+  async function markQuestionsReviewed(roundId: string) {
+    const res = await fetch(`/api/admin/partners/applications/${id}/questions`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roundId }) })
+    const data = await res.json()
+    if (data.success) fetchDetail()
+    else setActionMsg(data.error || "Could not mark responses reviewed")
   }
 
   async function performAction() {
@@ -633,6 +690,11 @@ export function ApplicationDetail({ id }: { id: string }) {
                   const label =
                     eventType === "NOTE_ADDED" ? "Internal note added" :
                     eventType === "APPLICATION_EDITED" ? "Application details edited" :
+                    eventType === "MEETING_INVITED" ? "Meeting invitation sent" :
+                    eventType === "MEETING_EMAIL_FAILED" ? "Meeting scheduled; invitation email failed" :
+                    eventType === "QUESTIONS_SENT" ? "Additional questions sent" :
+                    eventType === "QUESTIONS_SUBMITTED" ? "Applicant answered additional questions" :
+                    eventType === "QUESTIONS_REVIEWED" ? "Additional answers reviewed" :
                     eventType === "DOCUMENT_REVIEW" ? "Compliance document reviewed" :
                     eventType === "DOCUMENT_SUBMITTED" ? "Compliance document submitted" :
                     enumLabel(h.new_status || "")
@@ -656,6 +718,55 @@ export function ApplicationDetail({ id }: { id: string }) {
             <p className="text-xs text-muted-foreground mt-4">Submitted {new Date(app.submitted_at).toLocaleString()}{app.reviewed_at ? ` · last reviewed ${new Date(app.reviewed_at).toLocaleString()}${app.reviewed_by_name ? ` by ${app.reviewed_by_name}` : ""}` : ""}</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* ─────────── Compliance Docs ─────────── */}
+      {tab === "questions" && (
+        <div className="space-y-6">
+          <Card><CardHeader><CardTitle className="text-sm font-medium">Ask Additional Questions</CardTitle></CardHeader><CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">Send the applicant a private link to answer questions. Their responses return here under the same round.</p>
+            <div><label className="block text-xs font-medium mb-1">Round title</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={questionTitle} onChange={(e) => setQuestionTitle(e.target.value)} maxLength={200} /></div>
+            <div><label className="block text-xs font-medium mb-1">Questions (one per line)</label><textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={6} value={questionDraft} onChange={(e) => setQuestionDraft(e.target.value)} placeholder={"What regions do you currently serve?\nHow many implementation staff are available?"} /></div>
+            <Button onClick={sendQuestions} disabled={sendingQuestions || !questionDraft.trim()}>{sendingQuestions ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send Questions</Button>
+            {actionMsg && <p role="status" className="text-sm text-muted-foreground break-all">{actionMsg}</p>}
+          </CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-sm font-medium">Question History</CardTitle></CardHeader><CardContent className="space-y-4">
+            {questionRounds.length === 0 ? <p className="text-sm text-muted-foreground">No additional questions have been sent.</p> : questionRounds.map((round) => <div key={round.id} className="rounded-md border border-border p-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-2"><p className="font-medium">{round.title}</p><span className="rounded-full bg-muted px-2 py-0.5 text-xs">{round.status}</span><span className="ml-auto text-xs text-muted-foreground">{new Date(round.created_at).toLocaleString()}</span></div>
+              <ol className="list-decimal pl-5 space-y-2 text-sm">{round.fields.map((field) => <li key={field.name}><p>{field.label}</p>{round.responses?.[field.name] !== undefined && <p className="whitespace-pre-wrap text-muted-foreground">{Array.isArray(round.responses[field.name]) ? (round.responses[field.name] as unknown[]).join(", ") : String(round.responses[field.name])}</p>}</li>)}</ol>
+              {round.status === "Submitted" && <Button size="sm" variant="outline" onClick={() => markQuestionsReviewed(round.id)}>Mark Reviewed</Button>}
+            </div>)}
+          </CardContent></Card>
+        </div>
+      )}
+
+      {/* ─────────── Compliance Docs ─────────── */}
+      {tab === "meetings" && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><CalendarDays className="w-4 h-4" /> Invite Applicant to a Meeting</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">An email invitation with a calendar attachment will be sent to {app.email} in West Africa Time.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2"><label className="block text-xs font-medium mb-1">Meeting title</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={meetingTitle} onChange={(e) => setMeetingTitle(e.target.value)} maxLength={200} /></div>
+                <div><label className="block text-xs font-medium mb-1">Date and time (your local time)</label><input type="datetime-local" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={meetingAt} onChange={(e) => setMeetingAt(e.target.value)} /></div>
+                <div><label className="block text-xs font-medium mb-1">Duration</label><select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={meetingDuration} onChange={(e) => setMeetingDuration(Number(e.target.value))}><option value={15}>15 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option><option value={90}>90 minutes</option></select></div>
+                <div className="sm:col-span-2"><label className="block text-xs font-medium mb-1">Meeting link (optional)</label><input type="url" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="https://meet.google.com/…" /></div>
+                <div className="sm:col-span-2"><label className="block text-xs font-medium mb-1">Message (optional)</label><textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} maxLength={3000} value={meetingMessage} onChange={(e) => setMeetingMessage(e.target.value)} placeholder="Add an agenda or context for the applicant…" /></div>
+              </div>
+              <Button onClick={inviteToMeeting} disabled={sendingMeeting || !meetingAt || !meetingTitle.trim()}>{sendingMeeting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send Invitation</Button>
+              {actionMsg && <p role="status" className="text-sm text-muted-foreground">{actionMsg}</p>}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-medium">Meeting History</CardTitle></CardHeader>
+            <CardContent>
+              {history.filter((h) => h.event_type === "MEETING_INVITED" || h.event_type === "MEETING_EMAIL_FAILED").length === 0 ? <p className="text-sm text-muted-foreground">No meeting invitations yet.</p> : (
+                <div className="space-y-3">{history.filter((h) => h.event_type === "MEETING_INVITED" || h.event_type === "MEETING_EMAIL_FAILED").map((h, i) => <div key={`${h.created_at}-${i}`} className="rounded-md border border-border p-3"><div className="flex flex-wrap gap-2 text-sm font-medium"><span>{h.event_type === "MEETING_INVITED" ? "Invitation sent" : "Email failed"}</span><span className="ml-auto text-xs text-muted-foreground">{new Date(h.created_at).toLocaleString()}</span></div><p className="mt-2 text-sm whitespace-pre-wrap">{h.reason}</p><p className="mt-1 text-xs text-muted-foreground">{h.changed_by_name ? `By ${h.changed_by_name}` : ""}</p></div>)}</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* ─────────── Compliance Docs ─────────── */}

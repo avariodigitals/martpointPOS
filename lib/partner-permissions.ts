@@ -54,6 +54,7 @@ export const PARTNER_PERMISSIONS = [
   "onboarding:manage_assigned",
   "support:view_assigned",
   "support:manage_assigned",
+  "partner:support:create",
   "commissions:view_own",
   "workorders:view_own",
   "workorders:manage_own",
@@ -80,6 +81,7 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "onboarding:manage_assigned",
     "support:view_assigned",
     "support:manage_assigned",
+    "partner:support:create",
     "commissions:view_own",
     "workorders:view_own",
     "workorders:manage_own",
@@ -92,12 +94,14 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "partner:compliance:view",
     "partner:compliance:submit",
     "partner:resources:view",
+    "partner:support:create",
     "workorders:view_own",
     "quotes:request_own",
   ],
   PARTNER_SALES: [
     "partner:profile:view",
     "partner:resources:view",
+    "partner:support:create",
     "leads:view",
     "leads:create",
     "leads:update",
@@ -106,6 +110,7 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
   PARTNER_IMPLEMENTATION: [
     "partner:profile:view",
     "partner:resources:view",
+    "partner:support:create",
     "leads:view",
     "leads:create",
     "leads:update",
@@ -120,6 +125,7 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "partner:resources:view",
     "support:view_assigned",
     "support:manage_assigned",
+    "partner:support:create",
   ],
 }
 

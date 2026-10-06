@@ -48,7 +48,10 @@ export async function PATCH(
         changed_by_name: session!.name || session!.username,
         event_type: "NOTE_ADDED",
       })
-      if (historyError) return NextResponse.json({ error: "Could not save note" }, { status: 500 })
+      if (historyError) {
+        console.error("[partner-application] note history insert failed", { applicationId: id, code: historyError.code, message: historyError.message, details: historyError.details })
+        return NextResponse.json({ error: `Could not save note: ${historyError.message}` }, { status: 500 })
+      }
       const ctx = auditContextFromSession(session, request)
       await recordAudit(ctx, {
         action: AUDIT_ACTIONS.PARTNER_APPLICATION_NOTE_ADDED,

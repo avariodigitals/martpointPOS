@@ -19,6 +19,7 @@ import {
   Wallet,
   FileQuestion,
   ClipboardList,
+  LifeBuoy,
   type LucideIcon,
 } from "lucide-react"
 import { PortalMobileNav } from "@/components/shared/portal-mobile-nav"
@@ -48,10 +49,11 @@ const navItems: NavItem[] = [
   { href: "/partner/branded-materials", label: "Branded Materials", icon: Palette, permission: "partner:resources:view" },
   { href: "/partner/badge-kit", label: "Badge Kit", icon: BadgeCheck, permission: "partner:resources:view" },
   { href: "/partner/resources", label: "Resources", icon: FolderOpen, permission: "partner:resources:view" },
+  { href: "/partner/support", label: "Support Tickets", icon: LifeBuoy, permission: "partner:support:create" },
 ]
 
 // Primary destinations shown in the mobile bottom quick menu (filtered by permissions below).
-const QUICK_HREFS = ["/partner", "/partner/leads", "/partner/quotes", "/partner/commissions"]
+const QUICK_HREFS = ["/partner", "/partner/leads", "/partner/quotes", "/partner/commissions", "/partner/support"]
 
 export function PartnerSidebarNav({
   partnerName,

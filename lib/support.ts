@@ -20,6 +20,7 @@ export type SupportTicket = {
   business_id?: string | null
   creator_id?: string | null
   partner_id?: string | null
+  requester_partner_id?: string | null
   complained_about_partner_id?: string | null
   created_by_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM"
   created_by_id?: string | null
@@ -227,6 +228,7 @@ export async function getSlaState(
 
 export function isTicketVisibleToPartner(ticket: SupportTicket, partnerId: string): boolean {
   if (isSensitiveSupportCategory(ticket.category)) return false
+  if (ticket.requester_partner_id === partnerId) return true
   if (ticket.complained_about_partner_id && ticket.complained_about_partner_id === partnerId) return false
   if (ticket.assigned_partner_id !== partnerId) return false
   return true
@@ -234,6 +236,7 @@ export function isTicketVisibleToPartner(ticket: SupportTicket, partnerId: strin
 
 export async function canPartnerViewTicket(partnerId: string, ticket: SupportTicket, partnerUserId?: string): Promise<boolean> {
   if (!isTicketVisibleToPartner(ticket, partnerId)) return false
+  if (ticket.requester_partner_id === partnerId) return true
   if (!ticket.business_id) return false // creator tickets are not partner-visible
   const access = await canPartnerAccessBusiness(partnerId, ticket.business_id, {
     partnerUserId,
@@ -246,6 +249,7 @@ export async function canPartnerViewTicket(partnerId: string, ticket: SupportTic
 
 export async function canPartnerManageTicket(partnerId: string, ticket: SupportTicket, partnerUserId?: string): Promise<boolean> {
   if (!await canPartnerViewTicket(partnerId, ticket, partnerUserId)) return false
+  if (ticket.requester_partner_id === partnerId) return true
   if (ticket.assigned_partner_id !== partnerId) return false
   return true
 }
@@ -258,6 +262,7 @@ export async function createTicket(input: {
   business_id?: string | null
   creator_id?: string | null
   partner_id?: string | null
+  requester_partner_id?: string | null
   complained_about_partner_id?: string | null
   created_by_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM"
   created_by_id?: string | null

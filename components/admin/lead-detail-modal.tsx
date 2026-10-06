@@ -43,6 +43,7 @@ export interface Lead {
   fullName: string
   businessName: string
   email: string
+  additionalEmail?: string | null
   phone: string
   businessType: string
   industry?: string
@@ -188,6 +189,7 @@ export function LeadDetailModal({
     fullName: lead.fullName,
     businessName: lead.businessName,
     email: lead.email,
+    additionalEmail: lead.additionalEmail || "",
     phone: lead.phone,
     businessType: lead.businessType,
     industry: lead.industry || resolveIndustryName(lead.businessType) || "",
@@ -345,6 +347,7 @@ export function LeadDetailModal({
         fullName: updated.fullName,
         businessName: updated.businessName,
         email: updated.email,
+        additionalEmail: updated.additionalEmail || "",
         phone: updated.phone,
         businessType: updated.businessType,
         industry: updated.industry || resolveIndustryName(updated.businessType) || "",
@@ -918,6 +921,10 @@ export function LeadDetailModal({
                   />
                 </div>
                 <div>
+                  <label className={labelClass}>Additional Email (copy)</label>
+                  <input type="email" value={editForm.additionalEmail} onChange={(e) => setEditForm((p) => ({ ...p, additionalEmail: e.target.value }))} className={inputClass} placeholder="copy@example.com" />
+                </div>
+                <div>
                   <label className={labelClass}>Phone *</label>
                   <input
                     type="tel"
@@ -1104,7 +1111,7 @@ export function LeadDetailModal({
               <div className="rounded-lg border border-border bg-muted/20 p-3 flex items-center gap-2 text-xs text-muted-foreground">
                 <Mail className="w-3.5 h-3.5 shrink-0" />
                 <span>
-                  Two-way thread with <span className="font-medium text-foreground">{lead.email}</span>.
+                  Two-way thread with <span className="font-medium text-foreground">{lead.email}</span>{lead.additionalEmail ? <> (copy: <span className="font-medium text-foreground">{lead.additionalEmail}</span>)</> : null}.
                   Replies from the lead appear here once inbound email is connected.
                 </span>
               </div>
@@ -1187,7 +1194,7 @@ export function LeadDetailModal({
                   className={`${inputClass} resize-y`}
                 />
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[11px] text-muted-foreground">Sent to {lead.email}</p>
+                  <p className="text-[11px] text-muted-foreground">Sent to {lead.email}{lead.additionalEmail ? ` and copied to ${lead.additionalEmail}` : ""}</p>
                   <Button
                     size="sm"
                     onClick={handleSendEmail}
@@ -1324,6 +1331,7 @@ export function LeadDetailModal({
               <p className="text-sm text-muted-foreground">
                 Send a short follow-up round when you need more details from this lead. They answer only these questions —
                 the original requirements questionnaire stays as submitted. Every round is kept below for documentation.
+                {lead.additionalEmail ? ` The email is also copied to ${lead.additionalEmail}.` : ""}
               </p>
 
               <div className="rounded-lg border border-border p-4 space-y-3">

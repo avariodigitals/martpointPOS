@@ -12,6 +12,7 @@ interface LeadRecord {
   fullName: string
   businessName: string
   email: string
+  additionalEmail?: string | null
   phone: string
   businessType: string
   industry?: string
@@ -66,6 +67,7 @@ export async function GET() {
     fullName: row.full_name,
     businessName: row.business_name,
     email: row.email,
+    additionalEmail: row.additional_email ?? null,
     phone: row.phone,
     businessType: row.business_type,
     industry: resolveIndustryName((row.industry as string | null) || row.business_type),
@@ -122,7 +124,12 @@ export async function PUT(request: Request) {
       challenge,
       message,
       source,
+      additionalEmail,
     } = body
+
+    if (additionalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(additionalEmail)) {
+      return NextResponse.json({ error: "Additional email must be a valid email address" }, { status: 400 })
+    }
 
     if (!id) {
       return NextResponse.json({ error: "Lead ID is required" }, { status: 400 })
@@ -139,6 +146,7 @@ export async function PUT(request: Request) {
     if (fullName !== undefined) updateData.full_name = fullName
     if (businessName !== undefined) updateData.business_name = businessName
     if (email !== undefined) updateData.email = email
+    if (additionalEmail !== undefined) updateData.additional_email = additionalEmail || null
     if (phone !== undefined) updateData.phone = phone
     if (businessType !== undefined) updateData.business_type = businessType
     if (industry !== undefined) updateData.industry = industry ? resolveIndustryName(industry) : null
@@ -166,6 +174,7 @@ export async function PUT(request: Request) {
       fullName: data.full_name,
       businessName: data.business_name,
       email: data.email,
+      additionalEmail: data.additional_email ?? null,
       phone: data.phone,
       businessType: data.business_type,
       industry: data.industry ?? resolveIndustryName(data.business_type),
@@ -204,6 +213,7 @@ export async function POST(request: Request) {
       fullName,
       businessName,
       email,
+      additionalEmail,
       phone,
       businessType,
       industry,
@@ -218,6 +228,10 @@ export async function POST(request: Request) {
       assignedTo,
     } = body
 
+    if (additionalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(additionalEmail)) {
+      return NextResponse.json({ error: "Additional email must be a valid email address" }, { status: 400 })
+    }
+
     if (!fullName || !businessName || !email || !phone || !businessType || !productInterest || !branches || !staffSize) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
@@ -231,6 +245,7 @@ export async function POST(request: Request) {
       fullName,
       businessName,
       email,
+      additionalEmail: additionalEmail || null,
       phone,
       businessType,
       industry: resolvedIndustry,
@@ -254,6 +269,7 @@ export async function POST(request: Request) {
         full_name: fullName,
         business_name: businessName,
         email,
+        additional_email: additionalEmail || null,
         phone,
         business_type: businessType,
         industry: resolvedIndustry,

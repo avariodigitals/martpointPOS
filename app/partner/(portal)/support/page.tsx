@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, LifeBuoy, ArrowRight } from "lucide-react"
+import { Loader2, LifeBuoy, ArrowRight, Plus, X } from "lucide-react"
 
 interface BusinessInfo {
   business_name?: string | null
@@ -13,7 +13,7 @@ interface BusinessInfo {
 interface Ticket {
   id: string
   ticket_number: string
-  business_id: string
+  business_id: string | null
   subject: string
   category: string
   priority: string
@@ -56,6 +56,9 @@ export default function PartnerSupportPage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [active, setActive] = useState<Bucket>("OPEN")
+  const [creating, setCreating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [draft, setDraft] = useState({ subject: "", description: "" })
 
   useEffect(() => {
     loadTickets()
@@ -80,6 +83,17 @@ export default function PartnerSupportPage() {
     }
   }
 
+  async function createTicket(e: React.FormEvent) {
+    e.preventDefault(); setSaving(true); setMessage("")
+    try {
+      const res = await fetch("/api/partner/support", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", data: draft }) })
+      const json = await res.json()
+      if (!res.ok || !json.success) { setMessage(json.error || "Could not create ticket"); return }
+      setDraft({ subject: "", description: "" }); setCreating(false); setActive("OPEN"); await loadTickets()
+      setMessage(`Ticket ${json.data.ticket_number} created.`)
+    } catch { setMessage("Could not create ticket") } finally { setSaving(false) }
+  }
+
   const counts = useMemo(() => {
     return BUCKETS.reduce((acc, b) => {
       acc[b.key] = tickets.filter((t) => b.statuses.includes(t.status)).length
@@ -94,13 +108,18 @@ export default function PartnerSupportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <LifeBuoy className="w-5 h-5" />
           My Support Tickets
         </h2>
-        <p className="text-muted-foreground">Tickets assigned to your organisation.</p>
+        <p className="text-muted-foreground">View tickets assigned to you and raise a support request with MartPoint.</p>
+        </div>
+        {!creating && <Button onClick={() => setCreating(true)}><Plus className="w-4 h-4 mr-1" /> New ticket</Button>}
       </div>
+
+      {creating && <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm font-medium">Raise a Support Ticket</CardTitle><Button size="sm" variant="ghost" onClick={() => setCreating(false)}><X className="w-4 h-4" /></Button></CardHeader><CardContent><form onSubmit={createTicket} className="space-y-3"><div><label className="block text-xs font-medium mb-1">Subject</label><input required minLength={4} maxLength={200} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={draft.subject} onChange={(e) => setDraft((v) => ({ ...v, subject: e.target.value }))} /></div><div><label className="block text-xs font-medium mb-1">Describe the issue</label><textarea required minLength={10} maxLength={5000} rows={5} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={draft.description} onChange={(e) => setDraft((v) => ({ ...v, description: e.target.value }))} /></div><Button type="submit" disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Submit Ticket</Button></form></CardContent></Card>}
 
       {message && <p className="text-sm text-red-500">{message}</p>}
 

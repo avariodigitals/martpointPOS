@@ -310,6 +310,6 @@ DROP POLICY IF EXISTS "Allow public to submit leads" ON public.leads;
 CREATE POLICY "anon_leads_insert" ON public.leads
   FOR INSERT TO anon
   WITH CHECK (
-    length(trim(coalesce(name, ''))) > 0
+    length(trim(coalesce(full_name, ''))) > 0
     AND (email IS NULL OR email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$')
   );

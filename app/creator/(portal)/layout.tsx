@@ -15,7 +15,7 @@ export default async function CreatorPortalLayout({
         creatorCode={creator.creatorId}
         levelLabel={creator.levelLabel || "Starter"}
       />
-      <main className="flex-1 p-4 md:p-8 overflow-auto">{children}</main>
+      <main className="flex-1 p-4 pb-24 md:p-8 overflow-auto">{children}</main>
     </div>
   )
 }

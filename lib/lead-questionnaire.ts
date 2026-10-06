@@ -1,4 +1,5 @@
 import crypto from "crypto"
+import { z } from "zod"
 import { businessTypeOptions } from "./industries"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
@@ -17,6 +18,18 @@ export interface QuestionnaireField {
   default?: string | boolean | number
   helpText?: string
 }
+
+/** Request-body schema for questionnaire-style field lists (admin routes). */
+export const questionnaireFieldSchema = z.object({
+  name: z.string(),
+  label: z.string(),
+  type: z.enum(["text", "email", "tel", "number", "select", "multiselect", "textarea", "date", "boolean", "section"]),
+  options: z.array(z.string()).optional(),
+  optionStatuses: z.record(z.string(), z.string()).optional(),
+  required: z.boolean().optional(),
+  default: z.union([z.string(), z.boolean(), z.number()]).optional(),
+  helpText: z.string().optional(),
+})
 
 export const DEFAULT_QUESTIONNAIRE_FIELDS: QuestionnaireField[] = [
   { name: "businessName", label: "Business name", type: "text", required: true },

@@ -27,7 +27,7 @@ export default async function PartnerPortalLayout({
         userRole={user.role}
         capabilities={capabilities}
       />
-      <main className="flex-1 p-6 md:p-8 overflow-auto">
+      <main className="flex-1 p-6 pb-24 md:p-8 overflow-auto">
         {children}
       </main>
     </div>

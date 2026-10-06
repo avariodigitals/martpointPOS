@@ -21,7 +21,7 @@ export default async function AdminProtectedLayout({
       <AdminSidebarNav userName={session.name || session.username} userRole={session.role} />
 
       {/* Main Content */}
-      <main className="flex-1 p-6 md:p-8 overflow-auto">
+      <main className="flex-1 p-6 pb-24 md:p-8 overflow-auto">
         <PermissionGuard role={session.role}>
           {children}
         </PermissionGuard>

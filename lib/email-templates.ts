@@ -1287,6 +1287,23 @@ Best regards,
 MartPoint Sales Team`,
   },
   {
+    key: "lead_additional_questions",
+    label: "Lead Additional Questions",
+    description: "Short follow-up questions sent to a lead after their initial requirements questionnaire was submitted.",
+    variables: ["fullName", "businessName", "questionsLink"],
+    subject: "A few additional questions — {{businessName}}",
+    text: `Hi {{fullName}},
+
+Thanks for completing our requirements questionnaire for {{businessName}}. To finalise your quote, we just need answers to a few additional questions:
+
+{{questionsLink}}
+
+This will only take a couple of minutes — you don't need to fill the full questionnaire again.
+
+Best regards,
+MartPoint Sales Team`,
+  },
+  {
     key: "customer_feedback",
     label: "Customer Feedback (internal)",
     description: "Internal notification when a customer submits a rating. Recipient is controlled by the customer_feedback email route.",

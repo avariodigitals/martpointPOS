@@ -18,6 +18,8 @@ import {
   Loader2,
   MessageSquare,
   ClipboardList,
+  MessageSquarePlus,
+  Plus,
   ExternalLink,
   Copy,
   User,
@@ -75,7 +77,20 @@ export interface QuestionnaireField {
   selected?: boolean
 }
 
-type Tab = "overview" | "edit" | "notes" | "email" | "questionnaire" | "meeting" | "actions"
+interface QuestionRound {
+  id: string
+  token: string
+  title: string
+  status: "Sent" | "Submitted" | "Reviewed"
+  fields: QuestionnaireField[]
+  responses: Record<string, unknown>
+  sentAt: string | null
+  submittedAt: string | null
+  reviewedAt: string | null
+  createdAt: string | null
+}
+
+type Tab = "overview" | "edit" | "notes" | "email" | "questionnaire" | "additional" | "meeting" | "actions"
 
 interface LeadEmailMessage {
   id: string
@@ -189,6 +204,17 @@ export function LeadDetailModal({
   const [deleting, setDeleting] = useState(false)
   const [questionnaireLoading, setQuestionnaireLoading] = useState(false)
   const [questionnaireData, setQuestionnaireData] = useState<{ fields: QuestionnaireField[]; responses: Record<string, unknown> } | null>(null)
+  const [questionRounds, setQuestionRounds] = useState<QuestionRound[]>([])
+  const [roundsLoading, setRoundsLoading] = useState(false)
+  const [roundFields, setRoundFields] = useState<QuestionnaireField[]>([])
+  const [roundDraft, setRoundDraft] = useState({ label: "", type: "text", options: "", required: false })
+  const [showRoundComposer, setShowRoundComposer] = useState(false)
+  const [sendingRound, setSendingRound] = useState(false)
+  const [roundUrl, setRoundUrl] = useState<string | null>(null)
+  const [roundMessage, setRoundMessage] = useState("")
+  const [copiedRoundToken, setCopiedRoundToken] = useState<string | null>(null)
+  const [copiedRoundUrl, setCopiedRoundUrl] = useState(false)
+  const [reviewingRoundId, setReviewingRoundId] = useState<string | null>(null)
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [meetingLoading, setMeetingLoading] = useState(false)
   const [emails, setEmails] = useState<LeadEmailMessage[]>([])
@@ -282,6 +308,29 @@ export function LeadDetailModal({
     return () => { cancelled = true }
   }, [tab, lead.id])
 
+  useEffect(() => {
+    if (tab !== "additional") return
+    let cancelled = false
+    fetch(`/api/admin/leads/${lead.id}/questions`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data.error) {
+          setRoundMessage(data.error)
+          setQuestionRounds([])
+        } else {
+          setQuestionRounds(data.rounds || [])
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setRoundMessage("Failed to load additional questions")
+      })
+      .finally(() => {
+        if (!cancelled) setRoundsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [tab, lead.id])
+
   const handleSaveNotes = async () => {
     setSavingNotes(true)
     await onSaveNotes(lead.id, noteDraft)
@@ -335,6 +384,86 @@ export function LeadDetailModal({
     setQuestionnaireLoading(true)
     await onMarkQuestionnaireReviewed(lead)
     setQuestionnaireLoading(false)
+  }
+
+  const refreshQuestionRounds = async () => {
+    const res = await fetch(`/api/admin/leads/${lead.id}/questions`)
+    const data = await res.json()
+    setQuestionRounds(data.rounds || [])
+  }
+
+  const addRoundQuestion = () => {
+    const label = roundDraft.label.trim()
+    if (!label) return
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "question"
+    let name = `q_${slug}`
+    let i = 2
+    while (roundFields.some((f) => f.name === name)) name = `q_${slug}_${i++}`
+    const options = roundDraft.options.split(",").map((s) => s.trim()).filter(Boolean)
+    setRoundFields((prev) => [
+      ...prev,
+      {
+        name,
+        label,
+        type: roundDraft.type,
+        options: roundDraft.type === "select" || roundDraft.type === "multiselect" ? options : undefined,
+        required: roundDraft.required,
+      },
+    ])
+    setRoundDraft({ label: "", type: "text", options: "", required: false })
+    setShowRoundComposer(false)
+  }
+
+  const sendRoundQuestions = async () => {
+    if (roundFields.length === 0) return
+    setSendingRound(true)
+    setRoundMessage("")
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ send: true, fields: roundFields }),
+      })
+      const data = await res.json()
+      if (data.token && data.url) {
+        setRoundUrl(data.url)
+        setRoundFields([])
+        setRoundMessage("Additional questions sent — copy the link below if you want to share it directly.")
+        await refreshQuestionRounds()
+      } else {
+        setRoundMessage(data.error || "Failed to send additional questions")
+      }
+    } catch {
+      setRoundMessage("Failed to send additional questions")
+    } finally {
+      setSendingRound(false)
+    }
+  }
+
+  const reviewRound = async (roundId: string) => {
+    setReviewingRoundId(roundId)
+    setRoundMessage("")
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/questions`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roundId }),
+      })
+      const data = await res.json()
+      if (!data.success) setRoundMessage(data.error || "Failed to mark round reviewed")
+      await refreshQuestionRounds()
+    } catch {
+      setRoundMessage("Failed to mark round reviewed")
+    } finally {
+      setReviewingRoundId(null)
+    }
+  }
+
+  const copyRoundLink = (token: string) => {
+    navigator.clipboard.writeText(`${window.location.origin}/questions/${token}`).then(() => {
+      setCopiedRoundToken(token)
+      setTimeout(() => setCopiedRoundToken(null), 2000)
+    })
   }
 
   const handleScheduleMeeting = async () => {
@@ -527,6 +656,10 @@ export function LeadDetailModal({
     if (t === "questionnaire") {
       setQuestionnaireData(null)
     }
+    if (t === "additional") {
+      setRoundsLoading(true)
+      setRoundMessage("")
+    }
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -535,6 +668,7 @@ export function LeadDetailModal({
     { id: "notes", label: "Notes", icon: <MessageSquare className="w-3.5 h-3.5" /> },
     { id: "email", label: "Email", icon: <Mail className="w-3.5 h-3.5" /> },
     { id: "questionnaire", label: "Questionnaire", icon: <ClipboardList className="w-3.5 h-3.5" /> },
+    { id: "additional", label: "Additional Questions", icon: <MessageSquarePlus className="w-3.5 h-3.5" /> },
     { id: "meeting", label: "Meeting", icon: <Video className="w-3.5 h-3.5" /> },
     { id: "actions", label: "Actions", icon: <Rocket className="w-3.5 h-3.5" /> },
   ]
@@ -1179,6 +1313,211 @@ export function LeadDetailModal({
                     <FileText className="w-4 h-4 mr-1.5" />
                     Create Quote
                   </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ─── Additional Questions ─── */}
+          {tab === "additional" && (
+            <div className="space-y-5">
+              <p className="text-sm text-muted-foreground">
+                Send a short follow-up round when you need more details from this lead. They answer only these questions —
+                the original requirements questionnaire stays as submitted. Every round is kept below for documentation.
+              </p>
+
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">New Questions</p>
+
+                {roundFields.length > 0 && (
+                  <ul className="space-y-1.5">
+                    {roundFields.map((f) => (
+                      <li key={f.name} className="flex items-center gap-2 text-sm rounded-md border border-border bg-muted/20 px-3 py-2">
+                        <span className="flex-1 min-w-0 truncate">{f.label}</span>
+                        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{f.type}</span>
+                        {f.required && <span className="shrink-0 text-red-500 text-xs">*</span>}
+                        <button
+                          type="button"
+                          onClick={() => setRoundFields((prev) => prev.filter((x) => x.name !== f.name))}
+                          className="shrink-0 text-muted-foreground hover:text-destructive p-0.5"
+                          title="Remove question"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {showRoundComposer ? (
+                  <div className="rounded-md border border-dashed border-border p-3 space-y-2">
+                    <input
+                      value={roundDraft.label}
+                      onChange={(e) => setRoundDraft((p) => ({ ...p, label: e.target.value }))}
+                      placeholder="Question (e.g. Which branch needs the loyalty module first?)"
+                      className={inputClass}
+                    />
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <select
+                        value={roundDraft.type}
+                        onChange={(e) => setRoundDraft((p) => ({ ...p, type: e.target.value }))}
+                        className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="text">Short text</option>
+                        <option value="textarea">Long text</option>
+                        <option value="select">Dropdown</option>
+                        <option value="multiselect">Checkboxes (multi-select)</option>
+                        <option value="number">Number</option>
+                        <option value="date">Date</option>
+                        <option value="boolean">Yes / No</option>
+                        <option value="email">Email</option>
+                        <option value="tel">Phone</option>
+                      </select>
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={roundDraft.required}
+                          onChange={(e) => setRoundDraft((p) => ({ ...p, required: e.target.checked }))}
+                          className="rounded border-input"
+                        />
+                        Required
+                      </label>
+                    </div>
+                    {(roundDraft.type === "select" || roundDraft.type === "multiselect") && (
+                      <input
+                        value={roundDraft.options}
+                        onChange={(e) => setRoundDraft((p) => ({ ...p, options: e.target.value }))}
+                        placeholder="Options, comma separated"
+                        className={inputClass}
+                      />
+                    )}
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setShowRoundComposer(false)}>
+                        Cancel
+                      </Button>
+                      <Button size="sm" onClick={addRoundQuestion} disabled={!roundDraft.label.trim()}>
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        Add Question
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowRoundComposer(true)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-retail hover:underline"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add a question
+                  </button>
+                )}
+
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <span className="text-xs text-muted-foreground">
+                    {roundFields.length > 0
+                      ? `${roundFields.length} question${roundFields.length > 1 ? "s" : ""} ready to send`
+                      : "Add at least one question to send a round."}
+                  </span>
+                  <Button size="sm" onClick={sendRoundQuestions} disabled={sendingRound || roundFields.length === 0}>
+                    {sendingRound ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                    Send Questions
+                  </Button>
+                </div>
+
+                {roundMessage && <p className="text-xs text-muted-foreground">{roundMessage}</p>}
+
+                {roundUrl && (
+                  <div className="p-3 rounded-md bg-muted/30 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Additional questions link</p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        readOnly
+                        value={roundUrl.startsWith("http") ? roundUrl : `${typeof window !== "undefined" ? window.location.origin : ""}${roundUrl}`}
+                        className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const full = roundUrl.startsWith("http") ? roundUrl : `${window.location.origin}${roundUrl}`
+                          navigator.clipboard.writeText(full).then(() => {
+                            setCopiedRoundUrl(true)
+                            setTimeout(() => setCopiedRoundUrl(false), 2000)
+                          })
+                        }}
+                      >
+                        {copiedRoundUrl ? "Copied" : "Copy"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <p className={labelClass}>Sent Rounds</p>
+                {roundsLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : questionRounds.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No additional questions sent yet.</p>
+                ) : (
+                  questionRounds.map((round) => (
+                    <div key={round.id} className="rounded-lg border border-border p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold">{round.title}</span>
+                          <span
+                            className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                              round.status === "Reviewed"
+                                ? "bg-green-50 text-green-700"
+                                : round.status === "Submitted"
+                                ? "bg-blue-50 text-blue-700"
+                                : "bg-amber-50 text-amber-700"
+                            }`}
+                          >
+                            {round.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-muted-foreground">
+                            Sent {round.sentAt ? new Date(round.sentAt).toLocaleString() : "—"}
+                            {round.submittedAt ? ` · Answered ${new Date(round.submittedAt).toLocaleString()}` : ""}
+                          </span>
+                          {round.status === "Sent" && (
+                            <Button size="sm" variant="ghost" onClick={() => copyRoundLink(round.token)}>
+                              <Copy className="w-3.5 h-3.5 mr-1" />
+                              {copiedRoundToken === round.token ? "Copied" : "Copy Link"}
+                            </Button>
+                          )}
+                          {round.status === "Submitted" && (
+                            <Button size="sm" variant="outline" onClick={() => reviewRound(round.id)} disabled={reviewingRoundId === round.id}>
+                              {reviewingRoundId === round.id ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+                              Mark Reviewed
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      {round.status === "Sent" ? (
+                        <p className="text-sm text-muted-foreground">Waiting for the lead to answer.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {round.fields.filter((f) => f.type !== "section").map((field) => (
+                            <div key={field.name} className="rounded-md border border-border bg-muted/20 p-3">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">{field.label}</p>
+                              <p className="text-sm text-foreground whitespace-pre-wrap">
+                                {round.responses[field.name] !== undefined
+                                  ? Array.isArray(round.responses[field.name])
+                                    ? (round.responses[field.name] as string[]).join(", ")
+                                    : String(round.responses[field.name])
+                                  : "—"}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
                 )}
               </div>
             </div>

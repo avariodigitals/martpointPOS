@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   LayoutDashboard,
   Settings,
@@ -51,9 +51,8 @@ import {
   CalendarClock,
   GraduationCap,
   FolderOpen,
-  Menu,
-  X,
 } from "lucide-react"
+import { PortalMobileNav } from "@/components/shared/portal-mobile-nav"
 import { LogoutButton } from "./logout-button"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
 
@@ -165,6 +164,10 @@ const navItems: NavItem[] = [
   { href: "/admin/users", label: "Team Members", icon: Users, page: "users", section: "Administration" },
 ]
 
+// Primary destinations shown in the mobile bottom quick menu (filtered by permission below).
+const QUICK_HREFS = ["/admin", "/admin/tasks", "/admin/reports"]
+const QUICK_LABELS: Record<string, string> = { "/admin/tasks": "Actions" }
+
 export function AdminSidebarNav({
   userName,
   userRole,
@@ -173,11 +176,11 @@ export function AdminSidebarNav({
   userRole: UserRole
 }) {
   const pathname = usePathname()
+  const router = useRouter()
 
   // Collapsed/expanded state per section, persisted across navigations.
   // null = not yet hydrated from localStorage → fall back to "section with active page is open".
   const [openSections, setOpenSections] = useState<Record<string, boolean> | null>(null)
-  const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
     let stored: Record<string, boolean> = {}
@@ -187,6 +190,12 @@ export function AdminSidebarNav({
     const t = setTimeout(() => setOpenSections(stored), 0)
     return () => clearTimeout(t)
   }, [])
+
+  const handleLogout = async () => {
+    await fetch("/api/admin/logout", { method: "POST" })
+    router.push("/admin/login")
+    router.refresh()
+  }
 
   const pathUnder = (item: NavItem) => {
     const base = item.href.split("?")[0]
@@ -206,6 +215,10 @@ export function AdminSidebarNav({
 
   const visibleItems = navItems.filter((item) => hasPermission(userRole, item.page))
 
+  const quickItems = visibleItems
+    .filter((item) => QUICK_HREFS.includes(item.href))
+    .map((item) => ({ href: item.href, label: QUICK_LABELS[item.href] ?? item.label, icon: item.icon }))
+
   const grouped = visibleItems.reduce<Record<string, NavItem[]>>((acc, item) => {
     const section = item.section || "Other"
     if (!acc[section]) acc[section] = []
@@ -213,74 +226,79 @@ export function AdminSidebarNav({
     return acc
   }, {})
 
+  const sections = Object.entries(grouped).map(([label, items]) => ({ label, items }))
+
+  const isItemActive = (href: string) => pathname === href
+
   return (
-    <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-white/10 bg-[#0A0F1C] text-white">
-      <div className="p-4 md:p-6 flex items-center justify-between gap-3">
-        <div className="min-w-0">
+    <>
+      <PortalMobileNav
+        title="MartPoint Control Centre"
+        subtitle="Operational source of truth"
+        userName={userName}
+        quickItems={quickItems}
+        sections={sections}
+        isItemActive={isItemActive}
+        onLogout={handleLogout}
+        logoutLabel="Logout"
+      />
+
+      <aside className="hidden md:flex md:flex-col md:w-64 border-r border-white/10 bg-[#0A0F1C] text-white">
+        <div className="p-6">
           <h1 className="text-xl font-bold text-white">MartPoint Control Centre</h1>
           <p className="text-xs text-gray-400 mt-1">Operational source of truth</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setMobileOpen((v) => !v)}
-          aria-label={mobileOpen ? "Close menu" : "Open menu"}
-          aria-expanded={mobileOpen}
-          className="md:hidden shrink-0 p-2 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
-        >
-          {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-      </div>
 
-      <nav className={`px-4 pb-2 space-y-6 ${mobileOpen ? "block" : "hidden"} md:block`}>
-        {Object.entries(grouped).map(([section, items]) => {
-          const open = isOpen(section, items)
-          return (
-          <div key={section}>
-            <button
-              type="button"
-              onClick={() => toggleSection(section, open)}
-              className="w-full flex items-center justify-between px-3 py-1 mb-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-300 transition-colors"
-              aria-expanded={open}
-            >
-              {section}
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
-            </button>
-            {open && (
-            <div className="space-y-1">
-              {items.map((item) => {
-                const active = pathname === item.href
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMobileOpen(false)}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      active
-                        ? "bg-retail text-white"
-                        : "text-gray-300 hover:bg-white/10 hover:text-white"
-                    }`}
-                  >
-                    <item.icon className="w-4 h-4" />
-                    {item.label}
-                  </Link>
-                )
-              })}
+        <nav className="px-4 pb-2 space-y-6">
+          {Object.entries(grouped).map(([section, items]) => {
+            const open = isOpen(section, items)
+            return (
+            <div key={section}>
+              <button
+                type="button"
+                onClick={() => toggleSection(section, open)}
+                className="w-full flex items-center justify-between px-3 py-1 mb-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-300 transition-colors"
+                aria-expanded={open}
+              >
+                {section}
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
+              </button>
+              {open && (
+              <div className="space-y-1">
+                {items.map((item) => {
+                  const active = isItemActive(item.href)
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        active
+                          ? "bg-retail text-white"
+                          : "text-gray-300 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <item.icon className="w-4 h-4" />
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </div>
+              )}
             </div>
-            )}
-          </div>
-          )
-        })}
-      </nav>
+            )
+          })}
+        </nav>
 
-      <div className={`px-4 pb-4 ${mobileOpen ? "block" : "hidden"} md:block`}>
-        <div className="pt-4 border-t border-white/10">
-          <div className="mb-3 px-3">
-            <p className="text-xs font-medium text-white">{userName}</p>
-            <p className="text-[11px] text-gray-400 uppercase tracking-wider">{userRole}</p>
+        <div className="px-4 pb-4">
+          <div className="pt-4 border-t border-white/10">
+            <div className="mb-3 px-3">
+              <p className="text-xs font-medium text-white">{userName}</p>
+              <p className="text-[11px] text-gray-400 uppercase tracking-wider">{userRole}</p>
+            </div>
+            <LogoutButton />
           </div>
-          <LogoutButton />
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   )
 }

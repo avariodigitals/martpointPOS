@@ -158,8 +158,7 @@ export function ApplicationDetail({ id }: { id: string }) {
   const [editForm, setEditForm] = useState<Record<string, string>>({})
   const [savingEdit, setSavingEdit] = useState(false)
 
-  const [internalNotes, setInternalNotes] = useState("")
-  const [riskNotes, setRiskNotes] = useState("")
+  const [noteDraft, setNoteDraft] = useState("")
   const [savingNotes, setSavingNotes] = useState(false)
 
   const [actionStatus, setActionStatus] = useState("")
@@ -192,8 +191,6 @@ export function ApplicationDetail({ id }: { id: string }) {
       const data = await res.json()
       if (data.application) {
         setApp({ ...data.application, reviewed_by_name: data.reviewedByName || null })
-        setInternalNotes(data.application.internal_notes || "")
-        setRiskNotes(data.application.risk_compliance_notes || "")
         setRejectionPublic(data.application.rejection_message_public || "")
         setInfoMessage(data.application.information_request_message || "")
         setActivateEmail(data.application.email || "")
@@ -254,15 +251,20 @@ export function ApplicationDetail({ id }: { id: string }) {
   }
 
   async function saveNotes() {
+    if (!noteDraft.trim()) { setActionMsg("Enter a note first."); return }
     setSavingNotes(true)
     try {
       const res = await fetch(`/api/admin/partners/applications/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: app!.status, internalNotes, riskComplianceNotes: riskNotes }),
+        body: JSON.stringify({ eventType: "NOTE_ADDED", note: noteDraft }),
       })
       const data = await res.json()
-      if (data.success) setActionMsg("Notes saved.")
+      if (data.success) {
+        setNoteDraft("")
+        setActionMsg("Note added to the timeline.")
+        fetchDetail()
+      }
       else setActionMsg(data.error || "Failed to save notes")
     } finally {
       setSavingNotes(false)
@@ -629,7 +631,8 @@ export function ApplicationDetail({ id }: { id: string }) {
                     eventType === "DOCUMENT_SUBMITTED" ? "bg-purple-500" :
                     "bg-retail"
                   const label =
-                    eventType === "NOTE_ADDED" ? "Internal notes updated" :
+                    eventType === "NOTE_ADDED" ? "Internal note added" :
+                    eventType === "APPLICATION_EDITED" ? "Application details edited" :
                     eventType === "DOCUMENT_REVIEW" ? "Compliance document reviewed" :
                     eventType === "DOCUMENT_SUBMITTED" ? "Compliance document submitted" :
                     enumLabel(h.new_status || "")
@@ -782,17 +785,13 @@ export function ApplicationDetail({ id }: { id: string }) {
       {tab === "actions" && (
         <div className="space-y-6">
           <Card>
-            <CardHeader><CardTitle className="text-sm font-medium">Internal Notes</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-medium">Add Internal Timeline Note</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="block text-xs font-medium mb-1">Internal notes (never shown to applicant)</label>
-                <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} />
+                <label className="block text-xs font-medium mb-1">Internal note (visible to authorized partner admins only; never shown to applicant)</label>
+                <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} maxLength={5000} value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Record a call, decision, follow-up, or review note…" />
               </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Risk / compliance notes (internal)</label>
-                <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} value={riskNotes} onChange={(e) => setRiskNotes(e.target.value)} />
-              </div>
-              <Button size="sm" onClick={saveNotes} disabled={savingNotes}>{savingNotes ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save Notes</Button>
+              <Button size="sm" onClick={saveNotes} disabled={savingNotes || !noteDraft.trim()}>{savingNotes ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Add Note</Button>
             </CardContent>
           </Card>
 

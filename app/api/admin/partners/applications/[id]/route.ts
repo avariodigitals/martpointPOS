@@ -140,6 +140,17 @@ export async function PATCH(
       return NextResponse.json({ error: "Update failed" }, { status: 500 })
     }
 
+    const { error: historyError } = await supabase.from("partner_status_history").insert({
+      application_id: id,
+      previous_status: updated.status,
+      new_status: updated.status,
+      reason: `Updated fields: ${changed.join(", ")}`,
+      changed_by: session!.userId,
+      changed_by_name: session!.name || session!.username,
+      event_type: "APPLICATION_EDITED",
+    })
+    if (historyError) return NextResponse.json({ error: "Application saved, but its history event could not be recorded" }, { status: 500 })
+
     const ctx = auditContextFromSession(session, request)
     await recordAudit(ctx, {
       action: AUDIT_ACTIONS.PARTNER_APPLICATION_STATUS_CHANGED,

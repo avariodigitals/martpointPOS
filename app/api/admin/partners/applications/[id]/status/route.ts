@@ -27,6 +27,37 @@ export async function PATCH(
 
   try {
     const body = await request.json()
+    // Notes are append-only events in the application history. Keep this
+    // separate from the editable summary fields on the application itself.
+    if (body.eventType === "NOTE_ADDED") {
+      const note = typeof body.note === "string" ? body.note.trim() : ""
+      if (!note) return NextResponse.json({ error: "A note is required" }, { status: 400 })
+      if (note.length > 5000) return NextResponse.json({ error: "Note is too long" }, { status: 400 })
+      const { data: current, error: curErr } = await supabase
+        .from("partner_applications")
+        .select("id, status, reference_number")
+        .eq("id", id)
+        .single()
+      if (curErr || !current) return NextResponse.json({ error: "Application not found" }, { status: 404 })
+      const { error: historyError } = await supabase.from("partner_status_history").insert({
+        application_id: id,
+        previous_status: current.status,
+        new_status: current.status,
+        reason: note,
+        changed_by: session!.userId,
+        changed_by_name: session!.name || session!.username,
+        event_type: "NOTE_ADDED",
+      })
+      if (historyError) return NextResponse.json({ error: "Could not save note" }, { status: 500 })
+      const ctx = auditContextFromSession(session, request)
+      await recordAudit(ctx, {
+        action: AUDIT_ACTIONS.PARTNER_APPLICATION_NOTE_ADDED,
+        entityType: AUDIT_ENTITIES.PARTNER_APPLICATION,
+        entityId: id,
+        metadata: { reference: current.reference_number, eventType: "NOTE_ADDED" },
+      })
+      return NextResponse.json({ success: true })
+    }
     const newStatus = body.status as ApplicationStatus
     if (!VALID_STATUSES.includes(newStatus)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 })

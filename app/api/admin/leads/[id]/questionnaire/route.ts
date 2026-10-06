@@ -1,23 +1,14 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession } from "@/lib/audit"
-import { generateQuestionnaire, DEFAULT_QUESTIONNAIRE_FIELDS, type QuestionnaireField } from "@/lib/lead-questionnaire"
+import { generateQuestionnaire, DEFAULT_QUESTIONNAIRE_FIELDS, questionnaireFieldSchema, type QuestionnaireField } from "@/lib/lead-questionnaire"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { z } from "zod"
 
 const postSchema = z.object({
   send: z.boolean().optional().default(true),
   email: z.string().email().optional(),
-  fields: z.array(z.object({
-    name: z.string(),
-    label: z.string(),
-    type: z.enum(["text", "email", "tel", "number", "select", "multiselect", "textarea", "date", "boolean", "section"]),
-    options: z.array(z.string()).optional(),
-    optionStatuses: z.record(z.string(), z.string()).optional(),
-    required: z.boolean().optional(),
-    default: z.union([z.string(), z.boolean(), z.number()]).optional(),
-    helpText: z.string().optional(),
-  })).optional(),
+  fields: z.array(questionnaireFieldSchema).optional(),
 })
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -2,9 +2,11 @@
  * Migration drift check — compares the SQL migrations in `supabase/migrations`
  * against the LIVE database schema and reports anything that was never applied.
  *
- * What it checks (best-effort, via the PostgREST OpenAPI schema):
+ * What it checks:
  *   - Missing tables  (CREATE TABLE ... with no matching live table)
  *   - Missing columns (ALTER TABLE ... ADD COLUMN ... not present live)
+ *   - Stale filename headers (a `-- 123_name.sql` first line that no longer
+ *     matches the file's actual name, usually left behind by a rename)
  *
  * It does NOT verify enums, CHECK constraints, indexes, RLS policies or RPC
  * functions — PostgREST does not expose enough detail for those. Missing
@@ -31,9 +33,25 @@ const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL ||
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || ""
 
 interface Issue {
-  kind: "table" | "column"
+  kind: "table" | "column" | "header"
   name: string
   migration: string
+}
+
+/**
+ * A migration whose first line is a bare `-- <something>.sql` banner is expected
+ * to name its own file. Renames are the common way this goes stale: the file is
+ * moved to a new number, but the hand-written header keeps the old one, so
+ * anyone grepping for "082_..." finds the wrong file. Migrations that open with
+ * a decorative banner (`-- ═══...`) or prose are left alone.
+ */
+function auditHeader(file: string, sql: string): Issue[] {
+  const firstLine = sql.split("\n", 1)[0].trim()
+  const m = firstLine.match(/^--\s*([0-9A-Za-z_]+\.sql)\s*$/)
+  if (!m) return [] // no filename-style header — nothing to assert
+  const declared = m[1]
+  if (declared === file) return []
+  return [{ kind: "header", name: `${file} declares "${declared}"`, migration: file }]
 }
 
 /** Column names for every table, from the live PostgREST OpenAPI schema. */
@@ -91,14 +109,29 @@ async function main() {
 
   const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort()
   const issues: Issue[] = []
+  const headerIssues: Issue[] = []
   for (const f of files) {
-    const sql = stripComments(readFileSync(join(MIGRATIONS_DIR, f), "utf8"))
-    issues.push(...auditFile(f, sql, live))
+    const raw = readFileSync(join(MIGRATIONS_DIR, f), "utf8")
+    headerIssues.push(...auditHeader(f, raw))
+    issues.push(...auditFile(f, stripComments(raw), live))
   }
 
-  if (issues.length === 0) {
+  // Header problems are reported first: they are a documentation defect, not a
+  // schema one, so they should never be mistaken for "the migration didn't run".
+  if (headerIssues.length) {
+    console.log("❌ STALE HEADER COMMENTS")
+    for (const i of headerIssues) console.log(`   ${i.name}   (${i.migration})`)
+    console.log("")
+  }
+
+  if (issues.length === 0 && headerIssues.length === 0) {
     console.log(`✅ No drift. All ${files.length} migrations are reflected in the live schema.`)
     process.exit(0)
+  }
+
+  if (issues.length === 0 && headerIssues.length > 0) {
+    console.log(`${headerIssues.length} header comment(s) out of sync. Schema itself is fine — no migration needs re-running.`)
+    process.exit(1)
   }
 
   const missingTables = issues.filter((i) => i.kind === "table")

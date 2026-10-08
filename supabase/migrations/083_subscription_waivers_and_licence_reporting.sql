@@ -1,4 +1,4 @@
--- 082_subscription_waivers_and_licence_reporting.sql
+-- 083_subscription_waivers_and_licence_reporting.sql
 --
 -- Adds a WAIVED lifecycle to the commercial finance module so finance can record
 -- subscriptions/licences that were granted without a cash sale (comped, bundled,

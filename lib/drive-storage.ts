@@ -22,13 +22,19 @@
  */
 
 import { supabase, isSupabaseConfigured } from "./supabase"
-import { getGoogleSettings, isGoogleConnected, clearGoogleSettingsCache, type GoogleSettings } from "./google-calendar"
+import {
+  getGoogleSettings,
+  canUseDrive,
+  clearGoogleSettingsCache,
+  type GoogleSettings,
+} from "./google-calendar"
 
 export const DRIVE_API_BASE = "https://www.googleapis.com/drive/v3"
 export const DRIVE_UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3"
 export const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
 
-export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+/** Re-exported from lib/google-calendar.ts so there is ONE scope definition. */
+export { GOOGLE_DRIVE_SCOPE as DRIVE_SCOPE } from "./google-calendar"
 
 /** The five top-level folders. Order is the canonical display order. */
 export const DRIVE_OWNER_TYPES = ["business", "lead", "partner", "creator", "admin"] as const
@@ -135,9 +141,13 @@ export function clearDriveCache() {
   accessToken = null
 }
 
-/** A Drive upload needs a connected Google account that granted the drive.file scope. */
+/**
+ * A Drive upload needs a connected Google account that GRANTED the drive.file
+ * scope. Delegates to google-calendar so the check stays honest — a refresh
+ * token alone is not enough (scopes are fixed at consent time).
+ */
 export function isDriveReady(s: GoogleSettings): boolean {
-  return isGoogleConnected(s)
+  return canUseDrive(s)
 }
 
 export function validateDriveFile(file: { type: string; size: number }): string | null {
@@ -292,10 +302,11 @@ async function findFolder(name: string, parentId: string | null): Promise<DriveF
 
 async function createFolder(name: string, parentId: string | null): Promise<DriveFileRef> {
   const settings = await getDriveSettings()
+  // Do not send `fields` here: the Drive metadata-creation endpoint does not
+  // accept it as a query parameter and returns 400 "Invalid field selection".
   const json = await driveJson<DriveFileRef>("/files", {
     method: "POST",
     query: {
-      fields: "id,name,webViewLink",
       ...(settings.sharedDriveId ? { supportsAllDrives: "true" } : {}),
     },
     body: JSON.stringify({

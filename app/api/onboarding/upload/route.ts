@@ -132,6 +132,8 @@ export async function POST(request: Request) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     console.error("[onboarding drive upload]", message)
-    return NextResponse.json({ error: "Failed to upload to Google Drive", details: message }, { status: 500 })
+    // Surface the underlying Google error so the admin can act on it (the
+    // client just sees a generic failure message).
+    return NextResponse.json({ error: "Failed to upload to Google Drive", details: message }, { status: 502 })
   }
 }

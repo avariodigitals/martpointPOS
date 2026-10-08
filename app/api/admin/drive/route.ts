@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin, getSession } from "@/lib/admin-auth"
-import { getGoogleSettings } from "@/lib/google-calendar"
+import { getGoogleSettings, canUseDrive, grantedScopesUnknown, GOOGLE_DRIVE_SCOPE } from "@/lib/google-calendar"
 import {
   DRIVE_OWNER_FOLDERS,
-  DRIVE_SCOPE,
   getDriveSettings,
-  isDriveReady,
   saveDriveSettings,
   type DriveSettings,
 } from "@/lib/drive-storage"
@@ -18,10 +16,19 @@ export async function GET() {
   const google = await getGoogleSettings()
   const drive = await getDriveSettings()
 
+  // `ready` reflects whether the connected account actually GRANTED the Drive
+  // scope. A refresh token alone is not enough — scopes are fixed at consent
+  // time, so an account connected before Drive was added must reconnect.
+  const ready = canUseDrive(google)
+  const needsReconnect = Boolean(google.refreshToken) && !ready
+
   return NextResponse.json({
-    ready: isDriveReady(google),
+    ready,
+    needsReconnect,
+    scopesUnknown: grantedScopesUnknown(google),
     googleEmail: google.email || null,
-    scope: DRIVE_SCOPE,
+    grantedScopes: google.grantedScopes,
+    scope: GOOGLE_DRIVE_SCOPE,
     settings: drive,
     ownerFolders: DRIVE_OWNER_FOLDERS,
   })

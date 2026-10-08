@@ -7,7 +7,10 @@ import { Loader2, Save, HardDrive, CheckCircle2, AlertTriangle, FolderTree } fro
 
 interface DriveStatus {
   ready: boolean
+  needsReconnect: boolean
+  scopesUnknown: boolean
   googleEmail: string | null
+  grantedScopes: string
   scope: string
   settings: {
     rootFolderName: string
@@ -108,15 +111,45 @@ export function DriveSettingsCard({ className = "" }: { className?: string }) {
               <div>
                 {status?.ready ? (
                   <p>
-                    Google Drive is connected{status.googleEmail ? ` as ${status.googleEmail}` : ""}. Uploads will be
-                    filed automatically.
+                    Google Drive is connected{status.googleEmail ? ` as ${status.googleEmail}` : ""} and has the Drive
+                    permission. Uploads will be filed automatically.
                   </p>
                 ) : (
-                  <p>
-                    No Google account is connected with Drive access. Use <strong>Connect Google</strong> in the Google
-                    Meet section below, then reconnect once so the Drive permission ({status?.scope || "drive.file"}) is
-                    granted.
-                  </p>
+                  <div className="space-y-2">
+                    <p>
+                      <strong>
+                        {status?.needsReconnect
+                          ? "Drive permission not granted — reconnect Google."
+                          : "No Google account is connected."}
+                      </strong>{" "}
+                      {status?.needsReconnect
+                        ? "A Google account is connected, but it was authorised before Drive uploads were added. Permissions are fixed when you consent, so the account must be reconnected once."
+                        : "Use “Connect Google” in the Google Meet section below to authorise Drive uploads."}
+                    </p>
+                    <ol className="list-decimal list-inside space-y-0.5 text-xs">
+                      <li>
+                        Go to the <strong>Google Meet</strong> section below and click <strong>Disconnect</strong>.
+                      </li>
+                      <li>
+                        Click <strong>Connect Google</strong> and accept the Google Drive permission on the consent screen.
+                      </li>
+                      <li>Come back here — this banner turns green when Drive is ready.</li>
+                    </ol>
+                    {status?.grantedScopes ? (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer">Currently granted permissions</summary>
+                        <p className="mt-1 break-all font-mono">{status.grantedScopes}</p>
+                        <p className="mt-1">
+                          Missing: <span className="font-mono">{status.scope}</span>
+                        </p>
+                      </details>
+                    ) : status?.scopesUnknown ? (
+                      <p className="text-xs">
+                        The permissions this account granted are unknown because it was connected before we started
+                        recording them. Reconnecting will tell us definitively.
+                      </p>
+                    ) : null}
+                  </div>
                 )}
               </div>
             </div>

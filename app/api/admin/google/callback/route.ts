@@ -33,8 +33,13 @@ export async function GET(request: Request) {
 
   try {
     const s = await getGoogleSettings()
-    const { refreshToken, email } = await exchangeGoogleCode(s, code, googleRedirectUri(request))
-    const ok = await saveGoogleSettings({ refreshToken, email, connectedAt: new Date().toISOString() })
+    const { refreshToken, email, grantedScopes } = await exchangeGoogleCode(s, code, googleRedirectUri(request))
+    const ok = await saveGoogleSettings({
+      refreshToken,
+      email,
+      connectedAt: new Date().toISOString(),
+      grantedScopes,
+    })
     if (!ok) return back(request, { google: "error", message: "Could not save Google credentials." })
     return back(request, { google: "connected" })
   } catch (err) {

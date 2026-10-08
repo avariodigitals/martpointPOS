@@ -29,6 +29,10 @@ export interface GoogleSettings {
   email: string
   connectedAt: string
   calendarId: string
+  /** Scopes Google actually GRANTED at connect time (space-separated, as returned
+   *  by the token endpoint). Used to tell whether Drive uploads will work — a
+   *  refresh token minted before a scope was added will not have it. */
+  grantedScopes: string
 }
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -49,6 +53,7 @@ function fromRaw(raw: Record<string, unknown>): GoogleSettings {
     email: String(raw.email || ""),
     connectedAt: String(raw.connectedAt || ""),
     calendarId: String(raw.calendarId || "primary"),
+    grantedScopes: String(raw.grantedScopes || ""),
   }
 }
 
@@ -95,6 +100,32 @@ export function isGoogleConnected(s: GoogleSettings): boolean {
   return isGoogleConfigured(s) && Boolean(s.refreshToken)
 }
 
+/** True when the connected account has granted every scope in `required`. */
+export function hasGrantedScopes(s: GoogleSettings, required: string[]): boolean {
+  const granted = new Set(s.grantedScopes.split(/\s+/).filter(Boolean))
+  // A connection made before we started recording scopes has no list; treat that
+  // as unknown rather than silently failing every check.
+  if (granted.size === 0) return false
+  return required.every((scope) => granted.has(scope))
+}
+
+/** Drive uploads need this scope — added after some accounts were already connected. */
+export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+
+/**
+ * Whether the connected Google account can actually use Drive.
+ * A refresh token alone is NOT enough: scopes are fixed at consent time, so an
+ * account connected before Drive was added must reconnect.
+ */
+export function canUseDrive(s: GoogleSettings): boolean {
+  return isGoogleConnected(s) && hasGrantedScopes(s, [GOOGLE_DRIVE_SCOPE])
+}
+
+/** Whether the recorded scopes are unknown (connected before scope tracking). */
+export function grantedScopesUnknown(s: GoogleSettings): boolean {
+  return isGoogleConnected(s) && s.grantedScopes.trim() === ""
+}
+
 /* ─── OAuth ─── */
 
 export function buildGoogleAuthUrl(s: GoogleSettings, redirectUri: string, state: string): string {
@@ -115,7 +146,7 @@ export async function exchangeGoogleCode(
   s: GoogleSettings,
   code: string,
   redirectUri: string,
-): Promise<{ refreshToken: string; email: string }> {
+): Promise<{ refreshToken: string; email: string; grantedScopes: string }> {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -140,7 +171,11 @@ export async function exchangeGoogleCode(
   })
   const info = who.ok ? ((await who.json()) as Record<string, unknown>) : {}
 
-  return { refreshToken: String(json.refresh_token), email: String(info.email || "") }
+  // Record what Google actually granted so we can tell whether Drive uploads
+  // will work. The token response returns this as a space-separated string.
+  const grantedScopes = String(json.scope || "")
+
+  return { refreshToken: String(json.refresh_token), email: String(info.email || ""), grantedScopes }
 }
 
 async function getAccessToken(s?: GoogleSettings): Promise<string> {

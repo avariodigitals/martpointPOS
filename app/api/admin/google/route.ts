@@ -24,7 +24,7 @@ export async function DELETE() {
   const auth = await authorizeAdmin("settings")
   if (auth.denied) return auth.denied
 
-  const ok = await saveGoogleSettings({ refreshToken: "", email: "", connectedAt: "" })
+  const ok = await saveGoogleSettings({ refreshToken: "", email: "", connectedAt: "", grantedScopes: "" })
   if (!ok) return NextResponse.json({ error: "Failed to disconnect" }, { status: 500 })
   return NextResponse.json({ success: true })
 }

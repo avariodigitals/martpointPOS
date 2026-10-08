@@ -64,6 +64,9 @@ const DRIVE_FIELD_TYPES = new Set<FieldType>(["file"])
 const inputCls =
   "w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:ring-retail/30"
 
+/** Compact input used inside the repeatable user / branch rows. */
+const rowInput = "rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+
 export default function ClientOnboardingPage() {
   const params = useParams()
   const id = params.id as string
@@ -303,8 +306,8 @@ export default function ClientOnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted py-12 px-4">
-      <div className="max-w-2xl mx-auto space-y-8">
+    <div className="min-h-screen bg-muted py-8 sm:py-12 px-4 overflow-x-hidden">
+      <div className="max-w-2xl mx-auto space-y-6 sm:space-y-8 w-full min-w-0">
         {/* Header */}
         <div className="text-center">
           <div className="w-12 h-12 rounded-xl bg-retail-soft flex items-center justify-center mx-auto mb-4">
@@ -324,7 +327,7 @@ export default function ClientOnboardingPage() {
         )}
 
         {/* Deployment Questions */}
-        <div className="rounded-xl border border-border bg-card p-6 md:p-8 space-y-6">
+        <div className="rounded-xl border border-border bg-card p-5 sm:p-6 md:p-8 space-y-6">
           <div className="flex items-center gap-2">
             <ClipboardCheck className="w-5 h-5 text-retail" />
             <h2 className="text-lg font-semibold text-foreground">Deployment Information</h2>
@@ -409,31 +412,35 @@ export default function ClientOnboardingPage() {
                 ) : field.type === "userlist" ? (
                   <div className="space-y-2">
                     {userRows().map((row, i) => (
-                      <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_130px_28px] gap-2 items-center rounded-lg border border-border bg-muted/20 p-2">
+                      <div key={i} className="rounded-lg border border-border bg-muted/20 p-3 space-y-2 sm:grid sm:grid-cols-[1fr_1fr_1fr_130px_32px] sm:gap-2 sm:space-y-0 sm:items-center">
                         <input
                           value={row.name}
                           onChange={(e) => updateUserRow(i, { name: e.target.value })}
                           placeholder="Full name"
-                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                          aria-label="Full name"
+                          className={`${rowInput} w-full`}
                         />
                         <input
                           value={row.email}
                           onChange={(e) => updateUserRow(i, { email: e.target.value })}
                           placeholder="Email"
                           type="email"
-                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                          aria-label="Email"
+                          className={`${rowInput} w-full`}
                         />
                         <input
                           value={row.phone}
                           onChange={(e) => updateUserRow(i, { phone: e.target.value })}
                           placeholder="Phone"
                           type="tel"
-                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                          aria-label="Phone"
+                          className={`${rowInput} w-full`}
                         />
                         <select
                           value={row.role}
                           onChange={(e) => updateUserRow(i, { role: e.target.value })}
-                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                          aria-label="Role"
+                          className={`${rowInput} w-full`}
                         >
                           <option value="">Role...</option>
                           {USER_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -441,8 +448,9 @@ export default function ClientOnboardingPage() {
                         <button
                           type="button"
                           onClick={() => setUserRows(userRows().filter((_, j) => j !== i))}
-                          className="text-muted-foreground hover:text-destructive justify-self-end"
+                          className="text-muted-foreground hover:text-destructive justify-self-end p-1 -m-1"
                           title="Remove user"
+                          aria-label={`Remove ${row.name || "user"}`}
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -460,31 +468,35 @@ export default function ClientOnboardingPage() {
                 ) : field.type === "branchlist" ? (
                   <div className="space-y-2">
                     {branchRows().map((row, i) => (
-                      <div key={i} className="grid grid-cols-1 sm:grid-cols-[160px_1fr_140px_28px] gap-2 items-center rounded-lg border border-border bg-muted/20 p-2">
+                      <div key={i} className="rounded-lg border border-border bg-muted/20 p-3 space-y-2 sm:grid sm:grid-cols-[160px_1fr_140px_32px] sm:gap-2 sm:space-y-0 sm:items-center">
                         <input
                           value={row.name}
                           onChange={(e) => updateBranchRow(i, { name: e.target.value })}
                           placeholder="Branch name"
-                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                          aria-label="Branch name"
+                          className={`${rowInput} w-full`}
                         />
                         <input
                           value={row.address}
                           onChange={(e) => updateBranchRow(i, { address: e.target.value })}
                           placeholder="Address"
-                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                          aria-label="Branch address"
+                          className={`${rowInput} w-full`}
                         />
                         <input
                           value={row.phone}
                           onChange={(e) => updateBranchRow(i, { phone: e.target.value })}
                           placeholder="Phone"
                           type="tel"
-                          className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                          aria-label="Branch phone"
+                          className={`${rowInput} w-full`}
                         />
                         <button
                           type="button"
                           onClick={() => setBranchRows(branchRows().filter((_, j) => j !== i))}
-                          className="text-muted-foreground hover:text-destructive justify-self-end"
+                          className="text-muted-foreground hover:text-destructive justify-self-end p-1 -m-1"
                           title="Remove branch"
+                          aria-label={`Remove ${row.name || "branch"}`}
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -514,7 +526,7 @@ export default function ClientOnboardingPage() {
         </div>
 
         {/* Branding & Documents */}
-        <div className="rounded-xl border border-border bg-card p-6 md:p-8 space-y-6">
+        <div className="rounded-xl border border-border bg-card p-5 sm:p-6 md:p-8 space-y-6">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-retail" />
             <h2 className="text-lg font-semibold text-foreground">Branding & Documents</h2>

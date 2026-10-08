@@ -24,7 +24,7 @@ import {
   Calculator,
   Sparkles,
 } from "lucide-react"
-import { formatNgnFull, replaceCurrencySymbols, recalculateQuote, buildWhatsAppLink, buildQuoteWhatsAppMessage, buildQuotePublicUrl } from "@/lib/quotations"
+import { formatNgnFull, replaceCurrencySymbols, recalculateQuote, buildWhatsAppLink, buildQuoteWhatsAppMessage, buildQuotePublicUrl, resolveQuoteStatus, quoteStatusLabel, quoteStatusClass, formatValidUntil } from "@/lib/quotations"
 import { generateQuotationPdf } from "@/lib/quotation-pdf"
 import type { Quotation, QuotationItemInput, QuoteDiscountType } from "@/lib/quotations"
 import { industryOptions, resolveIndustryName } from "@/lib/industries"
@@ -574,28 +574,6 @@ export default function QuotationsPage() {
 
   const selectedLead = leads.find((l) => l.id === form.leadId)
 
-  const statusClass = (status: string) => {
-    switch (status) {
-      case "SENT":
-        return "bg-blue-50 text-blue-700"
-      case "ACCEPTED":
-        return "bg-green-50 text-green-700"
-      case "DECLINED":
-        return "bg-red-50 text-red-700"
-      case "EXPIRED":
-        return "bg-gray-100 text-gray-700"
-      case "CONVERTED":
-        return "bg-blue-50 text-blue-700"
-      case "CHANGE_REQUESTED":
-      case "COUNTER_OFFERED":
-        return "bg-amber-50 text-amber-700"
-      case "REVISED":
-        return "bg-purple-50 text-purple-700"
-      default:
-        return "bg-amber-50 text-amber-700"
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -659,7 +637,12 @@ export default function QuotationsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filtered.map((qt) => (
+                  {filtered.map((qt) => {
+                    // A quote past its validity date reads as EXPIRED even though the
+                    // stored status is still SENT. `showView`/convert still use the
+                    // stored status, so this only changes what is displayed.
+                    const displayStatus = resolveQuoteStatus(qt)
+                    return (
                     <tr key={qt.id} className="hover:bg-muted/30">
                       <td className="px-4 py-3 font-medium whitespace-nowrap">{qt.quote_number}</td>
                       <td className="px-4 py-3">
@@ -669,9 +652,14 @@ export default function QuotationsPage() {
                       <td className="px-4 py-3 text-muted-foreground">{qt.title || "—"}</td>
                       <td className="px-4 py-3 font-medium whitespace-nowrap">{formatNgnFull(qt.total_amount)}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(qt.status)}`}>
-                          {qt.status}
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${quoteStatusClass(displayStatus)}`}>
+                          {quoteStatusLabel(displayStatus)}
                         </span>
+                        {displayStatus === "EXPIRED" && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-nowrap">
+                            Valid until {formatValidUntil(qt.valid_until)}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {qt.sent_at ? new Date(qt.sent_at).toLocaleDateString() : "—"}
@@ -746,7 +734,8 @@ export default function QuotationsPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

@@ -25,7 +25,7 @@ import { sendEmail, REPLY_TO } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { getBaseUrl, getSuppressedEmails } from "./marketing"
 import { getPublicSiteSettings } from "./settings"
-import { buildQuotePublicUrl } from "./quotations"
+import { buildQuotePublicUrl, isQuoteExpired } from "./quotations"
 import { formatMoney } from "./money-format"
 
 /** Build the public questionnaire URL. Inlined to avoid a circular import with
@@ -366,6 +366,12 @@ async function actionQuoteReminder(ctx: ActionContext): Promise<ActionResult> {
   if (!quote) return { sent: false, done: true, error: "Quotation not found" }
   if (quote.reminders_paused) return { sent: false, done: true, error: "Paused" }
   if (quote.status !== "SENT") return { sent: false, done: true, error: `Quote is ${quote.status}` }
+  // Stop nudging once the quote itself has expired — "this offer is no longer
+  // valid" must not be followed by a reminder to accept it. Distinct from the
+  // link expiry below, which only governs whether the page can be opened.
+  if (isQuoteExpired({ status: quote.status as string, valid_until: (quote.valid_until as string | null) ?? null })) {
+    return { sent: false, done: true, error: "Quote validity expired" }
+  }
   if (quote.token_expires_at && new Date(quote.token_expires_at as string) < new Date()) {
     return { sent: false, done: true, error: "Quote link expired" }
   }

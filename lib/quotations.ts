@@ -55,6 +55,80 @@ export type QuotationStatus =
   | "COUNTER_OFFERED"
   | "REVISED"
 
+/* ───────────────────────────  Status derivation  ───────────────────────────
+ * `status` is persisted for the terminal, human-driven transitions (accepted,
+ * declined, converted, …). "SENT" is really a *time-dependent* state: a quote
+ * that is awaiting a response becomes expired the moment `valid_until` passes.
+ *
+ * Nothing sweeps quotes on a schedule, so a quote left as SENT after its
+ * validity date would otherwise read as SENT forever. These helpers derive the
+ * true display status from the stored row instead of relying on a background
+ * job — the same approach the public quote page already used.
+ *
+ * Deliberately NOT auto-expired:
+ *   ACCEPTED / CONVERTED — the deal is closed; a stale valid_until is historic.
+ *   DECLINED             — the lead already said no; "declined" is more useful.
+ *   DRAFT                — never sent, so there is nothing to expire.
+ */
+const EXPIRABLE_QUOTE_STATUSES: readonly QuotationStatus[] = ["SENT", "CHANGE_REQUESTED", "COUNTER_OFFERED", "REVISED"]
+
+/** The minimum a quote must expose for the status helpers to work. `status` is
+ *  a plain string so loosely-typed rows can be passed in without a cast. */
+export type QuoteStatusInput = { status: string; valid_until: string | null }
+
+/** True when a quote is past `valid_until` and still awaiting a response. */
+export function isQuoteExpired(quote: QuoteStatusInput, now: Date = new Date()): boolean {
+  if (!EXPIRABLE_QUOTE_STATUSES.includes(quote.status as QuotationStatus)) return false
+  if (!quote.valid_until) return false
+  const validUntil = new Date(quote.valid_until)
+  if (Number.isNaN(validUntil.getTime())) return false
+  return validUntil < now
+}
+
+/**
+ * The status to show for a quote. Returns the stored status, promoted to
+ * EXPIRED when its validity window has passed.
+ */
+export function resolveQuoteStatus(quote: QuoteStatusInput, now: Date = new Date()): QuotationStatus {
+  return isQuoteExpired(quote, now) ? "EXPIRED" : (quote.status as QuotationStatus)
+}
+
+/** Human label for a status, e.g. "Change requested" instead of "CHANGE_REQUESTED". */
+export function quoteStatusLabel(status: QuotationStatus | string): string {
+  const words = String(status).toLowerCase().replace(/_/g, " ")
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** Tailwind classes for a status pill. Shared by the admin list and detail views. */
+export function quoteStatusClass(status: QuotationStatus | string): string {
+  switch (status) {
+    case "SENT":
+    case "CONVERTED":
+      return "bg-blue-50 text-blue-700"
+    case "ACCEPTED":
+      return "bg-green-50 text-green-700"
+    case "DECLINED":
+      return "bg-red-50 text-red-700"
+    case "EXPIRED":
+      return "bg-gray-200 text-gray-700"
+    case "CHANGE_REQUESTED":
+    case "COUNTER_OFFERED":
+      return "bg-amber-50 text-amber-700"
+    case "REVISED":
+      return "bg-purple-50 text-purple-700"
+    default:
+      return "bg-amber-50 text-amber-700"
+  }
+}
+
+/** Format a validity date for display, or null when unset. */
+export function formatValidUntil(validUntil: string | null | undefined): string | null {
+  if (!validUntil) return null
+  const d = new Date(validUntil)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString("en-NG", { year: "numeric", month: "long", day: "numeric" })
+}
+
 export interface Quotation {
   id: string
   lead_id: string

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCircle2, Ban, CreditCard, Send, FileX, Eye, Mail, BellRing, PauseCircle, PlayCircle, Download, BadgeCheck } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
+import { resolveInvoiceStatus } from "@/lib/finance-commercial"
 
 interface BusinessMini {
   id: string
@@ -516,7 +517,9 @@ export default function InvoicesPage() {
   const filteredInvoices = useMemo(() => {
     let list = invoices
     if (filterBusiness !== "all") list = list.filter((i) => i.business_id === filterBusiness)
-    if (filterStatus !== "all") list = list.filter((i) => i.status === filterStatus)
+    // Filter on the *derived* status so choosing "Overdue" finds invoices that
+    // have passed their due date but whose stored status is still ISSUED.
+    if (filterStatus !== "all") list = list.filter((i) => resolveInvoiceStatus(i) === filterStatus)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
       list = list.filter(
@@ -890,7 +893,11 @@ export default function InvoicesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredInvoices.map((inv) => (
+                  {filteredInvoices.map((inv) => {
+                    // Show OVERDUE as soon as the due date passes and a balance is
+                    // owed — the stored status only updates on recalculate.
+                    const displayStatus = resolveInvoiceStatus(inv)
+                    return (
                     <tr key={inv.id} className="border-b last:border-0 hover:bg-muted/50">
                       <td className="px-3 py-2 font-mono text-xs">{inv.invoice_number}</td>
                       <td className="px-3 py-2">{inv.businesses?.business_name || "—"}</td>
@@ -900,8 +907,8 @@ export default function InvoicesPage() {
                       <td className="px-3 py-2 text-right">{formatMoney(inv.amount_paid, inv.currency)}</td>
                       <td className="px-3 py-2 text-right">{formatMoney(inv.balance_due, inv.currency)}</td>
                       <td className="px-3 py-2">
-                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[inv.status] || "bg-gray-100 text-gray-700"}`}>
-                          {enumLabel(inv.status)}
+                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[displayStatus] || "bg-gray-100 text-gray-700"}`}>
+                          {enumLabel(displayStatus)}
                         </span>
                       </td>
                       <td className="px-3 py-2">
@@ -943,7 +950,8 @@ export default function InvoicesPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1048,8 +1056,8 @@ export default function InvoicesPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-semibold">Invoice {editing.invoice_number}</h3>
-                  <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[editing.status] || "bg-gray-100 text-gray-700"}`}>
-                    {enumLabel(editing.status)}
+                  <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[resolveInvoiceStatus(editing)] || "bg-gray-100 text-gray-700"}`}>
+                    {enumLabel(resolveInvoiceStatus(editing))}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">{editing.businesses?.business_name || "—"} · {editing.currency}</p>
@@ -1291,7 +1299,7 @@ export default function InvoicesPage() {
               <div className="space-y-1">
                 <p className="text-muted-foreground">Paid: <span className="font-medium text-foreground">{formatNgn(editing.amount_paid, editing.currency)}</span></p>
                 <p className="text-muted-foreground">Balance: <span className="font-medium text-foreground">{formatNgn(editing.balance_due, editing.currency)}</span></p>
-                <p className="text-muted-foreground">Status: <span className="font-medium text-foreground">{enumLabel(editing.status)}</span></p>
+                <p className="text-muted-foreground">Status: <span className="font-medium text-foreground">{enumLabel(resolveInvoiceStatus(editing))}</span></p>
               </div>
             </div>
           </div>

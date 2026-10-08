@@ -73,6 +73,48 @@ export type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "DECLINED" | "EXPIRED"
 // WAIVED = granted without billing (comped / bundled / internal). Still counts as
 // a licence sold in finance reporting, but nothing is owed.
 export type InvoiceStatus = "DRAFT" | "ISSUED" | "PARTIALLY_PAID" | "PAID" | "OVERDUE" | "VOID" | "CANCELLED" | "WAIVED"
+
+/* ───────────────────────────  Status derivation  ───────────────────────────
+ * `invoices.status` is only recomputed by `recalculateInvoice()` — on item
+ * edits, payments and allocation. Nothing sweeps invoices on a schedule, so an
+ * unpaid invoice whose due_date has passed keeps reading as ISSUED until
+ * something happens to touch it.
+ *
+ * `resolveInvoiceStatus()` derives the true display status from the row so the
+ * list shows OVERDUE the day it becomes overdue, without a background job.
+ * The stored column is left untouched: it stays the source of truth for
+ * anything that recomputes it, and this is presentation-only.
+ */
+const SETTLED_INVOICE_STATUSES: readonly InvoiceStatus[] = ["PAID", "VOID", "CANCELLED", "WAIVED", "DRAFT"]
+
+/** The minimum an invoice must expose for the status helpers to work. `status`
+ *  is a plain string so list rows typed loosely (e.g. from a JSON payload) can
+ *  be passed straight in without a cast. */
+export type InvoiceStatusInput = {
+  status: string
+  due_date: string
+  balance_due: number
+}
+
+/** True when an invoice is issued, still owed, and past its due date. */
+export function isInvoiceOverdue(invoice: InvoiceStatusInput, now: Date = new Date()): boolean {
+  if (SETTLED_INVOICE_STATUSES.includes(invoice.status as InvoiceStatus)) return false
+  if (Number(invoice.balance_due) <= 0) return false
+  if (!invoice.due_date) return false
+  const due = new Date(invoice.due_date)
+  if (Number.isNaN(due.getTime())) return false
+  // Compare whole days: an invoice due today is not yet overdue.
+  const dueEnd = new Date(due.getFullYear(), due.getMonth(), due.getDate(), 23, 59, 59, 999)
+  return dueEnd < now
+}
+
+/**
+ * The status to show for an invoice. Returns the stored status, promoted to
+ * OVERDUE when the balance is outstanding and the due date has passed.
+ */
+export function resolveInvoiceStatus(invoice: InvoiceStatusInput, now: Date = new Date()): InvoiceStatus {
+  return isInvoiceOverdue(invoice, now) ? "OVERDUE" : (invoice.status as InvoiceStatus)
+}
 export type PaymentStatus = "PENDING" | "CONFIRMED" | "FAILED" | "REVERSED" | "REFUNDED" | "PARTIALLY_REFUNDED"
 export type PaymentMethod = "BANK_TRANSFER" | "PAYSTACK" | "FLUTTERWAVE" | "CASH" | "POS" | "OTHER"
 export type SubscriptionStatus = "PENDING" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELLED" | "EXPIRED" | "WAIVED"

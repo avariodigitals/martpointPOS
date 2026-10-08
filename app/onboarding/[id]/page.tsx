@@ -151,31 +151,29 @@ export default function ClientOnboardingPage() {
   }
 
   /**
-   * Upload a Store Setup file field straight into the client's Google Drive
-   * folder (<root>/Business/<business_id>/). The Drive link is stored against
-   * the field key instead of the file bytes.
+   * Upload a Store Setup file field into the client's Google Drive folder.
+   * This page is public, so it calls the onboarding-scoped upload route (which
+   * resolves the business from the record) rather than the admin endpoint.
    */
   const uploadToDrive = async (key: string, file: File | null) => {
     if (!file) return
     setUploadError("")
-    if (!record?.businessId) {
-      // Without a business id there is nowhere to file this — fall back to the
-      // inline document flow so the client is never blocked.
-      setUploadError("Preview mode: file will be attached to your submission instead of saved to Drive.")
-      await handleFileChange(key, file)
-      return
-    }
+
     setUploadingKey(key)
     try {
       const form = new FormData()
-      form.append("ownerType", "business")
-      form.append("ownerId", record.businessId)
+      form.append("onboardingId", String(id))
       form.append("file", file)
-      const res = await fetch("/api/admin/drive/upload", { method: "POST", body: form })
+      const res = await fetch("/api/onboarding/upload", { method: "POST", body: form })
       const data = await res.json()
       if (data.success && data.uploaded?.[0]) {
         const first = data.uploaded[0] as { name: string; fileId: string; link?: string }
         setUploads((prev) => ({ ...prev, [key]: { name: first.name, fileId: first.fileId, link: first.link || null } }))
+      } else if (res.status === 409) {
+        // Not linked to a business/lead yet — keep the file with the submission
+        // so the client is never blocked, and say so plainly.
+        setUploadError("We will attach this file to your submission instead.")
+        await handleFileChange(key, file)
       } else {
         setUploadError(data.error || `Could not upload ${file.name}`)
       }
@@ -523,7 +521,7 @@ export default function ClientOnboardingPage() {
           </div>
           <p className="text-sm text-muted-foreground">
             Upload your business logo and any supporting files that will help us configure your account correctly.
-            {record?.businessId ? " Files are saved securely to your MartPoint Drive folder." : ""}
+            Files are saved securely to your MartPoint Drive folder.
           </p>
           {uploadError && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">{uploadError}</div>

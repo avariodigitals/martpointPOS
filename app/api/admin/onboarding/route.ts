@@ -95,6 +95,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
+    // Which Store Setup template to seed. Refined below from the linked
+    // business's own type once we have looked it up.
+    let storeSetupSource: string = productInterest || "retail"
+
     const recordId = crypto.randomUUID()
     const now = new Date().toISOString()
 
@@ -141,16 +145,25 @@ export async function POST(request: Request) {
       }
 
       // Also start onboarding on the linked business if it is still a PROSPECT
-      const { data: linked } = await supabase.from("businesses").select("id, status").eq("source_lead_id", leadId).single()
-      if (linked?.id && linked.status === "PROSPECT") {
-        const session = await getSession()
-        const ctx = auditContextFromSession(session, request)
-        await initiateOnboarding(linked.id, ctx)
+      const { data: linked } = await supabase
+        .from("businesses")
+        .select("id, status, business_type, industry")
+        .eq("source_lead_id", leadId)
+        .single()
+      if (linked?.id) {
+        // Prefer the business's own type so the Store Setup template matches.
+        storeSetupSource = (linked.business_type as string) || (linked.industry as string) || storeSetupSource
+        if (linked.status === "PROSPECT") {
+          const session = await getSession()
+          const ctx = auditContextFromSession(session, request)
+          await initiateOnboarding(linked.id, ctx)
+        }
       }
     }
 
-    // Send email with setup questions
-    const setupQuestions = generateSetupQuestions(productInterest || "retail")
+    // Send email with setup questions — derived from the SAME Store Setup
+    // template the client's onboarding form renders.
+    const setupQuestions = generateSetupQuestions(storeSetupSource)
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ""
     const formLink = `${baseUrl}/onboarding/${recordId}`.replace(/\/$/, "")
 

@@ -1,25 +1,20 @@
-export function generateSetupQuestions(product: string): string {
-  const common = `1. Branding — brand/store name, logo, and preferred account name
-2. Business & contact — registered name, store phone/email, and full address
-3. Users — primary admin plus staff logins (name, email, phone, role)
-4. Branches — locations, addresses, and phone numbers
-5. Banking & tax — bank account details, VAT status, tax rate, TIN
-6. Online payments — preferred vendor (Paystack, Flutterwave, etc.)
-7. Shipping — delivery arrangement, zones, and fees
-8. Data & hardware — product import status and available devices
-9. Preferred go-live date`
+/* Store Setup questionnaire for onboarding.
+ *
+ * The questions now live in lib/store-setup-templates.ts as a per-business-type
+ * registry (common core + industry layer), shared by the onboarding email and
+ * the client onboarding form so the two can never drift apart.
+ *
+ * This module re-exports the generator for existing imports.
+ */
 
-  if (product === "erp") {
-    return `${common}
-10. How many warehouses or godowns do you operate?
-11. Do you sell on credit to dealers? (Yes/No)
-12. Do you need multi-branch transfer tracking? (Yes/No)
-13. Do you need API access to other systems? (Yes/No)`
-  }
-
-  return `${common}
-10. What type of store do you run? (supermarket, mini mart, electronics, pharmacy, etc.)
-11. Do you sell on credit to customers? (Yes/No)
-12. Do you need weighing scale integration? (Yes/No)
-13. Do you track expiry dates on products? (Yes/No)`
-}
+export {
+  generateSetupQuestions,
+  getStoreSetupFields,
+  getStoreSetupTemplate,
+  resolveStoreSetupTemplateKey,
+  STORE_SETUP_TEMPLATES,
+  STORE_SETUP_COMMON,
+  type StoreSetupField,
+  type StoreSetupFieldType,
+  type StoreSetupTemplate,
+} from "./store-setup-templates"

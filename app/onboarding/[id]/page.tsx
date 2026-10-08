@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,34 +13,26 @@ import {
   Plus,
   X,
 } from "lucide-react"
+import { getStoreSetupFields, type StoreSetupFieldType } from "@/lib/store-setup-templates"
 
 interface OnboardingRecord {
   id: string
+  leadId: string | null
+  businessId: string | null
   fullName: string
   businessName: string
   email: string
   phone: string
   productInterest: string
+  businessType: string
   status: string
+  storeSetupTemplate: string | null
   clientResponses: Record<string, unknown>
   documents: Array<{ name: string; url: string; uploadedAt: string }>
   signatureUrl: string
 }
 
-type FieldType =
-  | "text" | "email" | "tel" | "number" | "date"
-  | "select" | "multiselect" | "textarea" | "section"
-  | "userlist" | "branchlist"
-
-interface DeploymentField {
-  key: string
-  label: string
-  type: FieldType
-  options?: string[]
-  required?: boolean
-  helpText?: string
-  placeholder?: string
-}
+type FieldType = StoreSetupFieldType
 
 interface UserRow {
   name: string
@@ -55,73 +47,22 @@ interface BranchRow {
   phone: string
 }
 
+/** Drive upload result stored against the field key. */
+interface UploadedFile {
+  name: string
+  link: string | null
+  fileId: string
+}
+
 const USER_ROLES = ["Manager", "Cashier", "Staff", "Accountant", "Owner"]
 
-const DEPLOYMENT_FIELDS: DeploymentField[] = [
-  // ─── Branding ───
-  { key: "sectionBranding", label: "Branding", type: "section" },
-  { key: "brandName", label: "Brand / store display name", type: "text", required: true, placeholder: "e.g. Ada's Supermart" },
-  { key: "preferredSubdomain", label: "Preferred account / subdomain name", type: "text", placeholder: "e.g. adassupermart" },
-  { key: "receiptFooter", label: "Receipt footer message", type: "text", placeholder: "e.g. Thank you for shopping with us!" },
+const LOGO_DOC = { key: "logo", label: "Business logo (PNG or JPG — max 5MB)", required: false }
 
-  // ─── Business & Contact ───
-  { key: "sectionBusiness", label: "Business & Contact", type: "section" },
-  { key: "legalName", label: "Registered business / legal name", type: "text", placeholder: "As registered with CAC" },
-  { key: "rcNumber", label: "Business registration number (RC / CAC)", type: "text" },
-  { key: "storePhone", label: "Store phone number", type: "tel", required: true },
-  { key: "storeEmail", label: "Store email address", type: "email" },
-  { key: "address", label: "Store address", type: "textarea", required: true, placeholder: "Street, area, nearest landmark" },
-  { key: "city", label: "City", type: "text", required: true },
-  { key: "state", label: "State / Region", type: "text", required: true },
-  { key: "country", label: "Country", type: "text", required: true },
-
-  // ─── Users & Access ───
-  { key: "sectionUsers", label: "Users & Access", type: "section", helpText: "Who should get a login? The primary admin is usually the owner or manager." },
-  { key: "adminName", label: "Primary admin — full name", type: "text", required: true },
-  { key: "adminEmail", label: "Primary admin — email", type: "email", required: true },
-  { key: "adminPhone", label: "Primary admin — phone", type: "tel", required: true },
-  { key: "additionalUsers", label: "Additional users", type: "userlist", helpText: "Add each staff member who needs a login — name, email, phone and role." },
-
-  // ─── Branches ───
-  { key: "sectionBranches", label: "Branches", type: "section", helpText: "Your head office is assumed to be the store address above unless listed here." },
-  { key: "branchList", label: "Branch locations", type: "branchlist" },
-
-  // ─── Banking & Tax ───
-  { key: "sectionBanking", label: "Banking & Tax", type: "section" },
-  { key: "bankName", label: "Bank name", type: "text" },
-  { key: "accountName", label: "Account name", type: "text" },
-  { key: "accountNumber", label: "Business account number", type: "text" },
-  { key: "vatRegistered", label: "Are you registered for VAT / tax?", type: "select", options: ["Yes", "No"] },
-  { key: "taxRate", label: "Tax rate to apply on sales (%)", type: "number", placeholder: "e.g. 7.5" },
-  { key: "tin", label: "Tax Identification Number (TIN)", type: "text" },
-
-  // ─── Online Payments ───
-  { key: "sectionPayments", label: "Online Payments", type: "section" },
-  { key: "paymentVendor", label: "Which online payment vendor should we connect?", type: "select", options: ["Paystack", "Flutterwave", "Monnify", "Bank transfer only", "None — advise me"], required: true },
-  { key: "paymentAccountExists", label: "Do you already have an account with that vendor?", type: "select", options: ["Yes", "No", "Not yet — need help setting up"] },
-  { key: "paymentPublicKey", label: "Vendor public key (optional)", type: "text", placeholder: "e.g. pk_live_...", helpText: "Paste your PUBLIC key only. Never share secret keys here — we will collect those securely during setup." },
-
-  // ─── Shipping & Fulfilment ───
-  { key: "sectionShipping", label: "Shipping & Fulfilment", type: "section" },
-  { key: "shippingArrangement", label: "How do you handle deliveries?", type: "select", options: ["We deliver ourselves", "Third-party courier", "Customer pickup only", "Combination"], required: true },
-  { key: "deliveryZones", label: "Delivery areas / zones covered", type: "textarea", placeholder: "e.g. Lekki, VI, Ikoyi — mainland on request" },
-  { key: "deliveryFee", label: "Delivery fee structure", type: "text", placeholder: "e.g. Free within Lekki, ₦2,000 elsewhere" },
-
-  // ─── Data, Hardware & Go-live ───
-  { key: "sectionData", label: "Data, Hardware & Go-live", type: "section" },
-  { key: "productData", label: "Do you have product data to import?", type: "select", options: ["Yes — CSV/Excel ready", "Yes — needs cleanup", "No — starting fresh"] },
-  { key: "hardware", label: "What hardware do you have? (select all that apply)", type: "multiselect", options: ["Barcode scanner", "Receipt printer", "Cash drawer", "Customer display", "Tablet / iPad", "Computer", "Weighing scale", "Card terminal", "None yet"] },
-  { key: "suppliers", label: "Key suppliers (names and contacts)", type: "textarea" },
-  { key: "goLiveDate", label: "Preferred go-live date", type: "date", required: true },
-  { key: "specialRequests", label: "Any special deployment or integration requests", type: "textarea" },
-]
-
-const COMPLIANCE_DOCS = [
-  { key: "logo", label: "Business logo (PNG or JPG — max 2MB)", required: false },
-]
+/** Field types that upload straight to Google Drive instead of storing inline. */
+const DRIVE_FIELD_TYPES = new Set<FieldType>(["file"])
 
 const inputCls =
-  "w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-retail/30"
+  "w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:ring-retail/30"
 
 export default function ClientOnboardingPage() {
   const params = useParams()
@@ -133,11 +74,19 @@ export default function ClientOnboardingPage() {
 
   const [responses, setResponses] = useState<Record<string, unknown>>({})
   const [documents, setDocuments] = useState<Record<string, { name: string; data: string }>>({})
+  /** Drive uploads keyed by field key — populated by the file fields. */
+  const [uploads, setUploads] = useState<Record<string, UploadedFile>>({})
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState("")
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  const fields = DEPLOYMENT_FIELDS
+  // Store Setup template resolved from the business type on the record.
+  const fields = useMemo(
+    () => getStoreSetupFields(record?.storeSetupTemplate || record?.businessType || record?.productInterest || "retail"),
+    [record?.storeSetupTemplate, record?.businessType, record?.productInterest]
+  )
 
   useEffect(() => {
     if (!id) return
@@ -201,9 +150,50 @@ export default function ClientOnboardingPage() {
     reader.readAsDataURL(file)
   }
 
+  /**
+   * Upload a Store Setup file field straight into the client's Google Drive
+   * folder (<root>/Business/<business_id>/). The Drive link is stored against
+   * the field key instead of the file bytes.
+   */
+  const uploadToDrive = async (key: string, file: File | null) => {
+    if (!file) return
+    setUploadError("")
+    if (!record?.businessId) {
+      // Without a business id there is nowhere to file this — fall back to the
+      // inline document flow so the client is never blocked.
+      setUploadError("Preview mode: file will be attached to your submission instead of saved to Drive.")
+      await handleFileChange(key, file)
+      return
+    }
+    setUploadingKey(key)
+    try {
+      const form = new FormData()
+      form.append("ownerType", "business")
+      form.append("ownerId", record.businessId)
+      form.append("file", file)
+      const res = await fetch("/api/admin/drive/upload", { method: "POST", body: form })
+      const data = await res.json()
+      if (data.success && data.uploaded?.[0]) {
+        const first = data.uploaded[0] as { name: string; fileId: string; link?: string }
+        setUploads((prev) => ({ ...prev, [key]: { name: first.name, fileId: first.fileId, link: first.link || null } }))
+      } else {
+        setUploadError(data.error || `Could not upload ${file.name}`)
+      }
+    } catch {
+      setUploadError(`Could not upload ${file.name}`)
+    } finally {
+      setUploadingKey(null)
+    }
+  }
+
   const validate = (): string | null => {
     for (const q of fields) {
       if (q.type === "section" || !q.required) continue
+      // File fields are satisfied by a Drive upload OR an inline document.
+      if (DRIVE_FIELD_TYPES.has(q.type)) {
+        if (!uploads[q.key] && !documents[q.key]) return `Please upload: ${q.label}`
+        continue
+      }
       const v = responses[q.key]
       if (v === undefined || v === null || String(v).trim() === "") {
         return `Please answer: ${q.label}`
@@ -232,11 +222,20 @@ export default function ClientOnboardingPage() {
       uploadedAt: new Date().toISOString(),
     }))
 
+    // Drive uploads are recorded as links (url = Drive webViewLink) so the ops
+    // team can open them from the onboarding record.
+    const driveRecords = Object.entries(uploads).map(([key, up]) => ({
+      name: `${key}-${up.name}`,
+      url: up.link || `https://drive.google.com/file/d/${up.fileId}/view`,
+      uploadedAt: new Date().toISOString(),
+    }))
+
     // Merge with existing documents — replace prior uploads for the same field
-    const uploadKeys = new Set(Object.keys(documents))
+    const uploadKeys = new Set([...Object.keys(documents), ...Object.keys(uploads)])
     const allDocs = [
       ...(record?.documents || []).filter((d) => !uploadKeys.has(d.name.split("-")[0])),
       ...docRecords,
+      ...driveRecords,
     ]
 
     try {
@@ -245,7 +244,14 @@ export default function ClientOnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id,
-          clientResponses: { ...responses, ...(documents.logo ? { logo: documents.logo.data } : {}) },
+          clientResponses: {
+            ...responses,
+            // Record Drive links alongside answers for the deployment brief.
+            ...(Object.keys(uploads).length > 0
+              ? { driveUploads: Object.fromEntries(Object.entries(uploads).map(([k, v]) => [k, v.link || v.fileId])) }
+              : {}),
+            ...(documents.logo ? { logo: documents.logo.data } : {}),
+          },
           documents: allDocs,
         }),
       })
@@ -349,6 +355,33 @@ export default function ClientOnboardingPage() {
                     placeholder={field.placeholder}
                     className={`${inputCls} resize-none`}
                   />
+                ) : field.type === "file" ? (
+                  uploads[field.key] ? (
+                    <div className="flex items-center gap-2 text-sm text-green-600">
+                      <Check className="w-4 h-4" />
+                      <span>Uploaded: {uploads[field.key].name}</span>
+                    </div>
+                  ) : uploadingKey === field.key ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Uploading {field.label}…</span>
+                    </div>
+                  ) : documents[field.key] ? (
+                    <div className="flex items-center gap-2 text-sm text-retail">
+                      <Check className="w-4 h-4" />
+                      <span>{documents[field.key].name}</span>
+                    </div>
+                  ) : (
+                    <label className="flex items-center justify-center gap-2 w-full rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors">
+                      <Upload className="w-4 h-4" />
+                      Click to upload (max 15MB)
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => uploadToDrive(field.key, e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  )
                 ) : field.type === "select" ? (
                   <select
                     value={String(responses[field.key] ?? "")}
@@ -490,13 +523,27 @@ export default function ClientOnboardingPage() {
           </div>
           <p className="text-sm text-muted-foreground">
             Upload your business logo and any supporting files that will help us configure your account correctly.
+            {record?.businessId ? " Files are saved securely to your MartPoint Drive folder." : ""}
           </p>
-          {COMPLIANCE_DOCS.map((doc) => (
+          {uploadError && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">{uploadError}</div>
+          )}
+          {[LOGO_DOC].map((doc) => (
             <div key={doc.key}>
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 {doc.label} {doc.required && <span className="text-red-500">*</span>}
               </label>
-              {record?.documents?.find((d) => d.name.includes(doc.key)) ? (
+              {uploads[doc.key] ? (
+                <div className="flex items-center gap-2 text-sm text-green-600">
+                  <Check className="w-4 h-4" />
+                  <span>Uploaded: {uploads[doc.key].name}</span>
+                </div>
+              ) : uploadingKey === doc.key ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Uploading logo…</span>
+                </div>
+              ) : record?.documents?.find((d) => d.name.includes(doc.key)) ? (
                 <div className="flex items-center gap-2 text-sm text-green-600">
                   <Check className="w-4 h-4" />
                   <span>Already uploaded</span>
@@ -509,12 +556,12 @@ export default function ClientOnboardingPage() {
               ) : (
                 <label className="flex items-center justify-center gap-2 w-full rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors">
                   <Upload className="w-4 h-4" />
-                  Click to upload (JPG, PNG, PDF — max 2MB)
+                  Click to upload (JPG, PNG — max 5MB)
                   <input
                     type="file"
-                    accept=".jpg,.jpeg,.png,.pdf"
+                    accept=".jpg,.jpeg,.png,.webp"
                     className="hidden"
-                    onChange={(e) => handleFileChange(doc.key, e.target.files?.[0] || null)}
+                    onChange={(e) => uploadToDrive(doc.key, e.target.files?.[0] || null)}
                   />
                 </label>
               )}

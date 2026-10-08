@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { setOnboardingStage } from "@/lib/businesses"
+import { resolveStoreSetupTemplateKey } from "@/lib/store-setup-templates"
 
 /* ─── GET: fetch onboarding record by ID ─── */
 export async function GET(request: Request) {
@@ -29,9 +30,15 @@ export async function GET(request: Request) {
     // Find the canonical business linked to this onboarding's lead, if any.
     const { data: businessRow } = await supabase
       .from("businesses")
-      .select("id, onboarding_stages, source_lead_id")
+      .select("id, onboarding_stages, source_lead_id, business_type, industry")
       .eq("source_lead_id", data.lead_id)
       .maybeSingle()
+
+    // Store Setup template resolved from the business type, falling back to the
+    // lead's product interest so older records still render a sensible form.
+    const storeSetupTemplate = resolveStoreSetupTemplateKey(
+      (businessRow?.business_type as string) || (businessRow?.industry as string) || data.product_interest
+    )
 
     const record = {
       id: data.id,
@@ -43,6 +50,8 @@ export async function GET(request: Request) {
       email: data.email,
       phone: data.phone,
       productInterest: data.product_interest,
+      businessType: (businessRow?.business_type as string) || "",
+      storeSetupTemplate,
       status: data.status,
       setupQuestionsSent: data.setup_questions_sent,
       clientResponses: data.client_responses || {},

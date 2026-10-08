@@ -212,7 +212,14 @@ export async function setSessionCookie(payload: SessionPayload) {
   cookieStore.set(ADMIN_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    // `lax`, not `strict`: the Google OAuth round-trip returns via a top-level
+    // navigation from accounts.google.com. A Strict cookie is withheld on that
+    // cross-site hop (and on the follow-up redirect into /admin), so the admin
+    // arrived at the admin area with no session and was bounced to
+    // /admin/login?expired=1 — "session expired due to inactivity" after simply
+    // reconnecting Google. `lax` still blocks the cookie on cross-site POSTs and
+    // subresource requests, which is what actually matters for CSRF here.
+    sameSite: "lax",
     maxAge: ADMIN_COOKIE_MAX_AGE,
     path: "/",
   })

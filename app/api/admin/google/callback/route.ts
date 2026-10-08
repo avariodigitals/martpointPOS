@@ -11,10 +11,15 @@ function back(request: Request, params: Record<string, string>) {
 }
 
 /* ─── GET OAuth redirect target ───
- * Google redirects here cross-site, so the SameSite=Strict admin cookie is not
- * sent. Auth is instead enforced by the state cookie issued in /connect (which
- * already required an authorized admin session) — a valid matching state proves
- * the flow was started by that admin in this browser.
+ * Google redirects here cross-site. The admin session cookie is now SameSite=Lax
+ * (lib/admin-auth.ts) so it IS sent on this top-level navigation, which is why
+ * reconnecting no longer signs the admin out.
+ *
+ * We deliberately do NOT require an authorised admin session here: this endpoint
+ * must stay reachable even if the session lapsed mid-flow. Authorisation is
+ * enforced by the state cookie issued in /connect — that route DID require an
+ * authorized admin session, so a valid matching state proves an authorised admin
+ * started the flow in this browser.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)

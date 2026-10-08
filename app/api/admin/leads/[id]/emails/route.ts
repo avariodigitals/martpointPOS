@@ -5,9 +5,16 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendLeadEmail, mapLeadEmail } from "@/lib/lead-email-outbound"
 import { z } from "zod"
 
+const attachmentSchema = z.object({
+  filename: z.string().trim().min(1).max(255),
+  /** base64-encoded file content. */
+  content: z.string().min(1).max(10_000_000),
+})
+
 const postSchema = z.object({
   subject: z.string().min(1, "Subject is required"),
   body: z.string().min(1, "Message body is required"),
+  attachments: z.array(attachmentSchema).max(5, "Up to 5 attachments per email").optional(),
 })
 
 /* ─── GET email thread for a lead ─── */
@@ -70,6 +77,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       to: [...new Set([lead.email as string, lead.additional_email as string | null].filter((email): email is string => Boolean(email)))],
       subject: parsed.data.subject,
       body: parsed.data.body,
+      attachments: parsed.data.attachments,
     })
 
     if (!result.email) {
@@ -80,7 +88,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       action: AUDIT_ACTIONS.LEAD_UPDATED,
       entityType: AUDIT_ENTITIES.LEAD,
       entityId: id,
-      metadata: { emailSent: result.sent, subject: parsed.data.subject, to: lead.email },
+      metadata: {
+        emailSent: result.sent,
+        subject: parsed.data.subject,
+        to: lead.email,
+        attachments: parsed.data.attachments?.map((a) => a.filename) || [],
+      },
     })
 
     return NextResponse.json({ success: true, sent: result.sent, email: result.email })

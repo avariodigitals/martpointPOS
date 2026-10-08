@@ -16,6 +16,12 @@ function formatNgn(n: number | string | undefined | null) {
   return formatMoney(v)
 }
 
+function formatMoneyIn(n: number | string | undefined | null, currency?: string) {
+  const v = typeof n === "string" ? Number.parseFloat(n) : Number(n)
+  if (Number.isNaN(v)) return "—"
+  return formatMoney(v, currency)
+}
+
 type SectionKey =
   | "products"
   | "plans"
@@ -29,6 +35,7 @@ type SectionKey =
   | "commissions"
   | "payouts"
   | "receipts"
+  | "licences_sold"
 
 const RESOURCES: SectionKey[] = [
   "products",
@@ -43,6 +50,7 @@ const RESOURCES: SectionKey[] = [
   "commissions",
   "payouts",
   "receipts",
+  "licences_sold",
 ]
 
 const TITLES: Record<SectionKey, string> = {
@@ -58,15 +66,24 @@ const TITLES: Record<SectionKey, string> = {
   commissions: "Commissions",
   payouts: "Commission Payouts",
   receipts: "Receipts",
+  licences_sold: "Licences Sold",
 }
 
-type FieldType = "text" | "number" | "select" | "textarea" | "date" | "boolean"
+type FieldType = "text" | "number" | "select" | "textarea" | "date" | "boolean" | "derived"
+
+// Which dynamic option list a select should be populated from. Static
+// `options` remain supported for simple enums.
+type OptionSource = "businesses" | "plans"
 
 interface FieldConfig {
   name: string
   label: string
   type: FieldType
   options?: string[]
+  optionSource?: OptionSource
+  help?: string
+  /** For `derived` fields: the field this value is computed from. */
+  deriveFrom?: string
 }
 
 const CREATE_ACTION: Record<SectionKey, string | null> = {
@@ -82,6 +99,7 @@ const CREATE_ACTION: Record<SectionKey, string | null> = {
   commissions: null,
   payouts: "create",
   receipts: "create",
+  licences_sold: null,
 }
 
 const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
@@ -141,10 +159,11 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "notes", label: "Notes", type: "textarea" },
   ],
   subscriptions: [
-    { name: "business_id", label: "Business ID", type: "text" },
-    { name: "plan_id", label: "Plan ID", type: "text" },
+    { name: "business_id", label: "Business", type: "select", optionSource: "businesses", help: "Only active businesses that can hold a licence are listed." },
+    { name: "plan_id", label: "Plan", type: "select", optionSource: "plans", help: "The licence is derived from the plan you select — never from a service." },
+    { name: "licence_preview", label: "Licence (from plan)", type: "derived", deriveFrom: "plan_id", help: "Auto-filled from the selected plan. Override it on the subscription after creation if needed." },
     { name: "billing_interval", label: "Billing Interval", type: "select", options: ["MONTHLY", "QUARTERLY", "ANNUAL", "NONE"] },
-    { name: "quantity", label: "Quantity", type: "number" },
+    { name: "quantity", label: "Quantity (licences)", type: "number", help: "Number of licences/seats. Used by the licences-sold report." },
     { name: "start_date", label: "Start Date", type: "date" },
     { name: "current_period_end", label: "Current Period End", type: "date" },
     { name: "renewal_date", label: "Renewal Date", type: "date" },
@@ -179,6 +198,7 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
   receipts: [
     { name: "payment_id", label: "Payment ID", type: "text" },
   ],
+  licences_sold: [],
 }
 
 const ACTIONS: Record<SectionKey, { name: string; label: string }[]> = {
@@ -222,6 +242,7 @@ const ACTIONS: Record<SectionKey, { name: string; label: string }[]> = {
   ],
   subscriptions: [
     { name: "activate", label: "Activate" },
+    { name: "waive", label: "Waive (no invoice)" },
     { name: "suspend", label: "Suspend" },
     { name: "cancel_subscription", label: "Cancel" },
     { name: "renew", label: "Renew" },
@@ -249,11 +270,80 @@ const ACTIONS: Record<SectionKey, { name: string; label: string }[]> = {
     { name: "mark_paid", label: "Mark Paid" },
   ],
   receipts: [],
+  licences_sold: [],
 }
 
 type Row = Record<string, unknown>
 
 type ApiResponse = { success?: boolean; data?: Row | Row[]; error?: string }
+
+interface Option {
+  value: string
+  label: string
+}
+
+interface BusinessOption {
+  id: string
+  businessName: string
+  status?: string
+}
+
+interface PlanOption {
+  id: string
+  name: string
+  code: string
+  billing_type: "RECURRING" | "ONE_TIME"
+  billing_interval?: string
+  base_price: number
+  currency: string
+  active: boolean
+}
+
+interface LicenceSoldRow {
+  licence_id: string
+  business_id: string
+  business_name: string | null
+  licence_type: string
+  licence_status: string
+  plan_id: string | null
+  plan_code: string | null
+  waived: boolean
+  max_users: number
+  max_branches: number
+  online_store_enabled: boolean
+  effective_from: string | null
+  expires_at: string | null
+  issued_at: string | null
+  subscription_id: string | null
+  subscription_status: string | null
+  quantity: number
+}
+
+interface LicencesSoldReport {
+  generated_at: string
+  distinct_businesses: number
+  total_quantity: number
+  waived_count: number
+  billed_count: number
+  by_type: { licence_type: string; count: number; quantity: number }[]
+  by_plan: { plan_code: string | null; plan_name: string | null; count: number; quantity: number }[]
+  rows: LicenceSoldRow[]
+}
+
+/**
+ * Derive the licence shown on the subscription form from the selected PLAN.
+ *
+ * Mirrors `resolveLicenceFromPlan` in lib/finance-commercial.ts. Only the plan
+ * matters — services never influence the licence. This is a pure display helper
+ * so the admin sees what licence will be issued before creating the record.
+ */
+function licencePreviewFromPlan(plan: PlanOption | undefined): string {
+  if (!plan) return "—"
+  const code = (plan.code || "").toUpperCase()
+  if (code.includes("ERP")) return "ERP Licence"
+  if (plan.billing_type === "ONE_TIME") return "Perpetual / Offline Licence"
+  return "Cloud Licence"
+}
 
 function Dialog({
   open,
@@ -301,6 +391,7 @@ function buildCreatePayload(section: SectionKey, values: Record<string, string>)
   const fields = CREATE_FIELDS[section]
   const payload: Record<string, unknown> = {}
   for (const f of fields) {
+    if (f.type === "derived") continue // display-only, never sent
     const v = values[f.name]
     if (v === undefined || v === "") continue
     if (f.type === "number") payload[f.name] = Number(v)
@@ -326,20 +417,72 @@ export default function CommercialSectionPage() {
   const [message, setMessage] = useState("")
   const [formValues, setFormValues] = useState<Record<string, string>>({})
 
+  // Dynamic pickers for the subscription form.
+  const [businesses, setBusinesses] = useState<BusinessOption[]>([])
+  const [plans, setPlans] = useState<PlanOption[]>([])
+
+  // Licences-sold report (read-only section).
+  const [report, setReport] = useState<LicencesSoldReport | null>(null)
+  const [reportLoading, setReportLoading] = useState(false)
+
   const [actionOpen, setActionOpen] = useState(false)
   const [selectedRow, setSelectedRow] = useState<Row | null>(null)
   const [selectedAction, setSelectedAction] = useState("")
   const [actionData, setActionData] = useState("")
+  const [waiveReason, setWaiveReason] = useState("")
   const [working, setWorking] = useState(false)
 
   const fields = resource ? CREATE_FIELDS[resource] : []
   const createAction = resource ? CREATE_ACTION[resource] : null
   const actions = resource ? ACTIONS[resource] : []
 
+  const needsBusinesses = fields.some((f) => f.optionSource === "businesses")
+  const needsPlans = fields.some((f) => f.optionSource === "plans")
+
+  const selectedPlan = useMemo(
+    () => plans.find((p) => p.id === formValues.plan_id),
+    [plans, formValues.plan_id],
+  )
+
   useEffect(() => {
     if (!resource) return
     setFormValues(defaultFormValues(fields))
   }, [resource, fields])
+
+  // Load businesses for pickers (only businesses that can hold a licence).
+  useEffect(() => {
+    if (!needsBusinesses) return
+    let cancelled = false
+    fetch("/api/admin/businesses")
+      .then((res) => res.json())
+      .then((data: { businesses?: BusinessOption[] }) => {
+        if (cancelled) return
+        const list = (data.businesses || []).filter(
+          (b) => !["CHURNED", "INACTIVE"].includes(String(b.status || "").toUpperCase()),
+        )
+        setBusinesses(list.sort((a, b) => a.businessName.localeCompare(b.businessName)))
+      })
+      .catch(() => setMessage("Failed to load businesses"))
+    return () => {
+      cancelled = true
+    }
+  }, [needsBusinesses])
+
+  // Load plans (only active/available plans) for the plan picker.
+  useEffect(() => {
+    if (!needsPlans) return
+    let cancelled = false
+    fetch("/api/admin/finance/catalog?type=plans&activeOnly=true")
+      .then((res) => res.json())
+      .then((raw: { success?: boolean; data?: PlanOption[] }) => {
+        if (cancelled) return
+        setPlans((raw.data || []).filter((p) => p.active !== false))
+      })
+      .catch(() => setMessage("Failed to load plans"))
+    return () => {
+      cancelled = true
+    }
+  }, [needsPlans])
 
   useEffect(() => {
     if (!resource) return
@@ -360,6 +503,30 @@ export default function CommercialSectionPage() {
       })
       .catch(() => setMessage("Failed to load data"))
       .finally(() => setLoading(false))
+  }, [resource])
+
+  useEffect(() => {
+    if (resource !== "licences_sold") return
+    let cancelled = false
+    // Schedule so the first setState happens outside the synchronous effect body.
+    const run = async () => {
+      setReportLoading(true)
+      try {
+        const res = await fetch("/api/admin/finance/commercial/licences_sold")
+        const data = (await res.json()) as ApiResponse
+        if (!cancelled && data.success && data.data && !Array.isArray(data.data)) {
+          setReport(data.data as unknown as LicencesSoldReport)
+        }
+      } catch {
+        if (!cancelled) setMessage("Failed to load licences-sold report")
+      } finally {
+        if (!cancelled) setReportLoading(false)
+      }
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
   }, [resource])
 
   const columns = useMemo(() => {
@@ -410,6 +577,10 @@ export default function CommercialSectionPage() {
         setWorking(false)
         return
       }
+      // For a waiver, merge the friendly reason field into the payload.
+      if (selectedAction === "waive" && payload && typeof payload === "object") {
+        payload = { ...(payload as Record<string, unknown>), reason: waiveReason.trim() || undefined }
+      }
       const res = await fetch(`/api/admin/finance/commercial/${resource}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -419,6 +590,7 @@ export default function CommercialSectionPage() {
       if (data.success) {
         setMessage("Action successful")
         setActionOpen(false)
+        setWaiveReason("")
         refreshList()
       } else {
         setMessage(data.error || "Action failed")
@@ -465,6 +637,20 @@ export default function CommercialSectionPage() {
     return String(v)
   }
 
+  /** Resolve the {value,label} options for a field, dynamic or static. */
+  function optionsFor(f: FieldConfig): Option[] {
+    if (f.optionSource === "businesses") {
+      return businesses.map((b) => ({ value: b.id, label: b.businessName }))
+    }
+    if (f.optionSource === "plans") {
+      return plans.map((p) => ({
+        value: p.id,
+        label: `${p.name}${p.code ? ` (${p.code})` : ""} · ${formatMoneyIn(p.base_price, p.currency)}`,
+      }))
+    }
+    return (f.options || []).map((o) => ({ value: o, label: o }))
+  }
+
   function renderInput(f: FieldConfig) {
     const value = formValues[f.name] ?? ""
     const base = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -479,7 +665,21 @@ export default function CommercialSectionPage() {
         />
       )
     }
+    if (f.type === "derived") {
+      const derived = f.deriveFrom === "plan_id" ? licencePreviewFromPlan(selectedPlan) : "—"
+      return (
+        <input
+          id={f.name}
+          type="text"
+          value={derived}
+          readOnly
+          disabled
+          className={`${base} bg-muted text-muted-foreground`}
+        />
+      )
+    }
     if (f.type === "select") {
+      const opts = optionsFor(f)
       return (
         <select
           id={f.name}
@@ -487,9 +687,10 @@ export default function CommercialSectionPage() {
           onChange={(e) => setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
           className={base}
         >
-          {f.options?.map((o) => (
-            <option key={o} value={o}>
-              {o}
+          <option value="">{f.optionSource ? "Select…" : ""}</option>
+          {opts.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </select>
@@ -545,6 +746,117 @@ export default function CommercialSectionPage() {
         <p className={`text-sm ${message.includes("success") ? "text-emerald-600" : "text-red-500"}`}>{message}</p>
       )}
 
+      {resource === "licences_sold" ? (
+        reportLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : !report ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Failed to load report.</p>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Licences Sold (businesses)</CardTitle>
+                </CardHeader>
+                <CardContent><p className="text-2xl font-bold">{report.distinct_businesses}</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Quantity</CardTitle>
+                </CardHeader>
+                <CardContent><p className="text-2xl font-bold">{report.total_quantity}</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Billed</CardTitle>
+                </CardHeader>
+                <CardContent><p className="text-2xl font-bold text-emerald-600">{report.billed_count}</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Waived</CardTitle>
+                </CardHeader>
+                <CardContent><p className="text-2xl font-bold text-purple-600">{report.waived_count}</p></CardContent>
+              </Card>
+            </div>
+
+            {report.by_plan.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">By Plan</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="px-3 py-2 font-medium">Plan</th>
+                        <th className="px-3 py-2 font-medium">Code</th>
+                        <th className="px-3 py-2 font-medium text-right">Licences</th>
+                        <th className="px-3 py-2 font-medium text-right">Quantity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.by_plan.map((p) => (
+                        <tr key={p.plan_code || "unknown"} className="border-b last:border-0">
+                          <td className="px-3 py-2">{p.plan_name || "—"}</td>
+                          <td className="px-3 py-2 font-mono text-xs">{p.plan_code || "—"}</td>
+                          <td className="px-3 py-2 text-right">{p.count}</td>
+                          <td className="px-3 py-2 text-right">{p.quantity}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">All Granted Licences</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {report.rows.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">No licences granted yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-muted-foreground">
+                          <th className="px-3 py-2 font-medium">Business</th>
+                          <th className="px-3 py-2 font-medium">Licence</th>
+                          <th className="px-3 py-2 font-medium">Plan</th>
+                          <th className="px-3 py-2 font-medium text-right">Qty</th>
+                          <th className="px-3 py-2 font-medium">Status</th>
+                          <th className="px-3 py-2 font-medium">Expires</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.rows.map((r) => (
+                          <tr key={r.licence_id} className="border-b last:border-0 hover:bg-muted/50">
+                            <td className="px-3 py-2">{r.business_name || "—"}</td>
+                            <td className="px-3 py-2">{enumLabel(r.licence_type)}</td>
+                            <td className="px-3 py-2 font-mono text-xs">{r.plan_code || "—"}</td>
+                            <td className="px-3 py-2 text-right">{r.quantity}</td>
+                            <td className="px-3 py-2">
+                              <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${r.waived ? "bg-purple-50 text-purple-700" : "bg-green-50 text-green-700"}`}>
+                                {r.waived ? "Waived" : "Billed"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">{r.expires_at || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )
+      ) : (
+        <>
       {createAction && (
         <Card>
           <CardHeader className="pb-2">
@@ -560,6 +872,7 @@ export default function CommercialSectionPage() {
                     {f.label}
                   </label>
                   {renderInput(f)}
+                  {f.help && <p className="text-xs text-muted-foreground">{f.help}</p>}
                 </div>
               ))}
               <div className="flex items-end sm:col-span-2 lg:col-span-3">
@@ -590,7 +903,7 @@ export default function CommercialSectionPage() {
                         {enumLabel(c)}
                       </th>
                     ))}
-                    <th className="px-3 py-2 font-medium">Actions</th>
+                    {actions.length > 0 && <th className="px-3 py-2 font-medium">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -601,11 +914,13 @@ export default function CommercialSectionPage() {
                           {renderCell(row, c)}
                         </td>
                       ))}
-                      <td className="px-3 py-2">
-                        <Button variant="outline" size="sm" onClick={() => openAction(row)}>
-                          <Play className="mr-1 h-3.5 w-3.5" /> Run action
-                        </Button>
-                      </td>
+                      {actions.length > 0 && (
+                        <td className="px-3 py-2">
+                          <Button variant="outline" size="sm" onClick={() => openAction(row)}>
+                            <Play className="mr-1 h-3.5 w-3.5" /> Run action
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -614,6 +929,8 @@ export default function CommercialSectionPage() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
 
       <Dialog open={actionOpen} onClose={() => setActionOpen(false)} title={`Run action on ${TITLES[resource]}`}>
         <div className="space-y-4">
@@ -621,7 +938,12 @@ export default function CommercialSectionPage() {
             <label className="text-sm font-medium">Action</label>
             <select
               value={selectedAction}
-              onChange={(e) => setSelectedAction(e.target.value)}
+              onChange={(e) => {
+                setSelectedAction(e.target.value)
+                if (e.target.value === "waive") {
+                  setActionData(JSON.stringify({ id: selectedRow?.id, reason: "" }, null, 2))
+                }
+              }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               {actions.map((a) => (
@@ -631,15 +953,37 @@ export default function CommercialSectionPage() {
               ))}
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Action Data (JSON)</label>
-            <textarea
-              value={actionData}
-              onChange={(e) => setActionData(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-              rows={8}
-            />
-          </div>
+
+          {selectedAction === "waive" ? (
+            <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+              <p className="text-sm text-amber-800">
+                Waiving grants the licence without billing. A zero-amount <strong>WAIVED</strong> invoice is created and
+                linked, and the licence is issued from the subscription&apos;s plan. The business still counts in the
+                licences-sold report.
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Reason</label>
+                <textarea
+                  value={waiveReason}
+                  onChange={(e) => setWaiveReason(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  rows={3}
+                  placeholder="e.g. Founding customer — bundled free for 12 months"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Action Data (JSON)</label>
+              <textarea
+                value={actionData}
+                onChange={(e) => setActionData(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                rows={8}
+              />
+            </div>
+          )}
+
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setActionOpen(false)}>
               Cancel

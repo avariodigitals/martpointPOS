@@ -7,6 +7,7 @@ import { sendEmail } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { readSettings } from "@/lib/settings"
 import { resolveIndustryName } from "@/lib/industries"
+import { enqueueAutomation } from "@/lib/automations"
 import {
   buildEstimate,
   buildPricingFromSettings,
@@ -116,6 +117,15 @@ export async function POST(request: Request) {
       })
       if (error) {
         console.error("[estimate] Supabase lead insert error:", error.message)
+      } else {
+        // Schedule the friendly "turn your estimate into a quote" follow-up
+        // (+48h, then every 48h). Best-effort — never block the submission.
+        await enqueueAutomation({
+          automationKey: "estimate_48h_followup",
+          subjectType: "estimate",
+          subjectId: leadId,
+          recipientEmail: email,
+        }).catch((err) => console.error("[estimate] enqueue follow-up failed:", err))
       }
     }
 

@@ -9,17 +9,29 @@ import { Loader2, CheckCircle2, AlertCircle, Mail } from "lucide-react"
 function UnsubscribeForm() {
   const searchParams = useSearchParams()
   const token = searchParams.get("t") || ""
+  // Reminder opt-out links (automated follow-ups) carry type + id instead of a
+  // marketing token: /unsubscribe?type=lead|quotation|estimate&id=<subjectId>
+  const optOutType = searchParams.get("type") || ""
+  const optOutId = searchParams.get("id") || ""
+  const isReminderOptOut = Boolean(optOutType && optOutId)
+  const hasLink = Boolean(token) || isReminderOptOut
 
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle")
 
   const unsubscribe = async () => {
     setState("loading")
     try {
-      const res = await fetch("/api/marketing/unsubscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      })
+      const res = isReminderOptOut
+        ? await fetch("/api/reminders/opt-out", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: optOutType, id: optOutId }),
+          })
+        : await fetch("/api/marketing/unsubscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token }),
+          })
       setState(res.ok ? "done" : "error")
     } catch {
       setState("error")
@@ -34,22 +46,27 @@ function UnsubscribeForm() {
             <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto" />
             <h1 className="text-xl font-semibold">You&apos;re unsubscribed</h1>
             <p className="text-sm text-muted-foreground">
-              You will no longer receive marketing emails from MartPoint.
-              You may still receive important transactional messages about your account.
+              {isReminderOptOut
+                ? "We'll stop sending you follow-up reminders. You may still receive important transactional messages (invoices, receipts, support replies) about your account."
+                : "You will no longer receive marketing emails from MartPoint. You may still receive important transactional messages about your account."}
             </p>
           </>
         ) : (
           <>
             <Mail className="w-12 h-12 text-muted-foreground mx-auto" />
-            <h1 className="text-xl font-semibold">Unsubscribe from MartPoint emails</h1>
-            {token ? (
+            <h1 className="text-xl font-semibold">
+              {isReminderOptOut ? "Stop reminders from MartPoint" : "Unsubscribe from MartPoint emails"}
+            </h1>
+            {hasLink ? (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Click below to stop receiving marketing emails from MartPoint.
+                  {isReminderOptOut
+                    ? "Click below to stop receiving follow-up reminders. We'll keep your details safe and you can always reach us directly."
+                    : "Click below to stop receiving marketing emails from MartPoint."}
                 </p>
                 <Button onClick={unsubscribe} disabled={state === "loading"} className="w-full">
                   {state === "loading" && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Confirm unsubscribe
+                  {isReminderOptOut ? "Stop reminders" : "Confirm unsubscribe"}
                 </Button>
                 {state === "error" && (
                   <p className="text-sm text-red-500 flex items-center justify-center gap-1">

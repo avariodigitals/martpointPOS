@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { buildQuoteEmailHtml, buildQuotePublicUrl } from "@/lib/quotations"
+import { enqueueAutomation } from "@/lib/automations"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -100,6 +101,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (updateError) {
       console.error("[admin/quotations/send] update error", updateError)
     }
+
+    // Schedule the 48h follow-up sequence for this quotation (best-effort).
+    await enqueueAutomation({
+      automationKey: "quote_48h_reminder",
+      subjectType: "quotation",
+      subjectId: id,
+      recipientEmail: lead.email,
+    }).catch((err) => console.error("[quotations/send] enqueue reminder failed:", err))
 
     return NextResponse.json({
       success: emailSent,

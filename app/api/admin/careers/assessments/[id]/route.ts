@@ -144,6 +144,8 @@ export async function PATCH(request: Request, ctx: Ctx) {
             to: email,
             applicationId: inv.applicationId || null,
             candidateId: inv.candidateId || null,
+            // Copy the Careers team so interview scheduling is traceable per function.
+            cc: "careers@martpoint.com.ng",
             vars: buildInterviewVars({
               fullName: name, reference: ref, vacancyTitle: vacTitle,
               assessmentName: assessment.name, scheduledAt: start, durationMinutes: duration,

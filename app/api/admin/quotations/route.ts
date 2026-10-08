@@ -5,6 +5,7 @@ import { recalculateQuote, buildQuotePublicUrl, buildQuoteEmailHtml, mapQuotatio
 import { resolveIndustryName } from "@/lib/industries"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
+import { cancelAutomationRuns } from "@/lib/automations"
 import type { Quotation } from "@/lib/quotations"
 
 async function guardQuotationsAccess() {
@@ -202,6 +203,12 @@ export async function POST(request: Request) {
     }
 
     const quotation = mapQuotation(fullQuote)
+
+    // Goal met — a quote now exists for this lead, so stop any pending estimate
+    // follow-up sequence that was inviting them to request one.
+    await cancelAutomationRuns("estimate", leadId, "quote_created").catch((err) =>
+      console.error("[admin/quotations] cancel estimate follow-up failed:", err),
+    )
 
     let emailSent = false
     let emailError: string | null = null

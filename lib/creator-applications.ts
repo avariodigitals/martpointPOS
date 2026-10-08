@@ -305,6 +305,8 @@ export async function scheduleCreatorInterview(input: {
     template: "creator_interview_invite",
     to: application.email,
     applicationId: input.applicationId,
+    // Copy the Digital team so creator interviews are traceable per function.
+    cc: "digitals@martpoint.com.ng",
     vars: {
       fullName: application.fullName,
       reference: application.referenceNumber,

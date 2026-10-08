@@ -4,6 +4,7 @@ import { getPublicSiteSettings } from "@/lib/settings"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { formatNgnFull } from "@/lib/quotations"
+import { cancelAutomationRuns } from "@/lib/automations"
 
 /* ─── GET: public quotation by secret token ─── */
 export async function GET(request: Request) {
@@ -156,6 +157,11 @@ export async function POST(request: Request) {
         console.error("[quotations] POST update", updateError)
         return NextResponse.json({ error: "Failed to update quotation" }, { status: 500 })
       }
+
+      // Goal achieved — stop any pending quote reminders for this quotation.
+      await cancelAutomationRuns("quotation", quote.id as string, `quote_${newStatus.toLowerCase()}`).catch((err) =>
+        console.error("[quotations] cancel reminders failed:", err),
+      )
 
       // Notify on decline.
       if (action === "decline") {

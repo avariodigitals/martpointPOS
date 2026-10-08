@@ -298,6 +298,9 @@ export async function sendMeetingConfirmationEmails(
     await sendLeadEmail({
       leadId: meeting.leadId,
       to: meeting.leadEmail,
+      // hello@ sends the acceptance; copy Sales + Support so each function can
+      // trace business meetings from the mailbox it owns.
+      cc: ["sales@martpoint.com.ng", "support@martpoint.com.ng"],
       subject: tpl.subject,
       body: tpl.text,
       html: tpl.html,
@@ -310,6 +313,7 @@ export async function sendMeetingConfirmationEmails(
   if (opts.notifyTeam === false) return
   await sendEmail({
     route: "lead_submission",
+    cc: "support@martpoint.com.ng",
     subject: `Meeting booked: ${meeting.leadFullName || meeting.leadEmail || "Lead"} — ${whenTeam}`,
     text: [
       `${meeting.leadFullName || "A lead"}${meeting.leadBusinessName ? ` (${meeting.leadBusinessName})` : ""} booked "${meeting.title}".`,

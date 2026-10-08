@@ -1,22 +1,37 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
+import { AlertTriangle, Loader2 } from "lucide-react"
 
 interface LoginFormProps {
   logo: string
+  /** True when we arrived here because the admin session expired. */
+  sessionExpired?: boolean
 }
 
-export function LoginForm({ logo }: LoginFormProps) {
+export function LoginForm({ logo, sessionExpired = false }: LoginFormProps) {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  // Clean the ?expired=1 flag from the URL so a refresh doesn't re-show the
+  // banner. The banner itself is driven by the prop, so it stays visible for
+  // this render.
+  useEffect(() => {
+    if (!sessionExpired) return
+    if (typeof window === "undefined") return
+    const url = new URL(window.location.href)
+    if (url.searchParams.has("expired")) {
+      url.searchParams.delete("expired")
+      window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""))
+    }
+  }, [sessionExpired])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,6 +79,15 @@ export function LoginForm({ logo }: LoginFormProps) {
           <CardDescription>MartPoint Admin Dashboard</CardDescription>
         </CardHeader>
         <CardContent>
+          {sessionExpired && (
+            <div
+              role="status"
+              className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <span>Your session expired due to inactivity. Please sign in again.</span>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="username" className="block text-sm font-medium mb-1">

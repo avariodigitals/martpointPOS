@@ -2872,6 +2872,160 @@ MartPoint Billing`,
       { eyebrow: "Billing", title: "Payment reminder", signoff: "MartPoint Billing" }
     ),
   },
+
+  {
+    key: "lead_questionnaire_reminder",
+    label: "Questionnaire Reminder (lead)",
+    description: "Automated, friendly nudge to a lead who has not finished the requirements questionnaire. Sent every 48h (max 3).",
+    variables: ["fullName", "businessName", "questionnaireLink"],
+    subject: "Still with us, {{fullName}}? Your MartPoint setup is 2 minutes away",
+    text: `Hi {{fullName}},
+
+Quick one — we're ready to build the right MartPoint setup for {{businessName}}, and your short questionnaire is the last piece.
+
+It takes about two minutes, and once it's in we'll turn it into an accurate quote for you:
+{{questionnaireLink}}
+
+No rush at all — whenever you're set, the link stays here.
+
+Talk soon,
+MartPoint`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.65; margin:0 0 18px; color:#374151;">
+                Quick one — we're ready to build the right MartPoint setup for <strong>{{businessName}}</strong>, and your short questionnaire is the last piece.
+              </p>
+              <p style="font-size:15px; line-height:1.65; margin:0 0 24px; color:#374151;">
+                It takes about <strong>two minutes</strong>, and once it's in we'll turn it into an accurate quote for you.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 28px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{questionnaireLink}}" target="_blank" style="display:inline-block; padding:14px 36px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Finish my questionnaire</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#6b7280;">
+                No rush at all — whenever you're set, the link stays here.
+              </p>`,
+      { eyebrow: "Your setup", title: "Just a nudge", signoff: "MartPoint" }
+    ),
+  },
+
+  {
+    key: "lead_quote_reminder",
+    label: "Quote Reminder (lead)",
+    description: "Automated, friendly nudge to a lead who has not accepted or declined a quotation. Sent every 48h (max 3).",
+    variables: ["fullName", "businessName", "quoteNumber", "title", "total", "validUntil", "quoteLink"],
+    subject: "Your MartPoint quote {{quoteNumber}} is ready when you are",
+    text: `Hi {{fullName}},
+
+Just circling back on your MartPoint quote for {{businessName}} — it's ready whenever you want to take the next step.
+
+Quote: {{quoteNumber}}{{title}}
+Total: {{total}}
+Valid until: {{validUntil}}
+
+View or accept it here:
+{{quoteLink}}
+
+Any questions? Simply reply to this email — happy to help.
+
+MartPoint`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.65; margin:0 0 20px; color:#374151;">
+                Just circling back on your MartPoint quote for <strong>{{businessName}}</strong> — it's ready whenever you want to take the next step.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:13px; color:#6b7280; margin:0 0 4px;">Quotation</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 12px;">{{quoteNumber}}{{title}}</p>
+                    <p style="font-size:13px; color:#6b7280; margin:0 0 4px;">Total</p>
+                    <p style="font-size:22px; font-weight:700; color:#0057FF; margin:0 0 12px;">{{total}}</p>
+                    <p style="font-size:13px; color:#6b7280; margin:0 0 4px;">Valid until</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0;">{{validUntil}}</p>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 28px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{quoteLink}}" target="_blank" style="display:inline-block; padding:14px 36px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">View my quote</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#6b7280;">
+                Any questions? Simply reply to this email — happy to help.
+              </p>`,
+      { eyebrow: "Your quotation", title: "Ready when you are", signoff: "MartPoint Sales" }
+    ),
+  },
+
+  {
+    key: "lead_estimate_followup",
+    label: "Estimate Follow-up (lead)",
+    description: "Automated, friendly nudge to a visitor who received a cost estimate, inviting them to turn it into a proper quote. Sent every 48h (max 3).",
+    variables: ["fullName", "businessName", "retailPlan", "retailRange", "erpBlock", "quoteLink", "whatsappBlock", "bookCallLink"],
+    subject: "Your MartPoint estimate is ready — shall we make it official?",
+    text: `Hi {{fullName}},
+
+Thanks for using the MartPoint cost estimator for {{businessName}}. Based on what you told us, here's the fit we recommend:
+
+{{retailPlan}} — {{retailRange}}
+{{erpBlock}}
+
+An estimate is a great starting point — but a proper quote locks in your exact plan, add-ons and pricing. It takes us no time, and there's no obligation.
+
+Ready to move? Pick whichever suits you:
+• Prepare my quote: {{quoteLink}}
+• Chat on WhatsApp: we're one message away — just reply to this email
+• Book a call: {{bookCallLink}}
+
+Just reply to this email if you'd like to talk it through first — we're happy to help.
+
+MartPoint`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.65; margin:0 0 20px; color:#374151;">
+                Thanks for using the MartPoint cost estimator for <strong>{{businessName}}</strong>. Based on what you told us, here's the fit we recommend:
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:13px; color:#6b7280; margin:0 0 4px;">Recommended plan</p>
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 10px;">{{retailPlan}}</p>
+                    <p style="font-size:13px; color:#6b7280; margin:0 0 4px;">Estimated range</p>
+                    <p style="font-size:22px; font-weight:700; color:#0057FF; margin:0;">{{retailRange}}</p>
+                    {{erpBlock}}
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:15px; line-height:1.65; margin:0 0 20px; color:#374151;">
+                An estimate is a great starting point — but a proper quote locks in your <strong>exact plan, add-ons and pricing</strong>. It takes us no time, and there's no obligation.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 8px;">
+                <tr>
+                  <td style="border-radius:8px; background-color:#0057FF; text-align:center;">
+                    <a href="{{quoteLink}}" target="_blank" style="display:inline-block; padding:14px 36px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Prepare my quote</a>
+                  </td>
+                </tr>
+              </table>
+              {{whatsappBlock}}
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 28px;">
+                <tr>
+                  <td style="border-radius:8px; border:1px solid #d1d5db; text-align:center;">
+                    <a href="{{bookCallLink}}" target="_blank" style="display:inline-block; padding:13px 32px; font-size:15px; font-weight:600; color:#111827; text-decoration:none; border-radius:8px;">Book a call</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size:14px; line-height:1.6; margin:0; color:#6b7280;">
+                Just reply to this email if you'd like to talk it through first — we're happy to help.
+              </p>`,
+      { eyebrow: "Your estimate", title: "Shall we make it official?", signoff: "MartPoint Sales" }
+    ),
+  },
 ]
 
 const templateMap = new Map(EMAIL_TEMPLATES.map((t) => [t.key, t]))

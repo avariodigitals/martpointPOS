@@ -37,6 +37,9 @@ import {
   ArrowUpRight,
   Video,
   Search,
+  Paperclip,
+  Bell,
+  Ban,
 } from "lucide-react"
 
 export interface Lead {
@@ -62,6 +65,7 @@ export interface Lead {
   questionnaireStatus?: string
   questionnaireSentAt?: string | null
   questionnaireSubmittedAt?: string | null
+  remindersPaused?: boolean
   businessId?: string | null
   submittedAt: string
   updatedAt: string
@@ -205,6 +209,8 @@ export function LeadDetailModal({
   })
   const [converting, setConverting] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [remindersPaused, setRemindersPaused] = useState(Boolean(lead.remindersPaused))
+  const [togglingReminders, setTogglingReminders] = useState(false)
   const [questionnaireLoading, setQuestionnaireLoading] = useState(false)
   const [questionnaireData, setQuestionnaireData] = useState<{ fields: QuestionnaireField[]; responses: Record<string, unknown> } | null>(null)
   const [questionRounds, setQuestionRounds] = useState<QuestionRound[]>([])
@@ -225,6 +231,7 @@ export function LeadDetailModal({
   const [emailsLoading, setEmailsLoading] = useState(false)
   const [emailsError, setEmailsError] = useState("")
   const [emailForm, setEmailForm] = useState({ subject: "", body: "" })
+  const [emailAttachments, setEmailAttachments] = useState<{ filename: string; content: string; size: number }[]>([])
   const [sendingEmail, setSendingEmail] = useState(false)
   const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null)
   const [meetingMode, setMeetingMode] = useState<"invite" | "direct">("invite")
@@ -379,6 +386,23 @@ export function LeadDetailModal({
     setConverting(true)
     await onConvertToBusiness(lead)
     setConverting(false)
+  }
+
+  const handleToggleReminders = async (scope: "reminders" | "do_not_contact" = "reminders") => {
+    const next = !remindersPaused
+    setTogglingReminders(true)
+    try {
+      const res = await fetch("/api/admin/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "lead", id: lead.id, paused: next, scope }),
+      })
+      if (res.ok) setRemindersPaused(next)
+    } catch {
+      // best-effort; leave state unchanged on failure
+    } finally {
+      setTogglingReminders(false)
+    }
   }
 
   const handleQuestionnaire = async () => {
@@ -627,12 +651,19 @@ export function LeadDetailModal({
       const res = await fetch(`/api/admin/leads/${lead.id}/emails`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: emailForm.subject.trim(), body: emailForm.body }),
+        body: JSON.stringify({
+          subject: emailForm.subject.trim(),
+          body: emailForm.body,
+          attachments: emailAttachments.length
+            ? emailAttachments.map((a) => ({ filename: a.filename, content: a.content }))
+            : undefined,
+        }),
       })
       const data = await res.json()
       if (data.email) {
         setEmails((prev) => [...prev, data.email])
         setEmailForm({ subject: "", body: "" })
+        setEmailAttachments([])
         if (!data.sent) setEmailsError("Email saved to thread but delivery failed — check email settings.")
       } else {
         setEmailsError(data.error || "Failed to send email")
@@ -642,6 +673,42 @@ export function LeadDetailModal({
     } finally {
       setSendingEmail(false)
     }
+  }
+
+  const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024 // 8 MB per file
+
+  const handleAddAttachments = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setEmailsError("")
+    const next: { filename: string; content: string; size: number }[] = []
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setEmailsError(`"${file.name}" is larger than 8 MB and was skipped.`)
+        continue
+      }
+      const content = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = String(reader.result || "")
+          resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : result)
+        }
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(file)
+      }).catch(() => "")
+      if (content) next.push({ filename: file.name, content, size: file.size })
+    }
+    setEmailAttachments((prev) => {
+      const merged = [...prev, ...next]
+      if (merged.length > 5) {
+        setEmailsError("Up to 5 attachments per email.")
+        return merged.slice(0, 5)
+      }
+      return merged
+    })
+  }
+
+  const removeAttachment = (filename: string) => {
+    setEmailAttachments((prev) => prev.filter((a) => a.filename !== filename))
   }
 
   const copyEmailBody = (msg: LeadEmailMessage) => {
@@ -844,6 +911,15 @@ export function LeadDetailModal({
                         )}
                       </div>
                     )}
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-retail/10 pt-4">
+                    <Button size="sm" onClick={() => onCreateQuote(lead)}>
+                      <Rocket className="w-3.5 h-3.5 mr-1.5" />
+                      Create quote from estimate
+                    </Button>
+                    <p className="text-[11px] text-muted-foreground">
+                      Opens the quotation builder with this lead selected and the estimator pre-filled from their answers.
+                    </p>
                   </div>
                 </div>
               )}
@@ -1209,6 +1285,45 @@ export function LeadDetailModal({
                   placeholder={`Write your reply to ${lead.fullName}...`}
                   className={`${inputClass} resize-y`}
                 />
+
+                {/* Attachments — e.g. request a document from the lead */}
+                <div className="space-y-2">
+                  {emailAttachments.length > 0 && (
+                    <ul className="space-y-1.5">
+                      {emailAttachments.map((a) => (
+                        <li key={a.filename} className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-1.5 text-xs">
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <Paperclip className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{a.filename}</span>
+                            <span className="text-muted-foreground shrink-0">({Math.max(1, Math.round(a.size / 1024))} KB)</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(a.filename)}
+                            className="text-muted-foreground hover:text-destructive shrink-0"
+                            title="Remove attachment"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    Attach file (max 5, 8&nbsp;MB each)
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        void handleAddAttachments(e.target.files)
+                        e.target.value = ""
+                      }}
+                    />
+                  </label>
+                </div>
+
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[11px] text-muted-foreground">Sent to {lead.email}{lead.additionalEmail ? ` and copied to ${lead.additionalEmail}` : ""}</p>
                   <Button
@@ -1987,6 +2102,46 @@ export function LeadDetailModal({
                 accent="success"
               />
 
+              <ActionCard
+                icon={<Bell className="w-5 h-5 text-warning" />}
+                title={remindersPaused ? "Reminders paused" : "Automated reminders on"}
+                description={
+                  remindersPaused
+                    ? "This lead has opted out of follow-up reminders. Resume to let the 48h sequences reach them again."
+                    : "This lead receives automated 48h follow-ups (questionnaire, quote, estimate). Pause if they ask us to stop notifying them."
+                }
+                buttonText={remindersPaused ? "Resume reminders" : "Pause reminders"}
+                onClick={() => handleToggleReminders("reminders")}
+                loading={togglingReminders}
+                accent={remindersPaused ? "success" : "warning"}
+              />
+
+              <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-muted/10 p-4 hover:bg-muted/20 transition-colors">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="shrink-0 mt-0.5 p-2 rounded-lg bg-background border border-border/50">
+                    <Ban className="w-5 h-5 text-destructive" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">Do not contact</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Stop <strong>all</strong> MartPoint email to this lead — reminders <em>and</em> marketing. Use when they ask to be left alone entirely. Transactional messages (invoices, receipts) are still delivered.
+                    </p>
+                  </div>
+                </div>
+                <div className="shrink-0 flex flex-col gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleToggleReminders("do_not_contact")}
+                    disabled={togglingReminders}
+                    className="border-destructive/30 text-destructive hover:bg-destructive/5"
+                  >
+                    {togglingReminders ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                    Stop all contact
+                  </Button>
+                </div>
+              </div>
+
               <div className="pt-4 border-t border-border">
                 <ActionCard
                   icon={<Trash2 className="w-5 h-5 text-destructive" />}
@@ -2049,10 +2204,15 @@ function ActionCard({
   onClick: () => void
   loading?: boolean
   disabled?: boolean
-  accent: "retail" | "erp" | "proposal" | "info" | "success" | "destructive"
+  accent: "retail" | "erp" | "proposal" | "info" | "success" | "destructive" | "warning"
 }) {
   const btnVariant = accent === "destructive" ? "outline" : accent === "retail" ? "retail" : "outline"
-  const btnClass = accent === "destructive" ? "border-destructive/30 text-destructive hover:bg-destructive/5" : ""
+  const btnClass =
+    accent === "destructive"
+      ? "border-destructive/30 text-destructive hover:bg-destructive/5"
+      : accent === "warning"
+        ? "border-amber-300 text-amber-700 hover:bg-amber-50"
+        : ""
 
   return (
     <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-muted/10 p-4 hover:bg-muted/20 transition-colors">

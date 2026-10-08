@@ -70,11 +70,14 @@ export type BusinessCommercialProfile = {
 }
 
 export type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "DECLINED" | "EXPIRED" | "CONVERTED"
-export type InvoiceStatus = "DRAFT" | "ISSUED" | "PARTIALLY_PAID" | "PAID" | "OVERDUE" | "VOID" | "CANCELLED"
+// WAIVED = granted without billing (comped / bundled / internal). Still counts as
+// a licence sold in finance reporting, but nothing is owed.
+export type InvoiceStatus = "DRAFT" | "ISSUED" | "PARTIALLY_PAID" | "PAID" | "OVERDUE" | "VOID" | "CANCELLED" | "WAIVED"
 export type PaymentStatus = "PENDING" | "CONFIRMED" | "FAILED" | "REVERSED" | "REFUNDED" | "PARTIALLY_REFUNDED"
 export type PaymentMethod = "BANK_TRANSFER" | "PAYSTACK" | "FLUTTERWAVE" | "CASH" | "POS" | "OTHER"
-export type SubscriptionStatus = "PENDING" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELLED" | "EXPIRED"
-export type LicenceStatus = "PENDING" | "ACTIVE" | "SUSPENDED" | "EXPIRED" | "REVOKED"
+export type SubscriptionStatus = "PENDING" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELLED" | "EXPIRED" | "WAIVED"
+export type LicenceStatus = "PENDING" | "ACTIVE" | "SUSPENDED" | "EXPIRED" | "REVOKED" | "WAIVED"
+export type LicenceType = "CLOUD" | "ERP" | "OFFLINE" | "CUSTOM"
 export type CommissionStatus = "PENDING" | "ELIGIBLE" | "APPROVED" | "SCHEDULED" | "PAID" | "REVERSED" | "CANCELLED"
 export type CommissionBasis = "PERCENTAGE" | "FIXED"
 export type CommissionAppliesTo = "INITIAL_LICENSE" | "RENEWAL" | "ADDON" | "IMPLEMENTATION" | "CUSTOM"
@@ -134,6 +137,9 @@ export type Invoice = {
   notes_internal?: string | null
   created_by?: string | null
   issued_by?: string | null
+  waived_at?: string | null
+  waived_by?: string | null
+  waive_reason?: string | null
   created_at: string
   updated_at: string
 }
@@ -195,6 +201,9 @@ export type Subscription = {
   invoice_id?: string | null
   created_by?: string | null
   activated_by?: string | null
+  waived_at?: string | null
+  waived_by?: string | null
+  waive_reason?: string | null
   created_at: string
   updated_at: string
 }
@@ -215,7 +224,7 @@ export type BusinessLicence = {
   id: string
   business_id: string
   subscription_id?: string | null
-  licence_type: "CLOUD" | "ERP" | "OFFLINE" | "CUSTOM"
+  licence_type: LicenceType
   status: LicenceStatus
   issued_at?: string | null
   effective_from?: string | null
@@ -225,6 +234,11 @@ export type BusinessLicence = {
   online_store_enabled: boolean
   deployment_id?: string | null
   internal_reference?: string | null
+  // Snapshot of the plan the licence was derived from (plan-only, never a service).
+  plan_id?: string | null
+  plan_code?: string | null
+  billing_interval?: string | null
+  waived?: boolean
   created_by?: string | null
   updated_at: string
 }
@@ -307,11 +321,11 @@ export type FinanceOverview = {
 
 export type FinanceAuditAction =
   | "QUOTE_CREATED" | "QUOTE_SENT" | "QUOTE_ACCEPTED" | "QUOTE_CONVERTED"
-  | "INVOICE_CREATED" | "INVOICE_UPDATED" | "INVOICE_ISSUED" | "INVOICE_VOIDED" | "INVOICE_DELETED"
+  | "INVOICE_CREATED" | "INVOICE_UPDATED" | "INVOICE_ISSUED" | "INVOICE_VOIDED" | "INVOICE_DELETED" | "INVOICE_WAIVED"
   | "INVOICE_EMAIL_SENT" | "INVOICE_REMINDER_SENT" | "INVOICE_REMINDERS_TOGGLED"
   | "PAYMENT_RECORDED" | "PAYMENT_CONFIRMED" | "PAYMENT_REVERSED" | "PAYMENT_REFUNDED"
   | "RECEIPT_ISSUED"
-  | "SUBSCRIPTION_CREATED" | "SUBSCRIPTION_ACTIVATED" | "SUBSCRIPTION_SUSPENDED" | "SUBSCRIPTION_RENEWED" | "SUBSCRIPTION_CANCELLED"
+  | "SUBSCRIPTION_CREATED" | "SUBSCRIPTION_ACTIVATED" | "SUBSCRIPTION_SUSPENDED" | "SUBSCRIPTION_RENEWED" | "SUBSCRIPTION_CANCELLED" | "SUBSCRIPTION_WAIVED"
   | "ADDON_ACTIVATED" | "ADDON_REMOVED"
   | "BUSINESS_LICENCE_CREATED" | "BUSINESS_LICENCE_UPDATED"
   | "ENTITLEMENT_SYNCED"
@@ -496,7 +510,7 @@ export async function recalculateInvoice(invoiceId: string) {
   const { data: inv } = await supabase.from("invoices").select("status, issue_date, due_date").eq("id", invoiceId).single()
   const currentStatus = (inv as { status: InvoiceStatus; issue_date: string; due_date: string } | null)?.status || "DRAFT"
 
-  if (currentStatus === "VOID" || currentStatus === "CANCELLED") {
+  if (currentStatus === "VOID" || currentStatus === "CANCELLED" || currentStatus === "WAIVED") {
     status = currentStatus
   } else if (paidKobo >= totalKobo) {
     status = "PAID"
@@ -778,13 +792,57 @@ export async function syncEntitlementsFromSubscription(subscriptionId: string, c
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   LICENCE DERIVATION — plan is the single source of truth
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Derive the licence type for a subscription from its PLAN only.
+ *
+ * IMPORTANT: a licence is never derived from a service or add-on catalog item.
+ * Services (e.g. onboarding, data migration) are invoice line items and must not
+ * influence what licence a business receives. This function is the single place
+ * that maps plan -> licence so the UI (auto-fill), the API and activation all
+ * agree.
+ *
+ *   * explicit override wins (admin may comp a bespoke licence)
+ *   * plan code containing "ERP"           -> ERP
+ *   * one-time (perpetual) plans           -> OFFLINE
+ *   * everything else (recurring cloud)    -> CLOUD
+ */
+export function resolveLicenceFromPlan(
+  plan: Pick<Plan, "code" | "billing_type">,
+  override?: LicenceType | null,
+): LicenceType {
+  if (override) return override
+  const code = (plan.code || "").toUpperCase()
+  if (code.includes("ERP")) return "ERP"
+  if (plan.billing_type === "ONE_TIME") return "OFFLINE"
+  return "CLOUD"
+}
+
+/** Human-facing label for a licence type (used by UI + reports). */
+export function licenceLabel(type: LicenceType): string {
+  switch (type) {
+    case "ERP":
+      return "MartPoint ERP Licence"
+    case "OFFLINE":
+      return "Perpetual / Offline Licence"
+    case "CUSTOM":
+      return "Custom Licence"
+    case "CLOUD":
+    default:
+      return "Cloud Licence"
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    SUBSCRIPTION ACTIVATION
    ───────────────────────────────────────────────────────────────────────────── */
 
 export async function activateSubscription(
   subscriptionId: string,
   activatedBy: string,
-  options?: { licence_type?: "CLOUD" | "ERP" | "OFFLINE" | "CUSTOM"; expires_at?: string }
+  options?: { licence_type?: LicenceType; expires_at?: string; waive_reason?: string }
 ) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
   const now = new Date().toISOString()
@@ -815,8 +873,10 @@ export async function activateSubscription(
     updated_at: now,
   }).eq("id", subscriptionId)
 
-  // Create or update commercial licence record
-  const licenceType = options?.licence_type || (p.code.includes("ERP") ? "ERP" : p.billing_type === "ONE_TIME" ? "OFFLINE" : "CLOUD")
+  // Create or update commercial licence record.
+  // The licence type/limits come from the PLAN (with an optional explicit
+  // override) — never from services or add-ons.
+  const licenceType = resolveLicenceFromPlan(p, options?.licence_type || null)
   await supabase.from("business_licenses").upsert({
     business_id: subscription.business_id,
     subscription_id: subscriptionId,
@@ -828,6 +888,10 @@ export async function activateSubscription(
     max_users: p.included_users,
     max_branches: p.included_branches,
     online_store_enabled: p.online_store_included,
+    plan_id: p.id,
+    plan_code: p.code,
+    billing_interval: subscription.billing_interval,
+    waived: false,
     created_by: activatedBy,
     updated_at: now,
   }, { onConflict: "business_id" })
@@ -836,6 +900,149 @@ export async function activateSubscription(
   await syncEntitlementsFromSubscription(subscriptionId, activatedBy)
 
   await logFinanceAudit("ADMIN", activatedBy, "SUBSCRIPTION_ACTIVATED", "SUBSCRIPTION", subscriptionId)
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SUBSCRIPTION WAIVER
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Waive a subscription: grant the licence without billing.
+ *
+ * Used for comped / bundled / promotional / internal licences where no cash
+ * invoice will ever be raised, but the business must still appear in the
+ * "licences sold" report.
+ *
+ * Behaviour (per finance requirements):
+ *   1. The subscription is marked WAIVED (source of truth) with an audit trail.
+ *   2. A zero-amount invoice is created and marked WAIVED, then linked back to
+ *      the subscription, so invoice-centric views stay consistent.
+ *   3. An ACTIVE licence is issued, derived from the PLAN only (never services),
+ *      and flagged `waived = true`.
+ *   4. Entitlements are synced so the business gets what it was granted.
+ */
+export async function waiveSubscription(
+  subscriptionId: string,
+  waivedBy: string,
+  options?: { reason?: string; licence_type?: LicenceType; expires_at?: string }
+) {
+  if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
+  const now = new Date().toISOString()
+
+  const { data: sub } = await supabase.from("subscriptions").select("*").eq("id", subscriptionId).single()
+  if (!sub) throw new Error("Subscription not found")
+  const subscription = sub as Subscription
+  if (subscription.status === "CANCELLED") throw new Error("Cannot waive a cancelled subscription")
+
+  const { data: plan } = await supabase.from("plans").select("*").eq("id", subscription.plan_id).single()
+  if (!plan) throw new Error("Plan not found")
+  const p = plan as Plan
+
+  const today = new Date().toISOString().split("T")[0]
+  const reason = options?.reason?.trim() || "Waived — no invoice raised"
+  const endDate = options?.expires_at || subscription.current_period_end
+  const licenceType = resolveLicenceFromPlan(p, options?.licence_type || null)
+
+  // 1. Zero-amount WAIVED invoice (keeps the subscription -> invoice link valid).
+  let invoiceId = subscription.invoice_id || null
+  if (!invoiceId) {
+    const invoiceNumber = await nextInvoiceNumber()
+    const { data: inv, error: invErr } = await supabase.from("invoices").insert({
+      invoice_number: invoiceNumber,
+      business_id: subscription.business_id,
+      currency: subscription.currency || p.currency,
+      issue_date: today,
+      due_date: today,
+      subtotal: 0,
+      discount_amount: 0,
+      tax_amount: 0,
+      total_amount: 0,
+      amount_paid: 0,
+      balance_due: 0,
+      status: "WAIVED",
+      notes_public: reason,
+      notes_internal: `Subscription ${subscriptionId} waived.`,
+      created_by: waivedBy,
+      waived_at: now,
+      waived_by: waivedBy,
+      waive_reason: reason,
+      created_at: now,
+      updated_at: now,
+    }).select().single()
+    if (invErr) throw new Error(invErr.message)
+    invoiceId = (inv as { id: string }).id
+    await logFinanceAudit("ADMIN", waivedBy, "INVOICE_WAIVED", "INVOICE", invoiceId, { subscription_id: subscriptionId, reason })
+  } else {
+    await supabase.from("invoices").update({
+      status: "WAIVED",
+      waived_at: now,
+      waived_by: waivedBy,
+      waive_reason: reason,
+      updated_at: now,
+    }).eq("id", invoiceId)
+  }
+
+  // 2. Mark the subscription WAIVED + link the invoice.
+  await supabase.from("subscriptions").update({
+    status: "WAIVED",
+    invoice_id: invoiceId,
+    waived_at: now,
+    waived_by: waivedBy,
+    waive_reason: reason,
+    updated_at: now,
+  }).eq("id", subscriptionId)
+
+  // 3. Issue the licence (plan-derived only).
+  await supabase.from("business_licenses").upsert({
+    business_id: subscription.business_id,
+    subscription_id: subscriptionId,
+    licence_type: licenceType,
+    status: "ACTIVE",
+    issued_at: now,
+    effective_from: today,
+    expires_at: endDate,
+    max_users: p.included_users,
+    max_branches: p.included_branches,
+    online_store_enabled: p.online_store_included,
+    plan_id: p.id,
+    plan_code: p.code,
+    billing_interval: subscription.billing_interval,
+    waived: true,
+    internal_reference: `WAIVED: ${reason}`,
+    created_by: waivedBy,
+    updated_at: now,
+  }, { onConflict: "business_id" })
+
+  // 4. Entitlements. `syncEntitlementsFromSubscription` requires the sub to be
+  //    ACTIVE, so for a waived grant we write entitlements directly from the plan.
+  const { data: prev } = await supabase.from("business_entitlements").select("*").eq("business_id", subscription.business_id).single()
+  const updates = {
+    max_branches: p.included_branches,
+    max_users: p.included_users,
+    online_store_enabled: p.online_store_included,
+    subscription_status: "WAIVED",
+    updated_at: now,
+  }
+  await supabase.from("business_entitlements").upsert({ business_id: subscription.business_id, ...updates }, { onConflict: "business_id" })
+  await supabase.from("entitlement_change_log").insert({
+    business_id: subscription.business_id,
+    source_type: "SUBSCRIPTION",
+    source_id: subscriptionId,
+    previous_values: prev ? {
+      max_branches: (prev as { max_branches: number }).max_branches,
+      max_users: (prev as { max_users: number }).max_users,
+      online_store_enabled: (prev as { online_store_enabled: boolean }).online_store_enabled,
+      subscription_status: (prev as { subscription_status: string }).subscription_status,
+    } : null,
+    new_values: updates,
+    reason: `Subscription waived: ${reason}`,
+    changed_by: waivedBy,
+    created_at: now,
+  })
+
+  await logFinanceAudit("ADMIN", waivedBy, "SUBSCRIPTION_WAIVED", "SUBSCRIPTION", subscriptionId, { invoice_id: invoiceId, reason, licence_type: licenceType })
+
+  return { subscription_id: subscriptionId, invoice_id: invoiceId, licence_type: licenceType, waived: true }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -966,6 +1173,125 @@ export async function getFinanceOverview(): Promise<FinanceOverview> {
     renewals_7_days: ren7.count || 0,
     pending_commissions: (pendingComm.data?.length) || 0,
     commission_payable: fromKobo(pendingPayable),
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LICENCES SOLD REPORT (finance)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+export type LicenceSoldRow = {
+  licence_id: string
+  business_id: string
+  business_name: string | null
+  licence_type: LicenceType
+  licence_status: LicenceStatus
+  plan_id: string | null
+  plan_code: string | null
+  billing_interval: string | null
+  waived: boolean
+  max_users: number
+  max_branches: number
+  online_store_enabled: boolean
+  effective_from: string | null
+  expires_at: string | null
+  issued_at: string | null
+  subscription_id: string | null
+  subscription_status: SubscriptionStatus | null
+  quantity: number
+  price_at_activation: number | null
+  currency: string | null
+}
+
+export type LicencesSoldReport = {
+  generated_at: string
+  /** Distinct businesses holding a granted licence (ACTIVE or WAIVED). */
+  distinct_businesses: number
+  /** Sum of subscription quantity across granted licences. */
+  total_quantity: number
+  /** How many of the above were waived (granted without billing). */
+  waived_count: number
+  /** How many were billed (ACTIVE). */
+  billed_count: number
+  /** Breakdown by licence type. */
+  by_type: { licence_type: LicenceType; count: number; quantity: number }[]
+  /** Breakdown by plan. */
+  by_plan: { plan_code: string | null; plan_name: string | null; count: number; quantity: number }[]
+  rows: LicenceSoldRow[]
+}
+
+/**
+ * Report: how many licences have been sold/granted.
+ *
+ * Backed by the `licences_sold` view (migration 082) so it counts both paid and
+ * waived licences. Finance uses this to reconcile licences sold against cash.
+ */
+export async function getLicencesSoldReport(): Promise<LicencesSoldReport> {
+  const empty: LicencesSoldReport = {
+    generated_at: new Date().toISOString(),
+    distinct_businesses: 0,
+    total_quantity: 0,
+    waived_count: 0,
+    billed_count: 0,
+    by_type: [],
+    by_plan: [],
+    rows: [],
+  }
+  if (!isSupabaseConfigured()) return empty
+
+  const { data } = await supabase.from("licences_sold").select("*")
+  const rows = ((data as LicenceSoldRow[]) || []).slice()
+
+  // Group by business so "distinct businesses" is genuinely distinct even if a
+  // business somehow holds more than one licence row.
+  const perBusiness = new Map<string, LicenceSoldRow>()
+  for (const r of rows) {
+    const existing = perBusiness.get(r.business_id)
+    // Prefer a billed licence over a waived one when a business has both.
+    if (!existing || (existing.waived && !r.waived)) perBusiness.set(r.business_id, r)
+  }
+  const distinct = Array.from(perBusiness.values())
+  const quantityOf = (r: LicenceSoldRow) => Number(r.quantity) || 1
+  const totalQuantity = rows.reduce((s, r) => s + quantityOf(r), 0)
+
+  const byTypeMap = new Map<LicenceType, { count: number; quantity: number }>()
+  for (const r of rows) {
+    const cur = byTypeMap.get(r.licence_type) || { count: 0, quantity: 0 }
+    cur.count += 1
+    cur.quantity += quantityOf(r)
+    byTypeMap.set(r.licence_type, cur)
+  }
+
+  const byPlanMap = new Map<string, { plan_code: string | null; plan_name: string | null; count: number; quantity: number }>()
+  for (const r of rows) {
+    const key = r.plan_code || r.plan_id || "UNKNOWN"
+    const cur = byPlanMap.get(key) || { plan_code: r.plan_code, plan_name: null, count: 0, quantity: 0 }
+    cur.count += 1
+    cur.quantity += quantityOf(r)
+    byPlanMap.set(key, cur)
+  }
+
+  // Enrich plan names from the plans table (view only snapshots the code).
+  const planIds = Array.from(new Set(rows.map((r) => r.plan_id).filter(Boolean))) as string[]
+  if (planIds.length) {
+    const { data: plans } = await supabase.from("plans").select("id, name").in("id", planIds)
+    const nameById = new Map(((plans as { id: string; name: string }[]) || []).map((p) => [p.id, p.name]))
+    for (const r of rows) {
+      if (!r.plan_id) continue
+      const entry = byPlanMap.get(r.plan_code || r.plan_id)
+      if (entry && !entry.plan_name) entry.plan_name = nameById.get(r.plan_id) || null
+    }
+  }
+
+  return {
+    generated_at: new Date().toISOString(),
+    distinct_businesses: distinct.length,
+    total_quantity: totalQuantity,
+    waived_count: rows.filter((r) => r.waived).length,
+    billed_count: rows.filter((r) => !r.waived).length,
+    by_type: Array.from(byTypeMap.entries()).map(([licence_type, v]) => ({ licence_type, ...v })),
+    by_plan: Array.from(byPlanMap.values()).sort((a, b) => b.count - a.count),
+    rows,
   }
 }
 

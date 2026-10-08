@@ -14,6 +14,15 @@ import { writeEmailLog } from "./email"
 import { ensureBrandedHtml } from "./email-templates"
 import { getEmailFooterSettings } from "./settings"
 
+/** Split a recipient field ("a@x.com, b@y.com") into a clean address list. */
+function normalizeRecipients(value?: string | string[]): string[] {
+  if (!value) return []
+  const parts = Array.isArray(value) ? value : value.split(/[,;\n]+/)
+  return parts
+    .map((s) => s.trim())
+    .filter((s) => s.includes("@"))
+}
+
 /** Wrap SMTP HTML in the branded shell, resolving the footer from live settings. */
 async function brandedHtmlWithFooter(message: EmailMessage): Promise<string> {
   try {
@@ -70,9 +79,12 @@ export async function sendEmailViaSmtp(
       auth: smtp.pass ? { user: smtp.user, pass: smtp.pass } : undefined,
     })
 
+    const ccList = normalizeRecipients(message.cc)
+
     const info = await transporter.sendMail({
       from: sender,
       to: toList.join(", "),
+      cc: ccList.length ? ccList.join(", ") : undefined,
       subject: message.subject,
       text: message.text,
       html: message.skipBranding ? message.html : await brandedHtmlWithFooter(message),

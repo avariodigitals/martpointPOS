@@ -30,6 +30,7 @@ interface LeadRecord {
   questionnaireStatus?: string
   questionnaireSentAt?: string | null
   questionnaireSubmittedAt?: string | null
+  remindersPaused?: boolean
   businessId?: string | null
   submittedAt: string
   updatedAt: string
@@ -85,6 +86,7 @@ export async function GET() {
     questionnaireStatus: row.questionnaire_status,
     questionnaireSentAt: row.questionnaire_sent_at,
     questionnaireSubmittedAt: row.questionnaire_submitted_at,
+    remindersPaused: Boolean(row.reminders_paused),
     businessId: null as string | null,
     submittedAt: row.submitted_at,
     updatedAt: row.updated_at,
@@ -192,6 +194,7 @@ export async function PUT(request: Request) {
       questionnaireStatus: data.questionnaire_status,
       questionnaireSentAt: data.questionnaire_sent_at,
       questionnaireSubmittedAt: data.questionnaire_submitted_at,
+      remindersPaused: Boolean(data.reminders_paused),
       submittedAt: data.submitted_at,
       updatedAt: data.updated_at,
     }

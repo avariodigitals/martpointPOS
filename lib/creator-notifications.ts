@@ -42,6 +42,8 @@ export interface CreatorNotifyInput {
   applicationId?: string | null
   /** Route key for internal notifications (configured route recipients). */
   route?: string
+  /** Carbon-copy recipients (e.g. the function mailbox tracking the thread). */
+  cc?: string | string[]
   attachments?: EmailAttachment[]
 }
 
@@ -112,6 +114,7 @@ export async function sendCreatorNotification(input: CreatorNotifyInput): Promis
     text: tpl.text,
     html: tpl.html,
     route: input.route,
+    cc: input.cc,
     attachments: input.attachments,
   })
 

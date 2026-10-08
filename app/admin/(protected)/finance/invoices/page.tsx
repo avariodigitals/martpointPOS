@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCircle2, Ban, CreditCard, Send, FileX, Eye, Mail, BellRing, PauseCircle, PlayCircle, Download } from "lucide-react"
+import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCircle2, Ban, CreditCard, Send, FileX, Eye, Mail, BellRing, PauseCircle, PlayCircle, Download, BadgeCheck } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
 
@@ -50,6 +50,9 @@ interface Invoice {
   reminder_count?: number
   last_reminder_at?: string | null
   invoice_email_sent_at?: string | null
+  waived_at?: string | null
+  waived_by?: string | null
+  waive_reason?: string | null
   created_at?: string
 }
 
@@ -67,7 +70,7 @@ interface InvoicePayment {
 }
 
 const CURRENCIES = ["NGN", "USD", "GBP", "GHS", "KES", "ZAR"]
-const STATUSES = ["DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE", "VOID", "CANCELLED"]
+const STATUSES = ["DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE", "VOID", "CANCELLED", "WAIVED"]
 const PAYMENT_METHODS = ["BANK_TRANSFER", "PAYSTACK", "FLUTTERWAVE", "CASH", "POS", "OTHER"]
 
 const CATALOG_TYPES = [
@@ -94,6 +97,7 @@ const STATUS_COLORS: Record<string, string> = {
   OVERDUE: "bg-red-50 text-red-700",
   VOID: "bg-gray-100 text-gray-500 line-through",
   CANCELLED: "bg-gray-100 text-gray-500",
+  WAIVED: "bg-purple-50 text-purple-700",
 }
 
 function formatNgn(n: number | string | undefined | null, currency = "NGN") {
@@ -702,6 +706,7 @@ export default function InvoicesPage() {
           resume_reminders: "Reminders resumed",
           void: "Invoice voided",
           cancel: "Invoice cancelled",
+          waive: "Invoice waived — it will still count as a granted licence",
         }
         let msg = labels[action] || `Invoice ${action.replace("_", " ")}`
         if (action === "issue") {
@@ -919,13 +924,16 @@ export default function InvoicesPage() {
                               <CreditCard className="h-3.5 w-3.5" />
                             </button>
                           )}
-                          {inv.status !== "VOID" && inv.status !== "CANCELLED" && (
+                          {(inv.status !== "VOID" && inv.status !== "CANCELLED" && inv.status !== "WAIVED") && (
                             <>
                               <button onClick={() => runInvoiceAction("void", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50" title="Void">
                                 <FileX className="h-3.5 w-3.5" />
                               </button>
                               <button onClick={() => runInvoiceAction("cancel", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50" title="Cancel">
                                 <Ban className="h-3.5 w-3.5" />
+                              </button>
+                              <button onClick={() => runInvoiceAction("waive", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-purple-600 hover:bg-purple-50" title="Waive">
+                                <BadgeCheck className="h-3.5 w-3.5" />
                               </button>
                             </>
                           )}
@@ -1054,7 +1062,7 @@ export default function InvoicesPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {modalMode === "view" && editing.status !== "VOID" && editing.status !== "CANCELLED" && (
+                {modalMode === "view" && editing.status !== "VOID" && editing.status !== "CANCELLED" && editing.status !== "WAIVED" && (
                   <Button size="sm" variant="outline" onClick={() => setModalMode("edit")}>
                     <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
                   </Button>
@@ -1062,6 +1070,14 @@ export default function InvoicesPage() {
                 <button onClick={() => setEditing(null)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"><X className="h-5 w-5" /></button>
               </div>
             </div>
+
+            {editing.status === "WAIVED" && (
+              <div className="rounded-lg border border-purple-200 bg-purple-50/60 px-3 py-2 text-sm text-purple-800">
+                This invoice was <strong>waived</strong>
+                {editing.waived_at ? ` on ${new Date(editing.waived_at).toLocaleDateString()}` : ""}
+                {editing.waive_reason ? ` — ${editing.waive_reason}` : ""}. It counts toward licences sold but is not billed.
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-1.5">
@@ -1148,10 +1164,11 @@ export default function InvoicesPage() {
                   </Button>
                 </>
               )}
-              {editing.status !== "VOID" && editing.status !== "CANCELLED" && (
+              {editing.status !== "VOID" && editing.status !== "CANCELLED" && editing.status !== "WAIVED" && (
                 <>
                   <Button size="sm" variant="outline" onClick={() => runInvoiceAction("void", editing.id)}><FileX className="mr-1 h-3.5 w-3.5" /> Void</Button>
                   <Button size="sm" variant="outline" onClick={() => runInvoiceAction("cancel", editing.id)}><Ban className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
+                  <Button size="sm" variant="outline" className="text-purple-600 hover:text-purple-700 hover:bg-purple-50" onClick={() => runInvoiceAction("waive", editing.id)}><BadgeCheck className="mr-1 h-3.5 w-3.5" /> Waive</Button>
                 </>
               )}
               <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => { deleteInvoice(editing.id); setEditing(null) }}><Trash2 className="mr-1 h-3.5 w-3.5" /> Delete</Button>

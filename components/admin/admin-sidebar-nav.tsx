@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   LayoutDashboard,
   Settings,
@@ -51,6 +51,7 @@ import {
   CalendarClock,
   GraduationCap,
   FolderOpen,
+  Calculator,
 } from "lucide-react"
 import { PortalMobileNav } from "@/components/shared/portal-mobile-nav"
 import { LogoutButton } from "./logout-button"
@@ -75,6 +76,7 @@ const navItems: NavItem[] = [
   { href: "/admin/leads", label: "Leads", icon: Funnel, page: "leads", section: "Sales" },
   { href: "/admin/calendar", label: "Calendar", icon: CalendarIcon, page: "leads", section: "Sales" },
   { href: "/admin/quotations", label: "Quotations", icon: FileText, page: "quotations", section: "Sales" },
+  { href: "/admin/quotations?estimator=1", label: "Estimator", icon: Calculator, page: "quotations", section: "Sales" },
 
   // CUSTOMERS
   { href: "/admin/customers", label: "Customers", icon: Users, page: "customers", section: "Customers" },
@@ -228,7 +230,22 @@ export function AdminSidebarNav({
 
   const sections = Object.entries(grouped).map(([label, items]) => ({ label, items }))
 
-  const isItemActive = (href: string) => pathname === href
+  const search = useSearchParams()
+  const isItemActive = (href: string) => {
+    const [path, query] = href.split("?")
+    if (pathname !== path) return false
+    // Entries that share a path (e.g. Quotations vs Estimator) differ by query.
+    if (query) {
+      const wanted = new URLSearchParams(query)
+      for (const [k, v] of wanted.entries()) {
+        if (search.get(k) !== v) return false
+      }
+      return true
+    }
+    // A plain path is active only when no distinguishing query is present on a
+    // sibling entry (avoids both highlighting on the estimator deep-link).
+    return true
+  }
 
   return (
     <>

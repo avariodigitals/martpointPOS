@@ -154,15 +154,153 @@ const distributionQuestions: QuestionnaireField[] = [
   { name: "dist_online_store", label: "Online store: Do you have a website or B2B portal? Which products should customers order online, and should any have fixed prices with checkout?", type: "textarea", required: true },
 ]
 
+/**
+ * Shared "Store Setup" block.
+ *
+ * This is the information we cannot invent for a client and cannot collect from
+ * the industry questionnaire (which is about *workflow*). It is appended to the
+ * END of every industry template — it is industry-agnostic, so a SkinCare store
+ * and a supermarket answer exactly the same questions. Business name is NOT
+ * asked here: the client is already a business by this point.
+ *
+ * Names are prefixed `store_setup_` and the block opens with a `section` field so
+ * the public form renders a titled divider (see components/shared/questionnaire-fields.tsx).
+ */
+export const STORE_SETUP_FIELDS: QuestionnaireField[] = [
+  {
+    name: "store_setup_intro",
+    label: "Store Setup",
+    type: "section",
+    helpText:
+      "Almost there — these are the details we need to build your live store. You can skip anything you do not have yet and send it later.",
+  },
+  {
+    name: "store_setup_address",
+    label: "Store address: street address, city, state, country and postcode",
+    type: "textarea",
+    required: true,
+    helpText: "One address per branch. Tell us which is your head office.",
+  },
+  {
+    name: "store_setup_phone_whatsapp",
+    label: "Phone and WhatsApp numbers (include country code, e.g. +234 801 234 5678)",
+    type: "textarea",
+    required: true,
+    helpText: "WhatsApp is what your customers will use to reach you for orders and receipts.",
+  },
+  {
+    name: "store_setup_store_email",
+    label: "Store email address",
+    type: "email",
+    required: true,
+    helpText: "Shown to customers on your store and used for enquiries.",
+  },
+  {
+    name: "store_setup_order_email",
+    label: "Order / sales email address",
+    type: "email",
+    required: true,
+    helpText: "Where new orders and notifications are sent. Use the store email if they are the same.",
+  },
+  {
+    name: "store_setup_receipt_footer",
+    label: "Receipt footer note — your sales terms printed on every invoice or receipt",
+    type: "textarea",
+    required: true,
+    helpText: 'Example: "Any item purchased is not returnable. Please check your purchase before leaving the store." Also add your return, exchange and refund policy here.',
+  },
+  {
+    name: "store_setup_about_us",
+    label: "Footer About Us — a short paragraph describing your business",
+    type: "textarea",
+    helpText: "Two or three sentences customers will see in your store footer. We will not write this for you, so please supply the exact wording.",
+  },
+  {
+    name: "store_setup_announcement_bar",
+    label: "Announcement bar text — the promo message shown at the top of your store",
+    type: "text",
+    helpText: 'e.g. "Free delivery on orders above ₦50,000 — nationwide shipping." Leave blank to skip.',
+  },
+  {
+    name: "store_setup_social_handles",
+    label: 'Social media handles (Instagram, Facebook, TikTok, X). Type "skip" if you have none.',
+    type: "textarea",
+    helpText: "Paste the full links where possible so we can link them in your footer.",
+  },
+  {
+    name: "store_setup_online_checkout",
+    label: "Do you want to accept paid online checkout?",
+    type: "select",
+    options: ["Yes", "No"],
+    required: true,
+    helpText: "Online payment requires Paystack and a registered business (BN or LTD). If you are not registered yet, we will set up pay-on-delivery or WhatsApp ordering for now.",
+  },
+  {
+    name: "store_setup_pay_on_delivery",
+    label: "Do you want to offer pay on delivery?",
+    type: "select",
+    options: ["Yes", "No"],
+    required: true,
+    helpText: "Customers pay the rider or at pickup instead of paying online.",
+  },
+  {
+    name: "store_setup_delivery_fees",
+    label: "Pickup fee and delivery fees by city or region",
+    type: "textarea",
+    required: true,
+    helpText: 'List each city or area on its own line with the fee, e.g. "Lagos Island — ₦2,500" or "Pickup (Ikeja) — ₦0". Tell us if you also charge by distance or order weight.',
+  },
+  {
+    name: "store_setup_bank_details",
+    label: "Bank name, account name and account number for your invoices",
+    type: "textarea",
+    required: true,
+    helpText: "Exactly as it should print on an invoice. One line per account if you use several.",
+  },
+  {
+    name: "store_setup_products",
+    label: "Products — list every product category with its pricing",
+    type: "textarea",
+    required: true,
+    helpText: "For each category give the products and prices (including variants such as size, colour or weight if they change the price).",
+  },
+  {
+    name: "store_setup_product_images",
+    label: "Product images — paste a Google Drive (or Dropbox) link with all product photos",
+    type: "text",
+    required: true,
+    helpText: 'Create one folder, upload every product image, set it to "Anyone with the link can view", then paste the link here. Name each file after the product.',
+  },
+  {
+    name: "store_setup_product_excel",
+    label: "Product Excel upload — paste a link to your product list spreadsheet",
+    type: "text",
+    helpText: "If you already keep products in Excel, upload the file and paste the link — we will import it directly. Skip if you have no list yet.",
+  },
+  {
+    name: "store_setup_production_sheet",
+    label: "Production sheet — for manufactured products, list the ingredients and paste the file link",
+    type: "textarea",
+    helpText: "Describe how each product is made (ingredients or raw materials, quantities, batch size) and continue the sentence with the link to your production sheet file. Skip if you do not manufacture.",
+  },
+  {
+    name: "store_setup_user_list",
+    label: "Team and roles — list each person and what they should be able to do",
+    type: "textarea",
+    required: true,
+    helpText: 'One per line in this format: "Wale — Cashier", "Timi — Supervisor", "Tunde — Business Owner". Include the email or phone each person will log in with if you have it.',
+  },
+]
+
 export const LEAD_ADDITIONAL_QUESTION_TEMPLATES: LeadAdditionalQuestionTemplate[] = [
-  { industry: "Printing", label: "Printing", fields: printingQuestions },
-  { industry: "Supermarkets", label: "Supermarkets & Grocery Retail", fields: supermarketQuestions },
-  { industry: "Restaurants", label: "Restaurants & Food Service", fields: restaurantQuestions },
-  { industry: "Pharmacies", label: "Pharmacies & Health Retail", fields: pharmacyQuestions },
-  { industry: "Fashion Stores", label: "Fashion, Beauty & Lifestyle Retail", fields: fashionQuestions },
-  { industry: "Electronics Stores", label: "Electronics & Hardware Retail", fields: electronicsQuestions },
-  { industry: "Service Businesses", label: "Service Businesses", fields: servicesQuestions },
-  { industry: "Distributors", label: "Distribution, Wholesale & Manufacturing", fields: distributionQuestions },
+  { industry: "Printing", label: "Printing", fields: [...printingQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Supermarkets", label: "Supermarkets & Grocery Retail", fields: [...supermarketQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Restaurants", label: "Restaurants & Food Service", fields: [...restaurantQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Pharmacies", label: "Pharmacies & Health Retail", fields: [...pharmacyQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Fashion Stores", label: "Fashion, Beauty & Lifestyle Retail", fields: [...fashionQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Electronics Stores", label: "Electronics & Hardware Retail", fields: [...electronicsQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Service Businesses", label: "Service Businesses", fields: [...servicesQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Distributors", label: "Distribution, Wholesale & Manufacturing", fields: [...distributionQuestions, ...STORE_SETUP_FIELDS] },
 ]
 
 /** Aliases map alternate business types / industry names to a canonical template
@@ -243,9 +381,14 @@ export function getLeadAdditionalQuestionTemplate(industry: string): LeadAdditio
 }
 
 export function cloneTemplateFields(template: LeadAdditionalQuestionTemplate): QuestionnaireField[] {
-  return template.fields.map((field) => ({
+  return template.fields.map(cloneField)
+}
+
+/** Deep-copy a single field so edits never mutate the shared template object. */
+export function cloneField(field: QuestionnaireField): QuestionnaireField {
+  return {
     ...field,
     options: field.options ? [...field.options] : undefined,
     optionStatuses: field.optionStatuses ? { ...field.optionStatuses } : undefined,
-  }))
+  }
 }

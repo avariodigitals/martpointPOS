@@ -2,6 +2,7 @@ import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import { resolveIndustryName } from "./industries"
+import { cancelAutomationRuns } from "./automations"
 
 /* ───────────────────────────  Canonical Businesses  ───────────────────────────
  * A business is a real MartPoint customer/tenant. Leads remain sales history.
@@ -239,6 +240,23 @@ export async function convertLeadToBusiness(
   const responses = (lead as LeadRow & { questionnaire_responses?: Record<string, unknown> }).questionnaire_responses || {}
   const fields = (lead as LeadRow & { questionnaire_fields?: unknown[] }).questionnaire_fields || []
 
+  // Carry additional-question rounds across too, so every answer the lead gave
+  // (main questionnaire + follow-up rounds) is available inside the business.
+  const { data: questionRoundRows } = await supabase
+    .from("lead_question_rounds")
+    .select("title, fields, responses, status, sent_at, submitted_at, reviewed_at")
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: true })
+  const additionalQuestionRounds = (questionRoundRows || []).map((r) => ({
+    title: (r.title as string) || "Additional Questions",
+    status: (r.status as string) || "Sent",
+    fields: (r.fields as unknown[]) || [],
+    responses: (r.responses as Record<string, unknown>) || {},
+    sentAt: (r.sent_at as string | null) ?? null,
+    submittedAt: (r.submitted_at as string | null) ?? null,
+    reviewedAt: (r.reviewed_at as string | null) ?? null,
+  }))
+
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
   const row = lead as LeadRow
@@ -266,7 +284,14 @@ export async function convertLeadToBusiness(
     source: normalizeSource(row.source),
     source_lead_id: row.id,
     onboarding_stages: {
-      INTAKE_RECEIVED: { completedAt: now, completedBy: actor.actorName ?? actor.actorId ?? null, questionnaire: fields.length > 0 ? { responses, fields } : undefined },
+      INTAKE_RECEIVED: {
+        completedAt: now,
+        completedBy: actor.actorName ?? actor.actorId ?? null,
+        questionnaire:
+          fields.length > 0 || additionalQuestionRounds.length > 0
+            ? { responses, fields, additionalRounds: additionalQuestionRounds }
+            : undefined,
+      },
     },
     onboarding_started_at: now,
     created_by: actor.actorId ?? null,
@@ -294,6 +319,12 @@ export async function convertLeadToBusiness(
       duplicateWarning: dup ? { id: dup.id, businessName: dup.business_name } : null,
     },
   })
+
+  // Goal met — the lead is now a business; stop any pending estimate/lead
+  // follow-up sequences for it.
+  await cancelAutomationRuns("estimate", row.id, "business_created").catch((err) =>
+    console.error("[businesses] cancel estimate follow-up failed:", err),
+  )
 
   return { ok: true, business }
 }

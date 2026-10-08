@@ -32,6 +32,8 @@ export interface CareerNotifyInput {
   candidateId?: string | null
   /** Route key for internal notifications (goes to configured route recipients). */
   route?: string
+  /** Carbon-copy recipients (e.g. the function mailbox tracking the thread). */
+  cc?: string | string[]
   /** File attachments (e.g. an .ics calendar invite for interviews). */
   attachments?: EmailAttachment[]
 }
@@ -101,6 +103,7 @@ export async function sendCareerNotification(input: CareerNotifyInput): Promise<
     text: tpl.text,
     html: tpl.html,
     route: input.route,
+    cc: input.cc,
     attachments: input.attachments,
   })
 

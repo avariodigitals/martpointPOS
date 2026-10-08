@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { getIntegrationDefaults } from "@/lib/integrations"
 import { DEFAULT_SCHEDULING } from "@/lib/scheduling"
 import { DEFAULT_MEETING_NOTES } from "@/lib/meeting-notes"
+import { DEFAULT_DRIVE_SETTINGS } from "@/lib/drive-storage"
 
 async function readSettings(): Promise<Record<string, unknown>> {
   if (!isSupabaseConfigured()) {
@@ -67,7 +68,7 @@ function getDefaultSettings() {
       routes: {
         lead_submission: "sales@martpoint.com.ng",
         career_application: "careers@martpoint.com.ng",
-        partner_application: "",
+        partner_application: "partners@martpoint.com.ng",
         onboarding_welcome: "",
         onboarding_invoice: "",
         onboarding_access: "",
@@ -258,6 +259,7 @@ function getDefaultSettings() {
       email: "",
       connectedAt: "",
     },
+    drive: DEFAULT_DRIVE_SETTINGS,
     scheduling: DEFAULT_SCHEDULING,
     meetingNotes: DEFAULT_MEETING_NOTES,
     ...getIntegrationDefaults(),
@@ -320,6 +322,16 @@ export async function POST(request: Request) {
       const { refreshToken: _rt, connected: _c, ...rest } = body.google as Record<string, unknown>
       void _rt; void _c
       body.google = rest
+    }
+    if (body.drive && typeof body.drive === "object") {
+      // Only accept known Drive keys so the browser cannot inject arbitrary config.
+      const raw = body.drive as Record<string, unknown>
+      body.drive = {
+        rootFolderName: String(raw.rootFolderName ?? DEFAULT_DRIVE_SETTINGS.rootFolderName).slice(0, 120),
+        rootFolderId: String(raw.rootFolderId || "").slice(0, 200),
+        sharedDriveId: String(raw.sharedDriveId || "").slice(0, 200),
+        mirrorToSupabase: Boolean(raw.mirrorToSupabase),
+      }
     }
     for (const [key, value] of Object.entries(body)) {
       const existing = updated[key]

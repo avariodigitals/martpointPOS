@@ -16,6 +16,8 @@ import {
   allocatePayment,
   createReceipt,
   activateSubscription,
+  waiveSubscription,
+  getLicencesSoldReport,
   syncEntitlementsFromSubscription,
   evaluateCommissionsForPayment,
   createCommissionPayout,
@@ -40,14 +42,15 @@ const resourceActionMap: Record<string, Record<string, FinanceAction | null | un
   plans: { list: "finance:view", get: "finance:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: null, set_active: "finance:subscriptions:manage", set_inactive: "finance:subscriptions:manage", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   addons: { list: "finance:view", get: "finance:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: null, set_active: "finance:subscriptions:manage", set_inactive: "finance:subscriptions:manage", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   quotes: { list: "finance:view", get: "finance:view", create: "finance:quotes:create", update: "finance:quotes:create", delete: "finance:quotes:create", add_item: "finance:quotes:create", remove_item: "finance:quotes:create", send: "finance:quotes:create", accept: "finance:quotes:approve", decline: "finance:quotes:approve", expire: "finance:quotes:approve", convert: "finance:invoices:create", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, activate: null, suspend: null, renew: null, cancel_subscription: null, confirm: null, reverse: null, allocate: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
-  invoices: { list: "finance:view", get: "finance:view", create: "finance:invoices:create", update: "finance:invoices:create", delete: "finance:invoices:create", add_item: "finance:invoices:create", remove_item: "finance:invoices:create", issue: "finance:invoices:issue", void: "finance:invoices:void", cancel: "finance:invoices:void", set_active: null, set_inactive: null, send: "finance:invoices:issue", send_reminder: "finance:invoices:issue", pause_reminders: "finance:invoices:create", resume_reminders: "finance:invoices:create", accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
+  invoices: { list: "finance:view", get: "finance:view", create: "finance:invoices:create", update: "finance:invoices:create", delete: "finance:invoices:create", add_item: "finance:invoices:create", remove_item: "finance:invoices:create", issue: "finance:invoices:issue", void: "finance:invoices:void", cancel: "finance:invoices:void", waive: "finance:invoices:void", set_active: null, set_inactive: null, send: "finance:invoices:issue", send_reminder: "finance:invoices:issue", pause_reminders: "finance:invoices:create", resume_reminders: "finance:invoices:create", accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   payments: { list: "finance:view", get: "finance:payments:view", create: "finance:payments:record", confirm: "finance:payments:confirm", reverse: "finance:payments:reverse", allocate: "finance:payments:record", update: "finance:payments:record", delete: "finance:payments:record", receipt: "finance:payments:record", send_receipt: "finance:payments:record", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, refresh: null },
-  subscriptions: { list: "finance:view", get: "finance:subscriptions:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: "finance:subscriptions:manage", activate: "finance:subscriptions:manage", suspend: "finance:subscriptions:manage", cancel_subscription: "finance:subscriptions:manage", renew: "finance:renewals:manage", add_addon: "finance:subscriptions:manage", remove_addon: "finance:subscriptions:manage", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
+  subscriptions: { list: "finance:view", get: "finance:subscriptions:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: "finance:subscriptions:manage", activate: "finance:subscriptions:manage", waive: "finance:subscriptions:manage", suspend: "finance:subscriptions:manage", cancel_subscription: "finance:subscriptions:manage", renew: "finance:renewals:manage", add_addon: "finance:subscriptions:manage", remove_addon: "finance:subscriptions:manage", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   renewals: { list: "finance:view", get: "finance:view", create: "finance:renewals:manage", update: "finance:renewals:manage", delete: "finance:renewals:manage", link_invoice: "finance:renewals:manage", refresh: "finance:renewals:manage", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, evaluate: null, receipt: null },
   commission_plans: { list: "finance:view", get: "finance:view", create: "finance:commissions:approve", update: "finance:commissions:approve", delete: "finance:commissions:approve", set_active: "finance:commissions:approve", set_inactive: "finance:commissions:approve", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   commissions: { list: "finance:commissions:view", get: "finance:commissions:view", approve: "finance:commissions:approve", cancel: "finance:commissions:approve", reverse: "finance:commissions:approve", schedule: "finance:commissions:payout", evaluate: "finance:commissions:approve", set_active: null, set_inactive: null, issue: null, void: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, create: null, update: null, delete: null, mark_paid: null, link_invoice: null, receipt: null, refresh: null },
   payouts: { list: "finance:commissions:view", get: "finance:commissions:view", create: "finance:commissions:payout", approve: "finance:commissions:payout", mark_paid: "finance:commissions:payout", update: "finance:commissions:payout", delete: "finance:commissions:payout", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   receipts: { list: "finance:view", get: "finance:view", create: "finance:payments:record", update: null, delete: null, set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
+  licences_sold: { list: "finance:view", get: "finance:view" },
 }
 
 function requireActionPerm(resource: string, action: Action, role: string | undefined): boolean {
@@ -191,6 +194,11 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
       const { data, error } = id ? await q.eq("id", id).single() : await q.order("issued_at", { ascending: false })
       if (error) return err(error.message, 500)
       return ok(data)
+    }
+
+    if (resource === "licences_sold") {
+      const report = await getLicencesSoldReport()
+      return ok(report)
     }
 
     return err("Unknown resource", 404)
@@ -424,6 +432,21 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await syncInvoiceFinanceTransaction(id)
         return ok(inv)
       }
+      if (action === "waive") {
+        const { id, reason } = data
+        if (!id) return err("Invoice ID required")
+        const waiverReason = (reason || "").trim() || "Waived by finance"
+        const { data: inv, error } = await supabase.from("invoices").update({
+          status: "WAIVED",
+          waived_at: now(),
+          waived_by: actor.id,
+          waive_reason: waiverReason,
+          updated_at: now(),
+        }).eq("id", id).select().single()
+        if (error) return err(error.message, 500)
+        await logFinanceAudit("ADMIN", actor.id, "INVOICE_WAIVED", "INVOICE", id, { reason: waiverReason })
+        return ok(inv)
+      }
       if (action === "cancel") {
         const { id } = data
         const { data: inv, error } = await supabase.from("invoices").update({ status: "CANCELLED", updated_at: now() }).eq("id", id).select().single()
@@ -526,22 +549,37 @@ export async function POST(request: Request, props: { params: Promise<{ resource
 
     if (resource === "subscriptions") {
       if (action === "create") {
-        const { business_id, plan_id, billing_interval, quantity, start_date, current_period_end, renewal_date } = data
+        const { business_id, plan_id, billing_interval, quantity, start_date, current_period_end, renewal_date, auto_renew } = data
+        if (!business_id) return err("Business is required for every subscription")
+        if (!plan_id) return err("Plan is required for every subscription")
+
+        // Validate the business exists and is a real, selectable business.
+        const { data: business } = await supabase.from("businesses").select("id, status").eq("id", business_id).single()
+        if (!business) return err("Business not found", 404)
+        if (["CHURNED", "INACTIVE"].includes((business as { status: string }).status)) {
+          return err(`Cannot create a subscription for a ${(business as { status: string }).status.toLowerCase()} business`)
+        }
+
+        // Validate the plan exists and is still active — only available plans
+        // may be selected, and only a plan (never a service) drives a licence.
         const { data: plan } = await supabase.from("plans").select("*").eq("id", plan_id).single()
         if (!plan) return err("Plan not found", 404)
+        if (!(plan as { active: boolean }).active) return err("Selected plan is not available")
+
         const today = start_date || new Date().toISOString().split("T")[0]
         const cpEnd = current_period_end || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
         const { data: sub, error } = await supabase.from("subscriptions").insert({
           business_id,
           plan_id,
-          billing_interval,
+          billing_interval: billing_interval || (plan as { billing_interval: string }).billing_interval,
           quantity,
           start_date: today,
           current_period_start: today,
           current_period_end: cpEnd,
           renewal_date: renewal_date || cpEnd,
-          price_at_activation: money(plan.base_price * (quantity || 1)),
-          currency: plan.currency,
+          auto_renew: auto_renew ?? false,
+          price_at_activation: money((plan as { base_price: number }).base_price * (quantity || 1)),
+          currency: (plan as { currency: string }).currency,
           status: "PENDING",
           created_by: actor.id,
           created_at: now(),
@@ -555,6 +593,14 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await activateSubscription(data.id, actor.id, { licence_type: data.licence_type, expires_at: data.expires_at })
         await logFinanceAudit("ADMIN", actor.id, "SUBSCRIPTION_ACTIVATED", "SUBSCRIPTION", data.id)
         return ok({ success: true })
+      }
+      if (action === "waive") {
+        const result = await waiveSubscription(data.id, actor.id, {
+          reason: data.reason,
+          licence_type: data.licence_type,
+          expires_at: data.expires_at,
+        })
+        return ok(result)
       }
       if (action === "suspend") {
         const { data: sub, error } = await supabase.from("subscriptions").update({ status: "SUSPENDED", updated_at: now() }).eq("id", data.id).select().single()

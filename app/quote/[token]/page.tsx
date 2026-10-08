@@ -264,7 +264,8 @@ export default function PublicQuotePage() {
           )}
 
           <div className="rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-sm">
+            {/* Desktop: full table */}
+            <table className="hidden sm:table w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium">Description</th>
@@ -288,6 +289,41 @@ export default function PublicQuotePage() {
                 ))}
               </tbody>
             </table>
+
+            {/* Mobile: one card per line item — no horizontal squish. */}
+            <ul className="sm:hidden divide-y divide-border">
+              {(quote.items || []).map((item) => (
+                <li key={item.id} className="p-4 space-y-2">
+                  <p className="text-sm font-medium whitespace-pre-line">{item.description}</p>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Qty</dt>
+                      <dd>{item.quantity}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Unit</dt>
+                      <dd className="text-right">{formatNgnFull(item.unit_price)}</dd>
+                    </div>
+                    {item.discount > 0 && (
+                      <div className="flex justify-between">
+                        <dt className="text-muted-foreground">Discount</dt>
+                        <dd>−{formatNgnFull(item.discount)}</dd>
+                      </div>
+                    )}
+                    {item.tax > 0 && (
+                      <div className="flex justify-between">
+                        <dt className="text-muted-foreground">Tax</dt>
+                        <dd>{formatNgnFull(item.tax)}</dd>
+                      </div>
+                    )}
+                  </dl>
+                  <div className="flex justify-between border-t border-border/60 pt-2 text-sm">
+                    <span className="text-muted-foreground">Line total</span>
+                    <span className="font-semibold">{formatNgnFull(item.line_total)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
 
           <div className="space-y-2 text-sm sm:w-64 sm:ml-auto">
@@ -295,14 +331,18 @@ export default function PublicQuotePage() {
               <span className="text-muted-foreground">Subtotal</span>
               <span>{formatNgnFull(quote.subtotal)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Discount</span>
-              <span>{formatNgnFull(quote.discount_amount)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Tax</span>
-              <span>{formatNgnFull(quote.tax_amount)}</span>
-            </div>
+            {quote.discount_amount > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Discount</span>
+                <span>{formatNgnFull(quote.discount_amount)}</span>
+              </div>
+            )}
+            {quote.tax_amount > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tax</span>
+                <span>{formatNgnFull(quote.tax_amount)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-lg font-semibold border-t border-border pt-2">
               <span>Total</span>
               <span className="text-retail">{formatNgnFull(quote.total_amount)}</span>
@@ -414,23 +454,26 @@ export default function PublicQuotePage() {
                   </p>
                   <div className="space-y-2">
                     {scopeItems.map((it, idx) => (
-                      <div key={it.item_id} className="flex items-center gap-2 text-sm">
-                        <span className="flex-1">{it.description}</span>
-                        <span className="text-muted-foreground text-xs w-24 text-right">{formatNgnFull(it.unit_price)}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={it.quantity}
-                          onChange={(e) => setScopeItems((prev) => prev.map((x, i) => (i === idx ? { ...x, quantity: Number(e.target.value) } : x)))}
-                          className="w-20 rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
-                          placeholder="Qty"
-                        />
-                        {it.quantity > 0 ? (
-                          <span className="text-xs text-muted-foreground w-24 text-right">{formatNgnFull(it.unit_price * it.quantity)}</span>
-                        ) : (
-                          <span className="text-xs text-red-600 w-24 text-right">Removed</span>
-                        )}
+                      <div key={it.item_id} className="rounded-md border border-border p-3 sm:border-0 sm:p-0 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:gap-2 text-sm">
+                        <span className="block sm:flex-1 font-medium sm:font-normal">{it.description}</span>
+                        <div className="flex items-center justify-between gap-2 sm:justify-end">
+                          <span className="text-muted-foreground text-xs sm:w-24 sm:text-right">{formatNgnFull(it.unit_price)}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={it.quantity}
+                            onChange={(e) => setScopeItems((prev) => prev.map((x, i) => (i === idx ? { ...x, quantity: Number(e.target.value) } : x)))}
+                            className="w-20 rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
+                            placeholder="Qty"
+                            aria-label={`Quantity for ${it.description}`}
+                          />
+                          {it.quantity > 0 ? (
+                            <span className="text-xs text-muted-foreground w-24 text-right">{formatNgnFull(it.unit_price * it.quantity)}</span>
+                          ) : (
+                            <span className="text-xs text-red-600 w-24 text-right">Removed</span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

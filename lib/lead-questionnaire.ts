@@ -6,6 +6,7 @@ import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from ".
 import { sendEmail, REPLY_TO } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { ADVANCED_QUESTIONNAIRE_FIELDS } from "./questionnaire-catalog"
+import { enqueueAutomation, cancelAutomationRuns } from "./automations"
 
 export interface QuestionnaireField {
   name: string
@@ -147,6 +148,14 @@ export async function generateQuestionnaire(
       html,
       replyTo: REPLY_TO.noreply,
     })
+    // Schedule the 48h follow-up sequence as soon as the questionnaire goes out.
+    // Best-effort: a failure here must not block the send response.
+    await enqueueAutomation({
+      automationKey: "questionnaire_48h_reminder",
+      subjectType: "lead",
+      subjectId: input.leadId,
+      recipientEmail: mapped.email,
+    }).catch((err) => console.error("[questionnaire] enqueue reminder failed:", err))
     if (!sent) return { ok: true, token, url, error: "Email delivery failed (link generated)" }
   }
 
@@ -251,6 +260,14 @@ export async function submitQuestionnaireResponses(
     .eq("questionnaire_token", token)
 
   if (error) return { ok: false, error: "Failed to save responses" }
+
+  // Goal achieved — stop any pending questionnaire reminders for this lead.
+  const submittedLeadId = (leadRow as { id: string } | null)?.id
+  if (submittedLeadId) {
+    await cancelAutomationRuns("lead", submittedLeadId, "questionnaire_submitted").catch((err) =>
+      console.error("[questionnaire] cancel reminders failed:", err),
+    )
+  }
 
   await recordAudit(
     { actorType: "SYSTEM", actorId: null, actorName: null },

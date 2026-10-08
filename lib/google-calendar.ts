@@ -17,6 +17,9 @@ export const GOOGLE_SCOPES = [
   "email",
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/calendar.freebusy",
+  // drive.file lets us create/upload into folders this app made, without
+  // requesting access to the admin's whole Drive. Used by lib/drive-storage.ts.
+  "https://www.googleapis.com/auth/drive.file",
 ]
 
 export interface GoogleSettings {

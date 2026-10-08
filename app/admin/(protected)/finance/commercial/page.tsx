@@ -110,6 +110,7 @@ export default function CommercialFinancePage() {
                 { label: "Invoices", href: "/admin/finance/commercial/invoices", desc: "Issue & manage invoices" },
                 { label: "Payments", href: "/admin/finance/commercial/payments", desc: "Record & confirm payments" },
                 { label: "Subscriptions", href: "/admin/finance/commercial/subscriptions", desc: "Activate & renew subscriptions" },
+                { label: "Licences Sold", href: "/admin/finance/commercial/licences_sold", desc: "How many licences are sold (incl. waived)" },
                 { label: "Renewals", href: "/admin/finance/commercial/renewals", desc: "Renewal pipeline" },
                 { label: "Commission Plans", href: "/admin/finance/commercial/commission_plans", desc: "Partner commission plans" },
                 { label: "Commissions", href: "/admin/finance/commercial/commissions", desc: "Approve & pay commissions" },

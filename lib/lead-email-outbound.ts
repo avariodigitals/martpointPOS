@@ -51,7 +51,9 @@ export interface SendLeadEmailInput {
   html?: string
   /** Skip appending the mailbox signature. */
   noSignature?: boolean
-  /** File attachments — e.g. an .ics calendar invite. */
+  /** Carbon-copy recipients (visible to all). */
+  cc?: string | string[]
+  /** File attachments — e.g. an .ics calendar invite or a requested document. */
   attachments?: EmailAttachment[]
   metadata?: Record<string, unknown>
 }
@@ -89,7 +91,7 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
 
   const sent = useMailbox
     ? await sendEmailViaSmtp(
-        { subject: input.subject, text: textBody, html, replyTo: from, attachments: input.attachments },
+        { subject: input.subject, text: textBody, html, replyTo: from, cc: input.cc, attachments: input.attachments },
         settings,
         from,
         Array.isArray(input.to) ? input.to : [input.to],
@@ -100,6 +102,7 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
         text: textBody,
         html,
         replyTo: REPLY_TO.sales,
+        cc: input.cc,
         attachments: input.attachments,
       })
 

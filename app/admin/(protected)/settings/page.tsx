@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import { Loader2, Save, Settings, Wand2, MousePointerClick, ShieldCheck } from "lucide-react"
 import { GoogleMeetSettingsCard } from "@/components/admin/google-meet-settings-card"
+import { DriveSettingsCard } from "@/components/admin/drive-settings-card"
 
 interface GeneralSettings {
   contactEmail: string
@@ -780,6 +781,8 @@ export default function AdminSettingsPage() {
           </Card>
 
           <GoogleMeetSettingsCard className={activeTab === "content" ? "hidden" : ""} />
+
+          <DriveSettingsCard className={activeTab === "content" ? "hidden" : ""} />
 
           <Card className={activeTab === "content" ? "hidden" : ""}>
             <CardHeader>

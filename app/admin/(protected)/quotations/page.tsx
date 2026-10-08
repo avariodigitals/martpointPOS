@@ -41,6 +41,8 @@ interface Lead {
   productInterest: string
   businessType?: string
   industry?: string
+  branches?: string | number | null
+  staffSize?: string | number | null
 }
 
 interface QuoteForm {
@@ -79,6 +81,9 @@ interface TaxRate {
 export default function QuotationsPage() {
   const searchParams = useSearchParams()
   const preselectedLeadId = searchParams.get("leadId") || ""
+  // Deep-link from the Sales → Estimator nav entry: open the builder with the
+  // estimator panel expanded.
+  const estimatorParam = searchParams.get("estimator") === "1"
 
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
@@ -87,7 +92,7 @@ export default function QuotationsPage() {
   const [taxRates, setTaxRates] = useState<TaxRate[]>([])
 
   // Quick internal estimator (plans + capacity add-ons → quote lines).
-  const [showEstimator, setShowEstimator] = useState(false)
+  const [showEstimator, setShowEstimator] = useState(estimatorParam)
   const [estimator, setEstimator] = useState({
     branches: 1,
     users: 5,
@@ -102,7 +107,7 @@ export default function QuotationsPage() {
   const [search, setSearch] = useState("")
   const [accountNumber, setAccountNumber] = useState("")
 
-  const [showCreate, setShowCreate] = useState(Boolean(preselectedLeadId))
+  const [showCreate, setShowCreate] = useState(Boolean(preselectedLeadId) || estimatorParam)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState<QuoteForm>({
@@ -145,8 +150,7 @@ export default function QuotationsPage() {
   const [resolvingId, setResolvingId] = useState<string | null>(null)
 
   useEffect(() => {
-    const load = async () => {
-      try {
+    const load = async () => {      try {
         const [qRes, lRes, sRes] = await Promise.all([
           fetch("/api/admin/quotations"),
           fetch("/api/admin/leads"),
@@ -159,6 +163,21 @@ export default function QuotationsPage() {
         if (lData.leads) setLeads(lData.leads)
         if (sData.general?.accountNumber) setAccountNumber(sData.general.accountNumber)
       if (sData.header?.logo) setLogoUrl(sData.header.logo)
+
+      // When opened from a lead ("Create quote from estimate"), seed the
+      // estimator from the lead's captured scale so sales can size the deal
+      // without re-entering the numbers.
+      if (preselectedLeadId && Array.isArray(lData.leads)) {
+        const lead = (lData.leads as Lead[]).find((l) => l.id === preselectedLeadId)
+        if (lead) {
+          setEstimator((prev) => ({
+            ...prev,
+            branches: Math.max(1, Math.floor(Number(lead.branches) || 1)),
+            users: Math.max(1, Math.floor(Number(lead.staffSize) || 5)),
+          }))
+          setShowEstimator(true)
+        }
+      }
 
         const taxRatesIn = (qData.taxRates || []) as Record<string, unknown>[]
         setTaxRates(
@@ -222,7 +241,7 @@ export default function QuotationsPage() {
       }
     }
     load()
-  }, [])
+  }, [preselectedLeadId])
 
   const totals = useMemo(
     () => recalculateQuote(form.items, { type: form.discountType, value: form.discountValue }),

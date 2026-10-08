@@ -25,6 +25,8 @@ export const REPLY_TO = {
   partners: "MartPoint Partners <partners@martpoint.com.ng>",
   sales: "MartPoint Sales <sales@martpoint.com.ng>",
   support: "MartPoint Support <support@martpoint.com.ng>",
+  digitals: "MartPoint Digital <digitals@martpoint.com.ng>",
+  careers: "MartPoint Careers <careers@martpoint.com.ng>",
   noreply: "MartPoint <no-reply@martpoint.com.ng>",
 } as const
 
@@ -40,6 +42,8 @@ export interface EmailMessage {
   html?: string
   from?: string
   route?: string
+  /** Carbon-copy recipients (visible to all recipients). */
+  cc?: string | string[]
   attachments?: EmailAttachment[]
   /** Per-message provider override; defaults to the configured provider. */
   provider?: EmailProvider
@@ -102,7 +106,7 @@ const DEFAULT_ROUTES: Record<string, string> = {
   quote_declined: "sales@martpoint.com.ng",
   career_application: "careers@martpoint.com.ng",
   creator_application: "hello@martpoint.com.ng",
-  partner_application: "",
+  partner_application: "partners@martpoint.com.ng",
   onboarding_welcome: "",
   onboarding_invoice: "",
   onboarding_access: "",
@@ -286,6 +290,7 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
   }
 
   const to = toList.join(", ")
+  const ccList = normalizeRecipients(message.cc)
 
   const logBase: EmailLogInsert = {
     from,
@@ -293,7 +298,7 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
     subject: message.subject,
     status: "pending",
     provider,
-    metadata: { html: !!message.html, route: message.route || null },
+    metadata: { html: !!message.html, route: message.route || null, cc: ccList.length ? ccList.join(", ") : null },
   }
 
   if (toList.length === 0) {
@@ -330,10 +335,10 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
   }
 
   if (provider === "brevo") {
-    return sendViaBrevo(branded, settings, from, toList, logBase)
+    return sendViaBrevo(branded, settings, from, toList, ccList, logBase)
   }
 
-  return sendViaResend(branded, settings, from, toList, logBase)
+  return sendViaResend(branded, settings, from, toList, ccList, logBase)
 }
 
 /** Parse a "Display Name <email@domain.com>" string into sender parts. */
@@ -355,6 +360,7 @@ async function sendViaResend(
   settings: EmailSettings,
   from: string,
   toList: string[],
+  ccList: string[],
   logBase: EmailLogInsert,
 ): Promise<boolean> {
   const resendKey =
@@ -381,6 +387,7 @@ async function sendViaResend(
     }
     if (message.html) body.html = message.html
     if (message.replyTo) body.reply_to = message.replyTo
+    if (ccList.length) body.cc = ccList
     if (message.attachments?.length) body.attachments = message.attachments
     if (message.headers) body.headers = message.headers
 
@@ -430,6 +437,7 @@ async function sendViaBrevo(
   settings: EmailSettings,
   from: string,
   toList: string[],
+  ccList: string[],
   logBase: EmailLogInsert,
 ): Promise<boolean> {
   const brevoKey =
@@ -461,6 +469,7 @@ async function sendViaBrevo(
       const rt = parseSender(message.replyTo)
       body.replyTo = { email: rt.email, name: rt.name }
     }
+    if (ccList.length) body.cc = ccList.map((email) => ({ email }))
     if (message.attachments?.length) {
       body.attachment = message.attachments.map((a) => ({ name: a.filename, content: a.content }))
     }

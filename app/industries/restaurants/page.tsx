@@ -313,7 +313,7 @@ export default function RestaurantsPage() {
                 Serve Faster. Waste Less. Grow Your Restaurant.
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Join restaurants across Africa using MartPoint to serve customers faster, reduce kitchen mistakes and make confident decisions with real business intelligence.
+                Use MartPoint to serve customers faster, reduce kitchen mistakes and make confident decisions with real business intelligence.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">

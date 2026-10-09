@@ -197,7 +197,7 @@ export function IndustryPage({ industry }: IndustryPageProps) {
                 See What MartPoint Can Do For {industry.name}
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Join {industry.name.toLowerCase()} across Africa using MartPoint to sell more, waste less and make confident decisions with real business intelligence.
+                Use MartPoint to sell more, waste less and make confident decisions with real business intelligence.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant={industry.product === "retail" ? "retail" : "erp"}>

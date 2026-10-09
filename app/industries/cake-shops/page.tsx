@@ -311,7 +311,7 @@ export default function CakeShopsPage() {
                 Run Your Cake Shop With Complete Confidence
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Join cake shops across Africa using MartPoint to track every order, never miss a deadline and grow profit with real business intelligence.
+                Use MartPoint to track every order, never miss a deadline and grow profit with real business intelligence.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">

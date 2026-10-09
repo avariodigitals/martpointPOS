@@ -385,7 +385,7 @@ export default function ProductUpdatesPage() {
                 Stay Ahead of Every Update
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Get notified when new features ship. Thousands of businesses already run on MartPoint — join the update list to see what is coming next.
+                Get notified when new features ship. Join the update list to see what is coming next.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">

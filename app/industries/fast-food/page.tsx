@@ -312,7 +312,7 @@ export default function FastFoodPage() {
                 Serve More Customers. Reduce Waiting Time. Increase Profit.
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Join quick-service restaurants across Africa using MartPoint to handle rush hour with confidence, speed and complete operational visibility.
+                Use MartPoint to handle rush hour with confidence, speed and complete operational visibility.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">

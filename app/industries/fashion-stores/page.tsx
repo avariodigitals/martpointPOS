@@ -313,7 +313,7 @@ export default function FashionStoresPage() {
                 Buy Smarter. Sell Faster. Grow Your Fashion Business.
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Join fashion boutiques across Africa using MartPoint to reduce dead stock, increase sell-through and make confident buying decisions every season.
+                Use MartPoint to reduce dead stock, increase sell-through and make confident buying decisions every season.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">

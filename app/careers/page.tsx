@@ -40,7 +40,7 @@ const benefits = [
   "Field and project roles may include daily rates, transport allowance and on-site meals",
   "Remote-friendly collaboration for eligible roles",
   "Learning and mentorship opportunities",
-  "Real ownership of work that reaches thousands of businesses",
+  "Real ownership of work that shapes how businesses run",
   "Clear, transparent hiring process with defined stages",
 ]
 

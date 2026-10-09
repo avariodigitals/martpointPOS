@@ -247,7 +247,7 @@ export function IndustryTemplate({ data }: { data: IndustryTemplateData }) {
                 Ready to Run Your {data.name} With Confidence?
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Join {data.name.toLowerCase()} across Africa using MartPoint to eliminate waste, speed up operations and grow profit.
+                Use MartPoint to eliminate waste, speed up operations and grow profit.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">

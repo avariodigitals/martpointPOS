@@ -245,7 +245,7 @@ export default function CustomerStoriesPage() {
                 Your Business Could Be the Next Success Story
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Join hundreds of African businesses using MartPoint to grow sales, cut waste and take control. Start today and see results within weeks.
+                Join businesses using MartPoint to manage sales, inventory and everyday operations with confidence.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">

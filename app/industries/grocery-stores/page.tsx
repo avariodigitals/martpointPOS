@@ -297,7 +297,7 @@ export default function GroceryStoresPage() {
           <div className="container-martpoint">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">Run Your Grocery Store With Complete Freshness</h2>
-              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">Join grocery store owners across Africa using MartPoint to sell fresher products, reduce wastage and make smarter purchasing decisions every single day.</p>
+              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">Use MartPoint to sell fresher products, reduce wastage and make smarter purchasing decisions every single day.</p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
                   <Link href="https://wa.me/+2348037978230?text=Hi%2C%20I%20run%20a%20grocery%20store%20and%20I%27m%20interested%20in%20MartPoint%20Retail.%20Can%20we%20talk%3F" target="_blank" rel="noopener noreferrer">Book a Demo<ArrowRight className="ml-2 h-4 w-4" /></Link>

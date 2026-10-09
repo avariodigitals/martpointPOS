@@ -311,7 +311,7 @@ export default function BeautyAndSalonsPage() {
                 Grow Your Salon With Confidence
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Join salons across Africa using MartPoint to simplify appointments, automate commissions and deliver a better client experience every single day.
+                Use MartPoint to simplify appointments, automate commissions and deliver a better client experience every single day.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">

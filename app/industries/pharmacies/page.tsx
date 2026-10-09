@@ -330,7 +330,7 @@ export default function PharmaciesPage() {
                 Run Your Pharmacy With Complete Control
               </h2>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                Join pharmacies across Africa using MartPoint to reduce losses, improve patient satisfaction and maintain complete inventory visibility every single day.
+                Use MartPoint to reduce losses, improve patient satisfaction and maintain complete inventory visibility every single day.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">

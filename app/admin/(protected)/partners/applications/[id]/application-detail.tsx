@@ -166,9 +166,14 @@ export function ApplicationDetail({ id }: { id: string }) {
   const [meetingAt, setMeetingAt] = useState("")
   const [meetingDuration, setMeetingDuration] = useState(30)
   const [meetingLink, setMeetingLink] = useState("")
+  const [meetingCreateMeet, setMeetingCreateMeet] = useState(true)
   const [meetingMessage, setMeetingMessage] = useState("")
   const [sendingMeeting, setSendingMeeting] = useState(false)
   const [questionRounds, setQuestionRounds] = useState<{ id: string; title: string; fields: { name: string; label: string }[]; responses: Record<string, unknown>; status: string; created_at: string; submitted_at: string | null }[]>([])
+  const [meetingRows, setMeetingRows] = useState<{ id: string; title: string; scheduled_at: string; duration_minutes: number; meeting_link: string | null; status: string; email_sent: boolean; team_notified: boolean; meet_error: string | null; created_by_name: string | null; created_at: string }[]>([])
+  const [meetingBusyId, setMeetingBusyId] = useState<string | null>(null)
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null)
+  const [rescheduleAt, setRescheduleAt] = useState("")
   const [questionTitle, setQuestionTitle] = useState("Additional Questions")
   const [questionDraft, setQuestionDraft] = useState("")
   const [sendingQuestions, setSendingQuestions] = useState(false)
@@ -219,6 +224,9 @@ export function ApplicationDetail({ id }: { id: string }) {
       const questionsRes = await fetch(`/api/admin/partners/applications/${id}/questions`)
       const questionsData = await questionsRes.json()
       setQuestionRounds(questionsData.rounds || [])
+      const meetingsRes = await fetch(`/api/admin/partners/applications/${id}/meetings`)
+      const meetingsData = await meetingsRes.json()
+      setMeetingRows(meetingsData.meetings || [])
     } catch {
       setError("Failed to load application")
     } finally {
@@ -295,16 +303,66 @@ export function ApplicationDetail({ id }: { id: string }) {
       const res = await fetch(`/api/admin/partners/applications/${id}/meetings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: meetingTitle, scheduledAt: new Date(meetingAt).toISOString(), durationMinutes: meetingDuration, meetingLink, message: meetingMessage }),
+        body: JSON.stringify({ title: meetingTitle, scheduledAt: new Date(meetingAt).toISOString(), durationMinutes: meetingDuration, meetingLink, message: meetingMessage, createMeet: meetingCreateMeet }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) { setActionMsg(data.error || "Could not send meeting invitation."); return }
-      setActionMsg(data.emailSent ? "Meeting invitation sent and added to the timeline." : "Meeting added to the timeline, but the invitation email could not be sent.")
+      if (data.meetError) {
+        setActionMsg(`Invitation sent, but the Google Meet link could not be created (${data.meetError}).`)
+      } else if (data.emailSent) {
+        setActionMsg(data.meetingLink ? "Meeting invitation with a Google Meet link sent and added to the timeline." : "Meeting invitation sent and added to the timeline.")
+      } else {
+        setActionMsg("Meeting added to the timeline, but the invitation email could not be sent.")
+      }
+      if (data.teamNotified === false) setActionMsg((prev) => `${prev} Team notification could not be sent.`)
       setMeetingAt("")
       setMeetingMessage("")
+      setMeetingLink("")
       fetchDetail()
     } finally {
       setSendingMeeting(false)
+    }
+  }
+
+  async function cancelMeetingRow(meetingId: string) {
+    if (!confirm("Cancel this meeting? The Google Calendar event will be removed and the applicant will be emailed.")) return
+    setMeetingBusyId(meetingId)
+    setActionMsg("")
+    try {
+      const res = await fetch(`/api/admin/partners/applications/${id}/meetings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", meetingId }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) { setActionMsg(data.error || "Could not cancel the meeting."); return }
+      setActionMsg(data.emailSent ? "Meeting cancelled and the applicant was notified." : "Meeting cancelled.")
+      fetchDetail()
+    } finally {
+      setMeetingBusyId(null)
+      setTimeout(() => setActionMsg(""), 3000)
+    }
+  }
+
+  async function submitReschedule(meetingId: string) {
+    if (!rescheduleAt) { setActionMsg("Pick a new date and time."); return }
+    setMeetingBusyId(meetingId)
+    setActionMsg("")
+    try {
+      const res = await fetch(`/api/admin/partners/applications/${id}/meetings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reschedule", meetingId, scheduledAt: new Date(rescheduleAt).toISOString() }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) { setActionMsg(data.error || "Could not reschedule the meeting."); return }
+      setActionMsg(data.meetError ? `Meeting rescheduled, but the Meet link could not be regenerated (${data.meetError}).` : "Meeting rescheduled and the applicant was emailed an update.")
+      setRescheduleId(null)
+      setRescheduleAt("")
+      fetchDetail()
+    } finally {
+      setMeetingBusyId(null)
+      setTimeout(() => setActionMsg(""), 4000)
     }
   }
 
@@ -686,12 +744,16 @@ export function ApplicationDetail({ id }: { id: string }) {
                     eventType === "NOTE_ADDED" ? "bg-blue-500" :
                     eventType === "DOCUMENT_REVIEW" ? "bg-amber-500" :
                     eventType === "DOCUMENT_SUBMITTED" ? "bg-purple-500" :
+                    eventType === "MEETING_CANCELLED" ? "bg-red-500" :
+                    eventType === "MEETING_RESCHEDULED" ? "bg-amber-500" :
                     "bg-retail"
                   const label =
                     eventType === "NOTE_ADDED" ? "Internal note added" :
                     eventType === "APPLICATION_EDITED" ? "Application details edited" :
                     eventType === "MEETING_INVITED" ? "Meeting invitation sent" :
                     eventType === "MEETING_EMAIL_FAILED" ? "Meeting scheduled; invitation email failed" :
+                    eventType === "MEETING_CANCELLED" ? "Meeting cancelled" :
+                    eventType === "MEETING_RESCHEDULED" ? "Meeting rescheduled" :
                     eventType === "QUESTIONS_SENT" ? "Additional questions sent" :
                     eventType === "QUESTIONS_SUBMITTED" ? "Applicant answered additional questions" :
                     eventType === "QUESTIONS_REVIEWED" ? "Additional answers reviewed" :
@@ -751,11 +813,62 @@ export function ApplicationDetail({ id }: { id: string }) {
                 <div className="sm:col-span-2"><label className="block text-xs font-medium mb-1">Meeting title</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={meetingTitle} onChange={(e) => setMeetingTitle(e.target.value)} maxLength={200} /></div>
                 <div><label className="block text-xs font-medium mb-1">Date and time (your local time)</label><input type="datetime-local" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={meetingAt} onChange={(e) => setMeetingAt(e.target.value)} /></div>
                 <div><label className="block text-xs font-medium mb-1">Duration</label><select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={meetingDuration} onChange={(e) => setMeetingDuration(Number(e.target.value))}><option value={15}>15 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option><option value={90}>90 minutes</option></select></div>
-                <div className="sm:col-span-2"><label className="block text-xs font-medium mb-1">Meeting link (optional)</label><input type="url" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="https://meet.google.com/…" /></div>
+                <div className="sm:col-span-2"><label className="block text-xs font-medium mb-1">Meeting link (optional)</label><input type="url" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="Auto-generated if left blank, or paste your own https://meet.google.com/…" /></div>
+                <div className="sm:col-span-2 flex items-start gap-2 rounded-md border border-border bg-muted/20 p-3">
+                  <input id="partner-meeting-create-meet" type="checkbox" className="mt-0.5" checked={meetingCreateMeet} onChange={(e) => setMeetingCreateMeet(e.target.checked)} />
+                  <label htmlFor="partner-meeting-create-meet" className="text-sm">
+                    <span className="font-medium">Auto-generate a Google Meet link</span>
+                    <span className="block text-xs text-muted-foreground">Requires Google to be connected in Admin → Settings. When a link is typed above, it is used instead.</span>
+                  </label>
+                </div>
                 <div className="sm:col-span-2"><label className="block text-xs font-medium mb-1">Message (optional)</label><textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} maxLength={3000} value={meetingMessage} onChange={(e) => setMeetingMessage(e.target.value)} placeholder="Add an agenda or context for the applicant…" /></div>
               </div>
               <Button onClick={inviteToMeeting} disabled={sendingMeeting || !meetingAt || !meetingTitle.trim()}>{sendingMeeting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send Invitation</Button>
               {actionMsg && <p role="status" className="text-sm text-muted-foreground">{actionMsg}</p>}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-medium">Scheduled Meetings</CardTitle></CardHeader>
+            <CardContent>
+              {meetingRows.length === 0 ? <p className="text-sm text-muted-foreground">No meetings scheduled yet.</p> : (
+                <div className="space-y-3">{meetingRows.map((m) => (
+                  <div key={m.id} className="rounded-md border border-border p-3">
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                      <span>{m.title}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase font-medium ${m.status === "CANCELLED" ? "bg-red-50 text-red-700" : m.status === "COMPLETED" ? "bg-green-100 text-green-800" : "bg-blue-50 text-blue-700"}`}>{enumLabel(m.status)}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">{new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Lagos" }).format(new Date(m.scheduled_at))} WAT</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{m.duration_minutes} minutes{m.created_by_name ? ` · by ${m.created_by_name}` : ""}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                      {m.meeting_link ? <a href={m.meeting_link} target="_blank" rel="noopener noreferrer" className="text-retail hover:underline">Join Google Meet</a> : <span className="text-muted-foreground">No Meet link{m.meet_error ? ` — ${m.meet_error}` : ""}</span>}
+                      <span className="text-muted-foreground">{m.email_sent ? "Invitation emailed" : "Invitation email failed"}</span>
+                      <span className="text-muted-foreground">{m.team_notified ? "Team notified" : "Team not notified"}</span>
+                    </div>
+                    {m.status !== "CANCELLED" && m.status !== "COMPLETED" && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {rescheduleId === m.id ? (
+                          <>
+                            <input type="datetime-local" className="rounded-md border border-input bg-background px-2 py-1 text-xs" value={rescheduleAt} onChange={(e) => setRescheduleAt(e.target.value)} />
+                            <Button size="sm" disabled={meetingBusyId === m.id || !rescheduleAt} onClick={() => submitReschedule(m.id)}>
+                              {meetingBusyId === m.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />} Save
+                            </Button>
+                            <Button size="sm" variant="outline" disabled={meetingBusyId === m.id} onClick={() => { setRescheduleId(null); setRescheduleAt("") }}>Cancel</Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="outline" disabled={meetingBusyId === m.id} onClick={() => { setRescheduleId(m.id); setRescheduleAt("") }}>
+                              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Reschedule
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" disabled={meetingBusyId === m.id} onClick={() => cancelMeetingRow(m.id)}>
+                              {meetingBusyId === m.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <XCircle className="w-3.5 h-3.5 mr-1" />} Cancel meeting
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}</div>
+              )}
             </CardContent>
           </Card>
           <Card>

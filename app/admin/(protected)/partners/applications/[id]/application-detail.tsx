@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -201,7 +201,9 @@ export function ApplicationDetail({ id }: { id: string }) {
   const [activateDisplay, setActivateDisplay] = useState("")
   const [activating, setActivating] = useState(false)
 
-  async function fetchDetail() {
+  // Recreated only when the application id changes, so the mount effect below
+  // can depend on it without re-running on every render.
+  const fetchDetail = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch(`/api/admin/partners/applications/${id}`)
@@ -232,12 +234,12 @@ export function ApplicationDetail({ id }: { id: string }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDetail()
-  }, [])
+  }, [fetchDetail])
 
   function startEdit() {
     if (!app) return

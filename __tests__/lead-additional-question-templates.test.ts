@@ -7,6 +7,14 @@ import {
 } from "@/lib/lead-additional-question-templates"
 
 describe("LEAD_ADDITIONAL_QUESTION_TEMPLATES", () => {
+  it("provides production discovery questions for processing plants", () => {
+    for (const value of ["Processing Plant", "processing-plant"]) {
+      const template = getLeadAdditionalQuestionTemplate(value)
+      expect(template?.industry).toBe("Distributors")
+      expect(template?.fields.some((field) => field.name === "dist_production")).toBe(true)
+    }
+  })
+
   it("exposes a template per industry with unique names and questions", () => {
     expect(LEAD_ADDITIONAL_QUESTION_TEMPLATES.length).toBeGreaterThanOrEqual(8)
 

@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Mail,
   Calculator,
+  Factory,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -80,6 +81,7 @@ export const mainNav: NavItem[] = [
       { label: "Electronics Stores", href: "/industries/electronics-stores", icon: Smartphone },
       { label: "Beauty & Salons", href: "/industries/beauty-and-salons", icon: Scissors },
       { label: "Multi-Branch Retail", href: "/industries/multi-branch-retail", icon: GitBranch },
+      { label: "Processing Plant", href: "/industries/processing-plant", icon: Factory },
       { label: "View All Industries", href: "/industries", icon: ChevronRight },
     ],
   },
@@ -140,6 +142,7 @@ export const footerColumns = {
       { label: "Fashion Stores", href: "/industries/fashion-stores" },
       { label: "Electronics Stores", href: "/industries/electronics-stores" },
       { label: "Beauty & Salons", href: "/industries/beauty-and-salons" },
+      { label: "Processing Plant", href: "/industries/processing-plant" },
       { label: "View All Industries", href: "/industries" },
     ],
   },

@@ -2,6 +2,10 @@ import { SectionHeader } from "@/components/shared/section-header"
 
 const industries = [
   {
+    name: "Processing Plant",
+    scenario: "Track raw material intake, processing batches, yield, packaging and finished-goods dispatch.",
+  },
+  {
     name: "Supermarkets",
     scenario:
       "Manage thousands of SKUs, fast checkout lanes, and multiple branches with real-time stock visibility.",

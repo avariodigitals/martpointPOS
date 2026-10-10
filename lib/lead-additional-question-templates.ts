@@ -366,6 +366,7 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   "online stores": "Electronics Stores",
   distributor: "Distributors",
   wholesalers: "Distributors",
+  "processing plant": "Distributors", "processing plants": "Distributors", "processing-plant": "Distributors",
   manufacturers: "Distributors",
   "nylon & polythene manufacturing": "Distributors",
 }

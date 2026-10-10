@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { resolveIndustryName, resolveIndustrySlug, industryOptions } from "@/lib/industries"
+import { resolveIndustryName, resolveIndustrySlug, industryOptions, businessTypeOptions } from "@/lib/industries"
 import {
   resolveQuoteTemplate,
   quoteTemplateOptions,
@@ -11,6 +11,14 @@ describe("resolveIndustryName", () => {
     expect(resolveIndustryName("Supermarket")).toBe("Supermarkets")
     expect(resolveIndustryName("Pharmacy")).toBe("Pharmacies")
     expect(resolveIndustryName("Restaurant")).toBe("Restaurants")
+  })
+
+  it("registers Processing Plant across business and industry options", () => {
+    expect(businessTypeOptions).toContain("Processing Plant")
+    expect(industryOptions).toContain("Processing Plant")
+    expect(resolveIndustryName("processing-plant")).toBe("Processing Plant")
+    expect(resolveIndustrySlug("Processing Plant")).toBe("processing-plant")
+    expect(quoteTemplateOptions().some((option) => option.value === "Processing Plant" && option.group === "Enterprise")).toBe(true)
   })
 
   it("accepts canonical names and slugs", () => {

@@ -10,6 +10,13 @@ import {
 } from "@/lib/store-setup-templates"
 
 describe("STORE_SETUP_TEMPLATES", () => {
+  it("routes processing plants to the production setup questions", () => {
+    for (const value of ["Processing Plant", "processing-plant"]) {
+      expect(resolveStoreSetupTemplateKey(value)).toBe("distribution")
+      expect(getStoreSetupFields(value).some((field) => field.key === "distProduction")).toBe(true)
+    }
+  })
+
   it("exposes unique keys with labels and descriptions", () => {
     const keys = STORE_SETUP_TEMPLATES.map((t) => t.key)
     expect(new Set(keys).size).toBe(keys.length)
@@ -156,6 +163,18 @@ describe("cloneStoreSetupFields", () => {
 })
 
 describe("generateSetupQuestions", () => {
+  it("restarts numbering at 1 under every group", () => {
+    for (const template of STORE_SETUP_TEMPLATES) {
+      const groups = generateSetupQuestions(template.key).split(/^— .+ —$/m).slice(1)
+      expect(groups.length).toBeGreaterThan(1)
+      for (const group of groups) {
+        const numbers = [...group.matchAll(/^(\d+)\. /gm)].map((match) => Number(match[1]))
+        expect(numbers.length).toBeGreaterThan(0)
+        expect(numbers).toEqual(numbers.map((_, index) => index + 1))
+      }
+    }
+  })
+
   it("renders section headers and numbered questions", () => {
     const text = generateSetupQuestions("skincare")
     expect(text).toContain("— Branding —")

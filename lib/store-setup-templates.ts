@@ -266,6 +266,7 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   laundry: "services", tailoring: "services", "digital creator": "services",
   // distribution
   distribution: "distribution", distributors: "distribution", wholesalers: "distribution",
+  "processing plant": "distribution", "processing plants": "distribution", "processing-plant": "distribution",
   manufacturers: "distribution", "nylon & polythene manufacturing": "distribution",
   // retail catch-alls
   "electronics stores": "retail", "electronics store": "retail", "phone shops": "retail",
@@ -313,6 +314,7 @@ export function generateSetupQuestions(businessType: string | null | undefined):
   let n = 0
   for (const field of getStoreSetupFields(businessType)) {
     if (field.type === "section") {
+      n = 0
       lines.push(`— ${field.label} —`)
       continue
     }

@@ -33,16 +33,14 @@ export const metadata: Metadata = {
 }
 
 export default function IndustriesPage() {
-  // ERP-targeted industries (distributors, wholesalers, manufacturers, hospitals)
-  // are intentionally excluded from this active listing. Their pages remain
-  // public, indexable and reachable by direct URL — just not promoted here.
-  const retailIndustriesByCategory = Object.fromEntries(
+  // Processing plants are promoted alongside retail industries; other ERP pages remain direct-access.
+  const listedIndustriesByCategory = Object.fromEntries(
     Object.entries(industriesByCategory).map(([category, list]) => [
       category,
-      list.filter((industry) => industry.product !== "erp"),
+      list.filter((industry) => industry.product !== "erp" || industry.slug === "processing-plant"),
     ]),
   )
-  const retailIndustryCount = allIndustries.filter((i) => i.product !== "erp").length
+  const listedIndustryCount = allIndustries.filter((i) => i.product !== "erp" || i.slug === "processing-plant").length
 
   return (
     <>
@@ -53,7 +51,7 @@ export default function IndustriesPage() {
             <SectionHeader
               label="Industries"
               headline="Built for the businesses that power Africa"
-              description={`Whatever you sell, MartPoint Retail is designed for your operational reality. ${retailIndustryCount}+ industries covered.`}
+              description={`Whatever you sell or process, MartPoint is designed for your operational reality. ${listedIndustryCount}+ industries covered.`}
             />
           </div>
         </section>
@@ -61,14 +59,14 @@ export default function IndustriesPage() {
         <section className="w-full bg-muted py-16 md:py-24 lg:py-32">
           <div className="container-martpoint space-y-24">
             {categoryOrder
-              .filter((cat) => retailIndustriesByCategory[cat]?.length > 0)
+              .filter((cat) => listedIndustriesByCategory[cat]?.length > 0)
               .map((category) => (
                 <div key={category} className="pb-4">
                   <h2 className="text-2xl font-bold tracking-tight text-foreground mb-6">
                     {category}
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {retailIndustriesByCategory[category].map((industry) => (
+                    {listedIndustriesByCategory[category].map((industry) => (
                       <div
                         key={industry.slug}
                         className="group rounded-2xl border border-border bg-background p-8 transition-all duration-200 hover:shadow-sm hover:border-retail/20"

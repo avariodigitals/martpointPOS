@@ -3533,6 +3533,62 @@ export const manufacturers: IndustryData = {
   ],
 }
 
+export const processingPlant: IndustryData = {
+  name: "Processing Plant",
+  slug: "processing-plant",
+  category: "Enterprise",
+  product: "erp",
+  navVisible: true,
+  description: "Connect raw material intake, processing batches, packaging, finished goods and dispatch in one plant workflow.",
+  seo: {
+    title: "Processing Plant Management Software in Nigeria — MartPoint Enterprise",
+    description: "Manage raw materials, processing batches, yield, waste, packaging and finished goods with MartPoint Enterprise for processing plants in Nigeria.",
+  },
+  hero: {
+    label: "MartPoint Enterprise",
+    headline: "Account for Every Input, Batch and Finished Product",
+    paragraph: "From food and agro-processing to industrial materials, plant margins depend on what goes in, what comes out and what gets lost along the way. MartPoint Enterprise connects intake, production, packaging and sales so your team can follow each batch from receiving to dispatch.",
+    ctaText: "Book a Plant Demo",
+    waQuery: "Hi, I run a processing plant and would like a MartPoint Enterprise demo for our intake, production and dispatch workflows.",
+  },
+  painPoints: [
+    { icon: Scale, title: "Intake Figures Do Not Match Stock", desc: "Supplier deliveries, weights and material receipts sit in separate records, making reconciliation difficult." },
+    { icon: Factory, title: "Processing Batches Go Unrecorded", desc: "Inputs and finished output are reported verbally or on paper, leaving gaps in stock records." },
+    { icon: AlertTriangle, title: "Waste Hides Your Real Yield", desc: "Rejects, spoilage and processing losses are not tied to the batch that produced them." },
+    { icon: Package, title: "Packaging Shortages Delay Dispatch", desc: "Bags, bottles, labels and cartons run out while finished product waits on the floor." },
+    { icon: BarChart3, title: "Batch Margins Are Unclear", desc: "Material, packaging and operating costs are difficult to compare against saleable output." },
+    { icon: Receipt, title: "Dispatch and Sales Drift Apart", desc: "Goods leave the plant without a matching order, invoice or stock movement." },
+  ],
+  solutions: [
+    { icon: Scale, title: "Record Material Intake", desc: "Capture supplier purchases, quantities and receiving records before materials enter plant stock." },
+    { icon: Factory, title: "Track Processing Runs", desc: "Record materials issued and finished output for each production batch." },
+    { icon: AlertTriangle, title: "Reconcile Yield and Waste", desc: "Compare inputs, saleable output and recorded losses to understand each run." },
+    { icon: Package, title: "Manage Packaging and Finished Stock", desc: "Track packaging materials alongside finished products, with reorder levels for critical supplies." },
+    { icon: BarChart3, title: "Review Production Costs", desc: "Bring batch material and operating costs together to support pricing decisions." },
+    { icon: Receipt, title: "Connect Orders to Dispatch", desc: "Link finished stock to customer orders, invoices and delivery records." },
+  ],
+  capabilities: [
+    { icon: Package, title: "Materials and Packaging Inventory", desc: "Monitor raw materials, packaging supplies and finished goods across plant stores." },
+    { icon: Factory, title: "Production Batch Records", desc: "Keep input and output records for processing runs in one place." },
+    { icon: Scale, title: "Yield and Loss Visibility", desc: "Review output against material consumption and recorded waste." },
+    { icon: BarChart3, title: "Batch Costing", desc: "Review production costs and finished-product margins." },
+    { icon: Receipt, title: "Sales and Dispatch", desc: "Manage customer orders, credit sales, invoices and finished-stock movements." },
+    { icon: Users, title: "Team Access Controls", desc: "Give receiving, production, warehouse and sales staff access appropriate to their roles." },
+  ],
+  whyMartPoint: [
+    "Bring receiving, processing, packaging and dispatch records into one operational view.",
+    "Make yield and waste visible when reviewing production performance.",
+    "Connect plant stock to customer orders and sales records.",
+    "Scope your workflows with the local implementation team before rollout.",
+  ],
+  faqs: [
+    { q: "Which processing plants is MartPoint suited to?", a: "Food, agro-processing and industrial processing businesses can discuss their raw material, batch, packaging and dispatch workflows with our team. The implementation scope is confirmed during discovery." },
+    { q: "Can we track raw materials and finished goods separately?", a: "Yes. Your setup can separate raw materials, packaging and finished products, with stock movements recorded through the production workflow." },
+    { q: "Can we monitor processing yield and waste?", a: "Record material inputs, finished output and losses per run to review yield and waste. We agree the units and reporting requirements with your team during setup." },
+    { q: "How much does a processing plant setup cost?", a: "Processing plant implementations are scoped and quoted after discovery. Book a demo so we can review your production process, stores, users and reporting needs." },
+  ],
+}
+
 export const nylonPolythene: IndustryData = {
   name: "Nylon & Polythene Manufacturing",
   slug: "nylon-polythene-manufacturing",
@@ -3786,7 +3842,7 @@ export const allIndustries: IndustryData[] = [
   generalRetail, bookshop, furnitureStores,
   laundry, printing, tailoring, serviceBusiness,
   digitalCreator, onlineStore,
-  distributors, wholesalers, manufacturers, nylonPolythene, scientificLabSupplies,
+  distributors, wholesalers, manufacturers, processingPlant, nylonPolythene, scientificLabSupplies,
   multiBranchRetail,
 ]
 

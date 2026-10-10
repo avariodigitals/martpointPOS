@@ -231,9 +231,9 @@ export async function getSession(): Promise<SessionPayload | null> {
   if (!token?.value) return null
   const payload = verifySession(token.value, isSessionPayload)
   if (!payload) return null
-  // Enforce the global inactivity timeout. Expired sessions are cleared.
+  // This reader also runs in Server Components, where cookie writes are forbidden.
+  // Reject expired sessions here; route handlers handle cookie cleanup.
   if (isAdminSessionExpired(payload)) {
-    cookieStore.delete(ADMIN_COOKIE_NAME)
     return null
   }
   return payload

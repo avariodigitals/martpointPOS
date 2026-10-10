@@ -1,5 +1,28 @@
-import { describe, it, expect } from "vitest"
-import { isAdminSessionExpired, type SessionPayload } from "@/lib/admin-auth"
+import { describe, it, expect, vi, afterEach } from "vitest"
+import { cookies } from "next/headers"
+import { getSession, isAdminSessionExpired, type SessionPayload } from "@/lib/admin-auth"
+import { signSession } from "@/lib/session-secret"
+
+vi.mock("next/headers", () => ({ cookies: vi.fn() }))
+
+afterEach(() => vi.unstubAllEnvs())
+
+describe("getSession during server rendering", () => {
+  it("rejects an expired signed session without writing to read-only cookies", async () => {
+    vi.stubEnv("ADMIN_SESSION_TIMEOUT_MINUTES", "30")
+    const token = signSession(session({ lastActive: Date.now() - 31 * MINUTE }))
+    const deleteCookie = vi.fn(() => {
+      throw new Error("Cookies can only be modified in a Server Action or Route Handler")
+    })
+    vi.mocked(cookies).mockResolvedValue({
+      get: vi.fn(() => ({ name: "admin-session", value: token })),
+      delete: deleteCookie,
+    } as unknown as Awaited<ReturnType<typeof cookies>>)
+
+    await expect(getSession()).resolves.toBeNull()
+    expect(deleteCookie).not.toHaveBeenCalled()
+  })
+})
 
 /* ─────────────────────────────────────────────────────────────────────────────
  * Regression: reconnecting Google signed the admin out with "Your session

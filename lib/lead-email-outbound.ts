@@ -1,7 +1,10 @@
 /* ───────────────────  Outbound lead email (server-only)  ───────────────────
- * Sends a message to a lead through the admin mailbox (SMTP) when configured,
- * otherwise through the transactional provider, and files it into the lead's
- * email thread (lead_emails). Shared by the Email tab and meeting invites.
+ * Sends a message to a lead through the transactional provider (Resend/Brevo)
+ * for deliverability and sending logs, with From and Reply-To on the admin's
+ * sales mailbox so replies land in that inbox and the IMAP sync files them
+ * back into the lead thread. SMTP is only the fallback when no provider API
+ * key is configured. Files every message into lead_emails.
+ * Shared by the Email tab and meeting invites.
  */
 
 import { supabase, isSupabaseConfigured } from "./supabase"
@@ -66,14 +69,22 @@ export interface SendLeadEmailResult {
 
 export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLeadEmailResult> {
   const settings = await getEmailSettings()
-  // Lead threads go through the admin's own mailbox (SMTP) when configured,
-  // so replies land in the real inbox and are picked up by the IMAP sync.
-  const useMailbox = isSmtpConfigured(settings)
-  const rawFrom = useMailbox
-    ? settings.smtp.fromEmail || settings.smtp.user
-    : settings.fromEmail || process.env.RESEND_FROM_EMAIL || "MartPoint <hello@martpoint.com.ng>"
+  // Lead mail goes out through the transactional provider (Resend/Brevo) for
+  // deliverability and sending logs. From and Reply-To stay on the admin's
+  // sales mailbox, so a plain Reply lands in the real inbox and the IMAP sync
+  // files it back into the lead thread. SMTP only carries the mail when no
+  // provider API key is configured.
+  const useProvider =
+    settings.provider === "brevo"
+      ? Boolean(settings.brevoApiKey || process.env.BREVO_API_KEY)
+      : Boolean(settings.resendApiKey || process.env.RESEND_API_KEY)
+  const mailbox = (settings.smtp.fromEmail || settings.smtp.user || "").trim()
+  const rawFrom = mailbox || settings.fromEmail || process.env.RESEND_FROM_EMAIL || "MartPoint <hello@martpoint.com.ng>"
   // Bare addresses get a display name so mail clients don't show an anonymous sender.
   const from = rawFrom.includes("<") ? rawFrom : `MartPoint <${rawFrom}>`
+  // Replies must reach the mailbox the IMAP sync reads; fall back to the
+  // sales address when the mailbox isn't configured.
+  const replyTo = mailbox ? from : REPLY_TO.sales
 
   // HTML signature (rich editor) wins; the plain-text field is the legacy
   // fallback. The text part always gets a derived plain-text version, like a
@@ -89,22 +100,24 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
     ? appendSignatureToHtml(input.html, signatureBlock)
     : `${bodyTextToHtml(input.body)}${signatureBlock}`
 
-  const sent = useMailbox
-    ? await sendEmailViaSmtp(
+  const viaProvider = useProvider || !isSmtpConfigured(settings)
+  const sent = viaProvider
+    ? await sendEmail({
+        to: input.to,
+        subject: input.subject,
+        text: textBody,
+        html,
+        from,
+        replyTo,
+        cc: input.cc,
+        attachments: input.attachments,
+      })
+    : await sendEmailViaSmtp(
         { subject: input.subject, text: textBody, html, replyTo: from, cc: input.cc, attachments: input.attachments },
         settings,
         from,
         Array.isArray(input.to) ? input.to : [input.to],
       )
-    : await sendEmail({
-        to: input.to,
-        subject: input.subject,
-        text: textBody,
-        html,
-        replyTo: REPLY_TO.sales,
-        cc: input.cc,
-        attachments: input.attachments,
-      })
 
   if (!isSupabaseConfigured()) return { sent, email: null }
 
@@ -119,7 +132,7 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
       body_text: textBody,
       body_html: html,
       status: sent ? "sent" : "failed",
-      provider: useMailbox ? "smtp" : settings.provider,
+      provider: viaProvider ? settings.provider : "smtp",
       metadata: input.metadata || null,
     })
     .select()

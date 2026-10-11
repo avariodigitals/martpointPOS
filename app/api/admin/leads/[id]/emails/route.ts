@@ -3,6 +3,8 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendLeadEmail, mapLeadEmail } from "@/lib/lead-email-outbound"
+import { brandedEmailHtml } from "@/lib/email-templates"
+import { buildLeadEmailTemplate, LEAD_EMAIL_STAGE_KEYS } from "@/lib/lead-email-templates"
 import { z } from "zod"
 
 const attachmentSchema = z.object({
@@ -14,6 +16,14 @@ const attachmentSchema = z.object({
 const postSchema = z.object({
   subject: z.string().min(1, "Subject is required"),
   body: z.string().min(1, "Message body is required"),
+  /** Packaged industry template to render as a branded HTML email. Only sent
+   *  when the composer copy is untouched — edited copy goes out as text. */
+  template: z
+    .object({
+      key: z.enum(LEAD_EMAIL_STAGE_KEYS),
+      industry: z.string().trim().max(120).optional(),
+    })
+    .optional(),
   attachments: z.array(attachmentSchema).max(5, "Up to 5 attachments per email").optional(),
 })
 
@@ -65,19 +75,43 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { data: lead, error: leadError } = await supabase
       .from("leads")
-      .select("id, email, additional_email, full_name")
+      .select("id, email, additional_email, full_name, business_name, business_type, industry")
       .eq("id", id)
       .single()
 
     if (leadError || !lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 })
     if (!lead.email) return NextResponse.json({ error: "Lead has no email address" }, { status: 400 })
 
+    // A packaged template renders the branded HTML edition; the composer body
+    // travels as the plain-text part and lands in the thread as usual.
+    const template = parsed.data.template
+    let html: string | undefined
+    let noSignature = false
+    if (template) {
+      const tpl = buildLeadEmailTemplate(template.key, template.industry || lead.industry || lead.business_type, {
+        fullName: lead.full_name as string | null,
+        businessName: lead.business_name as string | null,
+      })
+      html = brandedEmailHtml(tpl.bodyHtml, {
+        eyebrow: tpl.eyebrow,
+        title: tpl.title,
+        signoff: "MartPoint Sales",
+        preheader: tpl.preheader,
+      })
+      // The branded shell signs off ("Best regards, MartPoint Sales") and
+      // carries the contact footer, so the mailbox signature would duplicate it.
+      noSignature = true
+    }
+
     const result = await sendLeadEmail({
       leadId: id,
       to: [...new Set([lead.email as string, lead.additional_email as string | null].filter((email): email is string => Boolean(email)))],
       subject: parsed.data.subject,
       body: parsed.data.body,
+      html,
+      noSignature,
       attachments: parsed.data.attachments,
+      metadata: template ? { template: template.key, industry: template.industry || (lead.industry as string | null) || null } : undefined,
     })
 
     if (!result.email) {
@@ -92,6 +126,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         emailSent: result.sent,
         subject: parsed.data.subject,
         to: lead.email,
+        template: parsed.data.template?.key || null,
         attachments: parsed.data.attachments?.map((a) => a.filename) || [],
       },
     })

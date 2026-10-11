@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
+import { buildLeadEmailTemplate, LEAD_EMAIL_STAGES, type LeadEmailStageKey } from "@/lib/lead-email-templates"
 import { cloneTemplateFields, getLeadAdditionalQuestionTemplate, LEAD_ADDITIONAL_QUESTION_TEMPLATES } from "@/lib/lead-additional-question-templates"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 import {
@@ -231,6 +232,10 @@ export function LeadDetailModal({
   const [emailsLoading, setEmailsLoading] = useState(false)
   const [emailsError, setEmailsError] = useState("")
   const [emailForm, setEmailForm] = useState({ subject: "", body: "" })
+  const [emailTemplateKey, setEmailTemplateKey] = useState<LeadEmailStageKey | null>(null)
+  const [emailTemplateIndustry, setEmailTemplateIndustry] = useState(
+    lead.industry || resolveIndustryName(lead.businessType) || "",
+  )
   const [emailAttachments, setEmailAttachments] = useState<{ filename: string; content: string; size: number }[]>([])
   const [sendingEmail, setSendingEmail] = useState(false)
   const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null)
@@ -643,6 +648,26 @@ export function LeadDetailModal({
     navigator.clipboard.writeText(url)
   }
 
+  const emailTemplateVars = {
+    firstName: lead.fullName.trim().split(/\s+/)[0] || lead.fullName,
+    fullName: lead.fullName,
+    businessName: lead.businessName,
+  }
+  const appliedEmailTemplate = emailTemplateKey
+    ? buildLeadEmailTemplate(emailTemplateKey, emailTemplateIndustry, emailTemplateVars)
+    : null
+  const emailTemplateUnedited = Boolean(
+    appliedEmailTemplate &&
+      emailForm.subject === appliedEmailTemplate.subject &&
+      emailForm.body === appliedEmailTemplate.text,
+  )
+
+  const applyEmailTemplate = (key: LeadEmailStageKey, industry = emailTemplateIndustry) => {
+    const tpl = buildLeadEmailTemplate(key, industry, emailTemplateVars)
+    setEmailTemplateKey(key)
+    setEmailForm({ subject: tpl.subject, body: tpl.text })
+  }
+
   const handleSendEmail = async () => {
     if (!emailForm.subject.trim() || !emailForm.body.trim()) return
     setSendingEmail(true)
@@ -654,6 +679,10 @@ export function LeadDetailModal({
         body: JSON.stringify({
           subject: emailForm.subject.trim(),
           body: emailForm.body,
+          template:
+            emailTemplateKey && emailTemplateUnedited
+              ? { key: emailTemplateKey, industry: emailTemplateIndustry || undefined }
+              : undefined,
           attachments: emailAttachments.length
             ? emailAttachments.map((a) => ({ filename: a.filename, content: a.content }))
             : undefined,
@@ -663,6 +692,7 @@ export function LeadDetailModal({
       if (data.email) {
         setEmails((prev) => [...prev, data.email])
         setEmailForm({ subject: "", body: "" })
+        setEmailTemplateKey(null)
         setEmailAttachments([])
         if (!data.sent) setEmailsError("Email saved to thread but delivery failed — check email settings.")
       } else {
@@ -1271,6 +1301,72 @@ export function LeadDetailModal({
 
               <div className="rounded-lg border border-border p-4 space-y-3">
                 <p className={labelClass}>New message</p>
+
+                {/* Packaged, industry-specific email templates */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">Templates</p>
+                    <select
+                      value={emailTemplateIndustry}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setEmailTemplateIndustry(value)
+                        if (emailTemplateKey && emailTemplateUnedited) applyEmailTemplate(emailTemplateKey, value)
+                      }}
+                      className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground max-w-[220px]"
+                      title="Industry the template copy is tailored to"
+                    >
+                      <option value="">General (no industry)</option>
+                      {industryOptions.map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {LEAD_EMAIL_STAGES.map((stage) => (
+                      <button
+                        key={stage.key}
+                        type="button"
+                        title={stage.description}
+                        onClick={() => applyEmailTemplate(stage.key)}
+                        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                          emailTemplateKey === stage.key
+                            ? "border-retail bg-retail-soft text-retail"
+                            : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+                        }`}
+                      >
+                        {stage.key === "introduction" && <Rocket className="w-3.5 h-3.5" />}
+                        {stage.key === "follow_up" && <Bell className="w-3.5 h-3.5" />}
+                        {stage.key === "nurture" && <TrendingUp className="w-3.5 h-3.5" />}
+                        {stage.key === "thank_you" && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        {stage.label}
+                      </button>
+                    ))}
+                  </div>
+                  {appliedEmailTemplate && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {emailTemplateUnedited ? (
+                        <>
+                          Sends as a branded HTML email
+                          {appliedEmailTemplate.industry ? (
+                            <> tailored to <span className="font-medium text-foreground">{appliedEmailTemplate.industry}</span></>
+                          ) : null}
+                          . Editing the copy below switches it to a simple email.
+                        </>
+                      ) : (
+                        <>Copy edited — this will send as a simple email instead of the branded HTML template.</>
+                      )}{" "}
+                      <button
+                        type="button"
+                        onClick={() => setEmailTemplateKey(null)}
+                        className="underline hover:text-foreground"
+                      >
+                        Detach template
+                      </button>
+                    </p>
+                  )}
+                </div>
+
                 <input
                   type="text"
                   value={emailForm.subject}

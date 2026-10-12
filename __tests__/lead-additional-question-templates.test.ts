@@ -8,10 +8,20 @@ import {
 
 describe("LEAD_ADDITIONAL_QUESTION_TEMPLATES", () => {
   it("provides production discovery questions for processing plants", () => {
-    for (const value of ["Processing Plant", "processing-plant"]) {
+    for (const value of ["Processing Plant", "processing-plant", "Plant"]) {
       const template = getLeadAdditionalQuestionTemplate(value)
-      expect(template?.industry).toBe("Distributors")
-      expect(template?.fields.some((field) => field.name === "dist_production")).toBe(true)
+      expect(template?.industry).toBe("Processing Plant")
+      expect(template?.fields.some((field) => field.name === "plant_batches")).toBe(true)
+      expect(template?.fields.some((field) => field.name === "plant_yield")).toBe(true)
+    }
+  })
+
+  it("provides clinic discovery questions for physiotherapy centres", () => {
+    for (const value of ["Physiotherapy & Rehabilitation", "Physiotherapy", "Physio"]) {
+      const template = getLeadAdditionalQuestionTemplate(value)
+      expect(template?.industry).toBe("Physiotherapy & Rehabilitation")
+      expect(template?.fields.some((field) => field.name === "physio_appointments")).toBe(true)
+      expect(template?.fields.some((field) => field.name === "physio_packages")).toBe(true)
     }
   })
 

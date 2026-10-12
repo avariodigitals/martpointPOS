@@ -136,6 +136,48 @@ const servicesQuestions: QuestionnaireField[] = [
   { name: "services_online_store", label: "Online store: Do you have a website? Which services should customers request online, and should any have fixed prices with checkout?", type: "textarea", required: true },
 ]
 
+const processingPlantQuestions: QuestionnaireField[] = [
+  { name: "plant_products", label: "Products: Which raw materials do you process and which finished products come out? Which stages are outsourced?", type: "textarea", required: true },
+  { name: "plant_intake", label: "Intake: How do you receive raw materials today—weighing, measurements, supplier waybills? Who confirms quantity and quality before materials enter the plant?", type: "textarea", required: true },
+  { name: "plant_batches", label: "Production runs: Do you record output per processing run or batch? Who records the materials issued and the finished output, and how?", type: "textarea", required: true },
+  { name: "plant_yield", label: "Yield and waste: How do you record rejects, spoilage and processing losses? Can a loss be traced back to the run that produced it?", type: "textarea", required: true },
+  { name: "plant_units", label: "Units: Which units do you use at intake, in processing and for finished goods (kg, litres, bags, cartons, pieces)? How do you convert between them?", type: "textarea", required: true },
+  { name: "plant_packaging", label: "Packaging: Which bags, bottles, labels and cartons do you track? How do you handle packaging shortages, reorder levels and returns of unused packaging?", type: "textarea", required: true },
+  { name: "plant_quality", label: "Quality control: Do you grade output, hold batches for testing or record rejections? Who approves the release of finished stock for sale?", type: "textarea", required: true },
+  { name: "plant_pricing", label: "Pricing: How do you price finished goods—per unit, carton, pallet, batch or customer? Do prices vary by volume, customer tier or season?", type: "textarea", required: true },
+  { name: "plant_customers", label: "Customers and channels: Who buys your output (retailers, wholesalers, institutions, exporters)? Do you sell through reps or routes, or only on order?", type: "textarea", required: true },
+  { name: "plant_payments", label: "Payments: What deposit or credit terms apply? When is the balance due, and how do you monitor overdue accounts?", type: "textarea", required: true },
+  { name: "plant_approvals", label: "Approvals: Who authorises credit sales, discounts, dispatch, waste write-offs and stock adjustments? Who acts as backup?", type: "textarea", required: true },
+  { name: "plant_costs", label: "Batch costing: Do you calculate the cost of a run or finished unit today (materials, packaging, labour, power)? How do you compare it with the selling price?", type: "textarea", required: true },
+  { name: "plant_logistics", label: "Dispatch and logistics: How do you plan deliveries, load vehicles and confirm proof of delivery? Can goods leave the plant with an outstanding balance?", type: "textarea", required: true },
+  { name: "plant_reports", label: "Reports: Which reports does management use (intake, production, yield and waste, stock, receivables, batch margins)?", type: "textarea", required: true },
+  { name: "plant_access_connectivity", label: "Access and connectivity: How often is internet access unavailable across the plant, stores and offices?", type: "textarea", required: true },
+  { name: "plant_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample intake records, a production or batch sheet, and the reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live customer data." },
+  { name: "plant_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example materials, batches, customers or outstanding balances), and how far back?", type: "textarea", required: true },
+  { name: "plant_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "plant_online_store", label: "Online store: Do you have a website or B2B ordering page? Which products should customers order online, and should any have fixed prices with checkout?", type: "textarea", required: true },
+]
+
+const physioQuestions: QuestionnaireField[] = [
+  { name: "physio_services", label: "Services: Which therapies and rehabilitation programmes do you offer (physiotherapy, massage, post-surgery rehab, home visits)? Which services are outsourced?", type: "textarea", required: true },
+  { name: "physio_appointments", label: "Appointments: How do you book and track sessions per therapist and treatment room today? How are reschedules, cancellations and no-shows handled?", type: "textarea", required: true },
+  { name: "physio_packages", label: "Session packages: Do you sell prepaid multi-session packages? How are sessions deducted, and what happens to unused or expired sessions?", type: "textarea", required: true },
+  { name: "physio_plans", label: "Treatment plans: Do you record diagnoses, treatment plans and progress notes per patient? Who can see and edit them?", type: "textarea", required: true },
+  { name: "physio_pricing", label: "Pricing: How do you price assessments, single sessions and packages? Do prices vary by therapist, session length, home visit or patient type (HMO, corporate)?", type: "textarea", required: true },
+  { name: "physio_payments", label: "Payments: Do you bill HMOs, insurers or corporate clients? What deposit or part-payment terms apply, and who settles the balance when a family member pays?", type: "textarea", required: true },
+  { name: "physio_approvals", label: "Approvals: Who authorises discounts, free sessions, package extensions and refunds? Who acts as backup?", type: "textarea", required: true },
+  { name: "physio_therapists", label: "Therapists and schedules: How many therapists and treatment rooms do you run? How do you track shifts, caseloads and performance per therapist?", type: "textarea", required: true },
+  { name: "physio_equipment", label: "Equipment and supplies: Which consumables and equipment do you track (electrodes, tapes, gym and therapy equipment)? How do you record usage and servicing?", type: "textarea", required: true },
+  { name: "physio_referrals", label: "Referrals: Do you receive patients from doctors, hospitals or corporate clients? Do you pay referral commissions or maintain referral records?", type: "textarea", required: true },
+  { name: "physio_records", label: "Patient records: Which details do you keep today (medical history, consent forms, visit notes, outstanding balances)? Are they on paper or in a system?", type: "textarea", required: true },
+  { name: "physio_reports", label: "Reports: Which reports does management use (attendance, revenue by therapist, package balances, outstanding payments)?", type: "textarea", required: true },
+  { name: "physio_access_connectivity", label: "Access and connectivity: How often is internet access unavailable at reception? Do you need offline booking and automatic sync?", type: "textarea", required: true },
+  { name: "physio_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample appointment or attendance sheets, a patient list and the reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live patient data." },
+  { name: "physio_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example patients, session packages, balances or appointment history), and how far back?", type: "textarea", required: true },
+  { name: "physio_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "physio_online_store", label: "Online booking: Do you have a website? Should patients be able to request or book appointments online, and should they be able to pay for packages there?", type: "textarea", required: true },
+]
+
 const distributionQuestions: QuestionnaireField[] = [
   { name: "dist_services", label: "Products: Which product lines do you distribute or manufacture? Which stages are outsourced?", type: "textarea", required: true },
   { name: "dist_orders", label: "Orders: Can one order contain several product lines? Do you allow partial dispatch, backorders or standing orders?", type: "textarea", required: true },
@@ -301,6 +343,8 @@ export const LEAD_ADDITIONAL_QUESTION_TEMPLATES: LeadAdditionalQuestionTemplate[
   { industry: "Electronics Stores", label: "Electronics & Hardware Retail", fields: [...electronicsQuestions, ...STORE_SETUP_FIELDS] },
   { industry: "Service Businesses", label: "Service Businesses", fields: [...servicesQuestions, ...STORE_SETUP_FIELDS] },
   { industry: "Distributors", label: "Distribution, Wholesale & Manufacturing", fields: [...distributionQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Processing Plant", label: "Processing Plant", fields: [...processingPlantQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Physiotherapy & Rehabilitation", label: "Physiotherapy & Rehabilitation", fields: [...physioQuestions, ...STORE_SETUP_FIELDS] },
 ]
 
 /** Aliases map alternate business types / industry names to a canonical template
@@ -330,7 +374,12 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   clinics: "Pharmacies",
   hospitals: "Pharmacies",
   "diagnostic centres": "Pharmacies",
-  "physiotherapy & rehabilitation": "Pharmacies",
+  "physiotherapy & rehabilitation": "Physiotherapy & Rehabilitation",
+  physiotherapy: "Physiotherapy & Rehabilitation",
+  physio: "Physiotherapy & Rehabilitation",
+  "physio clinics": "Physiotherapy & Rehabilitation",
+  "rehabilitation centres": "Physiotherapy & Rehabilitation",
+  "rehab centres": "Physiotherapy & Rehabilitation",
   "fashion store": "Fashion Stores",
   boutiques: "Fashion Stores",
   "shoe stores": "Fashion Stores",
@@ -366,7 +415,8 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   "online stores": "Electronics Stores",
   distributor: "Distributors",
   wholesalers: "Distributors",
-  "processing plant": "Distributors", "processing plants": "Distributors", "processing-plant": "Distributors",
+  "processing plant": "Processing Plant", "processing plants": "Processing Plant", "processing-plant": "Processing Plant",
+  plant: "Processing Plant", plants: "Processing Plant",
   manufacturers: "Distributors",
   "nylon & polythene manufacturing": "Distributors",
 }

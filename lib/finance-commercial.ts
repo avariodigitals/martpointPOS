@@ -115,6 +115,17 @@ export function isInvoiceOverdue(invoice: InvoiceStatusInput, now: Date = new Da
 export function resolveInvoiceStatus(invoice: InvoiceStatusInput, now: Date = new Date()): InvoiceStatus {
   return isInvoiceOverdue(invoice, now) ? "OVERDUE" : (invoice.status as InvoiceStatus)
 }
+
+/**
+ * Status a cancelled invoice returns to when reopened. Only issued invoices are
+ * billable, so a draft that was never issued (and has no money against it) must
+ * not silently become issuable — it goes back to DRAFT for review. Anything else
+ * returns to ISSUED, which `recalculateInvoice()` then promotes to
+ * PARTIALLY_PAID / PAID / OVERDUE from the payments still on the invoice.
+ */
+export function reopenInvoiceStatus(invoice: { issued_by?: string | null; amount_paid?: number }): InvoiceStatus {
+  return invoice.issued_by || Number(invoice.amount_paid || 0) > 0 ? "ISSUED" : "DRAFT"
+}
 export type PaymentStatus = "PENDING" | "CONFIRMED" | "FAILED" | "REVERSED" | "REFUNDED" | "PARTIALLY_REFUNDED"
 export type PaymentMethod = "BANK_TRANSFER" | "PAYSTACK" | "FLUTTERWAVE" | "CASH" | "POS" | "OTHER"
 export type SubscriptionStatus = "PENDING" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELLED" | "EXPIRED" | "WAIVED"
@@ -363,7 +374,7 @@ export type FinanceOverview = {
 
 export type FinanceAuditAction =
   | "QUOTE_CREATED" | "QUOTE_SENT" | "QUOTE_ACCEPTED" | "QUOTE_CONVERTED"
-  | "INVOICE_CREATED" | "INVOICE_UPDATED" | "INVOICE_ISSUED" | "INVOICE_VOIDED" | "INVOICE_DELETED" | "INVOICE_WAIVED"
+  | "INVOICE_CREATED" | "INVOICE_UPDATED" | "INVOICE_ISSUED" | "INVOICE_VOIDED" | "INVOICE_DELETED" | "INVOICE_WAIVED" | "INVOICE_REOPENED"
   | "INVOICE_EMAIL_SENT" | "INVOICE_REMINDER_SENT" | "INVOICE_REMINDERS_TOGGLED"
   | "PAYMENT_RECORDED" | "PAYMENT_CONFIRMED" | "PAYMENT_REVERSED" | "PAYMENT_REFUNDED"
   | "RECEIPT_ISSUED"

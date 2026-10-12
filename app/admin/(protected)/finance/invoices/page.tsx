@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCircle2, Ban, CreditCard, Send, FileX, Eye, Mail, BellRing, PauseCircle, PlayCircle, Download, BadgeCheck } from "lucide-react"
+import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCircle2, Ban, CreditCard, Send, FileX, Eye, Mail, BellRing, PauseCircle, PlayCircle, Download, BadgeCheck, RotateCcw } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
 import { resolveInvoiceStatus } from "@/lib/finance-commercial"
@@ -709,6 +709,7 @@ export default function InvoicesPage() {
           resume_reminders: "Reminders resumed",
           void: "Invoice voided",
           cancel: "Invoice cancelled",
+          reopen: "Invoice reopened",
           waive: "Invoice waived — it will still count as a granted licence",
         }
         let msg = labels[action] || `Invoice ${action.replace("_", " ")}`
@@ -944,6 +945,11 @@ export default function InvoicesPage() {
                               </button>
                             </>
                           )}
+                          {inv.status === "CANCELLED" && (
+                            <button onClick={() => runInvoiceAction("reopen", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-green-600 hover:bg-green-50" title="Reopen">
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           <button onClick={() => deleteInvoice(inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-red-700 hover:bg-red-50" title="Delete">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -1178,6 +1184,9 @@ export default function InvoicesPage() {
                   <Button size="sm" variant="outline" onClick={() => runInvoiceAction("cancel", editing.id)}><Ban className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
                   <Button size="sm" variant="outline" className="text-purple-600 hover:text-purple-700 hover:bg-purple-50" onClick={() => runInvoiceAction("waive", editing.id)}><BadgeCheck className="mr-1 h-3.5 w-3.5" /> Waive</Button>
                 </>
+              )}
+              {editing.status === "CANCELLED" && (
+                <Button size="sm" variant="outline" onClick={() => runInvoiceAction("reopen", editing.id)}><RotateCcw className="mr-1 h-3.5 w-3.5" /> Reopen</Button>
               )}
               <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => { deleteInvoice(editing.id); setEditing(null) }}><Trash2 className="mr-1 h-3.5 w-3.5" /> Delete</Button>
             </div>

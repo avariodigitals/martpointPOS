@@ -7,6 +7,7 @@ import {
 } from "../lib/quotations"
 import {
   isInvoiceOverdue,
+  reopenInvoiceStatus,
   resolveInvoiceStatus,
   type InvoiceStatus,
 } from "../lib/finance-commercial"
@@ -152,5 +153,21 @@ describe("isInvoiceOverdue", () => {
 
   it("does not throw on a missing due date", () => {
     expect(isInvoiceOverdue(invoice("ISSUED", "", 100), NOW)).toBe(false)
+  })
+})
+
+describe("reopenInvoiceStatus", () => {
+  it("returns a cancelled draft to DRAFT so it is not silently billable", () => {
+    expect(reopenInvoiceStatus({ issued_by: null, amount_paid: 0 })).toBe("DRAFT")
+    expect(reopenInvoiceStatus({})).toBe("DRAFT")
+  })
+
+  it("returns an issued invoice to ISSUED", () => {
+    expect(reopenInvoiceStatus({ issued_by: "admin-1", amount_paid: 0 })).toBe("ISSUED")
+  })
+
+  it("treats money already collected as issued", () => {
+    expect(reopenInvoiceStatus({ issued_by: null, amount_paid: 2500 })).toBe("ISSUED")
+    expect(reopenInvoiceStatus({ issued_by: null, amount_paid: 0.01 })).toBe("ISSUED")
   })
 })

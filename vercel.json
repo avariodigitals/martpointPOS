@@ -5,6 +5,10 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/explee-sync",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/cron/careers",
       "schedule": "*/30 * * * *"
     },

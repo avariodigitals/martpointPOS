@@ -21,6 +21,7 @@ import {
   Globe,
   ClipboardCheck,
   Handshake,
+  HeartHandshake,
   Building2,
   Ticket,
   Activity,
@@ -169,6 +170,7 @@ const navItems: NavItem[] = [
   { href: "/admin/settings/email", label: "Email Settings", icon: Mail, page: "settings", section: "Administration" },
   { href: "/admin/settings/email-routes", label: "Email Routes", icon: Route, page: "settings", section: "Administration" },
   { href: "/admin/settings/email-templates", label: "Email Templates", icon: Mail, page: "settings", section: "Administration" },
+  { href: "/admin/settings/client-checkins", label: "Client Check-ins", icon: HeartHandshake, page: "settings", section: "Administration" },
   { href: "/admin/email-logs", label: "Email Logs", icon: FileText, page: "settings", section: "Administration" },
   { href: "/admin/users", label: "Team Members", icon: Users, page: "users", section: "Administration" },
 ]

@@ -6,6 +6,8 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import type { EmailAttachment } from "@/lib/email"
 import { renderEmailTemplate, brandedEmailHtml, getEmailWhiteLogoUrl } from "@/lib/email-templates"
+import { markAccessSent, startCheckins } from "@/lib/client-checkins"
+import { getClientCheckinConfig } from "@/lib/automations"
 
 async function guardOnboardingAccess() {
   const session = await getSession()
@@ -159,7 +161,26 @@ export async function POST(request: Request) {
       })
       .eq("id", recordId)
 
-    return NextResponse.json({ success: true, sent })
+    // Founder check-in sequence: the first time a client receives their
+    // credentials, day 0 is stamped, the welcome note goes out right away and
+    // the 30/60/90/120-day check-ins are scheduled. Resends do not re-trigger.
+    let checkins: { welcomeSent?: boolean; scheduled?: boolean; note?: string } = {}
+    if (sent && record.business_id) {
+      try {
+        const firstTime = await markAccessSent(record.business_id as string)
+        if (firstTime) {
+          const cfg = await getClientCheckinConfig()
+          const res = await startCheckins(record.business_id as string, { sendWelcome: cfg.welcomeEnabled })
+          checkins = { welcomeSent: res.welcomeSent, scheduled: res.ok && !res.error, note: res.error }
+        } else {
+          checkins = { note: "already started" }
+        }
+      } catch (err) {
+        console.error("[onboarding access] failed to start client check-ins:", err)
+      }
+    }
+
+    return NextResponse.json({ success: true, sent, checkins })
   } catch {
     return NextResponse.json({ error: "Failed to send access details" }, { status: 500 })
   }

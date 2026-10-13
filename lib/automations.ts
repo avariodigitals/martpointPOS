@@ -24,7 +24,7 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import { sendEmail, REPLY_TO } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { getBaseUrl, getSuppressedEmails } from "./marketing"
-import { getPublicSiteSettings } from "./settings"
+import { getPublicSiteSettings, readSettings } from "./settings"
 import { buildQuotePublicUrl, isQuoteExpired } from "./quotations"
 import { formatMoney } from "./money-format"
 
@@ -41,9 +41,10 @@ export type AutomationTrigger =
   | "estimate.sent"
   | "lead.created"
   | "meeting.no_show"
+  | "business.access_sent"
   | "manual"
 
-export type AutomationSubjectType = "lead" | "quotation" | "estimate"
+export type AutomationSubjectType = "lead" | "quotation" | "estimate" | "business"
 
 export interface Automation {
   id: string
@@ -305,6 +306,111 @@ async function filterSuppressed(recipients: string[]): Promise<string[]> {
   }
 }
 
+/* ─────────────────────  Founder check-ins (client_checkin)  ─────────────────────
+ * Config lives in settings.data.clientCheckins (admin → Settings → Client
+ * Check-ins). The sequence itself is a normal automation row
+ * (`client_checkin_monthly`, seeded in migration 089): step N of the run maps
+ * to milestoneTemplates[N-1] → 30/60/90/120 days after access was sent.
+ */
+
+export interface ClientCheckinConfig {
+  welcomeEnabled: boolean
+  founderName: string
+  founderEmail: string
+  /** Ordered template keys, one per run step. */
+  milestoneTemplates: string[]
+}
+
+export const DEFAULT_CLIENT_CHECKIN_CONFIG: ClientCheckinConfig = {
+  welcomeEnabled: true,
+  founderName: "Ralph",
+  founderEmail: "ralph@martpoint.com.ng",
+  milestoneTemplates: ["client_checkin_30", "client_checkin_60", "client_checkin_90", "client_checkin_120"],
+}
+
+export async function getClientCheckinConfig(): Promise<ClientCheckinConfig> {
+  try {
+    const settings = await readSettings()
+    const raw = (settings?.clientCheckins as Record<string, unknown> | undefined) || {}
+    const templates = Array.isArray(raw.milestoneTemplates) ? raw.milestoneTemplates.map(String).filter(Boolean) : []
+    return {
+      welcomeEnabled: raw.welcomeEnabled !== false,
+      founderName: String(raw.founderName || DEFAULT_CLIENT_CHECKIN_CONFIG.founderName),
+      founderEmail: String(raw.founderEmail || DEFAULT_CLIENT_CHECKIN_CONFIG.founderEmail),
+      milestoneTemplates:
+        templates.length === DEFAULT_CLIENT_CHECKIN_CONFIG.milestoneTemplates.length
+          ? templates
+          : DEFAULT_CLIENT_CHECKIN_CONFIG.milestoneTemplates,
+    }
+  } catch {
+    return { ...DEFAULT_CLIENT_CHECKIN_CONFIG }
+  }
+}
+
+/** Build the founder Reply-To header, sanitising what came from settings. */
+export function founderReplyTo(cfg: ClientCheckinConfig): string {
+  const email = /^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$/.test(cfg.founderEmail) ? cfg.founderEmail : "ralph@martpoint.com.ng"
+  const name = cfg.founderName.replace(/[<>\r\n]/g, "").trim().slice(0, 60) || "Ralph"
+  return `${name} at MartPoint <${email}>`
+}
+
+interface CheckinBusiness {
+  id: string
+  business_name: string
+  primary_contact_name: string | null
+  primary_email: string
+  status: string
+}
+
+/** Render + send one founder check-in email (welcome uses step 0 templates). */
+export async function sendClientCheckinEmail(
+  business: CheckinBusiness,
+  templateKey: string,
+  cfg: ClientCheckinConfig,
+): Promise<{ sent: boolean; error?: string }> {
+  if (!business.primary_email) return { sent: false, error: "No contact email" }
+  if (["CHURNED", "INACTIVE"].includes(business.status)) return { sent: false, error: `Business is ${business.status}` }
+
+  const suppressed = await filterSuppressed([business.primary_email])
+  if (suppressed.length === 0) return { sent: false, error: "Suppressed / opted out" }
+
+  const tpl = await renderEmailTemplate(templateKey, {
+    fullName: business.primary_contact_name || "there",
+    businessName: business.business_name || "your business",
+    founderName: cfg.founderName,
+  })
+
+  const sent = await sendEmail({
+    to: suppressed,
+    subject: tpl.subject,
+    text: tpl.text,
+    html: tpl.html,
+    replyTo: founderReplyTo(cfg),
+    headers: unsubscribeHeaders(business.id),
+  })
+  return { sent, error: sent ? undefined : "Delivery failed" }
+}
+
+/** Engine executor: milestone template is chosen from the run's step. */
+async function actionClientCheckin(ctx: ActionContext): Promise<ActionResult> {
+  const { data: biz } = await supabase
+    .from("businesses")
+    .select("id, business_name, primary_contact_name, primary_email, status")
+    .eq("id", ctx.run.subjectId)
+    .maybeSingle()
+
+  if (!biz) return { sent: false, done: true, error: "Business not found" }
+  if (["CHURNED", "INACTIVE"].includes(String(biz.status))) {
+    return { sent: false, done: true, error: `Business is ${biz.status}` }
+  }
+
+  const cfg = await getClientCheckinConfig()
+  const templateKey = cfg.milestoneTemplates[ctx.run.step - 1] || cfg.milestoneTemplates[cfg.milestoneTemplates.length - 1]
+  const { sent, error } = await sendClientCheckinEmail(biz as CheckinBusiness, templateKey, cfg)
+  // Anything except a delivery failure means the check-in is no longer applicable.
+  return { sent, done: !sent && error !== "Delivery failed" ? true : undefined, error }
+}
+
 /** Questionnaire reminder — lead who has not submitted the questionnaire. */
 async function actionQuestionnaireReminder(ctx: ActionContext): Promise<ActionResult> {
   const { data: lead } = await supabase
@@ -505,6 +611,8 @@ async function executeAction(ctx: ActionContext): Promise<ActionResult> {
       return actionQuoteReminder(ctx)
     case "lead_estimate_followup":
       return actionEstimateFollowup(ctx)
+    case "client_checkin":
+      return actionClientCheckin(ctx)
     default:
       return { sent: false, done: true, error: `No executor for template ${ctx.automation.actionTemplate}` }
   }

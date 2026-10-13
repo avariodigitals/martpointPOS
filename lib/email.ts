@@ -28,6 +28,8 @@ export const REPLY_TO = {
   digitals: "MartPoint Digital <digitals@martpoint.com.ng>",
   careers: "MartPoint Careers <careers@martpoint.com.ng>",
   noreply: "MartPoint <no-reply@martpoint.com.ng>",
+  /** Founder check-in emails — replies land directly in the founder's inbox. */
+  founder: "Ralph at MartPoint <ralph@martpoint.com.ng>",
 } as const
 
 export interface EmailAttachment {

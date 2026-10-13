@@ -1308,6 +1308,172 @@ Best regards,
 MartPoint Team`,
   },
   {
+    key: "client_welcome",
+    label: "Founder Welcome (Client Check-ins)",
+    description: "Emotional welcome from the founder, sent right after the client receives their access details. First message of the check-in sequence (day 0). Replies go to the founder.",
+    variables: ["fullName", "businessName", "founderName"],
+    subject: "You're in, {{fullName}} — welcome to the MartPoint family",
+    text: `Dear {{fullName}},
+
+I'm {{founderName}}, the founder of MartPoint. This one is not from a support queue or a no-reply address — it's from me.
+
+Today, {{businessName}} officially joined the MartPoint family, and I don't take that lightly. Running a business in this country takes a special kind of courage. You carry your team, your customers, your family — and now you trusted us with a piece of that weight. Thank you.
+
+From this moment, our job is simple: make MartPoint work so hard for {{businessName}} that you rarely have to think about it again.
+
+And I will not disappear after today. Over the coming months I'll personally check in on you — at 30, 60, 90 and 120 days — just to ask one thing: is this really helping your business?
+
+Until then, if anything ever feels confusing, broken or unfair, reply directly to this email. It comes straight to me.
+
+Welcome home.
+
+{{founderName}}
+Founder, MartPoint`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Dear {{fullName}},</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">I'm <strong>{{founderName}}</strong>, the founder of MartPoint. This one is not from a support queue or a no-reply address — it's from me.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">Today, <strong>{{businessName}}</strong> officially joined the MartPoint family, and I don't take that lightly. Running a business in this country takes a special kind of courage. You carry your team, your customers, your family — and now you trusted us with a piece of that weight. <em>Thank you.</em></p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">From this moment, our job is simple: make MartPoint work so hard for {{businessName}} that you rarely have to think about it again.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">And I will not disappear after today. Over the coming months I'll personally check in on you — at 30, 60, 90 and 120 days — just to ask one thing: <strong>is this really helping your business?</strong></p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">Until then, if anything ever feels confusing, broken or unfair, reply directly to this email. It comes straight to me.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0;color:#374151;">Welcome home.</p>`,
+      { eyebrow: "From the Founder", title: "Welcome to the MartPoint family", signoff: "{{founderName}} · Founder, MartPoint" }
+    ),
+  },
+  {
+    key: "client_checkin_30",
+    label: "Founder Check-in — 30 Days",
+    description: "Emotional founder check-in sent 30 days after the client connected (access details sent). Replies go to the founder.",
+    variables: ["fullName", "businessName", "founderName"],
+    subject: "30 days in, {{fullName}} — how does it feel?",
+    text: `Dear {{fullName}},
+
+{{founderName}} here — the founder of MartPoint. I promised I'd check in personally, so here I am.
+
+It's been 30 days since {{businessName}} opened MartPoint for the first time. The first month is always the hardest: new habits, a team still learning the ropes, maybe a few "how do I do this?" moments at odd hours.
+
+So I'm not writing to sell you anything. I'm writing to ask, honestly:
+
+Is MartPoint actually making {{businessName}}'s day easier — or is it just another thing you manage?
+
+If it's helping, that makes my whole week. If something is frustrating, slow or missing, tell me. Reply to this email — it lands directly in my inbox, not a ticket queue. Every word you write gets read and acted on.
+
+We built MartPoint for people like you who keep this country running. I intend to earn that trust every single month.
+
+With gratitude,
+{{founderName}}
+Founder, MartPoint`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Dear {{fullName}},</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;"><strong>{{founderName}}</strong> here — the founder of MartPoint. I promised I'd check in personally, so here I am.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">It's been <strong>30 days</strong> since {{businessName}} opened MartPoint for the first time. The first month is always the hardest: new habits, a team still learning the ropes, maybe a few "how do I do this?" moments at odd hours.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">So I'm not writing to sell you anything. I'm writing to ask, honestly:</p>
+              <p style="font-size:16px;line-height:1.7;margin:0 0 16px;color:#111827;font-weight:600;">Is MartPoint actually making {{businessName}}'s day easier — or is it just another thing you manage?</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">If it's helping, that makes my whole week. If something is frustrating, slow or missing, <a href="mailto:ralph@martpoint.com.ng" style="color:#0057FF;text-decoration:underline;">reply to this email</a> — it lands directly in my inbox, not a ticket queue.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0;color:#374151;">We built MartPoint for people like you who keep this country running. I intend to earn that trust every single month.</p>`,
+      { eyebrow: "From the Founder", title: "30 days in — how does it feel?", signoff: "{{founderName}} · Founder, MartPoint" }
+    ),
+  },
+  {
+    key: "client_checkin_60",
+    label: "Founder Check-in — 60 Days",
+    description: "Emotional founder check-in sent 60 days after the client connected. Replies go to the founder.",
+    variables: ["fullName", "businessName", "founderName"],
+    subject: "60 days, {{fullName}} — I'm still thinking about {{businessName}}",
+    text: `Dear {{fullName}},
+
+Two months ago, {{businessName}} joined MartPoint. I still remember the early days of building this — the fear of whether real businesses would ever trust us with their daily sales. You did. That's why I keep writing to you personally.
+
+By now, MartPoint should feel less like "new software" and more like the shop assistant that never goes home: counting stock, holding records, keeping your numbers honest at 7 a.m. and 7 p.m.
+
+But honest software needs honest feedback, so I'll ask again the way a friend would:
+
+What's one thing MartPoint still doesn't do well for you?
+
+Big or small, reply to this email and tell me. I read every one. If it matters to {{businessName}}, it matters to our roadmap.
+
+Two months down. I'm not going anywhere, and neither is your support team.
+
+Warmly,
+{{founderName}}
+Founder, MartPoint`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Dear {{fullName}},</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">Two months ago, <strong>{{businessName}}</strong> joined MartPoint. I still remember the early days of building this — the fear of whether real businesses would ever trust us with their daily sales. You did. That's why I keep writing to you personally.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">By now, MartPoint should feel less like "new software" and more like the shop assistant that never goes home: counting stock, holding records, keeping your numbers honest at 7 a.m. and 7 p.m.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">But honest software needs honest feedback, so I'll ask again the way a friend would:</p>
+              <p style="font-size:16px;line-height:1.7;margin:0 0 16px;color:#111827;font-weight:600;">What's one thing MartPoint still doesn't do well for you?</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">Big or small, <a href="mailto:ralph@martpoint.com.ng" style="color:#0057FF;text-decoration:underline;">reply to this email</a> and tell me. I read every one. If it matters to {{businessName}}, it matters to our roadmap.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0;color:#374151;">Two months down. I'm not going anywhere, and neither is your support team.</p>`,
+      { eyebrow: "From the Founder", title: "60 days — still thinking about you", signoff: "{{founderName}} · Founder, MartPoint" }
+    ),
+  },
+  {
+    key: "client_checkin_90",
+    label: "Founder Check-in — 90 Days",
+    description: "Emotional founder check-in sent 90 days after the client connected. Replies go to the founder.",
+    variables: ["fullName", "businessName", "founderName"],
+    subject: "90 days with you — a thank-you from MartPoint's founder",
+    text: `Dear {{fullName}},
+
+90 days. A quarter of the year.
+
+Somewhere in these three months, {{businessName}} rang up sale after sale on MartPoint — busy Saturdays, quiet Mondays, the restock you forgot and the customer you didn't. Through all of it, our system quietly kept your count true. And through all of it, you chose us. Thank you.
+
+I'm writing because three months is when many software companies go quiet. I refuse to be that company. So this is me, the founder, still asking:
+
+How is {{businessName}} doing — really? Are the numbers telling the story you want to see?
+
+Whatever your answer — shining, steady, or stuck — reply to this email and tell me. A founder who stops asking is a founder who stops earning your trust.
+
+Here's to the next quarter together.
+
+With respect,
+{{founderName}}
+Founder, MartPoint`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Dear {{fullName}},</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;"><strong>90 days.</strong> A quarter of the year.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">Somewhere in these three months, {{businessName}} rang up sale after sale on MartPoint — busy Saturdays, quiet Mondays, the restock you forgot and the customer you didn't. Through all of it, our system quietly kept your count true. And through all of it, <em>you chose us.</em> Thank you.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">I'm writing because three months is when many software companies go quiet. I refuse to be that company. So this is me, the founder, still asking:</p>
+              <p style="font-size:16px;line-height:1.7;margin:0 0 16px;color:#111827;font-weight:600;">How is {{businessName}} doing — really? Are the numbers telling the story you want to see?</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">Whatever your answer — shining, steady, or stuck — <a href="mailto:ralph@martpoint.com.ng" style="color:#0057FF;text-decoration:underline;">reply to this email</a> and tell me. A founder who stops asking is a founder who stops earning your trust.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0;color:#374151;">Here's to the next quarter together.</p>`,
+      { eyebrow: "From the Founder", title: "90 days — a thank-you", signoff: "{{founderName}} · Founder, MartPoint" }
+    ),
+  },
+  {
+    key: "client_checkin_120",
+    label: "Founder Check-in — 120 Days",
+    description: "Emotional founder check-in sent 120 days (4 months) after the client connected. Last scheduled message of the check-in sequence. Replies go to the founder.",
+    variables: ["fullName", "businessName", "founderName"],
+    subject: "Four months, {{fullName}} — and my promise still stands",
+    text: `Dear {{fullName}},
+
+Four months ago, {{businessName}} trusted MartPoint with its daily truth — its sales, its stock, its numbers. Today I'm checking one thing: was that trust well placed?
+
+These are the emails I never wanted to stop sending. The 30-day note, the 60-day question, the 90-day thank-you — this is the last one of the sequence, and I hope it finds you smiling at your end-of-day report.
+
+But my promise was never four months long. It's this: as long as {{businessName}} runs on MartPoint, there is a founder a single reply away.
+
+So if anything ever feels off — a number, a feature, a slow day where support felt far — reply to this email. It still lands directly with me, long after the "check-ins" officially end.
+
+Thank you for four months. Thank you in advance for many more.
+
+Gratefully,
+{{founderName}}
+Founder, MartPoint`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Dear {{fullName}},</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">Four months ago, {{businessName}} trusted MartPoint with its daily truth — its sales, its stock, its numbers. Today I'm checking one thing: <strong>was that trust well placed?</strong></p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">These are the emails I never wanted to stop sending. The 30-day note, the 60-day question, the 90-day thank-you — this is the last one of the sequence, and I hope it finds you smiling at your end-of-day report.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">But my promise was never four months long. It's this: <em>as long as {{businessName}} runs on MartPoint, there is a founder a single reply away.</em></p>
+              <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">So if anything ever feels off — a number, a feature, a slow day where support felt far — <a href="mailto:ralph@martpoint.com.ng" style="color:#0057FF;text-decoration:underline;">reply to this email</a>. It still lands directly with me, long after the "check-ins" officially end.</p>
+              <p style="font-size:15px;line-height:1.7;margin:0;color:#374151;">Thank you for four months. Thank you in advance for many more.</p>`,
+      { eyebrow: "From the Founder", title: "Four months — promise still stands", signoff: "{{founderName}} · Founder, MartPoint" }
+    ),
+  },
+  {
     key: "partner_installation_handover",
     label: "Partner Installation Handover",
     description: "Sent by an implementation partner to a client after installing and setting up their MartPoint store — shares the store URL and the login created during installation. Installation guides can be attached. Note: a custom message entered in the portal overrides this body.",

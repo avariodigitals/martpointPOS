@@ -110,6 +110,11 @@ function getDefaultSettings() {
       ctaText: "Get Started on WhatsApp",
       ctaLink: "https://wa.me/+2348037978230?text=Hi%2C%20I%20came%20across%20your%20website%20and%20I%27m%20interested%20in%20the%20MartPoint%20Retail%20Cloud%20plan.%20Can%20we%20talk%3F",
     },
+    clientCheckins: {
+      welcomeEnabled: true,
+      founderName: "Ralph",
+      founderEmail: "ralph@martpoint.com.ng",
+    },
     header: {
       logo: "/logo.webp",
       favicon: "/icon.webp",

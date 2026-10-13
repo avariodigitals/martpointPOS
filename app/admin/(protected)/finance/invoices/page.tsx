@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCircle2, Ban, CreditCard, Send, FileX, Eye, Mail, BellRing, PauseCircle, PlayCircle, Download, BadgeCheck, RotateCcw } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
-import { resolveInvoiceStatus } from "@/lib/finance-commercial"
+import { resolveInvoiceStatus } from "@/lib/invoice-status"
 
 interface BusinessMini {
   id: string

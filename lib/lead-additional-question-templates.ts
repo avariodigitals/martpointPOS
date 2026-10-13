@@ -1,4 +1,5 @@
 import type { QuestionnaireField } from "./lead-questionnaire"
+import { resolveIndustryName } from "./industries"
 
 export interface LeadAdditionalQuestionTemplate {
   industry: string
@@ -178,6 +179,136 @@ const physioQuestions: QuestionnaireField[] = [
   { name: "physio_online_store", label: "Online booking: Do you have a website? Should patients be able to request or book appointments online, and should they be able to pay for packages there?", type: "textarea", required: true },
 ]
 
+const butcherQuestions: QuestionnaireField[] = [
+  { name: "butcher_products", label: "Products: Which meats and cuts do you sell (beef, goat, chicken, fish, offal)? Do you slaughter, cut in-house or buy ready-cut? Which stages are outsourced?", type: "textarea", required: true },
+  { name: "butcher_stock", label: "Stock: Do you track by weight, piece or both? How do you record whole carcasses broken down into cuts, and the bones, fat and trimmings that come off them?", type: "textarea", required: true },
+  { name: "butcher_cold_storage", label: "Cold storage: Do you use freezers or a cold room? How do you handle frozen vs fresh stock, and what happens during power cuts?", type: "textarea", required: true },
+  { name: "butcher_pricing", label: "Pricing: How do you price—per kg, per piece, per cut or per animal? Do prices vary by customer type (retail, restaurants, events) or by season?", type: "textarea", required: true },
+  { name: "butcher_orders", label: "Orders: Do you take advance orders for events, festive periods or wholesale supply? Do you allow partial cutting, custom cuts or reservations?", type: "textarea", required: true },
+  { name: "butcher_suppliers", label: "Suppliers and intake: Where do you buy live animals or carcasses today? How do you record what is received, its weight and its quality?", type: "textarea", required: true },
+  { name: "butcher_waste", label: "Waste and spoilage: How do you record unsold, spoiled or damaged stock? Who decides what is written off or sold off cheap?", type: "textarea", required: true },
+  { name: "butcher_payments", label: "Payments: Which payment methods do you accept? Do you offer credit to restaurants, caterers or regular customers, and how do you track what they owe?", type: "textarea", required: true },
+  { name: "butcher_approvals", label: "Approvals: Who authorises discounts, refunds, waste write-offs and stock adjustments? Who acts as backup?", type: "textarea", required: true },
+  { name: "butcher_staff", label: "Staff and shifts: How many butchers and attendants do you run? How do you track shifts and sales per person or per branch?", type: "textarea", required: true },
+  { name: "butcher_reports", label: "Reports: Which reports does management use (sales by cut, waste, stock, purchases, outstanding balances)?", type: "textarea", required: true },
+  { name: "butcher_access_connectivity", label: "Access and connectivity: How often is internet access unavailable? Do you need offline selling and automatic sync?", type: "textarea", required: true },
+  { name: "butcher_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample stock or sales sheets and the reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live customer data." },
+  { name: "butcher_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example products, customers, stock or outstanding balances), and how far back?", type: "textarea", required: true },
+  { name: "butcher_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "butcher_online_store", label: "Online store: Do you have a website or WhatsApp catalogue? Which items should customers order online, and do you deliver?", type: "textarea", required: true },
+]
+
+const generalRetailQuestions: QuestionnaireField[] = [
+  { name: "genret_products", label: "Products: Which product categories do you sell? Roughly how many products and variants (size, colour, model) do you carry?", type: "textarea", required: true },
+  { name: "genret_stock", label: "Stock: Which units of measure do you use? How do you handle bulk-to-unit conversions, stock counts, damaged goods and returns to suppliers?", type: "textarea", required: true },
+  { name: "genret_pricing", label: "Pricing: Do prices vary by branch, customer type or promotion? How do you apply discounts and price changes across the catalogue?", type: "textarea", required: true },
+  { name: "genret_orders", label: "Sales flow: Do you offer delivery, online ordering, layaway or special orders? Do you allow credit sales, partial payments or reservations?", type: "textarea", required: true },
+  { name: "genret_suppliers", label: "Suppliers and purchasing: How do you record purchases, supplier payments and returns? Which suppliers offer credit terms?", type: "textarea", required: true },
+  { name: "genret_payments", label: "Payments: Which payment methods do you accept (cash, transfer, card, POS, wallet)? Is reconciliation done per till, shift or cashier?", type: "textarea", required: true },
+  { name: "genret_approvals", label: "Approvals: Who authorises discounts, refunds, voids and stock adjustments? Who acts as backup?", type: "textarea", required: true },
+  { name: "genret_customers", label: "Customers: Do you keep customer records, loyalty points or credit accounts? How do you handle repeat and trade customers?", type: "textarea", required: true },
+  { name: "genret_staff", label: "Staff and shifts: How do you track attendance, shifts and sales per attendant? Do you pay commissions?", type: "textarea", required: true },
+  { name: "genret_reports", label: "Reports: Which daily, weekly and monthly reports does management use (sales, stock, profit, best and slow movers)?", type: "textarea", required: true },
+  { name: "genret_access_connectivity", label: "Access and connectivity: How often is internet access unavailable? Do you need offline selling and automatic sync?", type: "textarea", required: true },
+  { name: "genret_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample product lists, sales records and the reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live customer data." },
+  { name: "genret_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example products, customers, stock or outstanding balances), and how far back?", type: "textarea", required: true },
+  { name: "genret_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "genret_online_store", label: "Online store: Do you have a website? Which products should customers buy online, and should any have fixed prices with checkout?", type: "textarea", required: true },
+]
+
+const multiBranchRetailQuestions: QuestionnaireField[] = [
+  { name: "multibranch_network", label: "Branch network: How many branches and tills do you operate today, and where? Which is head office? Do you plan to add more soon?", type: "textarea", required: true },
+  { name: "multibranch_range", label: "Products: Do all branches sell the same products, or does the range vary by branch? Who decides what each branch stocks?", type: "textarea", required: true },
+  { name: "multibranch_transfers", label: "Transfers: How do you move stock between branches today? Who authorises a transfer and how is it confirmed on arrival?", type: "textarea", required: true },
+  { name: "multibranch_pricing", label: "Pricing and promos: Are prices the same across branches? How do you push price changes and promotions to every branch?", type: "textarea", required: true },
+  { name: "multibranch_purchasing", label: "Purchasing: Is buying centralised or per branch? How do you record supplier deliveries to a specific branch?", type: "textarea", required: true },
+  { name: "multibranch_stock", label: "Stock control: How do you count stock per branch, and how do you compare branch stock against sales? Who investigates shortages?", type: "textarea", required: true },
+  { name: "multibranch_payments", label: "Payments and banking: Which payment methods does each branch accept? How do you reconcile tills and bank cash per branch today?", type: "textarea", required: true },
+  { name: "multibranch_approvals", label: "Approvals and access: Who can see all branches, and who is limited to one? Who authorises discounts, refunds and write-offs per branch?", type: "textarea", required: true },
+  { name: "multibranch_staff", label: "Staff: How do you track branch managers, cashiers and shifts? Do you compare sales performance across branches?", type: "textarea", required: true },
+  { name: "multibranch_reports", label: "Reports: Which reports does management use (branch sales, stock by branch, transfers, profit by branch, head-office consolidated view)?", type: "textarea", required: true },
+  { name: "multibranch_access_connectivity", label: "Access and connectivity: How often is internet access unavailable per branch? Do branches need to keep selling offline and sync later?", type: "textarea", required: true },
+  { name: "multibranch_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample product lists, branch sales records and the reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live customer data." },
+  { name: "multibranch_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example products, customers, stock per branch or outstanding balances), and how far back?", type: "textarea", required: true },
+  { name: "multibranch_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "multibranch_online_store", label: "Online store: Do you have a website? Should online orders be fulfilled from one branch or the nearest branch to the customer?", type: "textarea", required: true },
+]
+
+const beautySalonQuestions: QuestionnaireField[] = [
+  { name: "beauty_services", label: "Services: Which services do you offer (haircuts, styling, braiding, nails, facials, massage, makeup, grooming)? Which are outsourced or done by visiting artists?", type: "textarea", required: true },
+  { name: "beauty_booking", label: "Bookings: How do you book appointments per stylist and chair today? How are walk-ins, reschedules and no-shows handled?", type: "textarea", required: true },
+  { name: "beauty_pricing", label: "Pricing: How do you price each service—fixed, by hair length or style, by stylist level or by package? How are add-ons charged?", type: "textarea", required: true },
+  { name: "beauty_packages", label: "Packages and prepaid: Do you sell prepaid bundles, memberships or gift cards? How are they redeemed and tracked today?", type: "textarea", required: true },
+  { name: "beauty_products", label: "Retail products: Do you also sell hair, skin or grooming products? Which do you track in stock, and how do you record usage of salon consumables?", type: "textarea", required: true },
+  { name: "beauty_payments", label: "Payments: What deposit is required for bookings or large jobs? Which payment methods do you accept, and can customers pay a stylist directly?", type: "textarea", required: true },
+  { name: "beauty_approvals", label: "Approvals: Who authorises discounts, free services, refunds and complimentary fixes after a complaint? Who acts as backup?", type: "textarea", required: true },
+  { name: "beauty_staff", label: "Stylists and chairs: How many stylists, barbers, therapists and chairs do you run? Are they on salary, commission or booth rent?", type: "textarea", required: true },
+  { name: "beauty_customers", label: "Customers: Do you keep customer history (styles, formulas, allergies, preferences)? How do you handle regulars, loyalty points and reminders?", type: "textarea", required: true },
+  { name: "beauty_reports", label: "Reports: Which reports does management use (sales by stylist, services vs products, rebooking rates, outstanding balances)?", type: "textarea", required: true },
+  { name: "beauty_access_connectivity", label: "Access and connectivity: How often is internet access unavailable? Do you need offline booking and automatic sync?", type: "textarea", required: true },
+  { name: "beauty_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample appointment books, price lists and the reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live customer data." },
+  { name: "beauty_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example customers, bookings, packages or outstanding balances), and how far back?", type: "textarea", required: true },
+  { name: "beauty_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "beauty_online_store", label: "Online booking and store: Do you have a website or social catalogue? Should customers book appointments or buy products online?", type: "textarea", required: true },
+]
+
+const automotiveQuestions: QuestionnaireField[] = [
+  { name: "auto_products", label: "Products and services: Which parts, tyres or vehicles do you sell? Do you offer fitting, repairs, servicing or trade-ins? Which stages are outsourced?", type: "textarea", required: true },
+  { name: "auto_serials", label: "Serials and fitment: Do you track part numbers, sizes, VIN/registration per vehicle or warranty per unit? How do you record which part was fitted to which vehicle?", type: "textarea", required: true },
+  { name: "auto_orders", label: "Orders and jobs: Can one job mix parts and labour? Do you allow special orders, backorders or parts sourced from other vendors?", type: "textarea", required: true },
+  { name: "auto_pricing", label: "Pricing: How do you price parts and labour? Do prices vary by vehicle, quantity, customer type (mechanics, fleets, walk-in) or supplier cost?", type: "textarea", required: true },
+  { name: "auto_inventory", label: "Inventory: Which purchasing and usage units do you track? How do you handle core returns, old parts, defective stock and slow movers?", type: "textarea", required: true },
+  { name: "auto_workshop", label: "Workshop: How do you manage job cards, mechanic assignments and work-in-progress today? Who confirms a job is complete?", type: "textarea", required: true },
+  { name: "auto_payments", label: "Payments: Do you offer instalments or trade accounts? What deposit is required for special orders or major repairs, and which customers get credit?", type: "textarea", required: true },
+  { name: "auto_approvals", label: "Approvals: Who authorises discounts, warranty claims, returns and write-offs? Who signs off extra work discovered during a job?", type: "textarea", required: true },
+  { name: "auto_suppliers", label: "Suppliers and purchasing: How do you record purchases, supplier payments and returns? Which suppliers offer credit terms?", type: "textarea", required: true },
+  { name: "auto_vehicles", label: "Vehicles and customers: Do you keep a service history per customer or vehicle? How do you follow up on repeat customers and fleets?", type: "textarea", required: true },
+  { name: "auto_reports", label: "Reports: Which reports does management use (sales by part or category, workshop jobs, stock, profitability, outstanding balances)?", type: "textarea", required: true },
+  { name: "auto_access_connectivity", label: "Access and connectivity: How often is internet access unavailable? Do you need offline selling and automatic sync?", type: "textarea", required: true },
+  { name: "auto_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample parts lists, job cards or invoices, and the reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live customer data." },
+  { name: "auto_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example parts, vehicles, customers or outstanding balances), and how far back?", type: "textarea", required: true },
+  { name: "auto_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "auto_online_store", label: "Online store: Do you have a website or catalogue? Which parts or vehicles should customers enquire about or buy online?", type: "textarea", required: true },
+]
+
+const buildingMaterialsQuestions: QuestionnaireField[] = [
+  { name: "buildmats_products", label: "Products: Which lines do you sell (cement, iron rods, boards, paint, plumbing, electrical, finishing)? Which are bulky, and which are cut or mixed to order?", type: "textarea", required: true },
+  { name: "buildmats_units", label: "Units: Which units do you sell in (bags, pieces, bundles, cartons, metres, litres, tonnes)? How do you handle pack-to-piece conversions?", type: "textarea", required: true },
+  { name: "buildmats_stock", label: "Stock: How do you record stock for materials kept in the yard or open storage? How do you handle damaged, broken or short-delivered goods?", type: "textarea", required: true },
+  { name: "buildmats_pricing", label: "Pricing: Do prices change daily with the market or supplier? Do they vary by quantity, customer type (contractor, retail) or delivery location?", type: "textarea", required: true },
+  { name: "buildmats_orders", label: "Orders and quotations: Do you quote for site supplies or projects before supply? Can one order be delivered in several trips (part deliveries)?", type: "textarea", required: true },
+  { name: "buildmats_delivery", label: "Delivery: Do you run your own trucks or use third-party haulage? How do you plan loads and confirm delivery at site, and who pays the freight?", type: "textarea", required: true },
+  { name: "buildmats_credit", label: "Credit and payments: Do you supply contractors on account or stages? What deposit or credit terms apply, and how do you track outstanding balances per site or customer?", type: "textarea", required: true },
+  { name: "buildmats_approvals", label: "Approvals: Who authorises pricing below list, credit sales, returns and write-offs? Who signs off goods leaving the yard?", type: "textarea", required: true },
+  { name: "buildmats_suppliers", label: "Suppliers and purchasing: How do you record purchases, supplier payments and returns? Which suppliers offer credit terms?", type: "textarea", required: true },
+  { name: "buildmats_staff", label: "Staff and yard: How do you track storekeepers, loaders, drivers and sales reps? Do you pay commissions on sales or deliveries?", type: "textarea", required: true },
+  { name: "buildmats_reports", label: "Reports: Which reports does management use (sales by product, stock, deliveries, receivables, profitability by customer or job)?", type: "textarea", required: true },
+  { name: "buildmats_access_connectivity", label: "Access and connectivity: How often is internet access unavailable at the yard or warehouse? Do you need offline selling and automatic sync?", type: "textarea", required: true },
+  { name: "buildmats_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample product lists, invoices or waybills, and the reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live customer data." },
+  { name: "buildmats_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example products, customers, stock or outstanding balances), and how far back?", type: "textarea", required: true },
+  { name: "buildmats_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "buildmats_online_store", label: "Online store: Do you have a website? Which products should customers enquire about or buy online, and should delivery fees be quoted per location?", type: "textarea", required: true },
+]
+
+const clinicQuestions: QuestionnaireField[] = [
+  { name: "clinic_services", label: "Services: Which services do you offer (consultations, diagnostics, procedures, admissions, pharmacy, scans)? Which are outsourced or done by visiting doctors?", type: "textarea", required: true },
+  { name: "clinic_appointments", label: "Appointments and queue: How do patients book or walk in today? How do you manage the queue per doctor, room or clinic session?", type: "textarea", required: true },
+  { name: "clinic_patients", label: "Patient records: What do you keep per patient today (medical history, notes, results, vitals)? Is it paper or digital, and who can see it?", type: "textarea", required: true },
+  { name: "clinic_billing", label: "Billing: How do you charge per visit—consultation, tests, drugs, procedures, bed? Can one bill combine several departments, and are deposits required?", type: "textarea", required: true },
+  { name: "clinic_hmo", label: "HMO and insurance: Which HMOs or insurers do you work with? How do you verify eligibility, bill them and track rejected or unpaid claims?", type: "textarea", required: true },
+  { name: "clinic_labs", label: "Tests and results: How do you order and record lab tests or scans today? Who releases results to patients, and how long are they kept?", type: "textarea", required: true },
+  { name: "clinic_stock", label: "Stock and consumables: Which drugs, reagents or consumables do you track? How do you record batch, expiry, usage per patient and reorder levels?", type: "textarea", required: true },
+  { name: "clinic_staff", label: "Staff and shifts: How many doctors, nurses, technicians and front-desk staff do you run? How do you track shifts, sessions and on-call duty?", type: "textarea", required: true },
+  { name: "clinic_approvals", label: "Approvals: Who authorises discounts, free or waived bills, refunds and write-offs? Who signs off on sensitive record access?", type: "textarea", required: true },
+  { name: "clinic_payments", label: "Payments: Which payment methods do you accept? How do you handle part-payments, family payers and outstanding balances at discharge?", type: "textarea", required: true },
+  { name: "clinic_reports", label: "Reports: Which reports does management use (patient visits, revenue by service or department, HMO claims, stock, outstanding balances)?", type: "textarea", required: true },
+  { name: "clinic_access_connectivity", label: "Access and connectivity: How often is internet access unavailable? Do reception and billing need to keep working offline?", type: "textarea", required: true },
+  { name: "clinic_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample registers, bills or reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live patient data." },
+  { name: "clinic_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example patients, visits, balances or stock), and how far back?", type: "textarea", required: true },
+  { name: "clinic_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "clinic_online_store", label: "Online booking: Do you have a website? Should patients be able to request appointments or pay bills online?", type: "textarea", required: true },
+]
+
 const distributionQuestions: QuestionnaireField[] = [
   { name: "dist_services", label: "Products: Which product lines do you distribute or manufacture? Which stages are outsourced?", type: "textarea", required: true },
   { name: "dist_orders", label: "Orders: Can one order contain several product lines? Do you allow partial dispatch, backorders or standing orders?", type: "textarea", required: true },
@@ -345,6 +476,13 @@ export const LEAD_ADDITIONAL_QUESTION_TEMPLATES: LeadAdditionalQuestionTemplate[
   { industry: "Distributors", label: "Distribution, Wholesale & Manufacturing", fields: [...distributionQuestions, ...STORE_SETUP_FIELDS] },
   { industry: "Processing Plant", label: "Processing Plant", fields: [...processingPlantQuestions, ...STORE_SETUP_FIELDS] },
   { industry: "Physiotherapy & Rehabilitation", label: "Physiotherapy & Rehabilitation", fields: [...physioQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Butcher & Meat Shops", label: "Butcher & Meat Shops", fields: [...butcherQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "General Retail", label: "General Retail", fields: [...generalRetailQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Multi-Branch Retail", label: "Multi-Branch Retail", fields: [...multiBranchRetailQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Beauty & Salons", label: "Beauty, Salons & Grooming", fields: [...beautySalonQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Automotive", label: "Automotive: Parts, Tyres & Vehicle Sales", fields: [...automotiveQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Building Materials & Hardware", label: "Building Materials & Hardware", fields: [...buildingMaterialsQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Clinics & Hospitals", label: "Clinics, Hospitals & Diagnostics", fields: [...clinicQuestions, ...STORE_SETUP_FIELDS] },
 ]
 
 /** Aliases map alternate business types / industry names to a canonical template
@@ -371,9 +509,12 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   "bukka / mama put": "Restaurants",
   pharmacy: "Pharmacies",
   "medical stores": "Pharmacies",
-  clinics: "Pharmacies",
-  hospitals: "Pharmacies",
-  "diagnostic centres": "Pharmacies",
+  clinics: "Clinics & Hospitals",
+  clinic: "Clinics & Hospitals",
+  hospitals: "Clinics & Hospitals",
+  hospital: "Clinics & Hospitals",
+  "diagnostic centres": "Clinics & Hospitals",
+  "diagnostic centre": "Clinics & Hospitals",
   "physiotherapy & rehabilitation": "Physiotherapy & Rehabilitation",
   physiotherapy: "Physiotherapy & Rehabilitation",
   physio: "Physiotherapy & Rehabilitation",
@@ -385,34 +526,58 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   "shoe stores": "Fashion Stores",
   "cosmetics stores": "Fashion Stores",
   "perfume shops": "Fashion Stores",
-  barbershops: "Fashion Stores",
+  barbershops: "Beauty & Salons",
   "jewellery stores": "Fashion Stores",
-  "beauty spas": "Fashion Stores",
-  "makeup artists": "Fashion Stores",
-  "makeup studios": "Fashion Stores",
+  "beauty spas": "Beauty & Salons",
+  "makeup artists": "Beauty & Salons",
+  "makeup studios": "Beauty & Salons",
   "skincare & organic cosmetics": "Fashion Stores",
-  "beauty & salons": "Fashion Stores",
+  "beauty & salons": "Beauty & Salons",
+  "salon & barbershop": "Beauty & Salons",
+  salons: "Beauty & Salons",
+  "hair salons": "Beauty & Salons",
+  "nail studios": "Beauty & Salons",
   "electronics store": "Electronics Stores",
   "phone shops": "Electronics Stores",
   "computer stores": "Electronics Stores",
   "gadget stores": "Electronics Stores",
   "appliance stores": "Electronics Stores",
-  "hardware stores": "Electronics Stores",
-  "paint stores": "Electronics Stores",
-  "plumbing stores": "Electronics Stores",
-  "bookshops": "Electronics Stores",
-  "furniture stores": "Electronics Stores",
-  "agro dealers": "Electronics Stores",
-  "feed stores": "Electronics Stores",
-  "auto parts": "Electronics Stores",
-  "tyre shops": "Electronics Stores",
-  automobile: "Electronics Stores",
+  "hardware stores": "Building Materials & Hardware",
+  "building materials": "Building Materials & Hardware",
+  "paint stores": "Building Materials & Hardware",
+  "paint store": "Building Materials & Hardware",
+  "plumbing stores": "Building Materials & Hardware",
+  "plumbing store": "Building Materials & Hardware",
+  "electrical stores": "Building Materials & Hardware",
+  "tile stores": "Building Materials & Hardware",
+  bookshops: "General Retail",
+  "furniture stores": "General Retail",
+  furniture: "General Retail",
+  "agro dealers": "General Retail",
+  "feed stores": "General Retail",
+  "auto parts": "Automotive",
+  "tyre shops": "Automotive",
+  "tyre shop": "Automotive",
+  automobile: "Automotive",
+  "car dealership": "Automotive",
+  "mechanic workshops": "Automotive",
   "scientific & laboratory suppliers": "Electronics Stores",
   "service business": "Service Businesses",
   laundry: "Service Businesses",
   tailoring: "Service Businesses",
   "digital creator": "Service Businesses",
-  "online stores": "Electronics Stores",
+  "online stores": "General Retail",
+  "online store": "General Retail",
+  "general store": "General Retail",
+  "general stores": "General Retail",
+  retail: "General Retail",
+  "butcher / meat shop": "Butcher & Meat Shops",
+  "butcher shop": "Butcher & Meat Shops",
+  "meat shops": "Butcher & Meat Shops",
+  butcher: "Butcher & Meat Shops",
+  "multi-branch retail": "Multi-Branch Retail",
+  "multi branch retail": "Multi-Branch Retail",
+  "multi-branch": "Multi-Branch Retail",
   distributor: "Distributors",
   wholesalers: "Distributors",
   "processing plant": "Processing Plant", "processing plants": "Processing Plant", "processing-plant": "Processing Plant",
@@ -427,8 +592,12 @@ export function getLeadAdditionalQuestionTemplate(industry: string): LeadAdditio
   const direct = LEAD_ADDITIONAL_QUESTION_TEMPLATES.find((template) => template.industry.toLowerCase() === normalized)
   if (direct) return direct
   const alias = TEMPLATE_ALIASES[normalized]
-  if (!alias) return undefined
-  return LEAD_ADDITIONAL_QUESTION_TEMPLATES.find((template) => template.industry === alias)
+  if (alias) return LEAD_ADDITIONAL_QUESTION_TEMPLATES.find((template) => template.industry === alias)
+  // Business-type form labels ("Phone Accessories", "Bakery & Cake Studio") are not
+  // template names — resolve them to their canonical industry first, then look again.
+  const canonical = resolveIndustryName(industry).trim().toLowerCase()
+  if (!canonical || canonical === normalized) return undefined
+  return getLeadAdditionalQuestionTemplate(canonical)
 }
 
 export function cloneTemplateFields(template: LeadAdditionalQuestionTemplate): QuestionnaireField[] {

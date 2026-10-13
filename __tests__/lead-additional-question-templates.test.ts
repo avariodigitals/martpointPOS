@@ -5,6 +5,7 @@ import {
   getLeadAdditionalQuestionTemplate,
   cloneTemplateFields,
 } from "@/lib/lead-additional-question-templates"
+import { allIndustries } from "@/lib/industries"
 
 describe("LEAD_ADDITIONAL_QUESTION_TEMPLATES", () => {
   it("provides production discovery questions for processing plants", () => {
@@ -146,6 +147,23 @@ describe("getLeadAdditionalQuestionTemplate", () => {
     expect(getLeadAdditionalQuestionTemplate("Phone Shops")?.industry).toBe("Electronics Stores")
     expect(getLeadAdditionalQuestionTemplate("Wholesalers")?.industry).toBe("Distributors")
     expect(getLeadAdditionalQuestionTemplate("Laundry")?.industry).toBe("Service Businesses")
+    expect(getLeadAdditionalQuestionTemplate("Butcher & Meat Shops")?.industry).toBe("Butcher & Meat Shops")
+    expect(getLeadAdditionalQuestionTemplate("Barbershops")?.industry).toBe("Beauty & Salons")
+    expect(getLeadAdditionalQuestionTemplate("Auto Parts")?.industry).toBe("Automotive")
+    expect(getLeadAdditionalQuestionTemplate("Hardware Stores")?.industry).toBe("Building Materials & Hardware")
+    expect(getLeadAdditionalQuestionTemplate("Clinics")?.industry).toBe("Clinics & Hospitals")
+    expect(getLeadAdditionalQuestionTemplate("Bookshops")?.industry).toBe("General Retail")
+    // Business-type form labels resolve through the industry registry.
+    expect(getLeadAdditionalQuestionTemplate("Phone Accessories")?.industry).toBe("Electronics Stores")
+  })
+
+  it("resolves a template for every industry name and business type we support", () => {
+    for (const industry of allIndustries) {
+      expect(getLeadAdditionalQuestionTemplate(industry.name), industry.name).toBeDefined()
+      if (industry.formLabel) {
+        expect(getLeadAdditionalQuestionTemplate(industry.formLabel), industry.formLabel).toBeDefined()
+      }
+    }
   })
 
   it("returns undefined for an unknown industry", () => {

@@ -8,7 +8,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from "./supabase"
-import { sendEmail, getEmailSettings, isSmtpConfigured, REPLY_TO, type EmailAttachment } from "./email"
+import { sendEmail, getEmailSettings, isSmtpConfigured, REPLY_TO, type EmailAttachment, type EmailSettings } from "./email"
 import { sendEmailViaSmtp } from "./email-smtp"
 import { escapeHtml, htmlToText, bodyTextToHtml, buildSignatureHtml, appendSignatureToHtml } from "./email-html"
 
@@ -67,6 +67,50 @@ export interface SendLeadEmailResult {
   error?: string
 }
 
+const ADDRESS_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+\.[^\s@]+$/
+
+/** Read a sender out of a settings field. Accepts "Name <a@b>" or a bare
+ *  address; returns null for anything that isn't a real address (e.g. the
+ *  display-name text people type into the mailbox "From" field), so a typo in
+ *  Settings → Email can't poison From and get the send rejected. */
+function parseSenderAddress(raw: string | undefined): { address: string; name: string } | null {
+  const value = (raw || "").trim()
+  if (!value) return null
+  const angled = value.match(/^(.*?)<([^>]+)>$/)
+  const address = (angled ? angled[2] : value).trim()
+  if (!ADDRESS_RE.test(address)) return null
+  return { address, name: (angled ? angled[1] : "").trim() }
+}
+
+export interface LeadSenders {
+  from: string
+  replyTo: string
+  /** Account-level sender, used when the mailbox is unusable or refused. */
+  safeFrom: string
+}
+
+/** From/Reply-To for lead mail. The mailbox username carries the mail when the
+ *  "From Email" field holds only a display name ("MartPoint Solutions"), so a
+ *  half-typed Settings → Email entry can't produce a From address the provider
+ *  rejects. */
+export function resolveLeadSenders(settings: EmailSettings): LeadSenders {
+  const fromEmail = (settings.smtp.fromEmail || "").trim()
+  const mailboxAddress = parseSenderAddress(fromEmail) || parseSenderAddress(settings.smtp.user)
+  // A "From Email" entry without an address in it is a display name.
+  const displayName = parseSenderAddress(fromEmail)?.name || (fromEmail.includes("@") ? "" : fromEmail)
+  const accountSender =
+    parseSenderAddress(settings.fromEmail) ||
+    parseSenderAddress(process.env.RESEND_FROM_EMAIL) ||
+    { address: "hello@martpoint.com.ng", name: "MartPoint" }
+
+  const safeFrom = `${accountSender.name || "MartPoint"} <${accountSender.address}>`
+  if (!mailboxAddress) return { from: safeFrom, replyTo: REPLY_TO.sales, safeFrom }
+
+  const from = `${displayName || "MartPoint"} <${mailboxAddress.address}>`
+  // Replies must reach the mailbox the IMAP sync reads.
+  return { from, replyTo: from, safeFrom }
+}
+
 export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLeadEmailResult> {
   const settings = await getEmailSettings()
   // Lead mail goes out through the transactional provider (Resend/Brevo) for
@@ -78,13 +122,7 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
     settings.provider === "brevo"
       ? Boolean(settings.brevoApiKey || process.env.BREVO_API_KEY)
       : Boolean(settings.resendApiKey || process.env.RESEND_API_KEY)
-  const mailbox = (settings.smtp.fromEmail || settings.smtp.user || "").trim()
-  const rawFrom = mailbox || settings.fromEmail || process.env.RESEND_FROM_EMAIL || "MartPoint <hello@martpoint.com.ng>"
-  // Bare addresses get a display name so mail clients don't show an anonymous sender.
-  const from = rawFrom.includes("<") ? rawFrom : `MartPoint <${rawFrom}>`
-  // Replies must reach the mailbox the IMAP sync reads; fall back to the
-  // sales address when the mailbox isn't configured.
-  const replyTo = mailbox ? from : REPLY_TO.sales
+  const { from, replyTo, safeFrom } = resolveLeadSenders(settings)
 
   // HTML signature (rich editor) wins; the plain-text field is the legacy
   // fallback. The text part always gets a derived plain-text version, like a
@@ -101,23 +139,36 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
     : `${bodyTextToHtml(input.body)}${signatureBlock}`
 
   const viaProvider = useProvider || !isSmtpConfigured(settings)
-  const sent = viaProvider
-    ? await sendEmail({
-        to: input.to,
-        subject: input.subject,
-        text: textBody,
-        html,
-        from,
-        replyTo,
-        cc: input.cc,
-        attachments: input.attachments,
-      })
-    : await sendEmailViaSmtp(
-        { subject: input.subject, text: textBody, html, replyTo: from, cc: input.cc, attachments: input.attachments },
-        settings,
-        from,
-        Array.isArray(input.to) ? input.to : [input.to],
-      )
+  const sendProvider = (sender: string) =>
+    sendEmail({
+      to: input.to,
+      subject: input.subject,
+      text: textBody,
+      html,
+      from: sender,
+      replyTo,
+      cc: input.cc,
+      attachments: input.attachments,
+    })
+  const sendSmtp = (sender: string) =>
+    sendEmailViaSmtp(
+      { subject: input.subject, text: textBody, html, replyTo: sender, cc: input.cc, attachments: input.attachments },
+      settings,
+      sender,
+      Array.isArray(input.to) ? input.to : [input.to],
+    )
+
+  let sent = viaProvider ? await sendProvider(from) : await sendSmtp(from)
+  let effectiveFrom = from
+  let effectiveProvider = viaProvider ? settings.provider : "smtp"
+  // The mailbox sender was refused (unverified domain, bad mailbox config).
+  // Retry through the transactional provider with the account sender so the
+  // lead still receives the message.
+  if (!sent && useProvider && safeFrom !== from) {
+    effectiveFrom = safeFrom
+    effectiveProvider = settings.provider
+    sent = await sendProvider(safeFrom)
+  }
 
   if (!isSupabaseConfigured()) return { sent, email: null }
 
@@ -126,13 +177,13 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
     .insert({
       lead_id: input.leadId,
       direction: "outbound",
-      from_email: from,
+      from_email: effectiveFrom,
       to_email: Array.isArray(input.to) ? input.to.join(", ") : input.to,
       subject: input.subject,
       body_text: textBody,
       body_html: html,
       status: sent ? "sent" : "failed",
-      provider: viaProvider ? settings.provider : "smtp",
+      provider: effectiveProvider,
       metadata: input.metadata || null,
     })
     .select()

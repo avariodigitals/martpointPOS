@@ -41,6 +41,12 @@ interface EmailSettingsForm {
 const emptySmtp: SmtpForm = { host: "", port: "465", secure: true, user: "", pass: "", fromEmail: "" }
 const emptyImap: ImapForm = { host: "", port: "993", secure: true, user: "", pass: "", mailbox: "INBOX" }
 
+/** Server fields want a machine name (smtp.martpoint.com.ng), not a mail address. */
+function isBadHost(value: string) {
+  const v = value.trim()
+  return Boolean(v) && /[@\s]/.test(v)
+}
+
 export default function EmailSettingsPage() {
   const [settings, setSettings] = useState<EmailSettingsForm>({
     provider: "resend",
@@ -347,10 +353,11 @@ export default function EmailSettingsPage() {
             <CardHeader>
               <CardTitle>Lead Thread Mailbox (SMTP + IMAP)</CardTitle>
               <CardDescription>
-                When an SMTP host and user are set, emails sent from a lead&apos;s Email tab go out through this
-                mailbox instead of Resend/Brevo, and replies are pulled back in over IMAP by the
+                Lead emails go out through the provider above (Resend/Brevo) using this mailbox&apos;s address as From,
+                and replies are pulled back in over IMAP by the
                 <code className="text-xs bg-muted px-1 py-0.5 rounded mx-1">/api/cron/email-sync</code>
-                job — a true two-way thread on your own email. All other system email keeps using the provider above.
+                job — a true two-way thread on your own email. SMTP only carries the mail itself when no provider API
+                key is set. All other system email keeps using the provider above.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -366,6 +373,11 @@ export default function EmailSettingsPage() {
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       placeholder="smtp.yourprovider.com"
                     />
+                    {isBadHost(settings.smtp.host) && (
+                      <p className="text-xs text-red-600 mt-1">
+                        Use the server name only, e.g. smtp.martpoint.com.ng — no @ or spaces.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Port</label>
@@ -417,6 +429,10 @@ export default function EmailSettingsPage() {
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       placeholder="Your Name <you@martpoint.com.ng> — defaults to username"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Full name only (e.g. MartPoint Solutions) is used as the display name and the mail sends from the
+                      username above. It must be a real address to appear as the sender.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -433,6 +449,11 @@ export default function EmailSettingsPage() {
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       placeholder="imap.yourprovider.com"
                     />
+                    {isBadHost(settings.imap.host) && (
+                      <p className="text-xs text-red-600 mt-1">
+                        Use the server name only, e.g. imap.martpoint.com.ng — no @ or spaces.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Port</label>

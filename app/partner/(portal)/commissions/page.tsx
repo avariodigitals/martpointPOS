@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import { PayoutRequestPanel } from "./payout-request-panel"
+import { PayoutDetailsPanel } from "./payout-details-panel"
+import { commissionVisibleToPartner } from "@/lib/referral-finance"
+import { listPartnerPayouts } from "@/lib/referral-portal"
 
 function fmtMoney(amount: number, currency = "NGN") {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency }).format(amount || 0)
@@ -64,7 +67,11 @@ export default async function PartnerCommissionsPage() {
       )
       .eq("partner_id", session.partnerId)
       .order("created_at", { ascending: false })
-    if (!error) rows = data || []
+    if (!error) {
+      // A referral earning only becomes a figure the partner may see once it is
+      // eligible — potential, pending and held calculations stay internal.
+      rows = (data || []).filter((r) => !r.earning_kind || commissionVisibleToPartner(r as unknown as Record<string, unknown>))
+    }
 
     const { data: reqs } = await supabase
       .from("partner_payout_requests")
@@ -76,6 +83,8 @@ export default async function PartnerCommissionsPage() {
 
   const sumBy = (statuses: string[]) =>
     rows.filter((r) => statuses.includes(r.status)).reduce((s, r) => s + (Number(r.commission_amount) || 0), 0)
+
+  const payouts = await listPartnerPayouts(session.partnerId)
 
   const totals = {
     earned: sumBy(["ELIGIBLE", "APPROVED", "SCHEDULED", "PAID"]),
@@ -130,6 +139,8 @@ export default async function PartnerCommissionsPage() {
 
       <PayoutRequestPanel available={totals.available} requests={payoutRequests} />
 
+      <PayoutDetailsPanel />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">Commissions</CardTitle>
@@ -175,6 +186,46 @@ export default async function PartnerCommissionsPage() {
                       </tr>
                     )
                   })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">Payouts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {payouts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No payouts scheduled yet. Approved commissions are paid within the payout window set by your signed Commission
+              Schedule, counted from the end of the month in which they were approved.
+            </p>
+          ) : (
+            <div className="overflow-x-auto -mx-6">
+              <table className="w-full text-sm">
+                <thead className="bg-muted text-left">
+                  <tr>
+                    <th className="px-4 py-2">Reference</th>
+                    <th className="px-4 py-2">Amount</th>
+                    <th className="px-4 py-2">Status</th>
+                    <th className="px-4 py-2">Paid</th>
+                    <th className="px-4 py-2">Payment reference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payouts.map((p) => (
+                    <tr key={p.reference} className="border-t border-border">
+                      <td className="px-4 py-2 font-medium">{p.reference}</td>
+                      <td className="px-4 py-2">{fmtMoney(p.amountNaira, p.currency)}</td>
+                      <td className="px-4 py-2">
+                        <span className={`text-xs uppercase px-2 py-0.5 rounded-full font-medium ${statusClass(p.status)}`}>{p.status}</span>
+                      </td>
+                      <td className="px-4 py-2">{fmtDate(p.paidAt)}</td>
+                      <td className="px-4 py-2">{p.paymentReference || "—"}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

@@ -187,7 +187,7 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "addon_id", label: "Add-on ID", type: "text" },
     { name: "effective_from", label: "Effective From", type: "date" },
     { name: "active", label: "Active", type: "boolean" },
-    { name: "commission_trigger", label: "Commission Trigger", type: "select", options: ["PAYMENT_CONFIRMED", "SUBSCRIPTION_ACTIVATED", "CUSTOMER_GO_LIVE"] },
+    { name: "commission_trigger", label: "Commission Trigger", type: "select", options: ["PAYMENT_CONFIRMED", "SUBSCRIPTION_ACTIVATED", "CUSTOMER_GO_LIVE", "CUSTOM"], help: "CUSTOM means the plan only categorises earnings — its rate comes from the signed Commission Schedule and nothing is booked automatically." },
     { name: "clawback_days", label: "Clawback Days", type: "number" },
   ],
   commissions: [],

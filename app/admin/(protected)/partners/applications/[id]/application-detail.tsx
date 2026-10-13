@@ -7,10 +7,13 @@ import { Button } from "@/components/ui/button"
 import {
   Loader2, ArrowLeft, FileText, Download, Save, UserCheck, X, Check,
   AlertTriangle, ShieldCheck, RefreshCw, Send, CheckCircle, XCircle,
-  Clock, AlertCircle, Pencil, CalendarDays, type LucideIcon,
+  Clock, AlertCircle, Pencil, CalendarDays, ClipboardCheck, type LucideIcon,
 } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
 import { AgreementForm } from "./agreement-form"
+import { InstrumentsPanel } from "./instruments-panel"
+import { ApplicationAssessments } from "@/components/admin/partner-assessments/application-assessments"
+import type { AssessmentGate } from "@/lib/partner-assessments"
 import { enumLabel } from "@/lib/utils"
 
 const TYPE_LABELS: Record<string, string> = {
@@ -112,13 +115,14 @@ interface AppDetail {
   reviewed_by_name?: string | null
 }
 
-type TabKey = "overview" | "timeline" | "meetings" | "questions" | "compliance" | "actions"
+type TabKey = "overview" | "timeline" | "meetings" | "questions" | "assessments" | "compliance" | "actions"
 
 const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "overview", label: "Overview", icon: FileText },
   { key: "timeline", label: "Timeline", icon: Clock },
   { key: "meetings", label: "Meetings", icon: CalendarDays },
   { key: "questions", label: "Questions", icon: FileText },
+  { key: "assessments", label: "Assessments", icon: ClipboardCheck },
   { key: "compliance", label: "Compliance Docs", icon: ShieldCheck },
   { key: "actions", label: "Actions & Notes", icon: UserCheck },
 ]
@@ -184,6 +188,9 @@ export function ApplicationDetail({ id }: { id: string }) {
   const [rejectionPublic, setRejectionPublic] = useState("")
   const [acting, setActing] = useState(false)
   const [actionMsg, setActionMsg] = useState("")
+  // Returned when the approval gate blocks a status change; drives the override box.
+  const [blockedGate, setBlockedGate] = useState<AssessmentGate | null>(null)
+  const [assessmentOverride, setAssessmentOverride] = useState("")
 
   const [selectedDocTypes, setSelectedDocTypes] = useState<string[]>([])
   const [customDocType, setCustomDocType] = useState("")
@@ -398,6 +405,7 @@ export function ApplicationDetail({ id }: { id: string }) {
       const body: Record<string, unknown> = { status: actionStatus, reason }
       if (actionStatus === "MORE_INFORMATION_REQUIRED") body.informationRequestMessage = infoMessage
       if (actionStatus === "REJECTED") body.rejectionMessagePublic = rejectionPublic
+      if (assessmentOverride.trim()) body.assessmentOverride = assessmentOverride.trim()
       const res = await fetch(`/api/admin/partners/applications/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -407,7 +415,12 @@ export function ApplicationDetail({ id }: { id: string }) {
       if (data.success) {
         setActionMsg(`Status updated to ${data.statusLabel}.`)
         setReason("")
+        setAssessmentOverride("")
+        setBlockedGate(null)
         fetchDetail()
+      } else if (res.status === 409 && data.assessmentGate) {
+        setBlockedGate(data.assessmentGate as AssessmentGate)
+        setActionMsg(data.error || "Blocked by the assessment requirement")
       } else {
         setActionMsg(data.error || "Action failed")
       }
@@ -884,6 +897,9 @@ export function ApplicationDetail({ id }: { id: string }) {
         </div>
       )}
 
+      {/* ─────────── Assessments ─────────── */}
+      {tab === "assessments" && <ApplicationAssessments applicationId={id} />}
+
       {/* ─────────── Compliance Docs ─────────── */}
       {tab === "compliance" && (
         <Card>
@@ -1027,7 +1043,7 @@ export function ApplicationDetail({ id }: { id: string }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium mb-1">Action</label>
-                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={actionStatus} onChange={(e) => setActionStatus(e.target.value)}>
+                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={actionStatus} onChange={(e) => { setActionStatus(e.target.value); setBlockedGate(null) }}>
                     <option value="">Select action…</option>
                     <option value="UNDER_REVIEW">Mark Under Review</option>
                     <option value="MORE_INFORMATION_REQUIRED">Request Information</option>
@@ -1057,11 +1073,31 @@ export function ApplicationDetail({ id }: { id: string }) {
                 </div>
               )}
 
-              <Button onClick={performAction} disabled={acting || !actionStatus}>
+              {blockedGate && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-2">
+                  <p className="text-xs font-medium text-amber-900">
+                    {actionStatus === "APPROVED" ? "Approval" : "Conditional approval"} is blocked by the product knowledge assessment
+                  </p>
+                  <div className="text-xs text-amber-900 space-y-1">
+                    {blockedGate.blocking.map((line) => <p key={line}>· {line}</p>)}
+                  </div>
+                  <textarea
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    rows={2}
+                    value={assessmentOverride}
+                    onChange={(e) => setAssessmentOverride(e.target.value)}
+                    placeholder="Override reason (required, saved to the applicant's history)"
+                  />
+                </div>
+              )}
+
+              <Button onClick={performAction} disabled={acting || !actionStatus || (blockedGate !== null && !assessmentOverride.trim())}>
                 {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Apply Action
               </Button>
             </CardContent>
           </Card>
+
+          {app.requested_partner_type === "REFERRAL" && <InstrumentsPanel applicationId={id} />}
 
           {["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"].includes(app.status) && (
             <AgreementForm applicationId={id} onGenerated={fetchDetail} />

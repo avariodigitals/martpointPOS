@@ -53,6 +53,16 @@ export const GENERATED_DOC_TYPES = [
   "PAYOUT_STATEMENT",
   "GRADE_CONFIRMATION",
   "FORMAL_NOTICE",
+  // Referral Partner pack (document types are enforced by the DB CHECK in 088)
+  "REFERRAL_PARTNER_AGREEMENT",
+  "REFERRAL_COMMISSION_SCHEDULE",
+  "REFERRAL_ACCEPTANCE_NOTICE",
+  "INFORMATION_REQUEST_NOTICE",
+  "DUPLICATE_NOTICE",
+  "REJECTION_NOTICE",
+  "LOST_OR_EXPIRED_NOTICE",
+  "SUSPENSION_OR_TERMINATION_NOTICE",
+  "REFERRAL_COMMISSION_STATEMENT",
 ] as const
 
 export type GeneratedDocType = (typeof GENERATED_DOC_TYPES)[number]
@@ -73,6 +83,15 @@ export const GENERATED_DOC_TYPE_LABELS: Record<GeneratedDocType, string> = {
   PAYOUT_STATEMENT: "Payout Statement",
   GRADE_CONFIRMATION: "Grade and Certification Confirmation",
   FORMAL_NOTICE: "Formal Notice",
+  REFERRAL_PARTNER_AGREEMENT: "Referral Partner Agreement and Schedule",
+  REFERRAL_COMMISSION_SCHEDULE: "Referral Commission Schedule",
+  REFERRAL_ACCEPTANCE_NOTICE: "Referral Acceptance Notice",
+  INFORMATION_REQUEST_NOTICE: "Referral Information Request",
+  DUPLICATE_NOTICE: "Referral Duplicate Notice",
+  REJECTION_NOTICE: "Referral Rejection Notice",
+  LOST_OR_EXPIRED_NOTICE: "Referral Lost or Expired Notice",
+  SUSPENSION_OR_TERMINATION_NOTICE: "Referral Suspension or Termination Notice",
+  REFERRAL_COMMISSION_STATEMENT: "Referral Commission Statement",
 }
 
 /** Types the partner must acknowledge in the portal before the record is effective. */
@@ -213,9 +232,70 @@ export async function issueGeneratedDocument(
   return { ok: true, document: mapDoc(data) }
 }
 
+/* ─── Supersession: a correction issues a new document, never overwrites ─── */
+
+const SUPERSEDEABLE_STATUSES = ["ISSUED", "SIGNED", "ACCEPTED"]
+
+/**
+ * Marks the partner's in-force documents of one type as SUPERSEDED and links
+ * them to the replacement. The stored PDF and checksum are untouched.
+ */
+export async function supersedePreviousDocuments(opts: {
+  partnerId: string
+  type: GeneratedDocType
+  sourceRecordId?: string | null
+  supersededById: string
+  reason?: string | null
+  actorId?: string | null
+}): Promise<string[]> {
+  if (!isSupabaseConfigured()) return []
+  let q = supabase
+    .from("partner_generated_documents")
+    .select("id, document_id")
+    .eq("partner_id", opts.partnerId)
+    .eq("document_type", opts.type)
+    .in("status", SUPERSEDEABLE_STATUSES)
+  if (opts.sourceRecordId) q = q.eq("source_record_id", opts.sourceRecordId)
+  const { data } = await q
+  const rows = (data || []) as Record<string, unknown>[]
+  if (rows.length === 0) return []
+
+  const { error } = await supabase
+    .from("partner_generated_documents")
+    .update({
+      status: "SUPERSEDED",
+      superseded_by: opts.supersededById,
+      status_reason: opts.reason ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .in("id", rows.map((r) => r.id as string))
+  if (error) {
+    console.error("[supersedePreviousDocuments]", error.message)
+    return []
+  }
+
+  for (const row of rows) {
+    await recordAudit(
+      { actorType: opts.actorId ? "ADMIN" : "SYSTEM", actorId: opts.actorId ?? undefined },
+      {
+        action: AUDIT_ACTIONS.REFERRAL_DOCUMENT_SUPERSEDED,
+        entityType: AUDIT_ENTITIES.PARTNER_GENERATED_DOCUMENT,
+        entityId: row.id as string,
+        metadata: {
+          documentId: row.document_id,
+          documentType: opts.type,
+          supersededBy: opts.supersededById,
+          reason: opts.reason ?? null,
+        },
+      }
+    )
+  }
+  return rows.map((r) => r.document_id as string)
+}
+
 /* ─── Data loading helpers ─── */
 
-async function loadLogoDataUrl(): Promise<string | undefined> {
+export async function loadLogoDataUrl(): Promise<string | undefined> {
   try {
     const logo = await fs.readFile(path.join(process.cwd(), "public", "logo.png"))
     return `data:image/png;base64,${logo.toString("base64")}`
@@ -224,7 +304,7 @@ async function loadLogoDataUrl(): Promise<string | undefined> {
   }
 }
 
-async function loadPartnerIdentity(partnerId: string): Promise<PartnerIdentity | null> {
+export async function loadPartnerIdentity(partnerId: string): Promise<PartnerIdentity | null> {
   const { data: p } = await supabase.from("partners").select("*").eq("id", partnerId).single()
   if (!p) return null
   const typeLabel = PARTNER_TYPE_LABELS[p.partner_type as PartnerType] || (p.partner_type as string)
@@ -262,7 +342,7 @@ async function loadAgreementRefs(partnerId: string): Promise<string[]> {
     .from("partner_generated_documents")
     .select("document_id, title")
     .eq("partner_id", partnerId)
-    .in("document_type", ["MASTER_PARTNER_AGREEMENT"])
+    .in("document_type", ["MASTER_PARTNER_AGREEMENT", "REFERRAL_PARTNER_AGREEMENT", "REFERRAL_COMMISSION_SCHEDULE"])
     .neq("status", "SUPERSEDED")
   return ((data || []) as Record<string, unknown>[]).map((r) => `${r.title} (${r.document_id})`)
 }

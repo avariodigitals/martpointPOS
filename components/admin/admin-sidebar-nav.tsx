@@ -15,7 +15,9 @@ import {
   LifeBuoy,
   Users,
   Funnel,
+  Share2,
   Landmark,
+  Award,
   Globe,
   ClipboardCheck,
   Handshake,
@@ -91,10 +93,14 @@ const navItems: NavItem[] = [
   { href: "/admin/partners", label: "Partners", icon: Handshake, page: "partners", section: "Partners" },
   { href: "/admin/partners/applications", label: "Applications", icon: FileText, page: "partners", section: "Partners" },
   { href: "/admin/partners/leads", label: "Partner Leads", icon: Funnel, page: "partners", section: "Partners" },
+  { href: "/admin/partners/referrals", label: "Referral Decisions", icon: Share2, page: "partners", section: "Partners" },
   { href: "/admin/partners/prospects", label: "Partner Prospects", icon: UserPlus, page: "partners", section: "Partners" },
   { href: "/admin/partners/payout-requests", label: "Payout Requests", icon: Wallet, page: "finance", section: "Partners" },
+  { href: "/admin/partners/bank-changes", label: "Payout Account Changes", icon: Landmark, page: "finance", section: "Partners" },
+  { href: "/admin/partners/grades", label: "Partner Grades", icon: Award, page: "partners", section: "Partners" },
   { href: "/admin/partners/branding-requests", label: "Branding Requests", icon: Palette, page: "partners", section: "Partners" },
   { href: "/admin/partners/resources", label: "Partner Resources", icon: BookOpen, page: "partners", section: "Partners" },
+  { href: "/admin/partners/assessments", label: "Partner Assessments", icon: ClipboardCheck, page: "partners", section: "Partners" },
   { href: "/admin/compliance", label: "Compliance", icon: Shield, page: "compliance", section: "Partners" },
 
   // FINANCE
@@ -106,6 +112,7 @@ const navItems: NavItem[] = [
   { href: "/admin/finance/transactions?type=expense", label: "Expenses", icon: Wallet, page: "finance", section: "Finance" },
   { href: "/admin/finance/transactions?type=income", label: "Income", icon: TrendingUp, page: "finance", section: "Finance" },
   { href: "/admin/finance/categories", label: "Categories", icon: Tag, page: "finance", section: "Finance" },
+  { href: "/admin/finance/commission-close", label: "Commission Close", icon: CalendarIcon, page: "finance", section: "Finance" },
 
   // OPERATIONS
   { href: "/admin/incidents", label: "Incidents", icon: Shield, page: "support", section: "Operations" },

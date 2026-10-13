@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 interface CalendarMeeting {
   id: string
+  source: "lead" | "partner"
   leadId: string
   customerToken: string
   title: string
@@ -30,6 +31,7 @@ function mapCalendarRow(row: Record<string, unknown>): CalendarMeeting {
   const lead = (row.leads as Record<string, unknown> | undefined) || {}
   return {
     id: row.id as string,
+    source: "lead",
     leadId: row.lead_id as string,
     customerToken: row.customer_token as string,
     title: row.title as string,
@@ -52,10 +54,40 @@ function mapCalendarRow(row: Record<string, unknown>): CalendarMeeting {
   }
 }
 
+function mapPartnerMeetingRow(row: Record<string, unknown>): CalendarMeeting {
+  const app = (row.partner_applications as Record<string, unknown> | undefined) || {}
+  return {
+    id: row.id as string,
+    source: "partner",
+    leadId: row.application_id as string,
+    customerToken: "",
+    title: row.title as string,
+    scheduledAt: row.scheduled_at as string,
+    durationMinutes: row.duration_minutes as number,
+    timezone: row.timezone as string,
+    meetingLink: row.meeting_link as string | null,
+    provider: row.provider as string | null,
+    status: row.status as CalendarMeeting["status"],
+    notes: null,
+    summary: null,
+    actionItems: null,
+    transcriptUrl: null,
+    recordingUrl: null,
+    notesProvider: null,
+    leadFullName: (app.full_name as string) || "Partner applicant",
+    leadBusinessName: (app.business_name as string) || "",
+    leadEmail: (app.email as string) || "",
+    leadPhone: "",
+  }
+}
+
 /* ─── GET all meetings for a date range ─── */
 export async function GET(request: Request) {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "leads")) {
+  const role = session?.role as UserRole
+  const canLeads = !!session && hasPermission(role, "leads")
+  const canPartners = !!session && hasPermission(role, "partners")
+  if (!session || (!canLeads && !canPartners)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -66,24 +98,45 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const from = searchParams.get("from")
   const to = searchParams.get("to")
+  const fromIso = from ? new Date(from).toISOString() : null
+  const toIso = to ? new Date(to).toISOString() : null
 
-  let query = supabase
-    .from("lead_meetings")
-    .select("*, leads(full_name, business_name, email, phone)")
-    .neq("status", "CANCELLED")
-    .not("scheduled_at", "is", null)
-    .order("scheduled_at", { ascending: true })
+  const [leadRes, partnerRes] = await Promise.all([
+    canLeads
+      ? (() => {
+          let query = supabase
+            .from("lead_meetings")
+            .select("*, leads(full_name, business_name, email, phone)")
+            .neq("status", "CANCELLED")
+            .not("scheduled_at", "is", null)
+            .order("scheduled_at", { ascending: true })
+          if (fromIso) query = query.gte("scheduled_at", fromIso)
+          if (toIso) query = query.lte("scheduled_at", toIso)
+          return query
+        })()
+      : Promise.resolve({ data: null, error: null }),
+    canPartners
+      ? (() => {
+          let query = supabase
+            .from("partner_meetings")
+            .select("*, partner_applications(full_name, business_name, email)")
+            .neq("status", "CANCELLED")
+            .order("scheduled_at", { ascending: true })
+          if (fromIso) query = query.gte("scheduled_at", fromIso)
+          if (toIso) query = query.lte("scheduled_at", toIso)
+          return query
+        })()
+      : Promise.resolve({ data: null, error: null }),
+  ])
 
-  if (from) query = query.gte("scheduled_at", new Date(from).toISOString())
-  if (to) query = query.lte("scheduled_at", new Date(to).toISOString())
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("[Admin Calendar GET]", error)
+  if (leadRes.error || partnerRes.error) {
+    console.error("[Admin Calendar GET]", leadRes.error, partnerRes.error)
     return NextResponse.json({ error: "Failed to load calendar" }, { status: 500 })
   }
 
-  const meetings = (data || []).map((row) => mapCalendarRow(row as Record<string, unknown>))
+  const meetings = [
+    ...(leadRes.data || []).map((row) => mapCalendarRow(row as Record<string, unknown>)),
+    ...(partnerRes.data || []).map((row) => mapPartnerMeetingRow(row as Record<string, unknown>)),
+  ].sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
   return NextResponse.json({ meetings })
 }

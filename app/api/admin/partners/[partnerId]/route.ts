@@ -9,6 +9,7 @@ import {
 } from "@/lib/partner-service"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 import { issueActivationConfirmation, issueFormalNotice } from "@/lib/partner-generated-docs"
+import { referralAdminCan } from "@/lib/referral-permissions"
 
 /* ─── GET: partner overview for admin detail ─── */
 export async function GET(
@@ -88,6 +89,23 @@ export async function PATCH(
     }
     if (body.status !== undefined) update.status = body.status
 
+    // Account standing is a Management decision. Suspension and termination also
+    // close referral submission, so the reason is mandatory — it is audited and
+    // printed on the formal notice the partner receives.
+    const CLOSING_STATUSES = ["SUSPENDED", "TERMINATED", "INACTIVE"]
+    if (
+      body.status !== undefined &&
+      body.status !== current.status &&
+      CLOSING_STATUSES.includes(String(body.status))
+    ) {
+      if (!referralAdminCan(session.role, "partner:suspend")) {
+        return NextResponse.json({ error: "Only Management can suspend or close a partner account" }, { status: 403 })
+      }
+      if (!String(body.reason || "").trim()) {
+        return NextResponse.json({ error: "A written reason is required for this decision" }, { status: 400 })
+      }
+    }
+
     const { data: updated, error } = await supabase
       .from("partners")
       .update(update)
@@ -140,14 +158,21 @@ export async function PATCH(
         if (body.status === "ACTIVE" && current.status !== "ACTIVE") {
           await issueActivationConfirmation(partnerId, session!.userId)
         } else if (body.status === "SUSPENDED" || body.status === "TERMINATED") {
-          await issueFormalNotice(
-            partnerId,
-            {
-              decision: body.status === "SUSPENDED" ? "SUSPENSION" : "TERMINATION",
-              reason: body.reason || null,
-            },
-            { id: session!.userId, name: session!.name || session!.username }
-          )
+          const decision = body.status === "SUSPENDED" ? "SUSPENSION" : "TERMINATION"
+          if (current.partner_type === "REFERRAL") {
+            const { issueReferralStatusNotice } = await import("@/lib/referral-documents")
+            await issueReferralStatusNotice(
+              partnerId,
+              { decision, reason: body.reason || null },
+              { id: session!.userId, name: session!.name || session!.username, title: "Management" }
+            )
+          } else {
+            await issueFormalNotice(
+              partnerId,
+              { decision, reason: body.reason || null },
+              { id: session!.userId, name: session!.name || session!.username }
+            )
+          }
         }
       } catch (e) {
         console.error("[partner status] generated document failed:", e)

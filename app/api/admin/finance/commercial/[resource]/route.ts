@@ -33,6 +33,7 @@ import {
   voidEntriesForSource,
 } from "@/lib/finance-ledger"
 import { issuePayoutStatement } from "@/lib/partner-generated-docs"
+import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { sendInvoiceEmail } from "@/lib/invoice-emails"
 import { sendPaymentConfirmationEmail } from "@/lib/payment-emails"
 
@@ -79,6 +80,39 @@ async function getActor() {
 
 function now() {
   return new Date().toISOString()
+}
+
+/**
+ * Manually cancelling or reversing a referral earning is an override: it must
+ * carry a written reason and leave an immutable audit entry naming the actor.
+ * Returns an error response when the reason is missing, otherwise null.
+ */
+async function requireOverrideReason(
+  commissionId: string,
+  actor: { id: string; name: string },
+  reason?: string
+) {
+  const { data: row } = await supabase
+    .from("partner_commissions")
+    .select("earning_kind, partner_id, status")
+    .eq("id", commissionId)
+    .maybeSingle()
+  if (!row || !(row as { earning_kind?: string | null }).earning_kind) return null
+
+  const trimmed = (reason || "").trim()
+  if (trimmed.length < 5) return err("A reason is required to override a referral earning", 400)
+
+  await recordAudit({ actorType: "ADMIN", actorId: actor.id, actorName: actor.name }, {
+    action: AUDIT_ACTIONS.REFERRAL_COMMISSION_OVERRIDDEN,
+    entityType: AUDIT_ENTITIES.PARTNER_COMMISSION,
+    entityId: commissionId,
+    metadata: {
+      reason: trimmed,
+      partnerId: (row as { partner_id?: string }).partner_id,
+      previousStatus: (row as { status?: string }).status,
+    },
+  })
+  return null
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -722,19 +756,37 @@ export async function POST(request: Request, props: { params: Promise<{ resource
     if (resource === "commissions") {
       if (action === "approve") {
         const { id } = data
+        // Referral earnings carry contractual gates — approveReferralCommission
+        // re-evaluates them and requires a verified payout profile.
+        const { data: target } = await supabase
+          .from("partner_commissions")
+          .select("earning_kind")
+          .eq("id", id)
+          .maybeSingle()
+        if ((target as { earning_kind?: string | null } | null)?.earning_kind) {
+          const { approveReferralCommission } = await import("@/lib/referral-finance")
+          const res = await approveReferralCommission(id, { actorId: actor.id, actorName: actor.name })
+          if (!res.ok) return err(res.error || "Approval failed", 400)
+          const { data: c } = await supabase.from("partner_commissions").select("*").eq("id", id).single()
+          return ok(c)
+        }
         const { data: c, error } = await supabase.from("partner_commissions").update({ status: "APPROVED", approved_at: now(), approved_by: actor.id, updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "COMMISSION_APPROVED", "PARTNER_COMMISSION", id)
         return ok(c)
       }
       if (action === "cancel") {
-        const { id } = data
+        const { id, reason } = data
+        const guard = await requireOverrideReason(id, actor, reason)
+        if (guard) return guard
         const { data: c, error } = await supabase.from("partner_commissions").update({ status: "CANCELLED", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         return ok(c)
       }
       if (action === "reverse") {
         const { id, reason } = data
+        const guard = await requireOverrideReason(id, actor, reason)
+        if (guard) return guard
         const { data: c, error } = await supabase.from("partner_commissions").update({ status: "REVERSED", reversal_reason: reason, updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "COMMISSION_REVERSED", "PARTNER_COMMISSION", id)
@@ -766,6 +818,11 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         // Reflect the payment on any linked partner payout request
         await supabase.from("partner_payout_requests").update({ status: "PAID", updated_at: now() }).eq("payout_id", id)
         await logFinanceAudit("ADMIN", actor.id, "COMMISSION_PAYOUT_PAID", "COMMISSION_PAYOUT", id)
+        // Earnings inside a completed payout become PAID with the payout reference.
+        try {
+          const { markReferralCommissionsPaid } = await import("@/lib/referral-finance")
+          await markReferralCommissionsPaid(id, { actorId: actor.id, actorName: actor.name })
+        } catch (e) { console.error("[payouts.mark_paid] commission settlement", e) }
         try { await postPayoutJournal(id) } catch (e) { console.error("[payouts.mark_paid] ledger", e) }
         try { await issuePayoutStatement(id, actor.id) } catch (e) { console.error("[payouts.mark_paid] statement", e) }
         return ok(p)

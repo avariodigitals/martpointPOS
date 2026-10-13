@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
   const { data: partners } = await supabase
     .from("partners")
-    .select("id, partner_id, business_name, display_name, partner_type, status, country, state, city, partner_since, public_profile_enabled, created_at")
+    .select("id, partner_id, business_name, display_name, partner_type, status, country, state, city, partner_since, current_grade, grade_review_date, public_profile_enabled, created_at")
     .order("created_at", { ascending: false })
 
   // Stats

@@ -909,3 +909,511 @@ export function renderImplementationFeeStatement(
 
   return d.finish(`MartPoint-Fee-Statement-${safeFileStem(input.control.documentId)}.pdf`)
 }
+
+/* ═══════════════  Referral Partner controlled document pack (v1.0)  ═══════════════
+ * The referral outputs the portal must generate around the Master Partner
+ * Agreement's Referral Partner Schedule. Every commercial figure is a merge
+ * field resolved from the signed Commission Schedule or the source finance
+ * record — these templates never state a rate on their own authority, and a
+ * missing value renders as "Not applicable" rather than invented text.
+ */
+
+export interface ReferralSignatory {
+  name: string
+  title: string
+  email: string
+}
+
+/** Commercial terms resolved from the EXECUTED schedule row. */
+export interface ReferralScheduleSummary {
+  reference: string
+  version: number
+  status: string
+  firstYearRatePercent: number | null
+  firstRenewalRatePercent: number | null
+  protectionDays: number | null
+  holdingDays: number | null
+  payoutDaysAfterMonthEnd: number | null
+  effectiveFrom: string | null
+}
+
+function pct(value: number | null | undefined): string {
+  return value === null || value === undefined || !Number.isFinite(value) ? NOT_APPLICABLE : `${value}%`
+}
+
+function dayCount(value: number | null | undefined): string {
+  return value === null || value === undefined || !Number.isFinite(value) ? NOT_APPLICABLE : `${value} days`
+}
+
+/* ─── R1. Referral Partner Agreement and Schedule ─────────────────────────── */
+
+export interface ReferralAgreementInput {
+  control: DocControl
+  partner: PartnerIdentity
+  reference: string
+  effectiveDate: string | null
+  schedule: ReferralScheduleSummary | null
+  eligibleItems: string | null
+  exclusions: string | null
+  martpointSignatory: ReferralSignatory
+  partnerSignatory: ReferralSignatory
+  approvedBy: string | null
+}
+
+export function renderReferralAgreement(
+  input: ReferralAgreementInput,
+  opts?: { logoDataUrl?: string }
+): GeneratedPdf {
+  const { partner, schedule } = input
+  const d = new PartnerDocBuilder({
+    logoDataUrl: opts?.logoDataUrl,
+    footerRef: `${input.control.documentId} — ${partner.legalName}`,
+  })
+
+  d.title("REFERRAL PARTNER AGREEMENT", input.reference)
+  d.para(
+    `This Agreement is made between MartPoint and ${partner.legalName} (Partner ID ${partner.partnerId}) and governs Referral Partner activity in the MartPoint partner portal.`,
+    { gap: 12 }
+  )
+
+  d.heading("Document control")
+  controlTable(d, input.control)
+  d.fieldTable([
+    ["Agreement reference", input.reference],
+    ["Effective date", fmtDate(input.effectiveDate)],
+    ["Approved by", orNA(input.approvedBy)],
+    ["Commission Schedule in force", schedule ? `${schedule.reference} (version ${schedule.version})` : NOT_APPLICABLE],
+  ])
+
+  d.heading("1. Appointment")
+  d.para(
+    `MartPoint appoints ${partner.legalName} as a non-exclusive Referral Partner. This appointment creates no employment, agency, partnership or authority to bind MartPoint, and MartPoint remains free to appoint others and to sell directly.`,
+    { gap: 10 }
+  )
+
+  d.heading("2. Scope of activity")
+  d.listItem("Introduce prospective customers who are genuinely new to MartPoint, with their consent to be contacted.")
+  d.listItem("Share only the approved MartPoint partner description and current portal materials.")
+  d.listItem("Submit each referral through the partner portal before the prospect's qualifying MartPoint transaction.")
+
+  d.heading("3. Registration, acceptance and protection")
+  d.listItem(`A referral is assessed for consent, completeness and duplication on submission. Only Sales with Partner Operations may accept a referral.`)
+  d.listItem(`An accepted referral is protected for ${schedule ? dayCount(schedule.protectionDays) : "the period stated in the signed Commission Schedule"}, running from the acceptance date.`)
+  d.listItem("Protection may be extended only by a recorded MartPoint decision. Expiry releases the attribution without creating any liability.")
+
+  d.heading("4. No payment for a referral")
+  d.callout(
+    "No commission is payable for a name, a lead, a meeting, a demonstration, a quotation, an invoice or a promise to pay. Submission and acceptance of a referral create no earning.",
+    { title: "Approved commercial rule" }
+  )
+
+  d.heading("5. Commission trigger")
+  d.para("A commission arises only when every condition below is satisfied and Finance has approved the earning:", { gap: 6 })
+  d.listItem("The referral attribution is accepted and still valid.")
+  d.listItem("This Agreement and a signed Commission Schedule are both in force.")
+  d.listItem("The customer has made a cleared eligible payment for MartPoint software.")
+  d.listItem("The customer licence is activated.")
+  d.listItem("The holding period stated in the Commission Schedule has completed.")
+  d.listItem("No blocking refund, chargeback, dispute or compliance hold applies.")
+  if (schedule) {
+    d.fieldTable([
+      ["First-year rate", pct(schedule.firstYearRatePercent)],
+      ["First collected renewal rate", pct(schedule.firstRenewalRatePercent)],
+      ["Holding period", dayCount(schedule.holdingDays)],
+      ["Revenue basis", orNA(input.eligibleItems)],
+    ])
+  } else {
+    d.para(`No Commission Schedule is in force for this Agreement, so no rate applies: ${NOT_APPLICABLE}.`, { gap: 8 })
+  }
+
+  d.heading("6. Partner restrictions")
+  d.listItem("Do not negotiate or set prices, discounts or payment terms.")
+  d.listItem("Do not collect payment on MartPoint's behalf or issue an invoice.")
+  d.listItem("Do not request or accept customer credentials or access to a customer account.")
+  d.listItem("Do not implement, configure, bind or make delivery commitments for MartPoint.")
+  d.listItem("Do not make unapproved claims about MartPoint products, results or pricing.")
+
+  d.heading("7. Confidentiality and data")
+  d.para(
+    "Personal data introduced through a referral may be used only to assess and service that referral. Confidential sales information belonging to MartPoint or another partner must not be sought or retained. Security incidents affecting MartPoint or customer data must be reported without delay, and introduced data must be returned or deleted when the referral closes or this Agreement ends.",
+    { gap: 8 }
+  )
+  d.para(`Excluded from any eligible revenue calculation: ${orNA(input.exclusions)}`, { gap: 8 })
+
+  d.heading("8. Term and exit")
+  d.listItem("MartPoint may suspend or terminate this appointment on an authorised Management decision, effective on the date stated in the notice.")
+  d.listItem(`Approved payouts for earnings that were already eligible are due within ${schedule ? dayCount(schedule.payoutDaysAfterMonthEnd).replace(" days", " days") : "the period stated in the Commission Schedule"} after the monthly close.`)
+  d.listItem("On exit, the partner must stop representing MartPoint, protect introduced data and complete any requested handover of records.")
+
+  d.heading("9. Signatures")
+  d.para("Signed by authorised representatives of both parties.", { gap: 6 })
+  d.signatureTable([
+    { side: "MartPoint", name: input.martpointSignatory.name, title: input.martpointSignatory.title, email: input.martpointSignatory.email },
+    { side: partner.legalName, name: input.partnerSignatory.name, title: input.partnerSignatory.title, email: input.partnerSignatory.email },
+  ])
+
+  return d.finish(`MartPoint-Referral-Agreement-${safeFileStem(input.control.documentId)}.pdf`)
+}
+
+/* ─── R2. Referral Commission Schedule ───────────────────────────────────── */
+
+export interface ReferralCommissionScheduleInput {
+  control: DocControl
+  partner: PartnerIdentity
+  reference: string
+  version: number
+  agreementReference: string | null
+  effectiveFrom: string | null
+  effectiveTo: string | null
+  terms: ReferralScheduleSummary
+  revenueBasis: string | null
+  eligibleItems: string | null
+  exclusions: string | null
+  renewalRule: string | null
+  statementCycle: string | null
+  approvedSplit: string | null
+  recordedApprover: ReferralSignatory | null
+}
+
+export function renderReferralCommissionSchedule(
+  input: ReferralCommissionScheduleInput,
+  opts?: { logoDataUrl?: string }
+): GeneratedPdf {
+  const { partner, terms } = input
+  const d = new PartnerDocBuilder({
+    logoDataUrl: opts?.logoDataUrl,
+    footerRef: `${input.control.documentId} — ${partner.legalName}`,
+  })
+
+  d.title("REFERRAL COMMISSION SCHEDULE", input.reference)
+  d.para(
+    "This Schedule states the commercial terms that control Referral Partner earnings. While it is in force it is authoritative over any standard rate described elsewhere.",
+    { gap: 12 }
+  )
+
+  d.heading("Document control")
+  controlTable(d, input.control)
+  d.fieldTable([
+    ["Schedule reference", input.reference],
+    ["Version", String(input.version)],
+    ["Parent Agreement", orNA(input.agreementReference)],
+    ["Effective from", fmtDate(input.effectiveFrom)],
+    ["Effective to", fmtDate(input.effectiveTo)],
+  ])
+
+  d.heading("1. Rates")
+  d.fieldTable([
+    ["First-year eligible collected software revenue", pct(terms.firstYearRatePercent)],
+    ["First collected renewal only", pct(terms.firstRenewalRatePercent)],
+    ["Renewal rule", orNA(input.renewalRule)],
+  ])
+
+  d.heading("2. Eligible revenue")
+  d.fieldTable([
+    ["Revenue basis", orNA(input.revenueBasis)],
+    ["Eligible items", orNA(input.eligibleItems)],
+  ])
+
+  d.heading("3. Exclusions")
+  d.para(orNA(input.exclusions), { gap: 10 })
+
+  d.heading("4. Attribution")
+  d.fieldTable([
+    ["Protection period", dayCount(terms.protectionDays)],
+    ["Protection runs from", "The acceptance date recorded on the referral"],
+    ["Duplicate and inactivity rules", "A referral matching an existing customer, lead, opportunity or accepted referral is not accepted; protection lapses on its expiry date unless MartPoint records an extension"],
+    input.approvedSplit ? ["Approved split", input.approvedSplit] : ["Approved split", "None"],
+  ])
+
+  d.heading("5. Holding period")
+  d.fieldTable([
+    ["Holding period", dayCount(terms.holdingDays)],
+    ["Holding starts from", "The later of the cleared eligible payment and licence activation"],
+    ["Earning status during holding", "HELD — not payable, not disputable as an amount"],
+  ])
+
+  d.heading("6. Statements and payout")
+  d.fieldTable([
+    ["Statement cycle", orNA(input.statementCycle)],
+    ["Payout timing", `${dayCount(terms.payoutDaysAfterMonthEnd)} after the monthly close`],
+    ["Pre-issue validation", "Bank details verified, Finance approval recorded, no blocking refund, chargeback, dispute or compliance hold"],
+  ])
+
+  d.heading("7. Reversals and disputes")
+  d.listItem("A refund, credit or chargeback creates a linked adjustment against the earning; an approved or paid earning is never silently overwritten.")
+  d.listItem("Adjustments may be set off against a later statement or payout.")
+  d.listItem("A partner may dispute a line by quoting the statement and line reference with supporting evidence inside the query period.")
+  d.listItem("Disputes are decided by Finance with Partner Operations; the decision and reason are recorded in the audit history.")
+
+  d.heading("8. Approval")
+  d.para("This Schedule is approved by Finance and Management before it is signed, and it is the authority for every rate and period stated above.", { gap: 6 })
+  d.fieldTable([
+    ["Approved by", input.recordedApprover ? `${input.recordedApprover.name} — ${input.recordedApprover.title}` : NOT_APPLICABLE],
+    ["Approval recorded at", fmtDate(input.control.generatedAt)],
+  ])
+  d.para("Superseding this Schedule requires a new version, signed before it takes effect. Issued versions are retained and never overwritten.", { gap: 8 })
+
+  return d.finish(`MartPoint-Referral-Commission-Schedule-${safeFileStem(input.control.documentId)}.pdf`)
+}
+
+/* ─── R3. Referral Acceptance Notice ─────────────────────────────────────── */
+
+export interface ReferralAcceptanceNoticeInput {
+  control: DocControl
+  partner: PartnerIdentity
+  referralReference: string
+  prospectName: string
+  submittedAt: string | null
+  acceptedAt: string
+  reviewer: string | null
+  protectionStart: string | null
+  protectionExpiry: string | null
+  protectionDays: number | null
+  protectionSource: string | null
+  martpointOwner: string | null
+  partnerNextStep: string | null
+}
+
+export function renderReferralAcceptanceNotice(
+  input: ReferralAcceptanceNoticeInput,
+  opts?: { logoDataUrl?: string }
+): GeneratedPdf {
+  const { partner } = input
+  const d = new PartnerDocBuilder({
+    logoDataUrl: opts?.logoDataUrl,
+    footerRef: `${input.control.documentId} — ${partner.legalName}`,
+  })
+
+  d.title("REFERRAL ACCEPTANCE NOTICE", input.control.documentId)
+  d.para(`MartPoint has accepted the referral below as a new introduction from ${partner.legalName}.`, { gap: 12 })
+
+  d.heading("Document control")
+  controlTable(d, input.control)
+
+  d.heading("Referral")
+  d.fieldTable([
+    ["Referral reference", input.referralReference],
+    ["Prospect business", input.prospectName],
+    ["Submitting partner", `${partner.legalName} (${partner.partnerId})`],
+    ["Submitted", fmtDate(input.submittedAt)],
+  ])
+
+  d.heading("Decision")
+  d.fieldTable([
+    ["Decision", "Accepted"],
+    ["Acceptance date", fmtDate(input.acceptedAt)],
+    ["Recorded by", orNA(input.reviewer)],
+  ])
+
+  d.heading("Attribution protection")
+  d.fieldTable([
+    ["Protection starts", fmtDate(input.protectionStart)],
+    ["Protection expires", fmtDate(input.protectionExpiry)],
+    ["Protection period", dayCount(input.protectionDays)],
+    ["Period source", orNA(input.protectionSource)],
+    ["Extension", "Only by a recorded MartPoint decision before expiry"],
+  ])
+
+  d.heading("What acceptance means")
+  d.callout(
+    "Acceptance records attribution only. It does not create a commission, an earning or any access to the prospect's or a customer's account.",
+    { title: "Boundary" }
+  )
+
+  d.heading("Next step")
+  d.fieldTable([
+    ["MartPoint owner", orNA(input.martpointOwner)],
+    ["Partner action", orNA(input.partnerNextStep)],
+  ])
+
+  return d.finish(`MartPoint-Referral-Acceptance-${safeFileStem(input.control.documentId)}.pdf`)
+}
+
+/* ─── R4. Referral Information Request / Decision Notice ─────────────────── */
+
+export interface ReferralDecisionNoticeInput {
+  control: DocControl
+  partner: PartnerIdentity
+  referralReference: string
+  prospectName: string
+  decisionLabel: string
+  effectiveDate: string
+  reason: string | null
+  requiredAction: string | null
+  responseDue: string | null
+  attributionEffect: string
+  commissionEffect: string
+  reviewContact: string
+  decidedBy: string | null
+}
+
+export function renderReferralDecisionNotice(
+  input: ReferralDecisionNoticeInput,
+  opts?: { logoDataUrl?: string }
+): GeneratedPdf {
+  const { partner } = input
+  const d = new PartnerDocBuilder({
+    logoDataUrl: opts?.logoDataUrl,
+    footerRef: `${input.control.documentId} — ${partner.legalName}`,
+  })
+
+  d.title(`REFERRAL ${input.decisionLabel}`, input.control.documentId)
+  d.para(`This notice records the MartPoint decision on referral ${input.referralReference}.`, { gap: 12 })
+
+  d.heading("Document control")
+  controlTable(d, input.control)
+
+  d.heading("Referral")
+  d.fieldTable([
+    ["Referral reference", input.referralReference],
+    ["Prospect business", input.prospectName],
+    ["Partner", `${partner.legalName} (${partner.partnerId})`],
+  ])
+
+  d.heading("Decision")
+  d.fieldTable([
+    ["Status", input.decisionLabel],
+    ["Effective date", fmtDate(input.effectiveDate)],
+    ["Recorded by", orNA(input.decidedBy)],
+    ["Reason", orNA(input.reason)],
+  ])
+  d.para("The reason states the factual category only. Another partner's identity, private sales notes and confidential commercial data are never disclosed in this notice.", { gap: 8 })
+
+  d.heading("Required action")
+  d.fieldTable([
+    ["Action", orNA(input.requiredAction)],
+    ["Respond by", fmtDate(input.responseDue)],
+  ])
+
+  d.heading("Effect on your position")
+  d.fieldTable([
+    ["Attribution", input.attributionEffect],
+    ["Commission", input.commissionEffect],
+  ])
+
+  d.heading("Review route")
+  d.para(`To request a review, contact ${orNA(input.reviewContact)} quoting ${input.control.documentId} within the response period in your Agreement.`, { gap: 6 })
+
+  return d.finish(`MartPoint-Referral-Decision-${safeFileStem(input.control.documentId)}.pdf`)
+}
+
+/* ─── R5. Referral Commission Statement ──────────────────────────────────── */
+
+export interface ReferralCommissionStatementLine {
+  referralReference: string
+  customer: string
+  invoiceNumber: string | null
+  clearedAt: string | null
+  activatedAt: string | null
+  eligibleBase: string
+  rate: string
+  amount: string
+  status: string
+  holdingCompletedAt: string | null
+  approvedBy: string | null
+  payoutReference: string | null
+}
+
+export interface ReferralCommissionStatementInput {
+  control: DocControl
+  partner: PartnerIdentity
+  currency: string
+  period: { from: string | null; to: string | null }
+  scheduleReference: string | null
+  lines: ReferralCommissionStatementLine[]
+  adjustments: { date: string | null; description: string; amount: string }[]
+  totals: { eligible: number; approved: number; held: number; reversed: number; netPayable: number }
+  disputeContact: string
+  disputeDeadline: string | null
+}
+
+export function renderReferralCommissionStatement(
+  input: ReferralCommissionStatementInput,
+  opts?: { logoDataUrl?: string }
+): GeneratedPdf {
+  const { partner } = input
+  const d = new PartnerDocBuilder({
+    logoDataUrl: opts?.logoDataUrl,
+    footerRef: `${input.control.documentId} — ${partner.legalName}`,
+  })
+
+  d.title("REFERRAL COMMISSION STATEMENT", input.control.documentId)
+  d.para(
+    "Statement of referral earnings closed by MartPoint Finance for the period below. Every line is derived from a cleared payment, a licence activation and the signed Commission Schedule. This statement is not proof of payment.",
+    { gap: 12 }
+  )
+
+  d.heading("Document control")
+  controlTable(d, input.control)
+
+  d.heading("Partner and period")
+  d.fieldTable([
+    ["Partner", `${partner.legalName} (${partner.partnerId})`],
+    ["Currency", input.currency],
+    ["Period from", fmtDate(input.period.from)],
+    ["Period to", fmtDate(input.period.to)],
+    ["Commission Schedule applied", orNA(input.scheduleReference)],
+  ])
+
+  d.heading("Earning lines")
+  if (input.lines.length === 0) {
+    d.para("No referral earning lines in this period. Referrals that were submitted, accepted, quoted or invoiced but not paid create no line.")
+  } else {
+    d.table(
+      ["Referral", "Customer", "Invoice", "Cleared", "Eligible base", "Rate", "Commission", "Status"],
+      input.lines.map((l) => [
+        l.referralReference,
+        l.customer,
+        orNA(l.invoiceNumber),
+        fmtDate(l.clearedAt),
+        l.eligibleBase,
+        l.rate,
+        l.amount,
+        l.status,
+      ])
+    )
+  }
+
+  d.heading("Holding, approval and payout references")
+  if (input.lines.length === 0) {
+    d.para(NOT_APPLICABLE)
+  } else {
+    d.table(
+      ["Referral", "Licence activation", "Holding completed", "Approved by", "Payout reference"],
+      input.lines.map((l) => [
+        l.referralReference,
+        fmtDate(l.activatedAt),
+        fmtDate(l.holdingCompletedAt),
+        orNA(l.approvedBy),
+        orNA(l.payoutReference),
+      ])
+    )
+  }
+
+  d.heading("Adjustments")
+  if (input.adjustments.length === 0) {
+    d.para("No refunds, credits, chargebacks, tax or other approved adjustments in this period.")
+  } else {
+    d.table(
+      ["Date", "Description", "Amount"],
+      input.adjustments.map((a) => [fmtDate(a.date), a.description, a.amount])
+    )
+  }
+
+  d.heading("Totals")
+  d.fieldTable([
+    ["Eligible", fmtMoney(input.totals.eligible, input.currency)],
+    ["Approved", fmtMoney(input.totals.approved, input.currency)],
+    ["Held", fmtMoney(input.totals.held, input.currency)],
+    ["Reversed and adjusted", fmtMoney(input.totals.reversed, input.currency)],
+    ["Net payable (subject to Finance approval and payout)", fmtMoney(input.totals.netPayable, input.currency)],
+  ])
+
+  d.heading("Disputes")
+  d.para(
+    `To dispute a line, quote this statement and the line reference with supporting evidence${input.disputeDeadline ? ` by ${fmtDate(input.disputeDeadline)}` : ""}. Contact ${orNA(input.disputeContact)}.`,
+    { gap: 6 }
+  )
+
+  return d.finish(`MartPoint-Referral-Commission-Statement-${safeFileStem(input.control.documentId)}.pdf`)
+}

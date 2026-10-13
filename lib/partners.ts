@@ -102,6 +102,8 @@ export async function generatePartnerId(countryCode: string): Promise<string> {
 
 export type StatusHistoryEventType =
   | "STATUS_CHANGE" | "NOTE_ADDED" | "DOCUMENT_REVIEW" | "DOCUMENT_SUBMITTED"
+  | "ASSESSMENT_ASSIGNED" | "ASSESSMENT_SUBMITTED" | "ASSESSMENT_GRADED"
+  | "ASSESSMENT_WAIVED" | "ASSESSMENT_CANCELLED" | "ASSESSMENT_OVERRIDE"
 
 export async function recordStatusHistory(
   applicationId: string | null,

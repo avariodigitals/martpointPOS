@@ -3,6 +3,8 @@ import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "./audit"
 import { expireDueCertifications } from "./partner-certifications"
 import { sendEmail, REPLY_TO } from "./email"
 import { escapeHtml } from "./email-templates"
+import { sweepReferralCommissions } from "./referral-finance"
+import { sweepExpiredReferrals, sweepProtectionExpiryWarnings } from "./referral-attribution"
 
 /* ───────────────────────────  Partner operations sweep  ───────────────────────────
  * Scheduled, idempotent processing per the Portal Automation Blueprint:
@@ -104,6 +106,9 @@ export async function promotePendingCommissions(): Promise<{ promoted: number; r
     .from("partner_commissions")
     .select("*, commission_plans(clawback_days), payments(status), businesses(status), partners(status)")
     .eq("status", "PENDING")
+    // Referral engine rows (earning_kind set) are gated by the signed Commission
+    // Schedule and cleared-payment rules — they must not be promoted here.
+    .is("earning_kind", null)
 
   for (const c of (pending || []) as Record<string, unknown>[]) {
     const payment = c.payments as { status: string } | null
@@ -267,5 +272,12 @@ export async function runPartnerOpsSweep() {
     expireDueCertifications(),
     sendExpiryReminders(),
   ])
-  return { commissions, leads, certifications, reminders }
+
+  // Referral workflow runs after the generic pass so attribution expiry is
+  // settled before commission gates are re-evaluated against it.
+  const warnings = await sweepProtectionExpiryWarnings()
+  const referralLeads = await sweepExpiredReferrals()
+  const referralCommissions = await sweepReferralCommissions()
+
+  return { commissions, leads, certifications, reminders, warnings, referralLeads, referralCommissions }
 }

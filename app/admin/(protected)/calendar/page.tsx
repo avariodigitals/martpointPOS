@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, ChevronLeft, ChevronRight, Video, Calendar, Clock, FileText } from "lucide-react"
+import { Loader2, ChevronLeft, ChevronRight, Video, Calendar, Clock, FileText, Users } from "lucide-react"
 
 interface CalendarMeeting {
   id: string
+  source: "lead" | "partner"
   leadId: string
   customerToken: string
   title: string
@@ -111,7 +112,7 @@ export default function AdminCalendarPage() {
             <Calendar className="w-5 h-5" />
             Meeting Calendar
           </h2>
-          <p className="text-muted-foreground">Track scheduled lead meetings and demos.</p>
+          <p className="text-muted-foreground">Track scheduled lead demos and partner meetings.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={prevMonth}>
@@ -156,8 +157,8 @@ export default function AdminCalendarPage() {
                           {dayMeetings.map((m) => (
                             <span
                               key={m.id}
-                              className="block w-2 h-2 rounded-full bg-retail"
-                              title={`${m.leadFullName} — ${m.title}`}
+                              className={`block w-2 h-2 rounded-full ${m.source === "partner" ? "bg-amber-500" : "bg-retail"}`}
+                              title={`${m.source === "partner" ? "Partner meeting" : m.leadFullName} — ${m.title}`}
                             />
                           ))}
                         </div>
@@ -184,11 +185,29 @@ export default function AdminCalendarPage() {
                 <div key={m.id} className="rounded-lg border border-border p-3 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-medium text-sm">{m.title}</p>
-                    <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
-                      {m.status}
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {m.source === "partner" && (
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 font-medium flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          Partner
+                        </span>
+                      )}
+                      <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
+                        {m.status}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">{m.leadFullName} · {m.leadBusinessName}</p>
+                  {m.source === "partner" ? (
+                    <a
+                      href={`/admin/partners/applications/${m.leadId}`}
+                      className="block text-xs text-muted-foreground hover:text-retail hover:underline w-fit"
+                    >
+                      {m.leadFullName}
+                      {m.leadBusinessName ? ` · ${m.leadBusinessName}` : ""}
+                    </a>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">{m.leadFullName} · {m.leadBusinessName}</p>
+                  )}
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="w-3 h-3" />
                     {new Date(m.scheduledAt).toLocaleTimeString("en-GB", { timeStyle: "short", timeZone: m.timezone })}

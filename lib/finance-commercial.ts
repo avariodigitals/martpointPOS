@@ -134,7 +134,9 @@ export type LicenceType = "CLOUD" | "ERP" | "OFFLINE" | "CUSTOM"
 export type CommissionStatus = "PENDING" | "ELIGIBLE" | "APPROVED" | "SCHEDULED" | "PAID" | "REVERSED" | "CANCELLED"
 export type CommissionBasis = "PERCENTAGE" | "FIXED"
 export type CommissionAppliesTo = "INITIAL_LICENSE" | "RENEWAL" | "ADDON" | "IMPLEMENTATION" | "CUSTOM"
-export type CommissionTrigger = "PAYMENT_CONFIRMED" | "SUBSCRIPTION_ACTIVATED" | "CUSTOMER_GO_LIVE"
+// CUSTOM plans are categorisation-only: their rate comes from the signed Commission
+// Schedule, so the generic evaluator at `evaluateCommissionsForPayment` never books them.
+export type CommissionTrigger = "PAYMENT_CONFIRMED" | "SUBSCRIPTION_ACTIVATED" | "CUSTOMER_GO_LIVE" | "CUSTOM"
 export type PayoutStatus = "DRAFT" | "APPROVED" | "PAID" | "FAILED" | "CANCELLED"
 
 export type Quote = {
@@ -953,6 +955,14 @@ export async function activateSubscription(
   await syncEntitlementsFromSubscription(subscriptionId, activatedBy)
 
   await logFinanceAudit("ADMIN", activatedBy, "SUBSCRIPTION_ACTIVATED", "SUBSCRIPTION", subscriptionId)
+
+  // Referral earnings hold until the licence is active — re-evaluate now that it is.
+  try {
+    const { recomputeReferralEarningsForBusiness } = await import("./referral-finance")
+    await recomputeReferralEarningsForBusiness(subscription.business_id)
+  } catch (err) {
+    console.error("[activateSubscription] referral re-evaluation", err)
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1113,6 +1123,24 @@ export async function evaluateCommissionsForPayment(paymentId: string, actorId?:
   const b = business as { originating_partner_id?: string | null } | null
   const partnerId = b?.originating_partner_id
   if (!partnerId) return
+
+  // Referral Partners are evaluated by the referral engine: their eligible base
+  // is cleared *software* revenue under the signed Commission Schedule, not the
+  // full payment amount this generic path would book.
+  const { data: partnerRow } = await supabase
+    .from("partners")
+    .select("partner_type")
+    .eq("id", partnerId)
+    .maybeSingle()
+  if ((partnerRow as { partner_type?: string } | null)?.partner_type === "REFERRAL") {
+    const { createReferralEarningsForPayment } = await import("./referral-finance")
+    try {
+      await createReferralEarningsForPayment(paymentId, actorId)
+    } catch (err) {
+      console.error("[evaluateCommissionsForPayment] referral engine", err)
+    }
+    return
+  }
 
   // Find matching active commission plan for payment trigger
   const { data: plans } = await supabase
@@ -1362,7 +1390,26 @@ export async function createCommissionPayout(partnerId: string, commissionIds: s
     .in("status", ["APPROVED", "SCHEDULED"])
 
   const rows = (commissions as PartnerCommission[]) || []
-  const totalKobo = rows.reduce((s, c) => s + toKobo(c.commission_amount), 0)
+
+  // Linked adjustments (refunds, chargebacks, corrections) reduce what is
+  // payable. They are netted into the payout instead of rewriting the original
+  // earning, which stays as approved history.
+  const { data: adjustmentRows } = rows.length
+    ? await supabase
+        .from("partner_commissions")
+        .select("parent_commission_id, commission_amount")
+        .in("parent_commission_id", rows.map((r) => r.id))
+    : { data: [] }
+  const adjustmentsByParent = new Map<string, number>()
+  for (const a of ((adjustmentRows as { parent_commission_id: string; commission_amount: number }[]) || [])) {
+    adjustmentsByParent.set(a.parent_commission_id, toKobo(a.commission_amount) + (adjustmentsByParent.get(a.parent_commission_id) || 0))
+  }
+
+  const payable = rows
+    .map((c) => ({ commission: c, netKobo: toKobo(c.commission_amount) + (adjustmentsByParent.get(c.id) || 0) }))
+    .filter((p) => p.netKobo > 0)
+
+  const totalKobo = payable.reduce((s, p) => s + p.netKobo, 0)
   if (totalKobo <= 0) throw new Error("No payable commissions selected")
 
   const payoutRef = await nextCommissionPayoutReference()
@@ -1378,14 +1425,14 @@ export async function createCommissionPayout(partnerId: string, commissionIds: s
 
   if (error || !payout) throw new Error(`Payout creation failed: ${error?.message || "unknown"}`)
 
-  for (const c of rows) {
+  for (const p of payable) {
     await supabase.from("commission_payout_items").insert({
       payout_id: (payout as CommissionPayout).id,
-      commission_id: c.id,
-      amount: c.commission_amount,
+      commission_id: p.commission.id,
+      amount: fromKobo(p.netKobo),
       created_at: new Date().toISOString(),
     })
-    await supabase.from("partner_commissions").update({ status: "SCHEDULED", updated_at: new Date().toISOString() }).eq("id", c.id)
+    await supabase.from("partner_commissions").update({ status: "SCHEDULED", updated_at: new Date().toISOString() }).eq("id", p.commission.id)
   }
 
   await logFinanceAudit("ADMIN", createdBy, "COMMISSION_PAYOUT_CREATED", "COMMISSION_PAYOUT", (payout as CommissionPayout).id)

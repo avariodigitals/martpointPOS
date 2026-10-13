@@ -11,6 +11,7 @@ import {
   FolderOpen,
   LogOut,
   Target,
+  Share2,
   Briefcase,
   GraduationCap,
   Award,
@@ -36,6 +37,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/partner", label: "Dashboard", icon: LayoutDashboard },
   { href: "/partner/leads", label: "Leads", icon: Target, permission: "leads:view", capabilities: ["SALES", "REFERRALS", "IMPLEMENTATION", "CUSTOMER_ONBOARDING"] },
+  { href: "/partner/referrals", label: "Referrals", icon: Share2, permission: "leads:view", capabilities: ["REFERRALS"] },
   { href: "/partner/quotes", label: "Quotes", icon: FileQuestion, permission: "quotes:request_own", capabilities: ["SALES", "REFERRALS"] },
   { href: "/partner/work-orders", label: "Work Orders", icon: ClipboardList, permission: "workorders:view_own", capabilities: ["IMPLEMENTATION", "CUSTOMER_ONBOARDING"] },
   { href: "/partner/commissions", label: "Earnings", icon: Wallet, permission: "commissions:view_own" },
@@ -46,6 +48,7 @@ const navItems: NavItem[] = [
   { href: "/partner/documents", label: "Documents", icon: FileText, permission: "partner:resources:view" },
   { href: "/partner/training", label: "Training", icon: GraduationCap, permission: "partner:resources:view" },
   { href: "/partner/certification", label: "Certification", icon: Award, permission: "partner:resources:view" },
+  { href: "/partner/assessments", label: "Assessments", icon: ClipboardList, permission: "partner:resources:view" },
   { href: "/partner/branded-materials", label: "Branded Materials", icon: Palette, permission: "partner:resources:view" },
   { href: "/partner/badge-kit", label: "Badge Kit", icon: BadgeCheck, permission: "partner:resources:view" },
   { href: "/partner/resources", label: "Resources", icon: FolderOpen, permission: "partner:resources:view" },

@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation"
+import { getSession } from "@/lib/admin-auth"
 import { PartnerDetail } from "./partner-detail"
 
 export default async function AdminPartnerDetailPage({
@@ -6,5 +8,7 @@ export default async function AdminPartnerDetailPage({
   params: Promise<{ partnerId: string }>
 }) {
   const { partnerId } = await params
-  return <PartnerDetail partnerId={partnerId} />
+  const session = await getSession()
+  if (!session) redirect("/admin/login?expired=1")
+  return <PartnerDetail partnerId={partnerId} role={session.role} />
 }

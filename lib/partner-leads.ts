@@ -447,7 +447,28 @@ export async function convertPartnerLeadToBusiness(
 
   const lead = await getPartnerLeadById(leadId)
   if (!lead) return { ok: false, error: "Lead not found" }
-  if (lead.status !== "WON") return { ok: false, error: "Lead must be WON before conversion" }
+
+  const { data: workflow } = await supabase
+    .from("partner_leads")
+    .select("referral_reference, status")
+    .eq("id", leadId)
+    .maybeSingle()
+  const isReferral = Boolean((workflow as Record<string, unknown> | null)?.referral_reference)
+  const workflowStatus = String((workflow as Record<string, unknown> | null)?.status || "")
+  // A legacy lead converts once it is WON; a referral converts at acceptance or
+  // qualification and lands in CONVERTED_UNPAID — no money has cleared yet, so
+  // nothing about the commission clock starts here.
+  const convertible = isReferral
+    ? ["ACCEPTED", "QUALIFIED"].includes(workflowStatus)
+    : lead.status === "WON"
+  if (!convertible) {
+    return {
+      ok: false,
+      error: isReferral
+        ? "Only an accepted or qualified referral can be converted to a customer"
+        : "Lead must be WON before conversion",
+    }
+  }
 
   const id = crypto.randomUUID()
   const created = now()
@@ -511,6 +532,29 @@ export async function convertPartnerLeadToBusiness(
     entityId: id,
     metadata: { partnerId: lead.partnerId, partnerLeadId: lead.id, acquisitionSource: "PARTNER" },
   })
+
+  await supabase.from("partner_leads").update({ converted_business_id: id, updated_at: created }).eq("id", leadId)
+
+  if (isReferral) {
+    const { transitionReferral } = await import("./referral")
+    await transitionReferral(
+      leadId,
+      "CONVERTED_UNPAID",
+      { actorType: "ADMIN", actorId: adminId, actorName: null },
+      { reason: "Converted to a MartPoint customer — no eligible payment collected yet", metadata: { convertedBusinessId: id }, patch: { converted_business_id: id } }
+    )
+    const { emitReferralNotification } = await import("./referral-notifications")
+    await emitReferralNotification({
+      event: "REFERRAL_CONVERTED_TO_CUSTOMER",
+      title: `Referral converted: ${lead.businessName}`,
+      body: "The business is now a MartPoint customer. A commission is only created once an eligible payment clears, their licence is activated and the holding period completes.",
+      partnerId: (lead.partnerId as string) || null,
+      link: `/partner/referrals/${leadId}`,
+      sourceType: "referral",
+      sourceId: leadId,
+      emailTo: null,
+    })
+  }
 
   return { ok: true, business: data }
 }

@@ -196,6 +196,7 @@ export const PARTNER_360_TABS = [
   "workorders",
   "support",
   "compliance",
+  "assessments",
   "guides",
   "docs",
   "commissions",

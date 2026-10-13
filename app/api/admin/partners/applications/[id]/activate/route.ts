@@ -5,6 +5,7 @@ import { generatePartnerId, recordStatusHistory, sendApplicationStatusEmail, typ
 import { seedPartnerCapabilities, createPartnerInvitation } from "@/lib/partner-service"
 import { issueActivationConfirmation, linkApplicationGeneratedDocs } from "@/lib/partner-generated-docs"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession, type AuditContext } from "@/lib/audit"
+import { evaluateReferralActivationGates } from "@/lib/referral-agreements"
 
 /* ─── POST: activate a partner from an approved application ───
  * Validates required conditions (application must be APPROVED or AGREEMENT_PENDING/TRAINING/CERTIFICATION_PENDING).
@@ -48,10 +49,12 @@ export async function POST(
       .eq("application_id", id)
       .eq("required", true)
 
+    let identityVerified = true
     if (requiredDocs && requiredDocs.length > 0) {
       const allVerified = (requiredDocs as Record<string, unknown>[]).every(
         (d) => d.verification_status === "VERIFIED" || d.verification_status === "APPROVED"
       )
+      identityVerified = allVerified
       if (!allVerified) {
         return NextResponse.json(
           { error: "Cannot activate partner until all required compliance documents are verified or approved" },
@@ -69,6 +72,21 @@ export async function POST(
 
     const now = new Date().toISOString()
     const ctx = auditContextFromSession(session, request)
+
+    // Referral Partners must clear every activation gate before going active.
+    if (app.requested_partner_type === "REFERRAL") {
+      const gates = await evaluateReferralActivationGates({
+        application: app as Record<string, unknown>,
+        partnerId: (existing?.id as string) ?? null,
+        identityVerified,
+      })
+      if (!gates.ready) {
+        return NextResponse.json(
+          { error: `Cannot activate Referral Partner — missing: ${gates.missing.join(", ")}`, missing: gates.missing },
+          { status: 400 }
+        )
+      }
+    }
 
     if (existing) {
       // Confirm/activate existing partner record

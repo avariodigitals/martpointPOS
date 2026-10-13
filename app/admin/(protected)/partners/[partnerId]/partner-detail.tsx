@@ -7,9 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Users, Shield, FileText, Network, Activity, Settings, Check, X, Target, Wrench, LifeBuoy, Coins, BarChart3, Download, Plus, UploadCloud, Trash2, BookOpen, BadgeCheck } from "lucide-react"
 import { PARTNER_USER_ROLES, PARTNER_ROLE_LABELS, type PartnerUserRole, ORG_CAPABILITY_LABELS, type PartnerOrgCapability, relevantPartnerTabs } from "@/lib/partner-permissions"
+import { referralAdminCan } from "@/lib/referral-permissions"
 import { PARTNER_BADGE_TIERS, PARTNER_BADGE_TIER_LABELS, type PartnerBadgeTier } from "@/lib/partner-badges"
 import { LocationFields } from "@/components/location-fields"
 import { AgreementForm } from "../applications/[id]/agreement-form"
+import { PartnerAssignments } from "@/components/admin/partner-assessments/partner-assignments"
+import { PartnerStandingPanel } from "./standing-panel"
 import { enumLabel } from "@/lib/utils"
 
 const CAPABILITIES = Object.keys(ORG_CAPABILITY_LABELS) as PartnerOrgCapability[]
@@ -24,6 +27,7 @@ const TAB_LABELS: Record<string, string> = {
   workorders: "Work Orders",
   support: "Support",
   compliance: "Compliance",
+  assessments: "Assessments",
   guides: "Guides",
   docs: "Docs",
   commissions: "Commissions",
@@ -37,7 +41,7 @@ const DOC_CATEGORIES = [
   "Badge", "Branded Materials", "Certification", "Templates", "Learning Materials",
 ]
 
-export function PartnerDetail({ partnerId }: { partnerId: string }) {
+export function PartnerDetail({ partnerId, role }: { partnerId: string; role: string }) {
   const router = useRouter()
   const [tab, setTab] = useState("overview")
   const [loading, setLoading] = useState(true)
@@ -737,6 +741,14 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
               </CardContent>
             </Card>
           )}
+
+          <PartnerStandingPanel
+            partnerId={partnerId}
+            status={String(partner.status || "")}
+            partnerType={String(partner.partner_type || "")}
+            canDecide={referralAdminCan(role, "partner:suspend")}
+            onChanged={() => { void fetchOverview() }}
+          />
         </div>
       )}
 
@@ -920,6 +932,8 @@ export function PartnerDetail({ partnerId }: { partnerId: string }) {
           </CardContent>
         </Card>
       )}
+
+      {tab === "assessments" && <PartnerAssignments partnerId={partnerId} />}
 
       {tab === "guides" && (
         <Card>

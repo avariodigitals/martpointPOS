@@ -3,6 +3,7 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordStatusHistory, APPLICATION_STATUS_LABELS, sendApplicationStatusEmail, type ApplicationStatus } from "@/lib/partners"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
+import { evaluateApplicationAssessmentGate } from "@/lib/partner-assessments"
 
 const VALID_STATUSES: ApplicationStatus[] = [
   "UNDER_REVIEW", "MORE_INFORMATION_REQUIRED", "COMPLIANCE_REQUIRED", "DISCOVERY_CALL", "APPROVED_CONDITIONAL",
@@ -69,6 +70,31 @@ export async function PATCH(
     // Rejection requires an internal reason
     if (newStatus === "REJECTED" && !body.reason) {
       return NextResponse.json({ error: "An internal reason is required for rejection" }, { status: 400 })
+    }
+
+    // Product knowledge tiers gate approval: APPROVED needs every required
+    // applicant tier cleared in the pass band, APPROVED_CONDITIONAL needs the
+    // conditional band or better. An override is allowed but must carry a
+    // reason, and it is written to the trail so the decision is traceable.
+    let assessmentOverrideNote: string | null = null
+    if (newStatus === "APPROVED" || newStatus === "APPROVED_CONDITIONAL") {
+      const gate = await evaluateApplicationAssessmentGate(id)
+      if (gate.enforced) {
+        const allowed = newStatus === "APPROVED" ? gate.canApprove : gate.canApproveConditional
+        if (!allowed) {
+          const note = typeof body.assessmentOverride === "string" ? body.assessmentOverride.trim() : ""
+          if (!note) {
+            return NextResponse.json({
+              error: newStatus === "APPROVED"
+                ? `Approval is blocked by the product knowledge assessment: ${gate.blocking.join("; ")}`
+                : `Conditional approval is blocked by the product knowledge assessment: ${gate.blocking.join("; ")}`,
+              assessmentGate: gate,
+              overrideField: "assessmentOverride",
+            }, { status: 409 })
+          }
+          assessmentOverrideNote = note
+        }
+      }
     }
 
     const { data: current, error: curErr } = await supabase
@@ -145,6 +171,28 @@ export async function PATCH(
         reason: body.reason || null,
       },
     })
+
+    if (assessmentOverrideNote) {
+      await supabase.from("partner_status_history").insert({
+        application_id: id,
+        previous_status: previousStatus,
+        new_status: newStatus,
+        reason: `Assessment requirement overridden: ${assessmentOverrideNote}`,
+        changed_by: session!.userId,
+        changed_by_name: actor.changedByName ?? null,
+        event_type: "ASSESSMENT_OVERRIDE",
+      })
+      await recordAudit(ctx, {
+        action: AUDIT_ACTIONS.PARTNER_ASSESSMENT_APPROVAL_OVERRIDDEN,
+        entityType: AUDIT_ENTITIES.PARTNER_APPLICATION,
+        entityId: id,
+        metadata: {
+          reference: current.reference_number,
+          newStatus,
+          reason: assessmentOverrideNote,
+        },
+      })
+    }
 
     // Notify the applicant of every stage change (best-effort). Skipped when the
     // status is unchanged so note-only saves don't email the applicant.

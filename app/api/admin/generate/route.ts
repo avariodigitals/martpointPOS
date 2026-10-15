@@ -1,31 +1,12 @@
 import { NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
-import { readSettings } from "@/lib/settings"
-import OpenAI from "openai"
-
-async function getOpenAiKey(): Promise<string | undefined> {
-  try {
-    const settings = await readSettings()
-    const openai = settings?.openai as Record<string, string> | undefined
-    if (openai?.apiKey) return openai.apiKey
-  } catch {
-    // ignore
-  }
-  return process.env.OPENAI_API_KEY
-}
+import { aiChat } from "@/lib/ai-chat"
 
 export async function POST(request: Request) {
   const authenticated = await isAdminAuthenticated()
   if (!authenticated) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-
-  const apiKey = await getOpenAiKey()
-  if (!apiKey) {
-    return NextResponse.json({ error: "OpenAI API key not configured. Add it in Settings > OpenAI or via OPENAI_API_KEY env variable." }, { status: 500 })
-  }
-
-  const openai = new OpenAI({ apiKey })
 
   try {
     const body = await request.json()
@@ -114,17 +95,16 @@ Requirements:
         return NextResponse.json({ error: "Invalid generation type" }, { status: 400 })
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const completion = await aiChat({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
-      max_tokens: 2500,
+      maxTokens: 2500,
     })
 
-    const result = completion.choices[0]?.message?.content?.trim() || ""
+    const result = completion.content
 
     let response: Record<string, string> = {}
 
@@ -152,7 +132,7 @@ Requirements:
 
     return NextResponse.json({ success: true, result: response })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "OpenAI request failed"
+    const message = err instanceof Error ? err.message : "AI request failed"
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

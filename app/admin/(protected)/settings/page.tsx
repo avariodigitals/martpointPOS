@@ -33,6 +33,10 @@ interface OpenAISettings {
   apiKey: string
 }
 
+interface XaiSettings {
+  apiKey: string
+}
+
 interface SecuritySettings {
   captchaProvider: "turnstile" | "recaptcha"
   turnstileSiteKey: string
@@ -135,6 +139,9 @@ export default function AdminSettingsPage() {
     verificationCode: "",
   })
   const [openai, setOpenai] = useState<OpenAISettings>({
+    apiKey: "",
+  })
+  const [xai, setXai] = useState<XaiSettings>({
     apiKey: "",
   })
   const [martpointEntity, setMartpointEntity] = useState<MartpointEntitySettings>({
@@ -271,6 +278,7 @@ export default function AdminSettingsPage() {
         if (data.social) setSocial(data.social)
         if (data.searchConsole) setSearchConsole(data.searchConsole)
         if (data.openai) setOpenai(data.openai)
+        if (data.xai) setXai(data.xai)
         if (data.martpointEntity) setMartpointEntity((prev) => ({ ...prev, ...data.martpointEntity }))
         if (data.security) setSecurity((prev) => ({ ...prev, ...data.security }))
         if (data.popup) setPopup(data.popup)
@@ -373,6 +381,7 @@ export default function AdminSettingsPage() {
       social,
       searchConsole,
       openai,
+      xai,
       security,
       martpointEntity,
       popup,
@@ -766,6 +775,19 @@ export default function AdminSettingsPage() {
                   Get your key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-retail underline">platform.openai.com</a>. Falls back to OPENAI_API_KEY env variable if empty.
                 </p>
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Grok (xAI) API Key — fallback</label>
+                <input
+                  type="password"
+                  value={xai.apiKey}
+                  onChange={(e) => setXai({ apiKey: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="xai-xxxxxxxxxxxxxxxxxxxxxxxx"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Used automatically when OpenAI fails or has no key. Get your key from <a href="https://console.x.ai" target="_blank" rel="noopener noreferrer" className="text-retail underline">console.x.ai</a>. Falls back to XAI_API_KEY env variable if empty.
+                </p>
+              </div>
             </CardContent>
             <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
               {message.openai && (
@@ -773,7 +795,7 @@ export default function AdminSettingsPage() {
                   {message.openai}
                 </span>
               )}
-              <Button type="button" onClick={() => doSave("openai", { openai })} disabled={saving["openai"]}>
+              <Button type="button" onClick={() => doSave("openai", { openai, xai })} disabled={saving["openai"]}>
                 {saving["openai"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save OpenAI
               </Button>

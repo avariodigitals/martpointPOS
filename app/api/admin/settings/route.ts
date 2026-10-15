@@ -92,6 +92,9 @@ function getDefaultSettings() {
     openai: {
       apiKey: "",
     },
+    xai: {
+      apiKey: "",
+    },
     security: {
       captchaProvider: "recaptcha",
       turnstileSiteKey: "",
@@ -112,8 +115,10 @@ function getDefaultSettings() {
     },
     clientCheckins: {
       welcomeEnabled: true,
+      dormantEnabled: false,
       founderName: "Ralph",
       founderEmail: "ralph@martpoint.com.ng",
+      signatureImageUrl: "",
     },
     header: {
       logo: "/logo.webp",

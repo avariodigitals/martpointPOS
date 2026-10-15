@@ -12,7 +12,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from "./supabase"
-import { readSettings } from "./settings"
+import { aiChat } from "./ai-chat"
 import { fetchPublicProfile, type FetchedProfile } from "./creator-ai"
 import { listApplicationQuestionRounds } from "./partner-application-questions"
 
@@ -42,17 +42,6 @@ const PARTNER_TYPE_LABELS: Record<string, string> = {
   CHANNEL_IMPLEMENTATION: "Channel + Implementation Partner",
   TECHNOLOGY: "Technology Partner",
   PAYMENT: "Payment Partner",
-}
-
-async function getOpenAiKey(): Promise<string | undefined> {
-  try {
-    const settings = await readSettings()
-    const openai = settings?.openai as Record<string, string> | undefined
-    if (openai?.apiKey) return openai.apiKey
-  } catch {
-    // ignore
-  }
-  return process.env.OPENAI_API_KEY
 }
 
 const RUBRIC = `
@@ -235,29 +224,13 @@ export async function runPartnerAiReview(
     fetched.push(await fetchPublicProfile(e.url, e.platform))
   }
 
-  const apiKey = await getOpenAiKey()
-  if (!apiKey) {
-    const { data: failed } = await supabase
-      .from("partner_ai_reviews")
-      .insert({
-        application_id: applicationId,
-        status: "FAILED",
-        error_message: "OpenAI API key not configured",
-        triggered_by: triggeredBy ?? null,
-      })
-      .select("id")
-      .single()
-    return { ok: false, reviewId: failed?.id, error: "OpenAI API key not configured" }
-  }
-
-  const OpenAI = (await import("openai")).default
-  const openai = new OpenAI({ apiKey })
-
   let raw = ""
-  let model = "gpt-4o-mini"
+  let model = ""
   try {
-    const completion = await openai.chat.completions.create({
-      model,
+    const completion = await aiChat({
+      json: true,
+      temperature: 0.3,
+      maxTokens: 1600,
       messages: [
         {
           role: "system",
@@ -266,14 +239,11 @@ export async function runPartnerAiReview(
         },
         { role: "user", content: buildPrompt(appRow, fetched, answersLines) },
       ],
-      temperature: 0.3,
-      max_tokens: 1600,
-      response_format: { type: "json_object" },
     })
-    raw = completion.choices[0]?.message?.content?.trim() || ""
-    model = completion.model || model
+    raw = completion.content
+    model = completion.model
   } catch (err) {
-    const message = err instanceof Error ? err.message : "OpenAI request failed"
+    const message = err instanceof Error ? err.message : "AI request failed"
     await supabase.from("partner_ai_reviews").insert({
       application_id: applicationId,
       status: "FAILED",

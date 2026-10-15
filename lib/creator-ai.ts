@@ -36,7 +36,7 @@ export interface CreatorAiReviewResult {
   dataNotes: string
 }
 
-interface FetchedProfile {
+export interface FetchedProfile {
   url: string
   platform: string
   fetched: boolean
@@ -73,7 +73,7 @@ function extractMeta(html: string, names: string[]): string | undefined {
   return undefined
 }
 
-async function fetchPublicProfile(url: string, platform: string): Promise<FetchedProfile> {
+export async function fetchPublicProfile(url: string, platform: string): Promise<FetchedProfile> {
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)

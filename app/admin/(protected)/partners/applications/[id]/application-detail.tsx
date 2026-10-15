@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import {
   Loader2, ArrowLeft, FileText, Download, Save, UserCheck, X, Check,
   AlertTriangle, ShieldCheck, RefreshCw, Send, CheckCircle, XCircle,
-  Clock, AlertCircle, Pencil, CalendarDays, ClipboardCheck, type LucideIcon,
+  Clock, AlertCircle, Pencil, CalendarDays, ClipboardCheck, Sparkles, type LucideIcon,
 } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
 import { AgreementForm } from "./agreement-form"
@@ -19,6 +19,12 @@ import { enumLabel } from "@/lib/utils"
 const TYPE_LABELS: Record<string, string> = {
   REFERRAL: "Referral Partner", CHANNEL: "Channel Partner", IMPLEMENTATION: "Implementation Partner",
   CHANNEL_IMPLEMENTATION: "Channel + Implementation", TECHNOLOGY: "Technology Partner", PAYMENT: "Payment Partner",
+}
+
+const AI_REC_LABEL: Record<string, string> = {
+  STRONG_CANDIDATE: "Strong Candidate",
+  REVIEW: "Needs Review",
+  FURTHER_VERIFICATION: "Further Verification Required",
 }
 
 const COMPLIANCE_DOCUMENT_TYPES = [
@@ -74,6 +80,27 @@ interface HistoryRow {
   created_at: string
   changed_by_name: string | null
   event_type: string
+}
+
+interface AiReview {
+  id: string
+  status: string
+  total_score: number | null
+  recommendation: string | null
+  score_completeness: number | null
+  score_capability: number | null
+  score_partner_type_fit: number | null
+  score_market_reach: number | null
+  score_communication: number | null
+  score_trust_risk: number | null
+  strengths: string[]
+  concerns: string[]
+  suggested_questions: string[]
+  suggested_partner_type: string | null
+  industry_fit_summary: string | null
+  data_notes: string | null
+  error_message: string | null
+  created_at: string
 }
 
 interface AppDetail {
@@ -157,6 +184,7 @@ export function ApplicationDetail({ id }: { id: string }) {
   const [docs, setDocs] = useState<DocRow[]>([])
   const [complianceDocs, setComplianceDocs] = useState<ComplianceDocRow[]>([])
   const [history, setHistory] = useState<HistoryRow[]>([])
+  const [aiReviews, setAiReviews] = useState<AiReview[]>([])
   const [error, setError] = useState("")
   const [tab, setTab] = useState<TabKey>("overview")
 
@@ -188,6 +216,7 @@ export function ApplicationDetail({ id }: { id: string }) {
   const [rejectionPublic, setRejectionPublic] = useState("")
   const [acting, setActing] = useState(false)
   const [actionMsg, setActionMsg] = useState("")
+  const [aiBusy, setAiBusy] = useState(false)
   // Returned when the approval gate blocks a status change; drives the override box.
   const [blockedGate, setBlockedGate] = useState<AssessmentGate | null>(null)
   const [assessmentOverride, setAssessmentOverride] = useState("")
@@ -230,6 +259,7 @@ export function ApplicationDetail({ id }: { id: string }) {
       setComplianceDocs(data.complianceDocuments || [])
       setSelectedDocTypes(data.requiredComplianceDocuments || [])
       setHistory(data.history || [])
+      setAiReviews(data.aiReviews || [])
       const questionsRes = await fetch(`/api/admin/partners/applications/${id}/questions`)
       const questionsData = await questionsRes.json()
       setQuestionRounds(questionsData.rounds || [])
@@ -247,6 +277,20 @@ export function ApplicationDetail({ id }: { id: string }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDetail()
   }, [fetchDetail])
+
+  async function runAiReview() {
+    setAiBusy(true)
+    setActionMsg("")
+    try {
+      const res = await fetch(`/api/admin/partners/applications/${id}/ai-review`, { method: "POST" })
+      const data = await res.json()
+      setActionMsg(res.ok ? "AI assessment completed." : data.error || "AI review failed")
+      if (res.ok) await fetchDetail()
+    } finally {
+      setAiBusy(false)
+      setTimeout(() => setActionMsg(""), 5000)
+    }
+  }
 
   function startEdit() {
     if (!app) return
@@ -568,6 +612,7 @@ export function ApplicationDetail({ id }: { id: string }) {
 
   const score = complianceScore()
   const canActivate = ["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"].includes(app.status) && score.complete
+  const latestAi = aiReviews[0]
 
   return (
     <div className="space-y-6">
@@ -669,6 +714,7 @@ export function ApplicationDetail({ id }: { id: string }) {
               </CardContent>
             </Card>
           ) : (
+            <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader><CardTitle className="text-sm font-medium">Applicant Details</CardTitle></CardHeader>
@@ -742,6 +788,63 @@ export function ApplicationDetail({ id }: { id: string }) {
                 </CardContent>
               </Card>
             </div>
+
+            <Card>
+              <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><Sparkles className="w-4 h-4 text-retail" /> AI Assessment</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                {!latestAi || latestAi.status !== "COMPLETED" ? (
+                  <p className="text-sm text-muted-foreground">
+                    {latestAi?.status === "FAILED" ? `Last run failed: ${latestAi.error_message || "error"}` : "No assessment yet."}
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <p className="text-3xl font-bold">{latestAi.total_score}<span className="text-sm text-muted-foreground">/100</span></p>
+                      <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold">
+                        {AI_REC_LABEL[latestAi.recommendation || ""] || latestAi.recommendation}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <AiScoreBar label="Application completeness" score={latestAi.score_completeness} max={10} />
+                      <AiScoreBar label="Business capability" score={latestAi.score_capability} max={20} />
+                      <AiScoreBar label="Partner type fit" score={latestAi.score_partner_type_fit} max={20} />
+                      <AiScoreBar label="Market reach" score={latestAi.score_market_reach} max={15} />
+                      <AiScoreBar label="Communication" score={latestAi.score_communication} max={15} />
+                      <AiScoreBar label="Trust & risk" score={latestAi.score_trust_risk} max={20} />
+                    </div>
+                    {latestAi.suggested_partner_type && (
+                      <p className="text-xs"><span className="text-muted-foreground">Suggested partner type:</span> {TYPE_LABELS[latestAi.suggested_partner_type] || latestAi.suggested_partner_type}</p>
+                    )}
+                    {latestAi.industry_fit_summary && <p className="text-xs text-muted-foreground">{latestAi.industry_fit_summary}</p>}
+                    {latestAi.strengths?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase text-green-700 mb-1">Strengths</p>
+                        <ul className="text-xs space-y-1 list-disc pl-4">{latestAi.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                      </div>
+                    )}
+                    {latestAi.concerns?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase text-amber-700 mb-1">Concerns</p>
+                        <ul className="text-xs space-y-1 list-disc pl-4">{latestAi.concerns.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                      </div>
+                    )}
+                    {latestAi.suggested_questions?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase text-muted-foreground mb-1">Suggested discovery-call questions</p>
+                        <ul className="text-xs space-y-1 list-disc pl-4">{latestAi.suggested_questions.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                      </div>
+                    )}
+                    {latestAi.data_notes && <p className="text-xs text-muted-foreground border-t pt-2">{latestAi.data_notes}</p>}
+                  </>
+                )}
+                <Button size="sm" variant="outline" className="w-full" disabled={aiBusy} onClick={runAiReview}>
+                  {aiBusy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                  {latestAi ? "Re-run AI Assessment" : "Run AI Assessment"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground">AI recommends — the final decision is always yours.</p>
+              </CardContent>
+            </Card>
+            </>
           )}
         </div>
       )}
@@ -1139,4 +1242,19 @@ export function ApplicationDetail({ id }: { id: string }) {
 
 function Row({ label, value }: { label: string; value: string }) {
   return <div className="flex gap-2"><span className="text-muted-foreground w-32 shrink-0">{label}:</span><span className="font-medium">{value}</span></div>
+}
+
+function AiScoreBar({ label, score, max }: { label: string; score: number | null; max: number }) {
+  const v = score ?? 0
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium">{v}/{max}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-muted">
+        <div className="h-full rounded-full bg-retail" style={{ width: `${(v / max) * 100}%` }} />
+      </div>
+    </div>
+  )
 }

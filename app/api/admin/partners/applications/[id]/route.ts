@@ -3,6 +3,7 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { createSignedDocUrl } from "@/lib/partner-documents"
 import { listApplicationComplianceDocuments } from "@/lib/partner-compliance"
+import { listPartnerAiReviews } from "@/lib/partner-ai"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 
 /* ─── GET: full application detail + documents (signed URLs) + status history ─── */
@@ -82,6 +83,7 @@ export async function GET(
   }
 
   const complianceDocuments = await listApplicationComplianceDocuments(id)
+  const aiReviews = await listPartnerAiReviews(id)
 
   return NextResponse.json({
     application: app,
@@ -90,6 +92,7 @@ export async function GET(
     requiredComplianceDocuments: (app.required_compliance_documents as string[]) || [],
     history,
     reviewedByName,
+    aiReviews,
   })
 }
 

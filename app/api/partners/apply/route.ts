@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { z } from "zod"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { verifyCaptchaToken } from "@/lib/captcha"
 import { submitPartnerApplication, sendApplicationSubmittedEmail, type PartnerType, type ApplicantType } from "@/lib/partners"
+import { runPartnerAiReview } from "@/lib/partner-ai"
+import { readSettings } from "@/lib/settings"
 import { uploadPartnerDocument, validatePartnerFile, MAX_PARTNER_FILE_BYTES } from "@/lib/partner-documents"
 import { getLeadByInviteToken } from "@/lib/partner-leads"
 import { getPartnerProspectByToken } from "@/lib/partner-prospects"
@@ -195,10 +197,32 @@ export async function POST(request: Request) {
     }
   }
 
-  // Acknowledgement + admin notification (best-effort, non-blocking so the UI doesn't hang)
-  sendApplicationSubmittedEmail(validation.data.email, validation.data.fullName, result.reference).catch((err) =>
-    console.error("[partner] submitted email failed:", err)
+  // Acknowledgement + admin notification. after() runs these post-response while
+  // the platform keeps the function alive — a floating promise would be killed
+  // when the serverless instance freezes after returning.
+  const applicantEmail = validation.data.email
+  const applicantName = validation.data.fullName
+  const reference = result.reference
+  const applicationId = result.applicationId
+  after(() =>
+    sendApplicationSubmittedEmail(applicantEmail, applicantName, reference).catch((err) =>
+      console.error("[partner] submitted email failed:", err)
+    )
   )
+
+  // Automatic AI assessment when enabled (best-effort; never auto-decides).
+  after(async () => {
+    if (!applicationId) return
+    try {
+      const settings = await readSettings()
+      const partner = (settings?.partner as Record<string, unknown> | undefined) || {}
+      if (partner.autoAiReview !== false) {
+        await runPartnerAiReview(applicationId, null)
+      }
+    } catch (err) {
+      console.error("[partner] auto AI review failed:", err)
+    }
+  })
 
   return NextResponse.json({ success: true, reference: result.reference })
 }

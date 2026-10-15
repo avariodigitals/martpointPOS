@@ -161,6 +161,7 @@ export interface PublicApplicationInput {
 export interface SubmissionResult {
   ok: boolean
   reference?: string
+  applicationId?: string
   error?: string
 }
 
@@ -232,7 +233,7 @@ export async function submitPartnerApplication(
     metadata: { reference, partnerType: input.requestedPartnerType, email: input.email },
   })
 
-  return { ok: true, reference }
+  return { ok: true, reference, applicationId }
 }
 
 /* ───────────────────────────  Applicant email notifications  ─────────────────────────── */

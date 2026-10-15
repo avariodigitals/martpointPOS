@@ -35,6 +35,8 @@ interface OpenAISettings {
 
 interface XaiSettings {
   apiKey: string
+  baseUrl: string
+  model: string
 }
 
 interface SecuritySettings {
@@ -143,6 +145,8 @@ export default function AdminSettingsPage() {
   })
   const [xai, setXai] = useState<XaiSettings>({
     apiKey: "",
+    baseUrl: "",
+    model: "",
   })
   const [martpointEntity, setMartpointEntity] = useState<MartpointEntitySettings>({
     legalName: "MartPoint",
@@ -776,17 +780,43 @@ export default function AdminSettingsPage() {
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Grok (xAI) API Key — fallback</label>
+                <label className="block text-sm font-medium mb-1">Fallback AI API Key</label>
                 <input
                   type="password"
                   value={xai.apiKey}
-                  onChange={(e) => setXai({ apiKey: e.target.value })}
+                  onChange={(e) => setXai({ ...xai, apiKey: e.target.value })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="xai-xxxxxxxxxxxxxxxxxxxxxxxx"
+                  placeholder="xai-… / gsk_… / MiMo token plan key…"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Used automatically when OpenAI fails or has no key. Get your key from <a href="https://console.x.ai" target="_blank" rel="noopener noreferrer" className="text-retail underline">console.x.ai</a>. Falls back to XAI_API_KEY env variable if empty.
+                  Used automatically when OpenAI fails or has no key. Any OpenAI-compatible provider works — Grok (<a href="https://console.x.ai" target="_blank" rel="noopener noreferrer" className="text-retail underline">console.x.ai</a>), Groq (<a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-retail underline">console.groq.com/keys</a>), Xiaomi MiMo (<a href="https://platform.xiaomimimo.com" target="_blank" rel="noopener noreferrer" className="text-retail underline">platform.xiaomimimo.com</a>). Falls back to XAI_API_KEY env variable if empty.
                 </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Fallback Base URL</label>
+                  <input
+                    type="text"
+                    value={xai.baseUrl}
+                    onChange={(e) => setXai({ ...xai, baseUrl: e.target.value })}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="https://api.x.ai/v1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Empty = Grok. MiMo: <code>https://api.xiaomimimo.com/v1</code> · Groq: <code>https://api.groq.com/openai/v1</code>
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Fallback Model</label>
+                  <input
+                    type="text"
+                    value={xai.model}
+                    onChange={(e) => setXai({ ...xai, model: e.target.value })}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="grok-4-fast-latest"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">The model your fallback key has access to, e.g. <code>gpt-oss-120b</code> on Groq.</p>
+                </div>
               </div>
             </CardContent>
             <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">

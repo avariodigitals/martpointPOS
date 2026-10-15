@@ -1,8 +1,9 @@
-/* ───────────────────────────  Shared AI chat with Grok fallback  ───────────────────────────
+/* ────────────────────────  Shared AI chat with configurable fallback  ────────────────────────
  * One entry point for all LLM calls: try OpenAI first; on any failure (or missing
- * key) fall back to Grok via xAI's OpenAI-compatible endpoint.
- * Keys resolve from Settings → OpenAI, then env (OPENAI_API_KEY / XAI_API_KEY).
- * A missing OpenAI key alone is not an error when a Grok key exists.
+ * key) fall back to a second OpenAI-compatible provider configured in
+ * Settings → OpenAI (default: Grok via xAI). Key, base URL and model all come
+ * from settings, so the backup can be Grok, Groq, Xiaomi MiMo, OpenRouter, etc.
+ * A missing OpenAI key alone is not an error when a fallback key exists.
  */
 
 import { readSettings } from "./settings"
@@ -23,12 +24,19 @@ export interface AiChatOptions {
 export interface AiChatResult {
   content: string
   model: string
-  provider: "openai" | "grok"
+  provider: "openai" | "fallback"
+}
+
+interface FallbackConfig {
+  apiKey?: string
+  baseUrl: string
+  model: string
 }
 
 const OPENAI_BASE_MODEL = "gpt-4o-mini"
-const GROK_BASE_URL = "https://api.x.ai/v1"
-const GROK_BASE_MODEL = "grok-4-fast-latest"
+// Defaults keep the original Grok fallback working when only a key is set.
+const FALLBACK_BASE_URL = "https://api.x.ai/v1"
+const FALLBACK_MODEL = "grok-4-fast-latest"
 
 async function getOpenAiKey(): Promise<string | undefined> {
   try {
@@ -41,15 +49,24 @@ async function getOpenAiKey(): Promise<string | undefined> {
   return process.env.OPENAI_API_KEY
 }
 
-export async function getGrokKey(): Promise<string | undefined> {
+async function getFallbackConfig(): Promise<FallbackConfig> {
+  let apiKey: string | undefined
+  let baseUrl = ""
+  let model = ""
   try {
     const settings = await readSettings()
     const xai = settings?.xai as Record<string, string> | undefined
-    if (xai?.apiKey) return xai.apiKey
+    apiKey = xai?.apiKey
+    baseUrl = (xai?.baseUrl || "").trim()
+    model = (xai?.model || "").trim()
   } catch {
     // ignore
   }
-  return process.env.XAI_API_KEY
+  return {
+    apiKey: apiKey || process.env.XAI_API_KEY,
+    baseUrl: baseUrl || FALLBACK_BASE_URL,
+    model: model || FALLBACK_MODEL,
+  }
 }
 
 export function hasAnyAiKey(): boolean {
@@ -57,16 +74,19 @@ export function hasAnyAiKey(): boolean {
 }
 
 async function complete(
-  provider: "openai" | "grok",
+  provider: "openai" | "fallback",
   opts: AiChatOptions
 ): Promise<AiChatResult> {
   const OpenAI = (await import("openai")).default
-  const isGrok = provider === "grok"
-  const apiKey = isGrok ? await getGrokKey() : await getOpenAiKey()
-  if (!apiKey) throw new Error(`${isGrok ? "Grok" : "OpenAI"} API key not configured`)
+  const isFallback = provider === "fallback"
+  const cfg = isFallback ? await getFallbackConfig() : null
+  const apiKey = isFallback ? cfg!.apiKey : await getOpenAiKey()
+  if (!apiKey) throw new Error(isFallback ? "Fallback AI key not configured" : "OpenAI API key not configured")
 
-  const client = new OpenAI(isGrok ? { apiKey, baseURL: GROK_BASE_URL } : { apiKey })
-  const model = opts.model ?? (isGrok ? GROK_BASE_MODEL : OPENAI_BASE_MODEL)
+  // The fallback always runs on its own configured model — an OpenAI model
+  // name from the caller would not exist on Grok/Groq/MiMo endpoints.
+  const client = isFallback ? new OpenAI({ apiKey, baseURL: cfg!.baseUrl }) : new OpenAI({ apiKey })
+  const model = isFallback ? cfg!.model : opts.model ?? OPENAI_BASE_MODEL
   const completion = await client.chat.completions.create({
     model,
     messages: opts.messages,
@@ -86,18 +106,19 @@ export async function aiChat(opts: AiChatOptions): Promise<AiChatResult> {
     return await complete("openai", opts)
   } catch (err) {
     const openAiMessage = err instanceof Error ? err.message : "OpenAI request failed"
-    if (!(await getGrokKey())) {
-      // No Grok to fall back to — but a missing key shouldn't masquerade as a request failure.
+    const fallback = await getFallbackConfig()
+    if (!fallback.apiKey) {
+      // No fallback to lean on — but a missing key shouldn't masquerade as a request failure.
       if (openAiMessage.includes("not configured") && !hasAnyAiKey()) {
-        throw new Error("No AI provider key configured (OpenAI or Grok/xAI)")
+        throw new Error("No AI provider key configured (OpenAI or fallback)")
       }
       throw new Error(openAiMessage)
     }
     try {
-      return await complete("grok", opts)
-    } catch (grokErr) {
-      const grokMessage = grokErr instanceof Error ? grokErr.message : "Grok request failed"
-      throw new Error(`OpenAI failed (${openAiMessage}); Grok fallback failed (${grokMessage})`)
+      return await complete("fallback", opts)
+    } catch (fbErr) {
+      const fbMessage = fbErr instanceof Error ? fbErr.message : "Fallback AI request failed"
+      throw new Error(`OpenAI failed (${openAiMessage}); fallback AI failed (${fbMessage})`)
     }
   }
 }

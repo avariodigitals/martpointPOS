@@ -94,6 +94,8 @@ function getDefaultSettings() {
     },
     xai: {
       apiKey: "",
+      baseUrl: "",
+      model: "",
     },
     security: {
       captchaProvider: "recaptcha",

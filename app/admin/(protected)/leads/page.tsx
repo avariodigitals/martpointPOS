@@ -15,6 +15,8 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Plus,
   X,
   Pencil,
@@ -24,6 +26,7 @@ import { COUNTRIES, STATES, CITIES } from "@/lib/locations"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
 import { ADVANCED_QUESTIONNAIRE_FIELDS } from "@/lib/questionnaire-catalog"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
+import { computeLeadScore, BUCKET_LABEL, type LeadScoreBucket } from "@/lib/lead-score"
 
 const COUNTRY_OPTIONS = COUNTRIES.map((c) => c.name)
 const STATE_OPTIONS = [...new Set(Object.values(STATES).flat())].sort()
@@ -108,6 +111,27 @@ function QuestionnaireStatusBadge({ status }: { status?: string | null }) {
   return <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${colors[label] || colors["Not Sent"]}`}>{label}</span>
 }
 
+const SCORE_STYLE: Record<LeadScoreBucket, string> = {
+  hot: "bg-red-100 text-red-700",
+  warm: "bg-amber-100 text-amber-700",
+  cold: "bg-gray-100 text-gray-600",
+  won: "bg-emerald-100 text-emerald-700",
+  lost: "bg-gray-200 text-gray-500",
+}
+
+/** Rules-based score (lib/lead-score.ts) — hover to see exactly why. */
+function LeadScoreBadge({ lead }: { lead: Lead }) {
+  const s = computeLeadScore(lead)
+  return (
+    <span
+      title={s.reasons.join(" • ") || "No scoring signals yet"}
+      className={`shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold ${SCORE_STYLE[s.bucket]}`}
+    >
+      {s.bucket === "won" || s.bucket === "lost" ? BUCKET_LABEL[s.bucket] : `${s.score} ${BUCKET_LABEL[s.bucket]}`}
+    </span>
+  )
+}
+
 const PRODUCT_INTEREST_LABELS: Record<string, string> = {
   retail: "Retail",
   erp: "ERP",
@@ -130,7 +154,13 @@ export default function AdminLeadsPage() {
   const [sourceFilter, setSourceFilter] = useState<string>("all")
   const [productFilter, setProductFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<string>("all")
+  const [scoreFilter, setScoreFilter] = useState<string>("all")
+  const [sortBy, setSortBy] = useState<"newest" | "score">("newest")
   const [showFilters, setShowFilters] = useState(false)
+
+  // Table pagination
+  const [pageSize, setPageSize] = useState(25)
+  const [page, setPage] = useState(1)
 
   // Selected lead (opens detail modal)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
@@ -230,8 +260,28 @@ export default function AdminLeadsPage() {
       })
     }
 
+    if (scoreFilter !== "all") {
+      result = result.filter((l) => computeLeadScore(l).bucket === (scoreFilter as LeadScoreBucket))
+    }
+
+    if (sortBy === "score") {
+      // Highest score first; the API already returns newest-first, so equal
+      // scores keep their recency order.
+      result = [...result].sort((a, b) => computeLeadScore(b).score - computeLeadScore(a).score)
+    }
+
     return result
-  }, [leads, searchQuery, statusFilter, sourceFilter, productFilter, dateFilter])
+  }, [leads, searchQuery, statusFilter, sourceFilter, productFilter, dateFilter, scoreFilter, sortBy])
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pagedLeads = filteredLeads.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const rangeStart = filteredLeads.length === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const rangeEnd = Math.min(currentPage * pageSize, filteredLeads.length)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, statusFilter, sourceFilter, productFilter, dateFilter, scoreFilter, sortBy, pageSize])
 
   const stats = useMemo(() => {
     const total = filteredLeads.length
@@ -318,13 +368,16 @@ export default function AdminLeadsPage() {
     })
   }
 
-  const allFilteredSelected = filteredLeads.length > 0 && filteredLeads.every((l) => selectedIds.has(l.id))
+  // In the paginated table, "select all" only covers the rows on screen; in the
+  // unpaginated list view it covers everything the filters show.
+  const visibleLeads = viewMode === "table" ? pagedLeads : filteredLeads
+  const allFilteredSelected = visibleLeads.length > 0 && visibleLeads.every((l) => selectedIds.has(l.id))
 
   const toggleSelectAllFiltered = () => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      if (allFilteredSelected) filteredLeads.forEach((l) => next.delete(l.id))
-      else filteredLeads.forEach((l) => next.add(l.id))
+      if (allFilteredSelected) visibleLeads.forEach((l) => next.delete(l.id))
+      else visibleLeads.forEach((l) => next.add(l.id))
       return next
     })
   }
@@ -917,6 +970,30 @@ export default function AdminLeadsPage() {
                 <option value="month">Last 30 Days</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Score</label>
+              <select
+                value={scoreFilter}
+                onChange={(e) => setScoreFilter(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">All Scores</option>
+                <option value="hot">Hot (60+)</option>
+                <option value="warm">Warm (35–59)</option>
+                <option value="cold">Cold (under 35)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Sort by</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "newest" | "score")}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="newest">Newest first</option>
+                <option value="score">Highest score first</option>
+              </select>
+            </div>
             <div className="sm:col-span-2 md:col-span-4 flex justify-end">
               <button
                 onClick={() => {
@@ -924,6 +1001,8 @@ export default function AdminLeadsPage() {
                   setSourceFilter("all")
                   setProductFilter("all")
                   setDateFilter("all")
+                  setScoreFilter("all")
+                  setSortBy("newest")
                   setSearchQuery("")
                 }}
                 className="text-xs text-muted-foreground hover:text-foreground underline"
@@ -991,6 +1070,7 @@ export default function AdminLeadsPage() {
                           <span>{lead.phone}</span>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <LeadScoreBadge lead={lead} />
                           <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
                             {lead.source}
                           </span>
@@ -1041,6 +1121,7 @@ export default function AdminLeadsPage() {
                   <th className="px-4 py-3 font-medium">Email</th>
                   <th className="px-4 py-3 font-medium">Phone</th>
                   <th className="px-4 py-3 font-medium">Product</th>
+                  <th className="px-4 py-3 font-medium">Score</th>
                   <th className="px-4 py-3 font-medium">Source</th>
                   <th className="px-4 py-3 font-medium">Questionnaire</th>
                   <th className="px-4 py-3 font-medium">Status</th>
@@ -1049,7 +1130,7 @@ export default function AdminLeadsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredLeads.map((lead) => (
+                {pagedLeads.map((lead) => (
                   <tr
                     key={lead.id}
                     className="border-b border-border/50 last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
@@ -1075,6 +1156,9 @@ export default function AdminLeadsPage() {
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{lead.phone}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                       {productInterestLabel(lead.productInterest, "Not Sure")}
+                    </td>
+                    <td className="px-4 py-3">
+                      <LeadScoreBadge lead={lead} />
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
@@ -1120,7 +1204,7 @@ export default function AdminLeadsPage() {
                 ))}
                 {filteredLeads.length === 0 && (
                   <tr>
-                    <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={13} className="px-4 py-8 text-center text-muted-foreground">
                       No leads match your filters.
                     </td>
                   </tr>
@@ -1129,6 +1213,49 @@ export default function AdminLeadsPage() {
             </table>
           </div>
 
+          {/* Pagination */}
+          {filteredLeads.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Per page</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+                >
+                  {[10, 25, 50, 100].map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                <span>
+                  Showing {rangeStart}–{rangeEnd} of {filteredLeads.length} leads
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, Math.min(p - 1, totalPages)))}
+                  disabled={currentPage <= 1}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground tabular-nums">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                  disabled={currentPage >= totalPages}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
@@ -1361,6 +1488,7 @@ export default function AdminLeadsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  <LeadScoreBadge lead={lead} />
                   <select
                     value={lead.status}
                     onChange={(e) => {

@@ -11,7 +11,7 @@ import { enqueueAutomation, cancelAutomationRuns } from "./automations"
 export interface QuestionnaireField {
   name: string
   label: string
-  type: "text" | "email" | "tel" | "number" | "select" | "multiselect" | "textarea" | "date" | "boolean" | "section"
+  type: "text" | "email" | "tel" | "number" | "select" | "multiselect" | "textarea" | "date" | "boolean" | "section" | "file"
   options?: string[]
   /** Optional per-option availability badge, e.g. { "Payroll": "coming-soon" } */
   optionStatuses?: Record<string, string>
@@ -24,7 +24,7 @@ export interface QuestionnaireField {
 export const questionnaireFieldSchema = z.object({
   name: z.string(),
   label: z.string(),
-  type: z.enum(["text", "email", "tel", "number", "select", "multiselect", "textarea", "date", "boolean", "section"]),
+  type: z.enum(["text", "email", "tel", "number", "select", "multiselect", "textarea", "date", "boolean", "section", "file"]),
   options: z.array(z.string()).optional(),
   optionStatuses: z.record(z.string(), z.string()).optional(),
   required: z.boolean().optional(),

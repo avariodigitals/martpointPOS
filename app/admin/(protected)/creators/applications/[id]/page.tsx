@@ -9,6 +9,7 @@ import {
   PauseCircle, XCircle, Ban, ExternalLink, StickyNote,
 } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
+import { CreatorQuestionRoundsPanel } from "@/components/admin/creator-question-rounds-panel"
 
 interface ApplicationDetail {
   id: string
@@ -347,6 +348,9 @@ export default function CreatorApplicationDetailPage() {
               <p className="text-[11px] text-muted-foreground">AI recommends — the final decision is always yours.</p>
             </CardContent>
           </Card>
+
+          {/* Additional questions (verification pack, AI-generated pre-interview round) */}
+          <CreatorQuestionRoundsPanel applicationId={id} onSent={load} />
 
           {/* Decision panel */}
           <Card>

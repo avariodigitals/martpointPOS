@@ -124,7 +124,10 @@ function buildEmailFooter(signoff: string, opts: EmailFooterOptions): { cardFoot
     ? `<p style="font-size:13px; color:#6b7280; margin:0 0 16px; line-height:1.7;">${contactBits.join(' &nbsp;&middot;&nbsp; ')}</p>`
     : ""
 
+  // Must be a <tr>/<td>: a bare <div> between </tr> tags is invalid inside
+  // <table>, and browsers/Gmail "foster-parent" it above the whole email.
   const cardFooter = `
+              <tr><td align="center" style="padding:0;">
               <div style="padding:32px 40px 28px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
                 <p style="font-size:13px; color:#6b7280; margin:0 0 28px; line-height:1.6;">Best regards,<br/><strong style="color:#111827; font-size:14px;">${escapeHtml(signoff)}</strong></p>
                 ${socialRow}
@@ -136,7 +139,8 @@ function buildEmailFooter(signoff: string, opts: EmailFooterOptions): { cardFoot
                     &nbsp;&middot;&nbsp; Built in Africa for African businesses.
                   </p>
                 </div>
-              </div>`
+              </div>
+              </td></tr>`
 
   // Brand banner strip *after* (below) the card. Prefers the hosted MartPoint
   // banner image (`/footerbanner.png`); falls back to a styled blue bar with a

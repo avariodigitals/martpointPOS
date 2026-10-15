@@ -129,7 +129,8 @@ function buildEmailFooter(signoff: string, opts: EmailFooterOptions): { cardFoot
   const cardFooter = `
               <tr><td align="center" style="padding:0;">
               <div style="padding:32px 40px 28px; background-color:#f9fafb; text-align:center; border-top:1px solid #e5e7eb;">
-                <p style="font-size:13px; color:#6b7280; margin:0 0 28px; line-height:1.6;">Best regards,<br/><strong style="color:#111827; font-size:14px;">${escapeHtml(signoff)}</strong></p>
+                <p style="font-size:13px; color:#6b7280; margin:0 0 8px; line-height:1.6;">Best regards,<br/><strong style="color:#111827; font-size:14px;">${escapeHtml(signoff)}</strong></p>
+                <p style="font-size:12px; color:#6b7280; margin:0 0 28px; line-height:1.6;">MartPoint &mdash; the operating system for growing African businesses.<br/>Point of sale, inventory and accounting, all in one place.</p>
                 ${socialRow}
                 ${contactRow}
                 <div style="border-top:1px solid #e5e7eb; margin-top:8px; padding-top:18px;">

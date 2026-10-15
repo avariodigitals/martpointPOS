@@ -14,7 +14,7 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Grocery Store POS & Inventory in Nigeria — MartPoint Retail",
+  title: "Grocery Store POS & Inventory in Nigeria",
   description:
     "Manage fresh produce, packaged goods and daily sales with real-time stock tracking, expiry alerts and supplier management built for African grocery stores.",
   alternates: { canonical: "/industries/grocery-stores" },

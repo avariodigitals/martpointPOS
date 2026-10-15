@@ -20,7 +20,7 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Help Centre — MartPoint Support",
+  title: "Help Centre & Support",
   description:
     "Find answers, guides and support for MartPoint Retail. Search our knowledge base or contact our support team.",
   alternates: {

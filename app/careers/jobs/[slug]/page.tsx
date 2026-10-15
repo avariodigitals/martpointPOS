@@ -25,9 +25,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const v = await getPublicVacancyBySlug(slug)
-  if (!v) return { title: "Vacancy not found | MartPoint Careers" }
+  if (!v) return { title: "Vacancy not found | Careers" }
   return {
-    title: `${v.title} | MartPoint Careers`,
+    title: `${v.title} | Careers`,
     description: v.short_summary || `Apply for ${v.title} at MartPoint.`,
     alternates: { canonical: `/careers/jobs/${v.slug}` },
     openGraph: { title: `${v.title} | MartPoint Careers`, description: v.short_summary || undefined },

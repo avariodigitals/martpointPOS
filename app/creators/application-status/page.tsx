@@ -4,7 +4,7 @@ import { Footer } from "@/components/layout/footer"
 import { CreatorStatusLookup } from "./status-lookup"
 
 export const metadata: Metadata = {
-  title: "Application Status — MartPoint Creator Network",
+  title: "Application Status — Creator Network",
   description: "Check the status of your MartPoint Creator Network application.",
   robots: { index: false },
 }

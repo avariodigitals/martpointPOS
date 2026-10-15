@@ -47,7 +47,7 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "MartPoint Retail — POS & Inventory Software in Nigeria",
+  title: "Retail Cloud — POS & Inventory Software in Nigeria",
   description:
     "Complete retail commerce platform. Sell in-store, online and on WhatsApp. POS, inventory, loyalty rewards, installment payments, online store and multi-branch management. Built for supermarkets, pharmacies, restaurants & fashion stores in Nigeria.",
   keywords: [

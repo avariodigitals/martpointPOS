@@ -5,7 +5,7 @@ import { Footer } from "@/components/layout/footer"
 import { VerifyPartnerClient } from "./verify-client"
 
 export const metadata: Metadata = {
-  title: "Verify a MartPoint Partner | Partner Verification",
+  title: "Verify a Partner | Partner Verification",
   description: "Verify a MartPoint partner by Partner ID. Confirm active partner status.",
   alternates: { canonical: "/partners/verify" },
 }

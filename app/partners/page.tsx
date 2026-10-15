@@ -30,7 +30,7 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Partner with MartPoint | Referral, Sales & Integration",
+  title: "Partner With Us | Referral, Sales & Integration",
   description:
     "Explore MartPoint referral, channel, implementation, technology and payment partnerships. Learn how each model works and discuss becoming a partner.",
   alternates: {

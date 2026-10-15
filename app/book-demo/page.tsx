@@ -5,7 +5,7 @@ import { DemoBooking } from "@/components/shared/demo-booking"
 import { getPublicPartnerByPartnerId } from "@/lib/partners"
 
 export const metadata: Metadata = {
-  title: "Book a Free Demo — See MartPoint POS in Action",
+  title: "Book a Free Demo — See The POS in Action",
   description:
     "Schedule a free personalized demo of MartPoint Retail POS software. See how it works for your supermarket, pharmacy, restaurant or retail store.",
   alternates: {

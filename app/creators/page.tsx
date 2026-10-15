@@ -24,7 +24,7 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "MartPoint Creator Network — Create. Influence. Earn.",
+  title: "Creator Network — Create. Influence. Earn.",
   description:
     "Join the MartPoint Creator Network and create content that helps Nigerian businesses discover smarter ways to run their operations. Apply as a creator today.",
   alternates: { canonical: "/creators" },

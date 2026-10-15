@@ -6,7 +6,7 @@ import { readSettings } from "@/lib/settings"
 import { buildPricingFromSettings, type EstimatePricing } from "@/lib/estimate-calculator"
 
 export const metadata: Metadata = {
-  title: "Cost Estimator — Estimate Your MartPoint Setup Cost",
+  title: "Cost Estimator — Estimate Your Setup Cost",
   description:
     "Answer a few questions about your business and get an instant estimated cost range for MartPoint Retail. No hidden fees — just a tailored recommendation.",
   alternates: {

@@ -7,7 +7,7 @@ import { PartnerDirectoryClient } from "./directory-client"
 import { ShieldCheck, BadgeCheck, Globe2, Building2, SearchCheck } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "MartPoint Partner Directory | Verified Partners Near You",
+  title: "Partner Directory | Verified Partners Near You",
   description:
     "Browse verified, active MartPoint partners by name, location and partnership type. Buy MartPoint through an authorised partner and verify any partner by ID.",
   alternates: { canonical: "/partners/directory" },

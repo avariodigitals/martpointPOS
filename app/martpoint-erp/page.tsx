@@ -22,7 +22,7 @@ import {
 import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 
 export const metadata: Metadata = {
-  title: "MartPoint ERP — Enterprise Management Software in Nigeria",
+  title: "ERP — Enterprise Management Software in Nigeria",
   description:
     "Enterprise software for accounting, procurement, HR, CRM, and operations. Built for African distributors, wholesalers, manufacturers, and multi-branch businesses.",
   keywords: [

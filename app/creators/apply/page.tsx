@@ -4,7 +4,7 @@ import { Footer } from "@/components/layout/footer"
 import { CreatorApplicationForm } from "./apply-form"
 
 export const metadata: Metadata = {
-  title: "Apply — MartPoint Creator Network",
+  title: "Apply — Creator Network",
   description:
     "Apply to join the MartPoint Creator Network. Tell us about your content, platforms and audience. Applications are reviewed by the MartPoint team.",
   alternates: { canonical: "/creators/apply" },

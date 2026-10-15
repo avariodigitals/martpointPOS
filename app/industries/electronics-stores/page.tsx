@@ -14,7 +14,7 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Electronics Store POS & Inventory in Nigeria — MartPoint Retail",
+  title: "Electronics Store POS & Inventory in Nigeria",
   description:
     "Track IMEI, serial numbers, warranties and high-value stock across showroom and warehouse. MartPoint Retail is built for African electronics retailers selling phones, laptops and appliances.",
   alternates: { canonical: "/industries/electronics-stores" },

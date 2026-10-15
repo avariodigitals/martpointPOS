@@ -34,7 +34,7 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "MartPoint Intelligence — Business Insights for African Retailers",
+  title: "Intelligence — Business Insights for African Retailers",
   description:
     "MartPoint Intelligence analyses your sales, inventory and customer data to surface clear insights, alerts and recommendations that help you make better business decisions.",
   keywords: [

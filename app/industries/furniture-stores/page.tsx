@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     canonical: `/industries/${furnitureStores.slug}`,
   },
   openGraph: {
-    title: furnitureStores.seo.ogTitle || furnitureStores.seo.title,
+    title: furnitureStores.seo.ogTitle || `${furnitureStores.seo.title} — MartPoint`,
     description: furnitureStores.seo.ogDescription || furnitureStores.seo.description,
     url: `https://martpoint.com.ng/industries/${furnitureStores.slug}`,
   },

@@ -20,7 +20,7 @@ import { listPublicVacancies } from "@/lib/careers"
 import { VacancyBoard } from "./vacancy-board"
 
 export const metadata: Metadata = {
-  title: "Careers — Join the MartPoint Team",
+  title: "Careers — Join the Team",
   description:
     "Build the future of African business software. Explore open roles, field deployments and the MartPoint talent pool.",
   alternates: {

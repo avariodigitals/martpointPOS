@@ -5,7 +5,7 @@ import { BrochureDownloadForm } from "@/components/shared/brochure-download-form
 export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
-  title: "Download Brochure - MartPoint",
+  title: "Download Brochure",
   description: "Download the MartPoint product brochure.",
   alternates: {
     canonical: "/download-brochure",

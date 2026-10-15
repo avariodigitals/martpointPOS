@@ -4,7 +4,7 @@ import { Footer } from "@/components/layout/footer"
 import { PartnerApplicationForm } from "./apply-form"
 
 export const metadata: Metadata = {
-  title: "Become a MartPoint Partner | Partner Application",
+  title: "Become a Partner | Application",
   description:
     "Apply to become a MartPoint partner. Referral, channel, implementation, technology and payment partnerships.",
   alternates: { canonical: "/partners/apply" },

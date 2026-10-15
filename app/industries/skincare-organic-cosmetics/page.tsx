@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     canonical: `/industries/${skincareOrganic.slug}`,
   },
   openGraph: {
-    title: skincareOrganic.seo.ogTitle || skincareOrganic.seo.title,
+    title: skincareOrganic.seo.ogTitle || `${skincareOrganic.seo.title} — MartPoint`,
     description: skincareOrganic.seo.ogDescription || skincareOrganic.seo.description,
     url: `https://martpoint.com.ng/industries/${skincareOrganic.slug}`,
   },

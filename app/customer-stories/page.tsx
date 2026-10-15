@@ -18,7 +18,7 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Customer Stories — MartPoint Retail",
+  title: "Customer Stories",
   description:
     "See how supermarkets, pharmacies, restaurants and retail chains across Africa use MartPoint to grow sales, reduce waste and take control of their operations.",
   alternates: {

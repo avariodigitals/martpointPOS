@@ -34,7 +34,7 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Why MartPoint — The Operating System for Nigerian Retail",
+  title: "Why Choose Us — The Operating System for Nigerian Retail",
   description:
     "Discover why supermarkets, pharmacies, restaurants and retail chains across Africa choose MartPoint. Built for African business realities — not adapted from abroad.",
   keywords: [

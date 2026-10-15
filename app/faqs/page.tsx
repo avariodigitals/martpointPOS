@@ -6,7 +6,7 @@ import { FAQPageSchema } from "@/components/structured-data"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 export const metadata: Metadata = {
-  title: "Frequently Asked Questions — MartPoint Solutions",
+  title: "Frequently Asked Questions",
   description:
     "Find answers to common questions about MartPoint Retail, PayPlan installment payments, pricing, offline support, and more. Built by MartPoint Solutions for African businesses.",
   alternates: {

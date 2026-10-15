@@ -26,7 +26,7 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Laundry POS & Order Software in Nigeria — MartPoint Retail",
+  title: "Laundry POS & Order Software in Nigeria",
   description:
     "Track orders, manage pickup and delivery and simplify billing for your laundry business. Built for African laundry and dry cleaning services.",
   alternates: { canonical: "/industries/laundry" },

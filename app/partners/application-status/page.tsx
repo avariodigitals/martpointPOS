@@ -4,7 +4,7 @@ import { Footer } from "@/components/layout/footer"
 import { ApplicationStatusLookup } from "./status-lookup"
 
 export const metadata: Metadata = {
-  title: "Check Partner Application Status | MartPoint",
+  title: "Check Partner Application Status",
   description: "Check the status of your MartPoint partner application using your reference number and email.",
   alternates: { canonical: "/partners/application-status" },
 }

@@ -4,7 +4,7 @@ import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
-  title: "Recruitment Privacy Notice | MartPoint Careers",
+  title: "Recruitment Privacy Notice",
   description:
     "How MartPoint collects, uses and protects personal data submitted through our careers website.",
   alternates: { canonical: "/careers/privacy" },

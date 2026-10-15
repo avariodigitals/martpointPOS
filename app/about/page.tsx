@@ -7,7 +7,7 @@ import { PreFooterCTA } from "@/components/sections/pre-footer-cta"
 import { Building2, Users, Globe, Lightbulb, Award, MapPin, Layers, ShieldCheck, TrendingUp, RefreshCw } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "About Us — MartPoint Solutions",
+  title: "About Us",
   description:
     "Learn about MartPoint Solutions, the African technology company behind MartPoint Retail. Built for African businesses, by Africans.",
   alternates: {

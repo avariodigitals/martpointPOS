@@ -18,10 +18,10 @@ export async function generateMetadata({
   const { partnerId } = await params
   const partner = await getPublicPartnerByPartnerId(partnerId.toUpperCase())
   if (!partner) {
-    return { title: "Partner Not Found — MartPoint" }
+    return { title: "Partner Not Found" }
   }
   return {
-    title: `${partner.displayName} — MartPoint Partner ${partner.partnerId}`,
+    title: `${partner.displayName} — Verified Partner ${partner.partnerId}`,
     description: `Verify MartPoint partner ${partner.displayName} (${partner.partnerId}).`,
     alternates: { canonical: `/partners/${partner.partnerId}` },
   }

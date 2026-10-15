@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     canonical: `/industries/${bukkaMamaPut.slug}`,
   },
   openGraph: {
-    title: bukkaMamaPut.seo.ogTitle || bukkaMamaPut.seo.title,
+    title: bukkaMamaPut.seo.ogTitle || `${bukkaMamaPut.seo.title} — MartPoint`,
     description: bukkaMamaPut.seo.ogDescription || bukkaMamaPut.seo.description,
     url: `https://martpoint.com.ng/industries/${bukkaMamaPut.slug}`,
   },

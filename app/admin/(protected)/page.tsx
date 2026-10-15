@@ -38,7 +38,7 @@ import {
 } from "@/lib/control-centre"
 
 export const metadata: Metadata = {
-  title: "MartPoint Control Centre",
+  title: "Control Centre",
   description: "Executive dashboard for MartPoint platform operations.",
 }
 

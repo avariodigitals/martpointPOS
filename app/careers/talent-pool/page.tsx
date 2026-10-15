@@ -4,7 +4,7 @@ import { Footer } from "@/components/layout/footer"
 import { TalentPoolForm } from "./talent-pool-form"
 
 export const metadata: Metadata = {
-  title: "Join the MartPoint Talent Pool | Careers",
+  title: "Join the Talent Pool | Careers",
   description:
     "Join the MartPoint Talent Pool and be contacted when roles or field deployments match your skills and location.",
   alternates: { canonical: "/careers/talent-pool" },

@@ -24,7 +24,7 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Fashion Retail POS & Inventory in Nigeria — MartPoint Retail",
+  title: "Fashion Retail POS & Inventory in Nigeria",
   description:
     "Manage sizes, colours, seasons and styles with real-time sales visibility. MartPoint Retail is built for African fashion boutiques and retailers.",
   alternates: { canonical: "/industries/fashion-stores" },

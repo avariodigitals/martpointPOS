@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Product Updates — MartPoint Changelog",
+  title: "Product Updates — Changelog",
   description:
     "Latest releases, improvements and upcoming features for MartPoint Retail. See what we have shipped and what is coming next.",
   alternates: {

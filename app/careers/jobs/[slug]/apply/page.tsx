@@ -15,9 +15,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const v = await getPublicVacancyBySlug(slug)
-  if (!v) return { title: "Apply | MartPoint Careers" }
+  if (!v) return { title: "Apply | Careers" }
   return {
-    title: `Apply — ${v.title} | MartPoint Careers`,
+    title: `Apply — ${v.title} | Careers`,
     description: `Apply for ${v.title} at MartPoint.`,
     robots: { index: false },
   }

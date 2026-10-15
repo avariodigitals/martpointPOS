@@ -7,7 +7,7 @@ import { LeadForm } from "@/components/shared/lead-form"
 import { getPublicSiteSettings } from "@/lib/settings"
 
 export const metadata: Metadata = {
-  title: "Contact Sales — Talk to MartPoint Team",
+  title: "Contact Sales — Talk To Our Team",
   description: "Talk to our sales team about MartPoint retail POS software for your business in Nigeria and Africa.",
   alternates: {
     canonical: "/contact",

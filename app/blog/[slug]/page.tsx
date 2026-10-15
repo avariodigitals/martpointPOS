@@ -100,7 +100,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const keywords = [post.primaryKeywords, post.secondaryKeywords].filter(Boolean).join(", ")
 
   return {
-    title: `${post.title} — MartPoint Blog`,
+    title: `${post.title}`,
     description: post.metaDescription || post.excerpt,
     keywords,
     authors: [{ name: post.author || "MartPoint Solutions" }],

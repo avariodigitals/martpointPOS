@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     canonical: `/industries/${physiotherapy.slug}`,
   },
   openGraph: {
-    title: physiotherapy.seo.ogTitle || physiotherapy.seo.title,
+    title: physiotherapy.seo.ogTitle || `${physiotherapy.seo.title} — MartPoint`,
     description: physiotherapy.seo.ogDescription || physiotherapy.seo.description,
     url: `https://martpoint.com.ng/industries/${physiotherapy.slug}`,
   },

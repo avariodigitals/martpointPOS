@@ -23,7 +23,7 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Supermarket POS & Inventory Software in Nigeria — MartPoint Retail",
+  title: "Supermarket POS & Inventory Software in Nigeria",
   description:
     "Retail store inventory management software for supermarkets in Nigeria. Real-time inventory, fast checkout, expiry tracking and multi-branch control. Built for African supermarkets and mini marts.",
   keywords: [

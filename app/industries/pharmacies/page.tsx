@@ -24,7 +24,7 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Pharmacy Inventory & POS Software in Nigeria — MartPoint Retail",
+  title: "Pharmacy Inventory & POS Software in Nigeria",
   description:
     "Pharmacy inventory management system for Nigerian pharmacies. Track batches, monitor expiry dates, manage prescription sales and never run out of essential medicines. Built for African pharmacies.",
   keywords: [

@@ -15,6 +15,7 @@ import {
   validateJournalLines,
   type JournalLineInput,
 } from "@/lib/finance-ledger"
+import { syncInvoiceFinanceTransaction } from "@/lib/finance-commercial"
 
 const ok = (data: unknown) => NextResponse.json({ success: true, data })
 const err = (message: string, status = 400) => NextResponse.json({ success: false, error: message }, { status })
@@ -141,7 +142,7 @@ export async function POST(request: Request) {
     if (resource === "payment-accounts") {
       if (!canManage) return err("Forbidden", 403)
       if (action === "create") {
-        const { name, payment_method, bank_name, account_number_last4, currency, opening_balance, opening_balance_date, is_default } = body
+        const { name, payment_method, bank_name, account_number, account_number_last4, currency, opening_balance, opening_balance_date, is_default } = body
         if (!name) return err("Account name is required")
 
         // Create a matching GL account (subtype BANK / CASH) automatically.
@@ -166,7 +167,8 @@ export async function POST(request: Request) {
           gl_account_id: (gl as { id: string }).id,
           payment_method: payment_method || null,
           bank_name: bank_name || null,
-          account_number_last4: account_number_last4 || null,
+          account_number: account_number || null,
+          account_number_last4: account_number_last4 || (account_number ? String(account_number).slice(-4) : null),
           currency: currency || "NGN",
           opening_balance: Number(opening_balance) || 0,
           opening_balance_date: opening_balance_date || null,
@@ -204,6 +206,26 @@ export async function POST(request: Request) {
         if (error) return err(error.message, 500)
         return ok(data)
       }
+    }
+
+    /* ── re-derive invoice income per line category (migration 091 backfill) ── */
+    if (resource === "rederive-income") {
+      if (!canManage) return err("Forbidden", 403)
+      const { data: allInvoices, error } = await supabase.from("invoices").select("id")
+      if (error) return err(error.message, 500)
+      let processed = 0
+      for (const inv of (allInvoices as { id: string }[]) || []) {
+        try {
+          await supabase.from("finance_transactions").delete().eq("invoice_id", inv.id).eq("type", "income")
+          await voidEntriesForSource("INVOICE", inv.id)
+          await supabase.from("invoices").update({ journal_entry_id: null }).eq("id", inv.id)
+          await syncInvoiceFinanceTransaction(inv.id)
+          processed++
+        } catch (e) {
+          console.error("[rederive-income]", inv.id, e)
+        }
+      }
+      return ok({ invoices_processed: processed })
     }
 
     /* ── transfer between payment accounts ── */

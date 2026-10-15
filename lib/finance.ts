@@ -64,21 +64,20 @@ export const EXPENSE_CATEGORIES = [
 ]
 
 export const INCOME_CATEGORIES = [
-  "Consulting Revenue",
-  "Custom Development",
-  "Implementation Services",
-  "Interest Income",
-  "Licensing Revenue",
-  "Online Store Subscription",
-  "Other Income",
-  "Partner Commissions",
+  "Subscription Revenue",
+  "One-Time License",
+  "Add-On Revenue",
   "Product Sales",
-  "Renewal Revenue",
-  "Setup & Implementation",
-  "Software Subscription",
-  "Support Contracts",
+  "Implementation Services",
   "Training Revenue",
+  "Consulting Revenue",
+  "Support Contracts",
+  "Custom Development",
+  "Logistics & Delivery",
   "White-Label Revenue",
+  "Interest Income",
+  "Partner Commissions",
+  "Other Income",
 ]
 
 export async function readFinanceData(): Promise<FinanceData> {

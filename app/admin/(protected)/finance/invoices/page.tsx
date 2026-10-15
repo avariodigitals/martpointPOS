@@ -70,6 +70,28 @@ interface InvoicePayment {
   payment_allocations?: { invoice_id: string; amount_allocated: number }[]
 }
 
+/** Active receiving account from the ledger (GET /api/admin/finance/ledger?resource=payment-accounts). */
+interface PaymentAccountOption {
+  id: string
+  name: string
+  bank_name?: string | null
+  account_number_last4?: string | null
+  payment_method?: string | null
+  is_default: boolean
+  active: boolean
+  gl_accounts?: { code: string; name: string } | null
+}
+
+/** Option label: "Primary Bank · ····1234 · maps Paystack · Default" */
+function paymentAccountLabel(a: PaymentAccountOption): string {
+  return [
+    a.name,
+    a.account_number_last4 ? `····${a.account_number_last4}` : null,
+    a.payment_method ? `maps ${enumLabel(a.payment_method)}` : null,
+    a.is_default ? "Default" : null,
+  ].filter(Boolean).join(" · ")
+}
+
 const CURRENCIES = ["NGN", "USD", "GBP", "GHS", "KES", "ZAR"]
 const STATUSES = ["DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE", "VOID", "CANCELLED", "WAIVED"]
 const PAYMENT_METHODS = ["BANK_TRANSFER", "PAYSTACK", "FLUTTERWAVE", "CASH", "POS", "OTHER"]
@@ -133,12 +155,13 @@ function catalogPriceOf(item: CatalogItem) {
   return item.default_price ?? item.base_price ?? 0
 }
 
-type Catalog = { products: CatalogItem[]; plans: CatalogItem[]; services: CatalogItem[] }
+type Catalog = { products: CatalogItem[]; plans: CatalogItem[]; services: CatalogItem[]; addons: CatalogItem[] }
 
 function catalogOptionsFor(catalog: Catalog, type?: string): CatalogItem[] {
   if (type === "PRODUCT") return catalog.products
   if (type === "PLAN") return catalog.plans
   if (type === "SERVICE") return catalog.services
+  if (type === "ADDON") return catalog.addons
   return []
 }
 
@@ -159,11 +182,12 @@ function defaultNewItemFor(catalog: Catalog): InvoiceItem {
   return { description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0, line_total: 0, item_type: "CUSTOM", reference_id: null }
 }
 
-type CatalogTab = "PRODUCT" | "PLAN" | "SERVICE"
+type CatalogTab = "PRODUCT" | "PLAN" | "ADDON" | "SERVICE"
 
 const CATALOG_TAB_LABELS: Record<CatalogTab, string> = {
   PRODUCT: "Products",
   PLAN: "Plans",
+  ADDON: "Add-Ons",
   SERVICE: "Services",
 }
 
@@ -173,14 +197,14 @@ function CatalogPicker({
   onPick,
   onCustom,
 }: {
-  catalog: { products: CatalogItem[]; plans: CatalogItem[]; services: CatalogItem[] }
+  catalog: Catalog
   onPick: (type: CatalogTab, item: CatalogItem) => void
   onCustom: () => void
 }) {
   const [tab, setTab] = useState<CatalogTab>("PRODUCT")
   const [q, setQ] = useState("")
 
-  const items = tab === "PRODUCT" ? catalog.products : tab === "PLAN" ? catalog.plans : catalog.services
+  const items = catalogOptionsFor(catalog, tab)
   const filtered = items.filter(
     (i) =>
       i.name.toLowerCase().includes(q.toLowerCase()) ||
@@ -434,13 +458,16 @@ function defaultDueDate() {
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [businesses, setBusinesses] = useState<BusinessMini[]>([])
-  const [catalog, setCatalog] = useState<{ products: CatalogItem[]; plans: CatalogItem[]; services: CatalogItem[] }>({ products: [], plans: [], services: [] })
+  const [catalog, setCatalog] = useState<Catalog>({ products: [], plans: [], services: [], addons: [] })
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
 
   const [filterBusiness, setFilterBusiness] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [filterIssueFrom, setFilterIssueFrom] = useState<string>("")
+  const [filterIssueTo, setFilterIssueTo] = useState<string>("")
   const [searchQuery, setSearchQuery] = useState("")
+  const filtersActive = filterBusiness !== "all" || filterStatus !== "all" || filterIssueFrom !== "" || filterIssueTo !== "" || searchQuery.trim() !== ""
 
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -466,14 +493,31 @@ export default function InvoicesPage() {
     paymentMethod: "BANK_TRANSFER",
     paidAt: today(),
     notes: "",
+    paymentAccountId: "",
   })
   const [recordingPayment, setRecordingPayment] = useState(false)
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountOption[]>([])
 
   useEffect(() => {
     fetchBusinesses()
     fetchCatalog()
     fetchInvoices()
+    fetchPaymentAccounts()
   }, [])
+
+  async function fetchPaymentAccounts() {
+    try {
+      const res = await fetch("/api/admin/finance/ledger?resource=payment-accounts")
+      const data = await res.json()
+      if (data.success && Array.isArray(data.data)) {
+        // Only active accounts may receive money; the API returns them sorted
+        // default-first then by name.
+        setPaymentAccounts((data.data as PaymentAccountOption[]).filter((a) => a.active))
+      }
+    } catch {
+      // Non-critical: the payment form still works with "Auto" routing.
+    }
+  }
 
   async function fetchBusinesses() {
     try {
@@ -494,6 +538,7 @@ export default function InvoicesPage() {
           products: data.data.products || [],
           plans: data.data.plans || [],
           services: data.data.services || [],
+          addons: data.data.addons || [],
         })
       }
     } catch {
@@ -520,6 +565,8 @@ export default function InvoicesPage() {
     // Filter on the *derived* status so choosing "Overdue" finds invoices that
     // have passed their due date but whose stored status is still ISSUED.
     if (filterStatus !== "all") list = list.filter((i) => resolveInvoiceStatus(i) === filterStatus)
+    if (filterIssueFrom) list = list.filter((i) => i.issue_date >= filterIssueFrom)
+    if (filterIssueTo) list = list.filter((i) => i.issue_date <= filterIssueTo)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
       list = list.filter(
@@ -530,7 +577,25 @@ export default function InvoicesPage() {
       )
     }
     return list.sort((a, b) => new Date(b.created_at || b.issue_date).getTime() - new Date(a.created_at || a.issue_date).getTime())
-  }, [invoices, filterBusiness, filterStatus, searchQuery])
+  }, [invoices, filterBusiness, filterStatus, filterIssueFrom, filterIssueTo, searchQuery])
+
+  // KPIs over *recognised* invoices only — DRAFT / VOID / CANCELLED are excluded
+  // (matching the status logic above); WAIVED carries a zero balance anyway.
+  const kpis = useMemo(() => {
+    const recognised = invoices.filter((i) => {
+      const s = resolveInvoiceStatus(i)
+      return s !== "DRAFT" && s !== "VOID" && s !== "CANCELLED"
+    })
+    const sum = (pick: (i: Invoice) => number) => recognised.reduce((acc, i) => acc + (Number(pick(i)) || 0), 0)
+    const overdue = recognised.filter((i) => resolveInvoiceStatus(i) === "OVERDUE")
+    return {
+      totalInvoiced: sum((i) => i.total_amount),
+      collected: sum((i) => i.amount_paid),
+      outstanding: sum((i) => i.balance_due),
+      overdueCount: overdue.length,
+      overdueAmount: overdue.reduce((acc, i) => acc + (Number(i.balance_due) || 0), 0),
+    }
+  }, [invoices])
 
   const createTotals = useMemo(() => computeInvoiceTotals(createForm.items), [createForm.items])
   const editingTotals = useMemo(() => computeInvoiceTotals(editing?.invoice_items || []), [editing?.invoice_items])
@@ -773,17 +838,25 @@ export default function InvoicesPage() {
       })
       const recordData = await recordRes.json()
       if (recordData.success && recordData.data?.id) {
+        // "Auto — route by payment method" omits payment_account_id and lets
+        // confirmPayment pick the account from the payment method.
         const confirmRes = await fetch("/api/admin/finance/commercial/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "confirm", data: { id: recordData.data.id } }),
+          body: JSON.stringify({
+            action: "confirm",
+            data: {
+              id: recordData.data.id,
+              ...(paymentForm.paymentAccountId ? { payment_account_id: paymentForm.paymentAccountId } : {}),
+            },
+          }),
         })
         const confirmData = await confirmRes.json()
         if (confirmData.success) {
           setMessage("Payment recorded and applied")
           setShowPayment(false)
           setPaymentInvoice(null)
-          setPaymentForm({ amount: "", paymentMethod: "BANK_TRANSFER", paidAt: today(), notes: "" })
+          setPaymentForm({ amount: "", paymentMethod: "BANK_TRANSFER", paidAt: today(), notes: "", paymentAccountId: "" })
           fetchInvoices()
           if (editing?.id === paymentInvoice.id) openInvoice(paymentInvoice, modalMode)
         } else {
@@ -806,6 +879,7 @@ export default function InvoicesPage() {
       paymentMethod: "BANK_TRANSFER",
       paidAt: today(),
       notes: "",
+      paymentAccountId: "",
     })
     setShowPayment(true)
   }
@@ -832,7 +906,7 @@ export default function InvoicesPage() {
         <p className={`text-sm ${message.includes("created") || message.includes("updated") || message.includes("deleted") || message.includes("recorded") || message.includes("Invoice ") ? "text-emerald-600" : "text-red-500"}`}>{message}</p>
       )}
 
-      <div className="flex flex-col gap-3 lg:flex-row">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -863,6 +937,69 @@ export default function InvoicesPage() {
             <option key={s} value={s}>{enumLabel(s)}</option>
           ))}
         </select>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-muted-foreground">Issued</label>
+          <input
+            type="date"
+            value={filterIssueFrom}
+            onChange={(e) => setFilterIssueFrom(e.target.value)}
+            className="rounded-md border border-input bg-background px-2 py-2 text-sm"
+            aria-label="Issue date from"
+          />
+          <span className="text-xs text-muted-foreground">to</span>
+          <input
+            type="date"
+            value={filterIssueTo}
+            onChange={(e) => setFilterIssueTo(e.target.value)}
+            className="rounded-md border border-input bg-background px-2 py-2 text-sm"
+            aria-label="Issue date to"
+          />
+        </div>
+        {filtersActive && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSearchQuery("")
+              setFilterBusiness("all")
+              setFilterStatus("all")
+              setFilterIssueFrom("")
+              setFilterIssueTo("")
+            }}
+          >
+            <X className="mr-1 h-3.5 w-3.5" /> Clear filters
+          </Button>
+        )}
+      </div>
+
+      {/* KPI cards — recognised invoices (DRAFT / VOID / CANCELLED excluded) */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Invoiced</p>
+            <p className="mt-1 text-xl font-bold">{formatMoney(kpis.totalInvoiced)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Collected</p>
+            <p className="mt-1 text-xl font-bold text-emerald-600">{formatMoney(kpis.collected)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Outstanding</p>
+            <p className="mt-1 text-xl font-bold text-amber-600">{formatMoney(kpis.outstanding)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Overdue</p>
+            <p className="mt-1 text-xl font-bold text-red-600">
+              {kpis.overdueCount} <span className="text-sm font-medium text-red-500">· {formatMoney(kpis.overdueAmount)}</span>
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -1365,6 +1502,20 @@ export default function InvoicesPage() {
                   onChange={(e) => setPaymentForm((prev) => ({ ...prev, notes: e.target.value }))}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">Receiving account</label>
+                <select
+                  value={paymentForm.paymentAccountId}
+                  onChange={(e) => setPaymentForm((prev) => ({ ...prev, paymentAccountId: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Auto — route by payment method</option>
+                  {paymentAccounts.map((a) => (
+                    <option key={a.id} value={a.id}>{paymentAccountLabel(a)}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">Auto picks the default account for the payment method (e.g. Paystack/Flutterwave settlement accounts).</p>
               </div>
             </div>
             <div className="flex justify-end gap-2">

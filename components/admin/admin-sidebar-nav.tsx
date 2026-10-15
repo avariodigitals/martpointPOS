@@ -55,6 +55,8 @@ import {
   GraduationCap,
   FolderOpen,
   Calculator,
+  Sparkles,
+  CreditCard,
 } from "lucide-react"
 import { PortalMobileNav } from "@/components/shared/portal-mobile-nav"
 import { LogoutButton } from "./logout-button"
@@ -109,11 +111,13 @@ const navItems: NavItem[] = [
   { href: "/admin/finance/accounts", label: "Accounts", icon: ArrowLeftRight, page: "finance", section: "Finance" },
   { href: "/admin/finance/chart-of-accounts", label: "Chart of Accounts", icon: Scale, page: "finance", section: "Finance" },
   { href: "/admin/finance/invoices", label: "Invoices", icon: Receipt, page: "finance", section: "Finance" },
+  { href: "/admin/finance/payments", label: "Payments", icon: CreditCard, page: "finance", section: "Finance" },
   { href: "/admin/finance/catalog", label: "Catalog", icon: Package, page: "finance", section: "Finance" },
   { href: "/admin/finance/transactions?type=expense", label: "Expenses", icon: Wallet, page: "finance", section: "Finance" },
   { href: "/admin/finance/transactions?type=income", label: "Income", icon: TrendingUp, page: "finance", section: "Finance" },
   { href: "/admin/finance/categories", label: "Categories", icon: Tag, page: "finance", section: "Finance" },
   { href: "/admin/finance/commission-close", label: "Commission Close", icon: CalendarIcon, page: "finance", section: "Finance" },
+  { href: "/admin/finance/books-review", label: "Books Review", icon: Sparkles, page: "finance", section: "Finance" },
 
   // OPERATIONS
   { href: "/admin/incidents", label: "Incidents", icon: Shield, page: "support", section: "Operations" },

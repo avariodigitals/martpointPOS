@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Scale, Plus, X } from "lucide-react"
+import { Loader2, Scale, Plus, X, Search, Landmark } from "lucide-react"
 import { formatMoney } from "@/components/admin/gl-statement"
 import { enumLabel } from "@/lib/utils"
 
@@ -20,6 +20,16 @@ type GlAccount = {
   balance: number
 }
 
+type PaymentAccountRow = {
+  id: string
+  name: string
+  payment_method?: string | null
+  is_default: boolean
+  active: boolean
+  balance?: number
+  gl_accounts?: { code: string; name?: string; type?: string } | null
+}
+
 const TYPE_ORDER: GlAccount["type"][] = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"]
 const TYPE_LABELS: Record<GlAccount["type"], string> = {
   ASSET: "Assets",
@@ -31,11 +41,14 @@ const TYPE_LABELS: Record<GlAccount["type"], string> = {
 
 export default function ChartOfAccountsPage() {
   const [accounts, setAccounts] = useState<GlAccount[]>([])
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountRow[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [working, setWorking] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ code: "", name: "", type: "EXPENSE", subtype: "", description: "" })
+  const [search, setSearch] = useState("")
+  const [typeFilter, setTypeFilter] = useState<GlAccount["type"] | "ALL">("ALL")
 
   const load = useCallback(() => {
     fetch("/api/admin/finance/ledger?resource=gl-accounts")
@@ -50,12 +63,30 @@ export default function ChartOfAccountsPage() {
 
   useEffect(() => { load() }, [load])
 
+  useEffect(() => {
+    fetch("/api/admin/finance/ledger?resource=payment-accounts")
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setPaymentAccounts(d.data || []) })
+      .catch(() => {})
+  }, [])
+
   const grouped = useMemo(() => {
     const map = new Map<GlAccount["type"], GlAccount[]>()
     for (const t of TYPE_ORDER) map.set(t, [])
-    for (const a of accounts) map.get(a.type)?.push(a)
+    const q = search.trim().toLowerCase()
+    for (const a of accounts) {
+      if (q && !(a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q) || (a.subtype || "").toLowerCase().includes(q))) continue
+      map.get(a.type)?.push(a)
+    }
     return map
-  }, [accounts])
+  }, [accounts, search])
+
+  const visibleTypes = TYPE_ORDER.filter((t) => typeFilter === "ALL" || t === typeFilter)
+
+  const activePaymentAccounts = paymentAccounts.filter((a) => a.active)
+  const defaultPaymentAccount = activePaymentAccounts.find((a) => a.is_default) || null
+  const methodMapping = activePaymentAccounts.filter((a) => a.payment_method)
+  const glCode = (a: PaymentAccountRow) => a.gl_accounts?.code || "—"
 
   const createAccount = async () => {
     if (!addForm.code.trim() || !addForm.name.trim()) { setMessage("Code and name are required"); return }
@@ -117,12 +148,86 @@ export default function ChartOfAccountsPage() {
         </div>
       )}
 
+      {/* Payment receiving setup */}
+      {paymentAccounts.length > 0 && (
+        <Card className="border-blue-200 bg-blue-50/40">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Landmark className="h-4 w-4 text-blue-600" /> Payment receiving setup
+              </h3>
+              <Link href="/admin/finance/accounts" className="text-xs font-medium text-blue-600 hover:underline">
+                Manage payment accounts →
+              </Link>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Default: {defaultPaymentAccount ? <span className="font-medium text-foreground">{defaultPaymentAccount.name} (GL {glCode(defaultPaymentAccount)})</span> : <span className="font-medium text-rose-600">no default set</span>}
+              {!defaultPaymentAccount && <span> — configure one at <Link href="/admin/finance/accounts" className="underline">Payment Accounts</Link>.</span>}
+            </p>
+            {methodMapping.length > 0 ? (
+              <ul className="space-y-1 text-sm">
+                {methodMapping.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-4">
+                    <span>
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{enumLabel(a.payment_method!)}</span>
+                      <span className="mx-2 text-muted-foreground">→</span>
+                      <span className="font-medium">{a.name}</span>
+                      <span className="ml-1 font-mono text-xs text-muted-foreground">(GL {glCode(a)}{a.is_default ? " · default" : ""})</span>
+                    </span>
+                    {typeof a.balance === "number" && <span className="shrink-0 font-medium tabular-nums">{formatMoney(a.balance)}</span>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No payment method → account mappings yet. Set them up at <Link href="/admin/finance/accounts" className="underline">Payment Accounts</Link>.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Search + type filter */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-1">
+          <button
+            onClick={() => setTypeFilter("ALL")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${typeFilter === "ALL" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+          >
+            All
+          </button>
+          {TYPE_ORDER.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${typeFilter === t ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >
+              {TYPE_LABELS[t]}
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search code, name, subtype…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm"
+          />
+        </div>
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
+      ) : visibleTypes.every((t) => !(grouped.get(t)?.length)) ? (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          No accounts match {search.trim() ? `“${search.trim()}”` : "this filter"}.
+        </p>
       ) : (
-        TYPE_ORDER.map((type) => {
+        visibleTypes.map((type) => {
           const list = grouped.get(type) || []
           if (!list.length) return null
           const total = list.reduce((s, a) => s + a.balance, 0)

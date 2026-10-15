@@ -7,14 +7,17 @@ import { supabase } from "@/lib/supabase"
 const ok = (data: unknown) => NextResponse.json({ success: true, data })
 const err = (message: string, status = 400) => NextResponse.json({ success: false, error: message }, { status })
 
-type CatalogType = "products" | "plans" | "services"
+type CatalogType = "products" | "plans" | "services" | "addons"
+
+const SERVICE_CATEGORIES = ["implementation", "training", "consulting", "support", "custom-development", "logistics", "other"]
+const ADDON_PRICING_TYPES = ["FIXED", "PER_UNIT", "CUSTOM"]
 
 function now() {
   return new Date().toISOString()
 }
 
 function isCatalogType(t: string): t is CatalogType {
-  return ["products", "plans", "services"].includes(t)
+  return ["products", "plans", "services", "addons"].includes(t)
 }
 
 function toProductStatus(active?: boolean) {
@@ -50,6 +53,14 @@ async function listCatalog(type?: CatalogType | "all", activeOnly = false) {
     const { data, error } = await q
     if (error) throw new Error(error.message)
     result.services = data || []
+  }
+
+  if (!type || type === "all" || type === "addons") {
+    let q = supabase.from("addons").select("*").order("name")
+    if (activeOnly) q = q.eq("active", true)
+    const { data, error } = await q
+    if (error) throw new Error(error.message)
+    result.addons = data || []
   }
 
   return result
@@ -132,6 +143,8 @@ export async function POST(request: Request) {
 
     if (type === "services") {
       if (!data.code || !data.name) return err("Code and name are required")
+      const category = String(data.category || "other")
+      if (!SERVICE_CATEGORIES.includes(category)) return err(`Invalid service category. Expected one of: ${SERVICE_CATEGORIES.join(", ")}`)
       const { data: s, error } = await supabase
         .from("services")
         .insert({
@@ -140,6 +153,7 @@ export async function POST(request: Request) {
           description: data.description ? String(data.description) : null,
           default_price: Number(data.default_price) || 0,
           currency: String(data.currency || "NGN"),
+          category,
           active: data.active !== false,
           created_at: now(),
           updated_at: now(),
@@ -148,6 +162,34 @@ export async function POST(request: Request) {
         .single()
       if (error) return err(error.message, 500)
       return ok(s)
+    }
+
+    if (type === "addons") {
+      if (!data.code || !data.name) return err("Code and name are required")
+      const pricingType = String(data.pricing_type || "FIXED")
+      if (!ADDON_PRICING_TYPES.includes(pricingType)) return err(`Invalid pricing type. Expected one of: ${ADDON_PRICING_TYPES.join(", ")}`)
+      const billingInterval = data.billing_interval ? String(data.billing_interval) : null
+      if (billingInterval !== null && !["MONTHLY", "QUARTERLY", "ANNUAL", "NONE"].includes(billingInterval)) return err("Invalid billing interval")
+      const { data: a, error } = await supabase
+        .from("addons")
+        .insert({
+          code: String(data.code),
+          name: String(data.name),
+          description: data.description ? String(data.description) : null,
+          pricing_type: pricingType,
+          unit_name: data.unit_name ? String(data.unit_name) : null,
+          default_price: Number(data.default_price) || 0,
+          currency: String(data.currency || "NGN"),
+          recurring: data.recurring === true,
+          billing_interval: billingInterval,
+          active: data.active !== false,
+          created_at: now(),
+          updated_at: now(),
+        })
+        .select()
+        .single()
+      if (error) return err(error.message, 500)
+      return ok(a)
     }
 
     return err("Unknown type")
@@ -209,11 +251,42 @@ export async function PUT(request: Request) {
       if (data.description !== undefined) updates.description = data.description ? String(data.description) : null
       if (data.default_price !== undefined) updates.default_price = Number(data.default_price) || 0
       if (data.currency !== undefined) updates.currency = String(data.currency)
+      if (data.category !== undefined) {
+        const category = String(data.category)
+        if (!SERVICE_CATEGORIES.includes(category)) return err(`Invalid service category. Expected one of: ${SERVICE_CATEGORIES.join(", ")}`)
+        updates.category = category
+      }
       if (data.active !== undefined) updates.active = data.active === true
 
       const { data: s, error } = await supabase.from("services").update(updates).eq("id", id).select().single()
       if (error) return err(error.message, 500)
       return ok(s)
+    }
+
+    if (type === "addons") {
+      const updates: Record<string, unknown> = { updated_at: now() }
+      if (data.code !== undefined) updates.code = String(data.code)
+      if (data.name !== undefined) updates.name = String(data.name)
+      if (data.description !== undefined) updates.description = data.description ? String(data.description) : null
+      if (data.pricing_type !== undefined) {
+        const pricingType = String(data.pricing_type)
+        if (!ADDON_PRICING_TYPES.includes(pricingType)) return err(`Invalid pricing type. Expected one of: ${ADDON_PRICING_TYPES.join(", ")}`)
+        updates.pricing_type = pricingType
+      }
+      if (data.unit_name !== undefined) updates.unit_name = data.unit_name ? String(data.unit_name) : null
+      if (data.default_price !== undefined) updates.default_price = Number(data.default_price) || 0
+      if (data.currency !== undefined) updates.currency = String(data.currency)
+      if (data.recurring !== undefined) updates.recurring = data.recurring === true
+      if (data.billing_interval !== undefined) {
+        const billingInterval = data.billing_interval ? String(data.billing_interval) : null
+        if (billingInterval !== null && !["MONTHLY", "QUARTERLY", "ANNUAL", "NONE"].includes(billingInterval)) return err("Invalid billing interval")
+        updates.billing_interval = billingInterval
+      }
+      if (data.active !== undefined) updates.active = data.active === true
+
+      const { data: a, error } = await supabase.from("addons").update(updates).eq("id", id).select().single()
+      if (error) return err(error.message, 500)
+      return ok(a)
     }
 
     return err("Unknown type")
@@ -232,7 +305,7 @@ export async function DELETE(request: Request) {
     if (!isCatalogType(type)) return err("Invalid catalog type")
     if (!id) return err("ID required")
 
-    const table = type === "products" ? "commercial_products" : type === "plans" ? "plans" : "services"
+    const table = type === "products" ? "commercial_products" : type === "plans" ? "plans" : type === "addons" ? "addons" : "services"
     const { error } = await supabase.from(table).delete().eq("id", id)
     if (error) return err(error.message, 500)
     return ok({ deleted: id })

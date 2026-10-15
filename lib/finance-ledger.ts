@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { toKobo, fromKobo, money, type Payment, type Invoice, type PaymentMethod, type CommissionPayout } from "./finance-commercial"
+import { buildInvoiceIncomeBuckets, type InvoiceIncomeLine } from "./invoice-income"
 
 /* ─────────────────────────────────────────────────────────────────────────────
    DOUBLE-ENTRY LEDGER — chart of accounts, payment accounts, journal
@@ -276,29 +277,22 @@ async function hasPostedEntry(sourceType: JournalSourceType, sourceId: string): 
   return (data?.length || 0) > 0
 }
 
-const INCOME_CATEGORY_BY_ITEM: Record<string, string> = {
-  PRODUCT: "Product Sales",
-  PLAN: "Software Subscription",
-  ADDON: "Support Contracts",
-  SERVICE: "Implementation Services",
-  CUSTOM: "Other Income",
-}
-
 const RECOGNISED_INCOME_STATUSES = ["ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE"]
 
 /**
- * Invoice recognised → DR Accounts Receivable / CR income + tax payable.
+ * Invoice recognised → DR Accounts Receivable / CR one income account per
+ * line category (subscription, add-on, service, product…) + tax payable.
  * Voided/cancelled/draft → void the entry. Reposts when totals change.
  */
 export async function postInvoiceJournal(invoiceId: string) {
   if (!isSupabaseConfigured()) return
   const { data } = await supabase
     .from("invoices")
-    .select("*, invoice_items(item_type, description)")
+    .select("*, invoice_items(item_type, reference_id, description, quantity, unit_price, discount, tax, line_total)")
     .eq("id", invoiceId)
     .single()
   if (!data) return
-  const invoice = data as unknown as Invoice & { invoice_items: { item_type: string; description: string }[] }
+  const invoice = data as unknown as Invoice & { invoice_items: InvoiceIncomeLine[] }
 
   if (!RECOGNISED_INCOME_STATUSES.includes(invoice.status)) {
     await voidEntriesForSource("INVOICE", invoiceId)
@@ -327,10 +321,9 @@ export async function postInvoiceJournal(invoiceId: string) {
 
   const ar = await getGlAccountByKey("accounts_receivable")
   const taxPayable = await getGlAccountByKey("tax_payable")
-  const primary = invoice.invoice_items?.[0]?.item_type || "CUSTOM"
-  const incomeAccount = await resolveCategoryAccount("income", INCOME_CATEGORY_BY_ITEM[primary] || "Other Income")
-  if (!ar || !incomeAccount) return
+  if (!ar) return
 
+  const buckets = await buildInvoiceIncomeBuckets(invoice.invoice_items || [])
   const lines: JournalLineInput[] = [
     {
       gl_account_id: ar.id,
@@ -338,13 +331,47 @@ export async function postInvoiceJournal(invoiceId: string) {
       business_id: invoice.business_id,
       description: `Invoice ${invoice.invoice_number} receivable`,
     },
-    {
-      gl_account_id: incomeAccount.id,
-      credit: fromKobo(totalKobo - taxKobo),
-      business_id: invoice.business_id,
-      description: `Invoice ${invoice.invoice_number} income`,
-    },
   ]
+
+  let incomeCreditsKobo = 0
+  for (const bucket of buckets) {
+    const netKobo = toKobo(bucket.amount) - toKobo(bucket.tax)
+    if (netKobo <= 0) continue
+    const incomeAccount = await resolveCategoryAccount("income", bucket.category)
+    if (!incomeAccount) continue
+    incomeCreditsKobo += netKobo
+    lines.push({
+      gl_account_id: incomeAccount.id,
+      credit: fromKobo(netKobo),
+      business_id: invoice.business_id,
+      description: `Invoice ${invoice.invoice_number} — ${bucket.category}`,
+    })
+  }
+
+  // Lines that netted to zero (fully discounted) still belong to AR; keep the
+  // entry balanced by crediting the residual to the first bucket's fallback.
+  const residualKobo = totalKobo - taxKobo - incomeCreditsKobo
+  if (residualKobo !== 0) {
+    const fallback = await resolveCategoryAccount("income", buckets[0]?.category || "Other Income")
+    if (fallback) {
+      if (residualKobo > 0) {
+        lines.push({
+          gl_account_id: fallback.id,
+          credit: fromKobo(residualKobo),
+          business_id: invoice.business_id,
+          description: `Invoice ${invoice.invoice_number} — rounding/unclassified`,
+        })
+      } else {
+        lines.push({
+          gl_account_id: fallback.id,
+          debit: fromKobo(-residualKobo),
+          business_id: invoice.business_id,
+          description: `Invoice ${invoice.invoice_number} — rounding/unclassified`,
+        })
+      }
+    }
+  }
+
   if (taxKobo > 0 && taxPayable) {
     lines.push({
       gl_account_id: taxPayable.id,

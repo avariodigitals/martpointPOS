@@ -63,14 +63,20 @@ const PnL_SECTIONS = [
   {
     title: "Revenue",
     type: "income" as const,
+    // Canonical income categories (migration 091) — keep in sync with finance_categories.
     items: [
       "Subscription Revenue",
-      "One-Time Sales",
-      "Setup & Implementation",
-      "Support Contracts",
+      "One-Time License",
+      "Add-On Revenue",
+      "Product Sales",
+      "Implementation Services",
       "Training Revenue",
-      "Consulting",
-      "Other Revenue",
+      "Consulting Revenue",
+      "Support Contracts",
+      "Custom Development",
+      "Logistics & Delivery",
+      "White-Label Revenue",
+      "Other Income",
     ],
   },
   {
@@ -159,6 +165,11 @@ export default function FinanceReportsPage() {
   const operatingExpenses = categoryTotal(PnL_SECTIONS[2].items)
   const ebitda = grossProfit - operatingExpenses
 
+  // Income whose category is not one of the canonical P&L revenue lines (e.g. legacy
+  // or custom finance_categories names) must never silently vanish from the breakdown —
+  // show the remainder as "Other Income (unclassified)".
+  const unclassifiedRevenue = totalRevenue - categoryTotal(PnL_SECTIONS[0].items)
+
   const taxTotal = filteredTransactions
     .filter((t) => t.type === "expense" && t.category === "Taxes")
     .reduce((s, t) => s + t.amount, 0)
@@ -212,6 +223,7 @@ export default function FinanceReportsPage() {
       const val = categoryTotal([cat])
       if (val > 0) tableData.push([cat, "", formatNgnFull(val)])
     })
+    if (unclassifiedRevenue !== 0) tableData.push(["Other Income (unclassified)", "", formatNgnFull(unclassifiedRevenue)])
     tableData.push(["Total Revenue", "", formatNgnFull(totalRevenue)])
 
     // Cost of Revenue
@@ -398,6 +410,12 @@ export default function FinanceReportsPage() {
                   </div>
                 )
               })}
+              {unclassifiedRevenue !== 0 && (
+                <div className="flex justify-between text-sm py-1 border-b border-dashed border-border">
+                  <span className="text-muted-foreground pl-3">Other Income (unclassified)</span>
+                  <span className="font-medium">{formatNgnFull(unclassifiedRevenue)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm font-semibold pt-2">
                 <span>Total Revenue</span>
                 <span className="text-emerald-600">{formatNgnFull(totalRevenue)}</span>

@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import { getBusinessById, setOnboardingStage } from "./businesses"
 import type { AuditContext } from "./audit"
 import { postPaymentJournal, postInvoiceJournal } from "./finance-ledger"
+import { buildInvoiceIncomeBuckets, type InvoiceIncomeLine } from "./invoice-income"
 import crypto from "crypto"
 import type { InvoiceStatus } from "./invoice-status"
 
@@ -1417,81 +1418,50 @@ export async function refreshRenewalStatus(subscriptionId: string) {
 
 const RECOGNISED_INCOME_STATUSES = ["ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE"]
 
-const INCOME_CATEGORY_BY_ITEM: Record<string, string> = {
-  PRODUCT: "Product Sales",
-  PLAN: "Software Subscription",
-  ADDON: "Support Contracts",
-  SERVICE: "Implementation Services",
-  CUSTOM: "Other Income",
-}
-
 export async function syncInvoiceFinanceTransaction(invoiceId: string) {
   if (!isSupabaseConfigured()) return
   const { data } = await supabase
     .from("invoices")
-    .select("*, invoice_items(item_type, reference_id, description)")
+    .select("*, invoice_items(item_type, reference_id, description, quantity, unit_price, discount, tax, line_total)")
     .eq("id", invoiceId)
     .single()
   if (!data) return
 
-  const invoice = data as unknown as Invoice & { invoice_items: Array<{ item_type: string; reference_id: string | null; description: string }> }
+  const invoice = data as unknown as Invoice & { invoice_items: InvoiceIncomeLine[] }
 
-  if (!RECOGNISED_INCOME_STATUSES.includes(invoice.status)) {
-    await supabase.from("finance_transactions").delete().eq("invoice_id", invoiceId)
-    return
-  }
-
-  const primary = invoice.invoice_items?.[0]?.item_type || "CUSTOM"
-  const category = INCOME_CATEGORY_BY_ITEM[primary] || "Other Income"
-
-  const planItem = invoice.invoice_items?.find((i) => i.item_type === "PLAN")
-  let recurring = false
-  let frequency: "one-time" | "monthly" | "quarterly" | "yearly" = "one-time"
-  if (planItem?.reference_id) {
-    const { data: plan } = await supabase.from("plans").select("billing_type, billing_interval").eq("id", planItem.reference_id).single()
-    if (plan) {
-      const p = plan as { billing_type: string; billing_interval: string }
-      if (p.billing_type === "RECURRING") {
-        recurring = true
-        if (p.billing_interval === "MONTHLY") frequency = "monthly"
-        else if (p.billing_interval === "QUARTERLY") frequency = "quarterly"
-        else if (p.billing_interval === "ANNUAL") frequency = "yearly"
-      }
-    }
-  }
-
-  const description = `Invoice ${invoice.invoice_number} — ${invoice.invoice_items.map((i) => i.description).filter(Boolean).join(", ").slice(0, 120)}`
-  const txn = {
-    type: "income" as const,
-    category,
-    subcategory: `Invoice ${invoice.invoice_number}`,
-    amount: Math.round(invoice.total_amount),
-    tax: Math.round(invoice.tax_amount || 0),
-    description,
-    date: invoice.issue_date || new Date().toISOString().split("T")[0],
-    business_id: invoice.business_id,
-    invoice_id: invoice.id,
-    commercial_reference: invoice.invoice_number,
-    recurring,
-    frequency,
-    updated_at: new Date().toISOString(),
-  }
-
-  const { data: existing } = await supabase
+  // Drop the invoice's income rows, then re-derive one per income category so
+  // a licence + training + hardware invoice lands in three distinct accounts.
+  await supabase
     .from("finance_transactions")
-    .select("id")
+    .delete()
     .eq("invoice_id", invoiceId)
     .eq("type", "income")
-    .single()
 
-  if (existing) {
-    await supabase.from("finance_transactions").update(txn).eq("id", (existing as { id: string }).id)
-  } else {
-    await supabase.from("finance_transactions").insert({
-      ...txn,
+  if (!RECOGNISED_INCOME_STATUSES.includes(invoice.status)) return
+
+  const buckets = await buildInvoiceIncomeBuckets(invoice.invoice_items || [])
+  const date = invoice.issue_date || new Date().toISOString().split("T")[0]
+
+  for (const bucket of buckets) {
+    const description = `Invoice ${invoice.invoice_number} — ${bucket.category}: ${bucket.descriptions.join(", ").slice(0, 120)}`
+    const { error } = await supabase.from("finance_transactions").insert({
       id: crypto.randomUUID(),
+      type: "income" as const,
+      category: bucket.category,
+      subcategory: `Invoice ${invoice.invoice_number}`,
+      amount: Math.round(bucket.amount),
+      tax: Math.round(bucket.tax),
+      description: description.slice(0, 200),
+      date,
+      business_id: invoice.business_id,
+      invoice_id: invoice.id,
+      commercial_reference: invoice.invoice_number,
+      recurring: bucket.recurring,
+      frequency: bucket.frequency,
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
+    if (error) console.error(`[syncInvoiceFinanceTransaction] insert ${bucket.category}:`, error.message)
   }
 
   // Recognised income → post DR receivable / CR revenue (+ tax payable).

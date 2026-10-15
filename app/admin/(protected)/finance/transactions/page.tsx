@@ -56,12 +56,18 @@ const EXPENSE_CATEGORIES = [
 
 const INCOME_CATEGORIES = [
   "Subscription Revenue",
-  "One-Time Sales",
-  "Setup & Implementation",
-  "Support Contracts",
+  "One-Time License",
+  "Add-On Revenue",
+  "Product Sales",
+  "Implementation Services",
   "Training Revenue",
-  "Consulting",
-  "Other Revenue",
+  "Consulting Revenue",
+  "Support Contracts",
+  "Custom Development",
+  "Logistics & Delivery",
+  "White-Label Revenue",
+  "Interest Income",
+  "Other Income",
 ]
 
 function formatNgn(n: number) {

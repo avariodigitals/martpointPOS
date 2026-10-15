@@ -168,7 +168,10 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
     }
 
     if (resource === "payments") {
-      let q = supabase.from("payments").select("*, payment_allocations(*), businesses:business_id (business_name)")
+      // Joins mirror the style used by the other resources above: businesses /
+      // invoices carry display names, payment_accounts surfaces the receiving
+      // account set at confirmation (null until then).
+      let q = supabase.from("payments").select("*, payment_allocations(*), businesses:business_id (business_name), invoices:invoice_id (invoice_number), payment_accounts:payment_account_id (id, name)")
       if (businessId) q = q.eq("business_id", businessId)
       if (invoiceId) {
         // Include payments linked directly AND those allocated to this invoice via payment_allocations.

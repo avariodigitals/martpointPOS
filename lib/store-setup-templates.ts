@@ -222,6 +222,16 @@ const DISTRIBUTION_FIELDS: StoreSetupField[] = [
   { key: "distLogistics", label: "How do you plan deliveries and proof of delivery?", type: "textarea" },
 ]
 
+const SPORTS_FIELDS: StoreSetupField[] = [
+  { key: "sectionIndustry", label: "Sports & Team Wear", type: "section" },
+  { key: "sportsCategories", label: "Product categories (jerseys, boots, athletic wear, equipment)", type: "textarea", required: true },
+  { key: "sportsVariants", label: "Sizes, colours and grades you track (S–XXL, UK 3–12, original / fan / orlami)", type: "textarea", required: true },
+  { key: "sportsBrands", label: "Brands or clubs you stock", type: "textarea" },
+  { key: "sportsPrinting", label: "Do you offer name/number printing or custom team kits?", type: "select", options: ["Yes", "No"] },
+  { key: "sportsPreorders", label: "Do you take pre-orders or advance team orders?", type: "select", options: ["Yes", "No"] },
+  { key: "sportsGrades", label: "Do you sell the same item in grades (original, fan, orlami)?", type: "select", options: ["Yes", "No"] },
+]
+
 /* ───────────────────────────  Registry  ─────────────────────────── */
 
 export const STORE_SETUP_TEMPLATES: StoreSetupTemplate[] = [
@@ -234,6 +244,7 @@ export const STORE_SETUP_TEMPLATES: StoreSetupTemplate[] = [
   { key: "printing", label: "Printing & Production", description: "Printing — categories, pricing units, materials and artwork approval.", industry: PRINTING_FIELDS },
   { key: "services", label: "Service Businesses", description: "Service businesses — offerings, booking, scheduling and warranties.", industry: SERVICES_FIELDS },
   { key: "distribution", label: "Distribution, Wholesale & Manufacturing", description: "Distribution — lines, territories, units and production.", industry: DISTRIBUTION_FIELDS },
+  { key: "sports", label: "Sports Shops & Team Wear", description: "Sports retail — variants by size/colour/grade, club lines, printing and pre-orders.", industry: SPORTS_FIELDS },
   { key: "erp", label: "ERP / Multi-branch Operations", description: "Multi-branch or manufacturing operations on MartPoint ERP." },
 ]
 
@@ -268,6 +279,9 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   distribution: "distribution", distributors: "distribution", wholesalers: "distribution",
   "processing plant": "distribution", "processing plants": "distribution", "processing-plant": "distribution",
   manufacturers: "distribution", "nylon & polythene manufacturing": "distribution",
+  // sports
+  "sports shops": "sports", "sports shop": "sports", "sports store": "sports", "sports stores": "sports",
+  "sporting goods": "sports", "team wear": "sports", jerseys: "sports",
   // retail catch-alls
   "electronics stores": "retail", "electronics store": "retail", "phone shops": "retail",
   "computer stores": "retail", "gadget stores": "retail", "appliance stores": "retail",

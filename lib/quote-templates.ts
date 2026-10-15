@@ -232,6 +232,18 @@ export const QUOTE_TEMPLATES_BY_SLUG: Record<string, Partial<QuoteTemplateConten
       "Annual licence renews 12 months from go-live, payable 30 days before renewal. " +
       "Capacity add-ons co-terminate with the subscription. Hardware is billed separately.",
   },
+  "sports-shops": {
+    publicNotes:
+      "Covers your MartPoint Retail Cloud licence, size/colour/grade variant stock, pre-order tracking and the standard online store.\n" +
+      "• Jerseys, boots and gear are tracked per variant (size, colour, original/fan/orlami) with live stock.\n" +
+      "• Pre-orders, deposits, team uniform jobs and credit accounts are included.\n" +
+      "• Name/number printing equipment, hardware and custom design are quoted separately.\n" +
+      "• You supply the catalogue; during onboarding provide a maximum of 20 sample products for testing.",
+    paymentTerms:
+      "50% deposit on acceptance; balance before go-live.\n" +
+      "The annual licence renews 12 months from go-live, payable 30 days before renewal. " +
+      "Capacity add-ons co-terminate with the subscription. Hardware and third-party fees are billed separately.",
+  },
   "multi-branch-retail": {
     publicNotes:
       "Covers your MartPoint Retail Cloud Enterprise licence, multi-branch roll-out and capacity add-ons.\n" +

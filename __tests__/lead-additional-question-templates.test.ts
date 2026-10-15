@@ -26,6 +26,27 @@ describe("LEAD_ADDITIONAL_QUESTION_TEMPLATES", () => {
     }
   })
 
+  it("provides sports retail discovery questions for sports shops", () => {
+    for (const value of ["Sports Shops", "Sports Shop", "Sporting Goods"]) {
+      const template = getLeadAdditionalQuestionTemplate(value)
+      expect(template?.industry).toBe("Sports Shops")
+      expect(template?.fields.some((field) => field.name === "sports_variants")).toBe(true)
+      expect(template?.fields.some((field) => field.name === "sports_grading")).toBe(true)
+      expect(template?.fields.some((field) => field.name === "sports_orders")).toBe(true)
+    }
+  })
+
+  it("provides garden discovery questions for plant and landscaping retailers", () => {
+    for (const value of ["Garden & Horticulture Centres", "Garden Centre", "Nursery", "Landscaping", "garden-centres"]) {
+      const template = getLeadAdditionalQuestionTemplate(value)
+      expect(template?.industry, value).toBe("Garden & Horticulture Centres")
+      expect(template?.fields.some((field) => field.name === "garden_live_stock")).toBe(true)
+      expect(template?.fields.some((field) => field.name === "garden_channels")).toBe(true)
+      expect(template?.fields.some((field) => field.name === "garden_existing_website")).toBe(true)
+      expect(template?.fields.some((field) => field.name === "garden_materials_on_jobs")).toBe(true)
+    }
+  })
+
   it("exposes a template per industry with unique names and questions", () => {
     expect(LEAD_ADDITIONAL_QUESTION_TEMPLATES.length).toBeGreaterThanOrEqual(8)
 

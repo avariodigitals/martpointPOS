@@ -309,6 +309,51 @@ const clinicQuestions: QuestionnaireField[] = [
   { name: "clinic_online_store", label: "Online booking: Do you have a website? Should patients be able to request appointments or pay bills online?", type: "textarea", required: true },
 ]
 
+const gardenQuestions: QuestionnaireField[] = [
+  { name: "garden_products", label: "Products: Which lines do you sell (houseplants, ornamental and edible plants, seeds, pots, compost, soil, fertilisers, pest-control products, garden tools)? Which do you grow or pot up yourself?", type: "textarea", required: true },
+  { name: "garden_services", label: "Services: What do you offer beyond selling (landscaping design, installation, garden maintenance, lawn care, aquascaping, plant hire or events)? Which stages are subcontracted?", type: "textarea", required: true },
+  { name: "garden_live_stock", label: "Live stock: How do you record plants today — by variety, pot size, grade or price band? How do you handle growth, repotting, seasonal stock and plants that fade or die before they sell?", type: "textarea", required: true },
+  { name: "garden_variants_units", label: "Variants and units: Which sizes, colours or species variants do you track? Which units do you sell in (pieces, bags, litres, kg, bunches, trays), and how do you convert between how you buy and how you sell?", type: "textarea", required: true },
+  { name: "garden_channels", label: "Sales channels: Where do sales happen today (shop or yard, website, Instagram, WhatsApp, markets or events)? Is stock for each channel recorded in one place or separately?", type: "textarea", required: true },
+  { name: "garden_existing_website", label: "Your existing website: What runs your online store today (Shopify, WooCommerce, a custom site)? How do you currently keep its stock and prices in step with what is physically available?", type: "textarea", required: true, helpText: "We are asking so we do not disturb a channel that already works for you." },
+  { name: "garden_pricing", label: "Pricing: How do you price live plants versus supplies? Do prices vary by plant size, grade, season, quantity or customer type (retail, landscaper, contractor)?", type: "textarea", required: true },
+  { name: "garden_orders", label: "Orders and projects: How do you take and track special orders, pre-orders for seasonal stock, and landscaping project quotes? Are projects billed in stages with deposits?", type: "textarea", required: true },
+  { name: "garden_materials_on_jobs", label: "Materials on jobs: How do you record the plants, soil, pots and other supplies actually used on each landscaping or maintenance job today?", type: "textarea", required: true },
+  { name: "garden_delivery", label: "Delivery: Do you deliver plants and garden supplies? How do you schedule fragile or bulky deliveries, confirm what was received, and who charges and pays the delivery fee?", type: "textarea", required: true },
+  { name: "garden_credit_payments", label: "Credit and payments: Do you supply landscapers, contractors or repeat customers on account? Which payment methods do you accept, and how do you track deposits, balances and what each customer owes?", type: "textarea", required: true },
+  { name: "garden_suppliers", label: "Suppliers and purchasing: Where do you source plants, seeds, pots and chemicals? How do you record what arrives, its quality, and purchases still to be paid?", type: "textarea", required: true },
+  { name: "garden_stock_loss", label: "Shrinkage and expiry: How do you record dead or damaged plants, broken pots, and expired seeds, fertilisers or pest-control products? Who authorises write-offs and price reductions?", type: "textarea", required: true },
+  { name: "garden_staff", label: "Staff and roles: Who works at the counter, in the nursery or on maintenance visits? How do you track shifts, sales per person and commissions?", type: "textarea", required: true },
+  { name: "garden_reports", label: "Reports: Which reports does management use (sales by category or channel, plant shrinkage, project profitability, stock levels, outstanding balances)?", type: "textarea", required: true },
+  { name: "garden_access_connectivity", label: "Access and connectivity: How often is internet access unavailable at the shop, nursery or on site? Do you need offline selling and automatic sync?", type: "textarea", required: true },
+  { name: "garden_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample product lists, project quotes or invoices, and the reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live customer data." },
+  { name: "garden_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example products, customers, stock or outstanding balances), and how far back?", type: "textarea", required: true },
+  { name: "garden_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "garden_online_store", label: "Online store: Which products should customers buy or reserve online, and should live plant listings show real availability? Would you like to keep your current site or publish under your own domain from one system?", type: "textarea", required: true },
+]
+
+const sportsQuestions: QuestionnaireField[] = [
+  { name: "sports_products", label: "Products: Which lines do you sell (football jerseys, boots, athletic wear, team kits, equipment such as balls, gloves, dumbbells, bicycles)? Which brands do you carry?", type: "textarea", required: true },
+  { name: "sports_grading", label: "Product grades: Do you sell original, fan and orlami versions of the same jersey or item? How do you keep their prices and stock separate today?", type: "textarea", required: true },
+  { name: "sports_variants", label: "Variants: Which sizes, colours and models do you track? How do you decide size curves and quantities when buying new stock?", type: "textarea", required: true },
+  { name: "sports_customisation", label: "Customisation: Do you offer name and number printing, sponsor logos or team uniform production? How is each job recorded against the customer order and who approves the artwork?", type: "textarea", required: true },
+  { name: "sports_orders", label: "Orders and pre-orders: Do you take advance orders for new-season jerseys, custom jobs or team kits? How do you track deposits, balances and collection or delivery?", type: "textarea", required: true },
+  { name: "sports_teams", label: "Teams and institutions: Do you supply schools, clubs or corporate teams on bulk or credit terms? How do you track what each account owes?", type: "textarea", required: true },
+  { name: "sports_pricing", label: "Pricing: How do you price each line? Do prices vary by grade (original vs fan), size, season, match fixtures or customer type? How are discounts applied?", type: "textarea", required: true },
+  { name: "sports_inventory", label: "Inventory: Which purchasing and usage units do you track (pieces, cartons, pairs, sets)? How do you handle damaged goods, stock counts and returns to suppliers?", type: "textarea", required: true },
+  { name: "sports_suppliers", label: "Suppliers and purchasing: Where do you buy today (local distributors, imports, matchday stock)? How do you record purchases, supplier payments and returns, and who offers credit terms?", type: "textarea", required: true },
+  { name: "sports_payments", label: "Payments: Which payment methods do you accept (cash, transfer, card, POS, wallet)? Is reconciliation done per till, shift or cashier?", type: "textarea", required: true },
+  { name: "sports_approvals", label: "Approvals: Who authorises discounts, refunds, exchanges, credit sales and write-offs? Who acts as backup?", type: "textarea", required: true },
+  { name: "sports_staff", label: "Staff and shifts: How do you track sales per attendant or branch? Do you pay commissions?", type: "textarea", required: true },
+  { name: "sports_reports", label: "Reports: Which reports does management use (sales by club, brand, size or category, sell-through, stock, outstanding balances)?", type: "textarea", required: true },
+  { name: "sports_seasonality", label: "Seasonality: How do demand peaks (new season launches, World Cup, AFCON, derbies, school terms) change your stock and pricing? How do you prepare for them?", type: "textarea", required: true },
+  { name: "sports_access_connectivity", label: "Access and connectivity: How often is internet access unavailable? Do you need offline selling and automatic sync?", type: "textarea", required: true },
+  { name: "sports_migration_samples", label: "Migration (a) — Samples: Can you share anonymized sample product lists, sales records and the reports management currently uses?", type: "textarea", required: true, helpText: "We only need anonymized samples — never live customer data." },
+  { name: "sports_migration_scope", label: "Migration (b) — Records to migrate: Which historical records must move into MartPoint (for example products, pre-orders, customers or outstanding balances), and how far back?", type: "textarea", required: true },
+  { name: "sports_migration_uploads", label: "Migration (c) — Uploads: How would you like to send us the sample files? Paste a secure file-sharing link (Google Drive, Dropbox, WeTransfer) or tell us you will email them after submitting.", type: "text", required: true, helpText: "Add a secure file-sharing link here, or email the files to us after submitting." },
+  { name: "sports_online_store", label: "Online store: Do you have a website or social catalogue? Which items should customers buy or pre-order online, and should any have fixed prices with checkout?", type: "textarea", required: true },
+]
+
 const distributionQuestions: QuestionnaireField[] = [
   { name: "dist_services", label: "Products: Which product lines do you distribute or manufacture? Which stages are outsourced?", type: "textarea", required: true },
   { name: "dist_orders", label: "Orders: Can one order contain several product lines? Do you allow partial dispatch, backorders or standing orders?", type: "textarea", required: true },
@@ -483,6 +528,8 @@ export const LEAD_ADDITIONAL_QUESTION_TEMPLATES: LeadAdditionalQuestionTemplate[
   { industry: "Automotive", label: "Automotive: Parts, Tyres & Vehicle Sales", fields: [...automotiveQuestions, ...STORE_SETUP_FIELDS] },
   { industry: "Building Materials & Hardware", label: "Building Materials & Hardware", fields: [...buildingMaterialsQuestions, ...STORE_SETUP_FIELDS] },
   { industry: "Clinics & Hospitals", label: "Clinics, Hospitals & Diagnostics", fields: [...clinicQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Sports Shops", label: "Sports Shops & Team Wear", fields: [...sportsQuestions, ...STORE_SETUP_FIELDS] },
+  { industry: "Garden & Horticulture Centres", label: "Garden Centres, Nurseries & Landscaping", fields: [...gardenQuestions, ...STORE_SETUP_FIELDS] },
 ]
 
 /** Aliases map alternate business types / industry names to a canonical template
@@ -584,6 +631,16 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   plant: "Processing Plant", plants: "Processing Plant",
   manufacturers: "Distributors",
   "nylon & polythene manufacturing": "Distributors",
+  "sports shop": "Sports Shops", "sports store": "Sports Shops", "sports stores": "Sports Shops",
+  "sporting goods": "Sports Shops", "sports equipment": "Sports Shops", "athletic wear": "Sports Shops",
+  "team wear": "Sports Shops", jerseys: "Sports Shops", jersey: "Sports Shops",
+  "garden centre": "Garden & Horticulture Centres", "garden centers": "Garden & Horticulture Centres",
+  "garden and horticulture centres": "Garden & Horticulture Centres", horticulture: "Garden & Horticulture Centres",
+  nursery: "Garden & Horticulture Centres", "plant nursery": "Garden & Horticulture Centres",
+  "plant nurseries": "Garden & Horticulture Centres", "house plants": "Garden & Horticulture Centres",
+  "houseplants": "Garden & Horticulture Centres", landscaping: "Garden & Horticulture Centres",
+  "landscaping services": "Garden & Horticulture Centres", "garden services": "Garden & Horticulture Centres",
+  "garden maintenance": "Garden & Horticulture Centres", "aquascaping": "Garden & Horticulture Centres",
 }
 
 export function getLeadAdditionalQuestionTemplate(industry: string): LeadAdditionalQuestionTemplate | undefined {

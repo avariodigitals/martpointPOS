@@ -41,6 +41,7 @@ import {
   Paperclip,
   Bell,
   Ban,
+  Eye,
 } from "lucide-react"
 
 export interface Lead {
@@ -238,6 +239,8 @@ export function LeadDetailModal({
   )
   const [emailAttachments, setEmailAttachments] = useState<{ filename: string; content: string; size: number }[]>([])
   const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailPreview, setEmailPreview] = useState<{ subject: string; html: string } | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null)
   const [meetingMode, setMeetingMode] = useState<"invite" | "direct">("invite")
   const [meetingForm, setMeetingForm] = useState({
@@ -376,6 +379,7 @@ export function LeadDetailModal({
         status: updated.status,
         notes: updated.notes || "",
       })
+      setTab("overview")
     }
     setEditing(false)
   }
@@ -668,6 +672,36 @@ export function LeadDetailModal({
     setEmailForm({ subject: tpl.subject, body: tpl.text })
   }
 
+  /* Server-side render of the exact message the send route would deliver —
+   * branded template shell or plain body + settings signature — shown in the
+   * Preview panel without sending anything. */
+  const handlePreviewEmail = async () => {
+    if (!emailForm.subject.trim() || !emailForm.body.trim()) return
+    setPreviewLoading(true)
+    setEmailsError("")
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/emails/preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: emailForm.subject.trim(),
+          body: emailForm.body,
+          template:
+            emailTemplateKey && emailTemplateUnedited
+              ? { key: emailTemplateKey, industry: emailTemplateIndustry || undefined }
+              : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (data.html) setEmailPreview({ subject: data.subject || emailForm.subject.trim(), html: data.html })
+      else setEmailsError(data.error || "Failed to render preview")
+    } catch {
+      setEmailsError("Failed to render preview")
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
   const handleSendEmail = async () => {
     if (!emailForm.subject.trim() || !emailForm.body.trim()) return
     setSendingEmail(true)
@@ -694,6 +728,7 @@ export function LeadDetailModal({
         setEmailForm({ subject: "", body: "" })
         setEmailTemplateKey(null)
         setEmailAttachments([])
+        setEmailPreview(null)
         if (!data.sent) setEmailsError("Email saved to thread but delivery failed — check email settings.")
       } else {
         setEmailsError(data.error || "Failed to send email")
@@ -812,11 +847,16 @@ export function LeadDetailModal({
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span
-                  className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full text-white ${STAGE_COLORS[lead.status]}`}
+                <select
+                  value={lead.status}
+                  onChange={(e) => onUpdateStatus(lead.id, e.target.value as Lead["status"])}
+                  title="Pipeline status — click to change"
+                  className={`appearance-none cursor-pointer text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full text-white ${STAGE_COLORS[lead.status]}`}
                 >
-                  {lead.status}
-                </span>
+                  {PIPELINE_STAGES.map((s) => (
+                    <option key={s} value={s} style={{ color: "#111", backgroundColor: "#fff" }}>{s}</option>
+                  ))}
+                </select>
                 <button
                   onClick={onClose}
                   className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -889,6 +929,26 @@ export function LeadDetailModal({
           {/* ─── Overview ─── */}
           {tab === "overview" && (
             <div className="space-y-6">
+              {/* Pipeline status — first thing on the overview, one click to change */}
+              <div>
+                <p className={labelClass}>Pipeline Status</p>
+                <div className="flex flex-wrap gap-2">
+                  {PIPELINE_STAGES.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => onUpdateStatus(lead.id, s)}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${
+                        lead.status === s
+                          ? `${STAGE_COLORS[s]} text-white border-transparent shadow-sm`
+                          : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {estimate && (
                 <div className="rounded-xl border border-retail/20 bg-retail-soft/40 p-5">
                   <div className="flex items-center gap-2 mb-4">
@@ -988,26 +1048,6 @@ export function LeadDetailModal({
                   </div>
                 </div>
               )}
-
-              {/* Pipeline status selector */}
-              <div>
-                <p className={labelClass}>Pipeline Status</p>
-                <div className="flex flex-wrap gap-2">
-                  {PIPELINE_STAGES.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => onUpdateStatus(lead.id, s)}
-                      className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${
-                        lead.status === s
-                          ? `${STAGE_COLORS[s]} text-white border-transparent shadow-sm`
-                          : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
@@ -1422,14 +1462,25 @@ export function LeadDetailModal({
 
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[11px] text-muted-foreground">Sent to {lead.email}{lead.additionalEmail ? ` and copied to ${lead.additionalEmail}` : ""}</p>
-                  <Button
-                    size="sm"
-                    onClick={handleSendEmail}
-                    disabled={sendingEmail || !emailForm.subject.trim() || !emailForm.body.trim()}
-                  >
-                    {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Mail className="w-4 h-4 mr-1.5" />}
-                    Send Email
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePreviewEmail}
+                      disabled={previewLoading || !emailForm.subject.trim() || !emailForm.body.trim()}
+                    >
+                      {previewLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Eye className="w-4 h-4 mr-1.5" />}
+                      Preview
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSendEmail}
+                      disabled={sendingEmail || !emailForm.subject.trim() || !emailForm.body.trim()}
+                    >
+                      {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Mail className="w-4 h-4 mr-1.5" />}
+                      Send Email
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2265,6 +2316,50 @@ export function LeadDetailModal({
           </Button>
         </div>
       </div>
+
+      {/* ─── Email client preview ─── */}
+      {emailPreview && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setEmailPreview(null)}
+        >
+          <div
+            className="w-full max-w-3xl max-h-[92vh] flex flex-col rounded-2xl border border-border bg-background shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="shrink-0 flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Client preview</p>
+                <p className="mt-0.5 text-sm font-semibold truncate">Subject: {emailPreview.subject}</p>
+                <p className="text-xs text-muted-foreground truncate">Will be delivered to {lead.email}</p>
+              </div>
+              <button
+                onClick={() => setEmailPreview(null)}
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                title="Close preview (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 bg-neutral-100 p-4">
+              <iframe
+                title="Email preview as the client sees it"
+                srcDoc={emailPreview.html}
+                sandbox=""
+                className="h-full max-h-[70vh] w-full rounded-lg border border-border bg-white"
+              />
+            </div>
+            <div className="shrink-0 flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-5 py-3">
+              <p className="text-[11px] text-muted-foreground">
+                Rendered by the same code that sends the email — nothing has been sent yet.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setEmailPreview(null)}>
+                Back to composer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

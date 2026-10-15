@@ -11,6 +11,8 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import { sendEmail, getEmailSettings, isSmtpConfigured, REPLY_TO, type EmailAttachment, type EmailSettings } from "./email"
 import { sendEmailViaSmtp } from "./email-smtp"
 import { escapeHtml, htmlToText, bodyTextToHtml, buildSignatureHtml, appendSignatureToHtml } from "./email-html"
+import { brandedEmailHtml } from "./email-templates"
+import { buildLeadEmailTemplate, type LeadEmailStageKey } from "./lead-email-templates"
 
 export { escapeHtml }
 
@@ -111,6 +113,50 @@ export function resolveLeadSenders(settings: EmailSettings): LeadSenders {
   return { from, replyTo: from, safeFrom }
 }
 
+/* Renders the parts exactly as the lead receives them: the text part with the
+ * settings signature appended ("-- \n" style) and the HTML part — either a
+ * pre-rendered branded body or the escaped text body — with the signature
+ * block. Shared by sendLeadEmail and the admin preview endpoint so "Preview"
+ * always matches the real delivery. */
+export async function renderLeadEmail(
+  input: Pick<SendLeadEmailInput, "body" | "html" | "noSignature">,
+  settings?: EmailSettings,
+): Promise<{ text: string; html: string }> {
+  const s = settings || (await getEmailSettings())
+  // HTML signature (rich editor) wins; the plain-text field is the legacy
+  // fallback. The text part always gets a derived plain-text version, like a
+  // normal mail client signature.
+  const signatureHtml = s.signatureHtml.trim()
+  const signatureText = (signatureHtml ? htmlToText(signatureHtml) : s.signature).trim()
+  const hasSignature =
+    !input.noSignature && Boolean(signatureText || /<img\b/i.test(signatureHtml))
+
+  const text = hasSignature ? `${input.body}\n\n-- \n${signatureText}` : input.body
+  const signatureBlock = hasSignature ? buildSignatureHtml(signatureHtml, signatureText) : ""
+  const html = input.html
+    ? appendSignatureToHtml(input.html, signatureBlock)
+    : `${bodyTextToHtml(input.body)}${signatureBlock}`
+  return { text, html }
+}
+
+/** Branded HTML body for a packaged lead email template, resolved against the
+ *  lead's own industry when the composer didn't override it. */
+export function leadTemplateBrandedHtml(
+  template: { key: LeadEmailStageKey; industry?: string },
+  lead: { full_name: string | null; business_name: string | null; industry?: string | null; business_type?: string | null },
+): string {
+  const tpl = buildLeadEmailTemplate(template.key, template.industry || lead.industry || lead.business_type, {
+    fullName: lead.full_name,
+    businessName: lead.business_name,
+  })
+  return brandedEmailHtml(tpl.bodyHtml, {
+    eyebrow: tpl.eyebrow,
+    title: tpl.title,
+    signoff: "MartPoint Sales",
+    preheader: tpl.preheader,
+  })
+}
+
 export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLeadEmailResult> {
   const settings = await getEmailSettings()
   // Lead mail goes out through the transactional provider (Resend/Brevo) for
@@ -124,19 +170,7 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
       : Boolean(settings.resendApiKey || process.env.RESEND_API_KEY)
   const { from, replyTo, safeFrom } = resolveLeadSenders(settings)
 
-  // HTML signature (rich editor) wins; the plain-text field is the legacy
-  // fallback. The text part always gets a derived plain-text version, like a
-  // normal mail client signature.
-  const signatureHtml = settings.signatureHtml.trim()
-  const signatureText = (signatureHtml ? htmlToText(signatureHtml) : settings.signature).trim()
-  const hasSignature =
-    !input.noSignature && Boolean(signatureText || /<img\b/i.test(signatureHtml))
-
-  const textBody = hasSignature ? `${input.body}\n\n-- \n${signatureText}` : input.body
-  const signatureBlock = hasSignature ? buildSignatureHtml(signatureHtml, signatureText) : ""
-  const html = input.html
-    ? appendSignatureToHtml(input.html, signatureBlock)
-    : `${bodyTextToHtml(input.body)}${signatureBlock}`
+  const { text: textBody, html } = await renderLeadEmail(input, settings)
 
   const viaProvider = useProvider || !isSmtpConfigured(settings)
   const sendProvider = (sender: string) =>

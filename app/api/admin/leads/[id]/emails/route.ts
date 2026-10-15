@@ -2,9 +2,8 @@ import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { sendLeadEmail, mapLeadEmail } from "@/lib/lead-email-outbound"
-import { brandedEmailHtml } from "@/lib/email-templates"
-import { buildLeadEmailTemplate, LEAD_EMAIL_STAGE_KEYS } from "@/lib/lead-email-templates"
+import { sendLeadEmail, mapLeadEmail, leadTemplateBrandedHtml } from "@/lib/lead-email-outbound"
+import { LEAD_EMAIL_STAGE_KEYS } from "@/lib/lead-email-templates"
 import { z } from "zod"
 
 const attachmentSchema = z.object({
@@ -88,16 +87,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     let html: string | undefined
     let noSignature = false
     if (template) {
-      const tpl = buildLeadEmailTemplate(template.key, template.industry || lead.industry || lead.business_type, {
-        fullName: lead.full_name as string | null,
-        businessName: lead.business_name as string | null,
-      })
-      html = brandedEmailHtml(tpl.bodyHtml, {
-        eyebrow: tpl.eyebrow,
-        title: tpl.title,
-        signoff: "MartPoint Sales",
-        preheader: tpl.preheader,
-      })
+      html = leadTemplateBrandedHtml(template, lead)
       // The branded shell signs off ("Best regards, MartPoint Sales") and
       // carries the contact footer, so the mailbox signature would duplicate it.
       noSignature = true

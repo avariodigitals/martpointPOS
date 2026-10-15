@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordAudit, auditContextFromSession, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
@@ -121,20 +121,22 @@ export async function PATCH(request: Request, ctx: Ctx) {
           .single()
         if (app) {
           const vac = app.career_vacancies as { title?: string } | null
-          void sendCareerNotification({
-            template: tpl,
-            to: app.email,
-            applicationId: id,
-            vars: {
-              fullName: app.full_name,
-              reference: app.reference_number,
-              vacancyTitle: vac?.title || "",
-              statusUrl: `${process.env.NEXT_PUBLIC_SITE_URL || ""}/careers/application-status`,
-              assessmentName: body.assessmentName || "",
-              assessmentDetails: body.assessmentDetails || "",
-              nextSteps: body.nextSteps || "",
-            },
-          })
+          after(() =>
+            sendCareerNotification({
+              template: tpl,
+              to: app.email,
+              applicationId: id,
+              vars: {
+                fullName: app.full_name,
+                reference: app.reference_number,
+                vacancyTitle: vac?.title || "",
+                statusUrl: `${process.env.NEXT_PUBLIC_SITE_URL || ""}/careers/application-status`,
+                assessmentName: body.assessmentName || "",
+                assessmentDetails: body.assessmentDetails || "",
+                nextSteps: body.nextSteps || "",
+              },
+            }).catch((err) => console.error("[careers] status email failed:", err))
+          )
         }
       }
     }

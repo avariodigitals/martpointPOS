@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { verifyCaptchaToken } from "@/lib/captcha"
@@ -375,26 +375,30 @@ export async function POST(request: Request) {
           .join("")
       : ""
 
-    void sendCareerNotification({
-      template: "career_application_received",
-      to: email,
-      applicationId,
-      vars: {
-        fullName: str("fullName"),
-        reference,
-        vacancyTitle: v.title,
-        statusUrl,
-        confirmationMessage,
-        confirmationMessageHtml,
-      },
-    })
-    void sendCareerNotification({
-      template: "career_application_admin",
-      to: "",
-      route: "career_application",
-      applicationId,
-      vars: { fullName: str("fullName"), reference, email, vacancyTitle: v.title },
-    })
+    after(() =>
+      sendCareerNotification({
+        template: "career_application_received",
+        to: email,
+        applicationId,
+        vars: {
+          fullName: str("fullName"),
+          reference,
+          vacancyTitle: v.title,
+          statusUrl,
+          confirmationMessage,
+          confirmationMessageHtml,
+        },
+      }).catch((err) => console.error("[careers] received email failed:", err))
+    )
+    after(() =>
+      sendCareerNotification({
+        template: "career_application_admin",
+        to: "",
+        route: "career_application",
+        applicationId,
+        vars: { fullName: str("fullName"), reference, email, vacancyTitle: v.title },
+      }).catch((err) => console.error("[careers] admin email failed:", err))
+    )
 
     await recordAudit(auditContextFromSession(null, request), {
       action: AUDIT_ACTIONS.CAREER_APPLICATION_SUBMITTED,

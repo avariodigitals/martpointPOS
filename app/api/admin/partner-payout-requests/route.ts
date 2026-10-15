@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
@@ -71,16 +71,18 @@ export async function POST(request: Request) {
 
       const user = req.partner_users as { email?: string; full_name?: string } | null
       if (user?.email) {
-        renderEmailTemplate("payout_rejected", {
-          fullName: user.full_name || "",
-          amount: Number(req.amount).toLocaleString(),
-          reasonBlock: notes ? `\n\nReason: ${notes}` : "",
-          reasonHtmlBlock: notes
-            ? `<p style="font-size:14px; line-height:1.6; color:#374151; margin:0 0 24px;"><strong>Reason:</strong> ${escapeHtml(notes)}</p>`
-            : "",
-        })
-          .then((tpl) => sendEmail({ to: user.email!, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners }))
-          .catch(() => {})
+        after(() =>
+          renderEmailTemplate("payout_rejected", {
+            fullName: user.full_name || "",
+            amount: Number(req.amount).toLocaleString(),
+            reasonBlock: notes ? `\n\nReason: ${notes}` : "",
+            reasonHtmlBlock: notes
+              ? `<p style="font-size:14px; line-height:1.6; color:#374151; margin:0 0 24px;"><strong>Reason:</strong> ${escapeHtml(notes)}</p>`
+              : "",
+          })
+            .then((tpl) => sendEmail({ to: user.email!, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners }))
+            .catch(() => {})
+        )
       }
 
       return NextResponse.json({ success: true })
@@ -122,13 +124,15 @@ export async function POST(request: Request) {
 
     const user = req.partner_users as { email?: string; full_name?: string } | null
     if (user?.email) {
-      renderEmailTemplate("payout_approved", {
-        fullName: user.full_name || "",
-        amount: Number(req.amount).toLocaleString(),
-        payoutReference: payout.payout_reference,
-      })
-        .then((tpl) => sendEmail({ to: user.email!, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners }))
-        .catch(() => {})
+      after(() =>
+        renderEmailTemplate("payout_approved", {
+          fullName: user.full_name || "",
+          amount: Number(req.amount).toLocaleString(),
+          payoutReference: payout.payout_reference,
+        })
+          .then((tpl) => sendEmail({ to: user.email!, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.partners }))
+          .catch(() => {})
+      )
     }
 
     return NextResponse.json({ success: true, payout })

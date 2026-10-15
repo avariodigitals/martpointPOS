@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { z } from "zod"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import {
@@ -62,16 +62,18 @@ export async function POST(
     if (body.status === "WAITLISTED" || body.status === "REJECTED") {
       const app = await getCreatorApplicationById(id)
       if (app) {
-        void sendCreatorNotification({
-          template: body.status === "WAITLISTED" ? "creator_waitlisted" : "creator_rejected",
-          to: app.email,
-          applicationId: id,
-          vars: {
-            fullName: app.fullName,
-            reference: app.referenceNumber,
-            statusUrl: `${SITE_URL()}/creators/application-status`,
-          },
-        })
+        after(() =>
+          sendCreatorNotification({
+            template: body.status === "WAITLISTED" ? "creator_waitlisted" : "creator_rejected",
+            to: app.email,
+            applicationId: id,
+            vars: {
+              fullName: app.fullName,
+              reference: app.referenceNumber,
+              statusUrl: `${SITE_URL()}/creators/application-status`,
+            },
+          }).catch((err) => console.error("[creator] status email failed:", err))
+        )
       }
     }
 

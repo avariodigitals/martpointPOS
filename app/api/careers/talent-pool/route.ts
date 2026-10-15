@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { verifyCaptchaToken } from "@/lib/captcha"
 import { checkRateLimit } from "@/lib/rate-limit"
@@ -109,12 +109,14 @@ export async function POST(request: Request) {
       )
     }
 
-    void sendCareerNotification({
-      template: "career_talent_pool_welcome",
-      to: email,
-      candidateId,
-      vars: { fullName: str("fullName"), reference },
-    })
+    after(() =>
+      sendCareerNotification({
+        template: "career_talent_pool_welcome",
+        to: email,
+        candidateId,
+        vars: { fullName: str("fullName"), reference },
+      }).catch((err) => console.error("[careers] talent pool welcome email failed:", err))
+    )
 
     await recordAudit(auditContextFromSession(null, request), {
       action: AUDIT_ACTIONS.CAREER_CANDIDATE_CREATED,

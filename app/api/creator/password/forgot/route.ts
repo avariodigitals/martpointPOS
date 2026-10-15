@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { getCreatorByEmail } from "@/lib/creators"
 import { createCreatorAuthToken } from "@/lib/creator-auth"
 import { sendCreatorNotification } from "@/lib/creator-notifications"
@@ -26,15 +26,17 @@ export async function POST(request: Request) {
         const { ok, token } = await createCreatorAuthToken(creator.id, "RESET_PASSWORD")
         if (ok && token) {
           const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
-          void sendCreatorNotification({
-            template: "creator_password_reset",
-            to: creator.email,
-            creatorId: creator.id,
-            vars: {
-              fullName: creator.fullName,
-              resetUrl: `${siteUrl}/creator/reset-password/${token}`,
-            },
-          })
+          after(() =>
+            sendCreatorNotification({
+              template: "creator_password_reset",
+              to: creator.email,
+              creatorId: creator.id,
+              vars: {
+                fullName: creator.fullName,
+                resetUrl: `${siteUrl}/creator/reset-password/${token}`,
+              },
+            }).catch((err) => console.error("[creator] password reset email failed:", err))
+          )
         }
       }
     }

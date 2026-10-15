@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
 import { auditContextFromPartnerSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
@@ -104,14 +104,17 @@ export async function POST(request: Request) {
       metadata: { partnerId: session.partnerId, amount: parsed.data.amount },
     })
 
-    // Notify finance team (best-effort)
-    renderEmailTemplate("payout_request_admin", {
-      partnerId: session.partnerId,
-      amount: parsed.data.amount.toLocaleString(),
-      notes: parsed.data.notes || "—",
-    })
-      .then((tpl) => sendEmail({ route: "partner_payout_request", subject: tpl.subject, text: tpl.text, html: tpl.html }))
-      .catch((err) => console.error("[payout-request] notify email failed:", err))
+    // Notify finance team (best-effort, post-response so the send isn't killed
+    // when the serverless function freezes)
+    after(() =>
+      renderEmailTemplate("payout_request_admin", {
+        partnerId: session.partnerId,
+        amount: parsed.data.amount.toLocaleString(),
+        notes: parsed.data.notes || "—",
+      })
+        .then((tpl) => sendEmail({ route: "partner_payout_request", subject: tpl.subject, text: tpl.text, html: tpl.html }))
+        .catch((err) => console.error("[payout-request] notify email failed:", err))
+    )
 
     return NextResponse.json({ request: data })
   } catch {

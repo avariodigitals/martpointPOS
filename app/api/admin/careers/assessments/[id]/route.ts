@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordAudit, auditContextFromSession, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
@@ -139,35 +139,39 @@ export async function PATCH(request: Request, ctx: Ctx) {
 
         if (isInterview && assessment.scheduled_at) {
           const start = new Date(assessment.scheduled_at)
-          void sendCareerNotification({
-            template: "career_interview_invite",
-            to: email,
-            applicationId: inv.applicationId || null,
-            candidateId: inv.candidateId || null,
-            // Copy the Careers team so interview scheduling is traceable per function.
-            cc: "careers@martpoint.com.ng",
-            vars: buildInterviewVars({
-              fullName: name, reference: ref, vacancyTitle: vacTitle,
-              assessmentName: assessment.name, scheduledAt: start, durationMinutes: duration,
-              meetingLink, meetingLocation: assessment.meeting_location || null,
-              instructions: assessment.instructions || null, statusUrl,
-            }),
-            attachments: [buildInterviewIcs({
-              id: `${id}-${inv.applicationId || inv.candidateId}`,
-              summary: `Interview: ${assessment.name}${vacTitle ? ` — ${vacTitle}` : ""}`,
-              start, durationMinutes: duration,
-              attendeeEmail: email, attendeeName: name,
-              meetingLink, location: assessment.meeting_location || null,
-            })],
-          })
+          after(() =>
+            sendCareerNotification({
+              template: "career_interview_invite",
+              to: email,
+              applicationId: inv.applicationId || null,
+              candidateId: inv.candidateId || null,
+              // Copy the Careers team so interview scheduling is traceable per function.
+              cc: "careers@martpoint.com.ng",
+              vars: buildInterviewVars({
+                fullName: name, reference: ref, vacancyTitle: vacTitle,
+                assessmentName: assessment.name, scheduledAt: start, durationMinutes: duration,
+                meetingLink, meetingLocation: assessment.meeting_location || null,
+                instructions: assessment.instructions || null, statusUrl,
+              }),
+              attachments: [buildInterviewIcs({
+                id: `${id}-${inv.applicationId || inv.candidateId}`,
+                summary: `Interview: ${assessment.name}${vacTitle ? ` — ${vacTitle}` : ""}`,
+                start, durationMinutes: duration,
+                attendeeEmail: email, attendeeName: name,
+                meetingLink, location: assessment.meeting_location || null,
+              })],
+            }).catch((err) => console.error("[careers] interview invite email failed:", err))
+          )
         } else {
-          void sendCareerNotification({
-            template: "career_assessment_invite",
-            to: email,
-            applicationId: inv.applicationId || null,
-            candidateId: inv.candidateId || null,
-            vars: { fullName: name, reference: ref, vacancyTitle: vacTitle, assessmentName: assessment.name, assessmentDetails: details },
-          })
+          after(() =>
+            sendCareerNotification({
+              template: "career_assessment_invite",
+              to: email,
+              applicationId: inv.applicationId || null,
+              candidateId: inv.candidateId || null,
+              vars: { fullName: name, reference: ref, vacancyTitle: vacTitle, assessmentName: assessment.name, assessmentDetails: details },
+            }).catch((err) => console.error("[careers] assessment invite email failed:", err))
+          )
         }
       }
       await supabase.from("career_assessments").update({ status: "INVITED", updated_at: new Date().toISOString() }).eq("id", id)

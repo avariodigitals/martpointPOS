@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { z } from "zod"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { verifyCaptchaToken } from "@/lib/captcha"
@@ -200,34 +200,39 @@ export async function POST(request: Request) {
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
 
-  // Applicant acknowledgement + internal notification (non-blocking).
-  void sendCreatorNotification({
-    template: "creator_application_received",
-    to: data.email,
-    applicationId: result.applicationId,
-    vars: {
-      fullName: data.fullName,
-      reference: result.reference,
-      statusUrl: `${siteUrl}/creators/application-status`,
-    },
-  })
-  void sendCreatorNotification({
-    template: "creator_application_admin",
-    to: "",
-    route: "creator_application",
-    applicationId: result.applicationId,
-    vars: {
-      fullName: data.fullName,
-      reference: result.reference,
-      category: data.primaryCategory,
-      state: data.state || "—",
-      profilesSummary: data.socialProfiles.map((p) => `${p.platform}: ${p.profileUrl}`).join(", "),
-      reviewUrl: `${siteUrl}/admin/creators/applications/${result.applicationId}`,
-    },
-  }).catch(() => {})
+  // Applicant acknowledgement + internal notification, after the response so the
+  // serverless instance stays alive for the send (floating promises die on freeze).
+  after(() =>
+    sendCreatorNotification({
+      template: "creator_application_received",
+      to: data.email,
+      applicationId: result.applicationId,
+      vars: {
+        fullName: data.fullName,
+        reference: result.reference,
+        statusUrl: `${siteUrl}/creators/application-status`,
+      },
+    }).catch((err) => console.error("[creator] received email failed:", err))
+  )
+  after(() =>
+    sendCreatorNotification({
+      template: "creator_application_admin",
+      to: "",
+      route: "creator_application",
+      applicationId: result.applicationId,
+      vars: {
+        fullName: data.fullName,
+        reference: result.reference,
+        category: data.primaryCategory,
+        state: data.state || "—",
+        profilesSummary: data.socialProfiles.map((p) => `${p.platform}: ${p.profileUrl}`).join(", "),
+        reviewUrl: `${siteUrl}/admin/creators/applications/${result.applicationId}`,
+      },
+    }).catch(() => {})
+  )
 
   // Automatic AI assessment when enabled (best-effort; never auto-decides).
-  void (async () => {
+  after(async () => {
     try {
       const settings = await readSettings()
       const creator = (settings?.creator as Record<string, unknown> | undefined) || {}
@@ -237,7 +242,7 @@ export async function POST(request: Request) {
     } catch (err) {
       console.error("[creators] auto AI review failed:", err)
     }
-  })()
+  })
 
   return NextResponse.json({ success: true, reference: result.reference })
 }

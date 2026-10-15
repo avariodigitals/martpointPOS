@@ -283,6 +283,8 @@ interface ActionResult {
   error?: string
   /** Skip re-scheduling (goal met / no longer applicable). */
   done?: boolean
+  /** Override the next step's schedule (anchor-based cadences like check-ins). */
+  nextScheduledFor?: string
 }
 
 function unsubscribeHeaders(subjectId: string): Record<string, string> {
@@ -310,22 +312,43 @@ async function filterSuppressed(recipients: string[]): Promise<string[]> {
  * Config lives in settings.data.clientCheckins (admin → Settings → Client
  * Check-ins). The sequence itself is a normal automation row
  * (`client_checkin_monthly`, seeded in migration 089): step N of the run maps
- * to milestoneTemplates[N-1] → 30/60/90/120 days after access was sent.
+ * to milestoneTemplates[N-1] → 30/60/90/120/180/270/365 days after access
+ * was sent. After each send the run is rescheduled from the connection date
+ * (anchor-based via ActionResult.nextScheduledFor), not from send time, so
+ * milestones stay pinned to the real "days since connected".
  */
 
 export interface ClientCheckinConfig {
   welcomeEnabled: boolean
+  dormantEnabled: boolean
   founderName: string
   founderEmail: string
+  /** Public https URL of the founder's handwritten signature image (optional). */
+  signatureImageUrl: string
   /** Ordered template keys, one per run step. */
   milestoneTemplates: string[]
+  /** Day offset of each milestone from the connection date; parallel to templates. */
+  milestoneDays: number[]
 }
 
 export const DEFAULT_CLIENT_CHECKIN_CONFIG: ClientCheckinConfig = {
   welcomeEnabled: true,
+  // Automatic dormancy notes stay OFF until the owner enables them after a
+  // controlled install has been verified on the token check-in path.
+  dormantEnabled: false,
   founderName: "Ralph",
   founderEmail: "ralph@martpoint.com.ng",
-  milestoneTemplates: ["client_checkin_30", "client_checkin_60", "client_checkin_90", "client_checkin_120"],
+  signatureImageUrl: "",
+  milestoneTemplates: [
+    "client_checkin_30",
+    "client_checkin_60",
+    "client_checkin_90",
+    "client_checkin_120",
+    "client_checkin_180",
+    "client_checkin_270",
+    "client_anniversary",
+  ],
+  milestoneDays: [30, 60, 90, 120, 180, 270, 365],
 }
 
 export async function getClientCheckinConfig(): Promise<ClientCheckinConfig> {
@@ -333,14 +356,18 @@ export async function getClientCheckinConfig(): Promise<ClientCheckinConfig> {
     const settings = await readSettings()
     const raw = (settings?.clientCheckins as Record<string, unknown> | undefined) || {}
     const templates = Array.isArray(raw.milestoneTemplates) ? raw.milestoneTemplates.map(String).filter(Boolean) : []
+    const sig = String(raw.signatureImageUrl || "")
     return {
       welcomeEnabled: raw.welcomeEnabled !== false,
+      dormantEnabled: raw.dormantEnabled === true,
       founderName: String(raw.founderName || DEFAULT_CLIENT_CHECKIN_CONFIG.founderName),
       founderEmail: String(raw.founderEmail || DEFAULT_CLIENT_CHECKIN_CONFIG.founderEmail),
+      signatureImageUrl: /^https:\/\/\S+$/i.test(sig) ? sig.slice(0, 500) : "",
       milestoneTemplates:
         templates.length === DEFAULT_CLIENT_CHECKIN_CONFIG.milestoneTemplates.length
           ? templates
           : DEFAULT_CLIENT_CHECKIN_CONFIG.milestoneTemplates,
+      milestoneDays: DEFAULT_CLIENT_CHECKIN_CONFIG.milestoneDays,
     }
   } catch {
     return { ...DEFAULT_CLIENT_CHECKIN_CONFIG }
@@ -352,6 +379,17 @@ export function founderReplyTo(cfg: ClientCheckinConfig): string {
   const email = /^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$/.test(cfg.founderEmail) ? cfg.founderEmail : "ralph@martpoint.com.ng"
   const name = cfg.founderName.replace(/[<>\r\n]/g, "").trim().slice(0, 60) || "Ralph"
   return `${name} at MartPoint <${email}>`
+}
+
+/**
+ * HTML for the founder's signature image, injected into check-in templates as
+ * {{signatureBlock}}. Empty string when not configured — the typed name in
+ * the sign-off is always the fallback (some mail clients block images).
+ */
+export function buildSignatureBlock(cfg: ClientCheckinConfig): string {
+  if (!cfg.signatureImageUrl) return ""
+  const alt = cfg.founderName.replace(/[<>"&]/g, "").trim() || "Founder signature"
+  return `<img src="${cfg.signatureImageUrl}" alt="${alt}" width="180" style="display:block;max-width:180px;height:auto;margin:0 0 6px;" />`
 }
 
 interface CheckinBusiness {
@@ -378,6 +416,7 @@ export async function sendClientCheckinEmail(
     fullName: business.primary_contact_name || "there",
     businessName: business.business_name || "your business",
     founderName: cfg.founderName,
+    signatureBlock: buildSignatureBlock(cfg),
   })
 
   const sent = await sendEmail({
@@ -395,7 +434,7 @@ export async function sendClientCheckinEmail(
 async function actionClientCheckin(ctx: ActionContext): Promise<ActionResult> {
   const { data: biz } = await supabase
     .from("businesses")
-    .select("id, business_name, primary_contact_name, primary_email, status")
+    .select("id, business_name, primary_contact_name, primary_email, status, access_sent_at, created_at")
     .eq("id", ctx.run.subjectId)
     .maybeSingle()
 
@@ -407,8 +446,19 @@ async function actionClientCheckin(ctx: ActionContext): Promise<ActionResult> {
   const cfg = await getClientCheckinConfig()
   const templateKey = cfg.milestoneTemplates[ctx.run.step - 1] || cfg.milestoneTemplates[cfg.milestoneTemplates.length - 1]
   const { sent, error } = await sendClientCheckinEmail(biz as CheckinBusiness, templateKey, cfg)
-  // Anything except a delivery failure means the check-in is no longer applicable.
-  return { sent, done: !sent && error !== "Delivery failed" ? true : undefined, error }
+  if (!sent) {
+    // Anything except a delivery failure means the check-in is no longer applicable.
+    return { sent, done: error !== "Delivery failed" ? true : undefined, error }
+  }
+
+  // Pin the next milestone to the connection date, not to this send's time.
+  let nextScheduledFor: string | undefined
+  const nextDay = cfg.milestoneDays[ctx.run.step]
+  if (nextDay !== undefined) {
+    const anchorMs = Date.parse(String(biz.access_sent_at || biz.created_at))
+    if (!Number.isNaN(anchorMs)) nextScheduledFor = new Date(anchorMs + nextDay * 86_400_000).toISOString()
+  }
+  return { sent, nextScheduledFor }
 }
 
 /** Questionnaire reminder — lead who has not submitted the questionnaire. */
@@ -706,7 +756,7 @@ export async function runAutomationSweep(limit = 100): Promise<AutomationSweepRe
           .from("automation_runs")
           .update({
             step: next.step,
-            scheduled_for: next.scheduledFor,
+            scheduled_for: action.nextScheduledFor ?? next.scheduledFor,
             last_sent_at: nowIso,
             updated_at: nowIso,
           })

@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server"
 import { isSupabaseConfigured } from "@/lib/supabase"
 import { runAutomationSweep } from "@/lib/automations"
+import { runDormancySweep } from "@/lib/client-checkins"
 
 /* ───────────────────────────  Automation reminder sweep  ───────────────────
  * Runs the trigger → delay → action engine (lib/automations.ts). Picks up due,
- * pending automation_runs and executes their action (currently: questionnaire
- * 48h reminder + quote 48h reminder). Each successful send reschedules the next
- * step until `max_steps` is reached; runs stop early when the goal is met.
+ * pending automation_runs and executes their action (questionnaire / quote /
+ * estimate reminders + founder client check-ins). Each successful send
+ * reschedules the next step; runs stop early when the goal is met.
+ * Also runs the dormancy sweep (30-days-no-login "we've missed you" note).
  *
  * Triggering: Vercel cron (see vercel.json) sends
  * Authorization: Bearer <CRON_SECRET>. Manual run:
@@ -40,7 +42,11 @@ export async function GET(request: Request) {
   }
   try {
     const result = await runAutomationSweep()
-    return NextResponse.json({ ok: true, ...result })
+    const dormancy = await runDormancySweep().catch((err) => {
+      console.error("[reminders-cron] dormancy sweep failed:", err)
+      return null
+    })
+    return NextResponse.json({ ok: true, ...result, dormancy })
   } catch (err) {
     console.error("[reminders-cron]", err)
     return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : "Reminder sweep failed" }, { status: 500 })

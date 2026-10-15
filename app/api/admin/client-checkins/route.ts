@@ -9,12 +9,17 @@ import {
   startCheckins,
   runCheckinNow,
   backfillOverdueCheckins,
+  runDormancySweep,
+  rotateInstallToken,
+  setDormancyPaused,
+  getRecentPingIssues,
 } from "@/lib/client-checkins"
 
 /* ───────────────────  Client founder check-ins (admin)  ───────────────────
  * Backs Settings → Client Check-ins: the live view of the welcome +
- * 30/60/90/120-day sequence, its config, and the manual trigger buttons
- * (start a client, send the next check-in now, backfill overdue clients).
+ * 30/60/90/120/180/270/365-day sequence, its config, the dormancy sweep,
+ * and the manual trigger buttons (start a client, send the next check-in
+ * now, backfill overdue clients).
  */
 
 export const dynamic = "force-dynamic"
@@ -35,17 +40,20 @@ export async function GET() {
   }
 
   try {
-    const [automation, config, clients] = await Promise.all([
+    const [automation, config, clients, issues] = await Promise.all([
       getAutomationByKey(CLIENT_CHECKIN_KEY),
       getClientCheckinConfig(),
       getCheckinOverview(),
+      getRecentPingIssues(30),
     ])
     const stored = await loadClientCheckinsSection()
     return NextResponse.json({
       config: {
         welcomeEnabled: config.welcomeEnabled,
+        dormantEnabled: config.dormantEnabled,
         founderName: config.founderName,
         founderEmail: config.founderEmail,
+        signatureImageUrl: config.signatureImageUrl,
         milestoneTemplates: config.milestoneTemplates,
         savedAt: (stored.savedAt as string) || null,
       },
@@ -59,6 +67,7 @@ export async function GET() {
           }
         : null,
       clients,
+      issues,
     })
   } catch (err) {
     console.error("[client-checkins api]", err)
@@ -90,12 +99,18 @@ export async function POST(request: Request) {
         if (founderEmail && !/^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$/.test(founderEmail)) {
           return NextResponse.json({ error: "Founder email is not valid" }, { status: 400 })
         }
+        const signatureRaw = String(body.signatureImageUrl || "").trim().slice(0, 500)
+        if (signatureRaw && !/^https:\/\/\S+$/i.test(signatureRaw)) {
+          return NextResponse.json({ error: "Signature image must be an https URL" }, { status: 400 })
+        }
         const stored = await loadClientCheckinsSection()
         const section = {
           ...stored,
           welcomeEnabled: body.welcomeEnabled !== false,
+          dormantEnabled: body.dormantEnabled === true,
           founderName: founderName || "Ralph",
           founderEmail: founderEmail || "ralph@martpoint.com.ng",
+          signatureImageUrl: signatureRaw,
           savedAt: new Date().toISOString(),
         }
         const { data: row } = await supabase.from("settings").select("data").eq("id", 1).single()
@@ -142,9 +157,27 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, ...res })
       }
 
+      case "rotate-token": {
+        const businessId = String(body.businessId || "")
+        if (!businessId) return NextResponse.json({ error: "businessId is required" }, { status: 400 })
+        const res = await rotateInstallToken(businessId)
+        return NextResponse.json(res, res.ok ? { status: 200 } : { status: 500 })
+      }
+
+      case "pause-dormancy": {
+        const businessId = String(body.businessId || "")
+        if (!businessId) return NextResponse.json({ error: "businessId is required" }, { status: 400 })
+        const res = await setDormancyPaused(businessId, body.paused === true)
+        return NextResponse.json(res, res.ok ? { status: 200 } : { status: 500 })
+      }
+
       case "sweep": {
         const result = await runAutomationSweep()
-        return NextResponse.json({ ok: true, ...result })
+        const dormancy = await runDormancySweep().catch((err) => {
+          console.error("[client-checkins api] dormancy sweep failed:", err)
+          return null
+        })
+        return NextResponse.json({ ok: true, ...result, dormancy })
       }
 
       default:

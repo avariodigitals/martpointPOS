@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Search } from "lucide-react"
+import { Loader2, Search, Trash2 } from "lucide-react"
 
 interface ApplicationRow {
   id: string
@@ -56,6 +56,26 @@ function ApplicationsList() {
   const [applications, setApplications] = useState<ApplicationRow[]>([])
   const [status, setStatus] = useState(searchParams.get("status") || "")
   const [q, setQ] = useState("")
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState("")
+
+  async function removeApplication(id: string) {
+    setDeletingId(id)
+    setDeleteError("")
+    try {
+      const res = await fetch(`/api/admin/creators/applications/${id}`, { method: "DELETE" })
+      if (res.ok) {
+        setApplications((prev) => prev.filter((a) => a.id !== id))
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setDeleteError(d.error || "Delete failed.")
+      }
+    } finally {
+      setConfirmDeleteId(null)
+      setDeletingId(null)
+    }
+  }
 
   useEffect(() => {
     const params = new URLSearchParams()
@@ -94,6 +114,10 @@ function ApplicationsList() {
           {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
         </select>
       </div>
+
+      {deleteError && (
+        <p className="rounded-md bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 px-4 py-2 text-sm">{deleteError}</p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
@@ -145,9 +169,34 @@ function ApplicationsList() {
                       {new Date(a.submittedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                     </td>
                     <td className="p-4">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/admin/creators/applications/${a.id}`}>Review</Link>
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/admin/creators/applications/${a.id}`}>Review</Link>
+                        </Button>
+                        {confirmDeleteId === a.id ? (
+                          <span className="flex items-center gap-1">
+                            <Button
+                              size="sm" variant="outline" className="bg-red-600 text-white hover:bg-red-700 border-red-600"
+                              disabled={deletingId === a.id}
+                              onClick={() => removeApplication(a.id)}
+                            >
+                              {deletingId === a.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                              Confirm delete
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+                          </span>
+                        ) : (
+                          a.status === "APPROVED" ? null : (
+                            <Button
+                              size="sm" variant="ghost" className="text-red-600 hover:text-red-700"
+                              title="Delete application"
+                              onClick={() => setConfirmDeleteId(a.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

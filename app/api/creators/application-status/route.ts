@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       .from("creator_applications")
       .select("id, reference_number, email, status, submitted_at")
       .eq("reference_number", reference)
+      .is("deleted_at", null)
       .maybeSingle()
 
     // Uniform failure — do not reveal whether reference or email exists.

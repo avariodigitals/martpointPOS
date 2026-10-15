@@ -491,6 +491,59 @@ export async function listCreatorAdminNotes(filter: {
   }))
 }
 
+/* ───────────────────────────  Delete (soft)  ─────────────────────────── */
+
+export async function isApplicationDeleted(applicationId: string): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false
+  const { data } = await supabase
+    .from("creator_applications")
+    .select("deleted_at")
+    .eq("id", applicationId)
+    .maybeSingle()
+  return Boolean(data?.deleted_at)
+}
+
+export async function deleteCreatorApplication(
+  applicationId: string,
+  actor: { id: string; name: string },
+  ctx: AuditContext,
+  reason?: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Service unavailable" }
+
+  const { data: row } = await supabase
+    .from("creator_applications")
+    .select("id, full_name, email, reference_number, status, created_creator_id, deleted_at")
+    .eq("id", applicationId)
+    .maybeSingle()
+  if (!row) return { ok: false, error: "Application not found" }
+  if (row.deleted_at) return { ok: false, error: "Application is already deleted" }
+  if (row.created_creator_id) {
+    return { ok: false, error: "This application was approved and has a creator account — suspend the creator instead." }
+  }
+
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from("creator_applications")
+    .update({ deleted_at: now, updated_at: now })
+    .eq("id", applicationId)
+  if (error) return { ok: false, error: "Delete failed" }
+
+  await recordAudit(ctx, {
+    action: AUDIT_ACTIONS.CREATOR_APPLICATION_DELETED,
+    entityType: AUDIT_ENTITIES.CREATOR_APPLICATION,
+    entityId: applicationId,
+    metadata: {
+      reference: row.reference_number,
+      applicant: row.full_name,
+      status: row.status,
+      reason: reason ?? null,
+    },
+  })
+
+  return { ok: true }
+}
+
 /* ───────────────────────────  Admin listing helpers  ─────────────────────────── */
 
 export interface CreatorApplicationListFilters {

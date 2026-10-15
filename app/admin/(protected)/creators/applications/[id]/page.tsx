@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
   Loader2, ArrowLeft, Sparkles, CalendarClock, CheckCircle2,
-  PauseCircle, XCircle, Ban, ExternalLink, StickyNote,
+  PauseCircle, XCircle, Ban, ExternalLink, StickyNote, Trash2,
 } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 import { CreatorQuestionRoundsPanel } from "@/components/admin/creator-question-rounds-panel"
@@ -100,6 +100,24 @@ export default function CreatorApplicationDetailPage() {
   const [interviewLocation, setInterviewLocation] = useState("")
   const [interviewNotes, setInterviewNotes] = useState("")
   const [toast, setToast] = useState("")
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  async function deleteApplication() {
+    setBusy("delete")
+    try {
+      const res = await fetch(`/api/admin/creators/applications/${id}`, { method: "DELETE" })
+      if (res.ok) {
+        router.push("/admin/creators/applications")
+        return
+      }
+      const d = await res.json().catch(() => ({}))
+      setToast(d.error || "Delete failed")
+      setTimeout(() => setToast(""), 5000)
+    } finally {
+      setBusy(null)
+      setConfirmDelete(false)
+    }
+  }
 
   const load = useCallback(() => {
     return fetch(`/api/admin/creators/applications/${id}`)
@@ -360,6 +378,19 @@ export default function CreatorApplicationDetailPage() {
                 <p className="text-sm text-green-700 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4" /> Approved — creator account created.
                 </p>
+              ) : confirmDelete ? (
+                <div className="rounded-md border border-red-200 bg-red-50 p-3 space-y-2 dark:border-red-900 dark:bg-red-950">
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    Delete this application? It will be removed from the list and hidden from the applicant's status lookup. Staff can still see it in the audit log.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="bg-red-600 text-white hover:bg-red-700 border-red-600" disabled={!!busy} onClick={deleteApplication}>
+                      {busy === "delete" ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
+                      Confirm delete
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                  </div>
+                </div>
               ) : (
                 <>
                   <textarea
@@ -390,6 +421,13 @@ export default function CreatorApplicationDetailPage() {
                       <Ban className="w-3.5 h-3.5 mr-1" /> Suspend
                     </Button>
                   </div>
+                  <Button
+                    size="sm" variant="ghost" className="w-full text-red-600 hover:text-red-700"
+                    disabled={!!busy}
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete application
+                  </Button>
                 </>
               )}
 

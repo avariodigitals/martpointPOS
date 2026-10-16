@@ -323,6 +323,32 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
     }
 
+    // A lead that became a Business is a customer now, and its email thread is
+    // the customer's history (reachable from the business via source_lead_id).
+    // Purging the lead would delete that thread and unlink the business, so
+    // refuse unless the caller explicitly forces it.
+    if (searchParams.get("force") !== "1") {
+      const { data: linked } = await supabase
+        .from("businesses")
+        .select("business_name, source_lead_id")
+        .in("source_lead_id", ids)
+      const converted = (linked as { business_name: string | null; source_lead_id: string }[] | null) || []
+      if (converted.length > 0) {
+        const names = converted.map((b) => b.business_name || b.source_lead_id).join(", ")
+        return NextResponse.json(
+          {
+            error:
+              converted.length === 1
+                ? `This lead was converted to a customer (${names}). Its email history lives with that business, so deletion was blocked to protect it.`
+                : `${converted.length} of these leads were converted to customers (${names}). Their email history lives with those businesses, so deletion was blocked to protect it.`,
+            convertedLeads: converted,
+            requiresForce: true,
+          },
+          { status: 409 },
+        )
+      }
+    }
+
     // Related rows that cascade in the schema are deleted explicitly anyway so a
     // database missing the cascade constraints can't block the delete. Failures
     // here are logged, not fatal — the final leads.delete() reports real errors.

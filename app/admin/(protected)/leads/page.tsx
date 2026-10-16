@@ -155,8 +155,12 @@ export default function AdminLeadsPage() {
   const [productFilter, setProductFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<string>("all")
   const [scoreFilter, setScoreFilter] = useState<string>("all")
-  const [sortBy, setSortBy] = useState<"newest" | "score">("newest")
+  const [ownerFilter, setOwnerFilter] = useState<string>("all")
+  const [sortBy, setSortBy] = useState<"newest" | "activity" | "score">("newest")
   const [showFilters, setShowFilters] = useState(false)
+  // People a lead can be assigned to. Falls back to owners already in use when
+  // the account can't read the user list.
+  const [assignees, setAssignees] = useState<string[]>([])
 
   // Table pagination
   const [pageSize, setPageSize] = useState(25)
@@ -218,6 +222,20 @@ export default function AdminLeadsPage() {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    // The assignee picker needs the admin user list. A leads-only account may
+    // not be allowed to read it — that is fine, owners already in use still show.
+    fetch("/api/admin/users")
+      .then((res) => (res.ok ? res.json() : { users: [] }))
+      .then((data) => {
+        const names = ((data.users || []) as { name?: string; username?: string }[])
+          .map((u) => (u.name || u.username || "").trim())
+          .filter(Boolean)
+        setAssignees(names)
+      })
+      .catch(() => setAssignees([]))
+  }, [])
+
   const filteredLeads = useMemo(() => {
     let result = [...leads]
 
@@ -264,14 +282,34 @@ export default function AdminLeadsPage() {
       result = result.filter((l) => computeLeadScore(l).bucket === (scoreFilter as LeadScoreBucket))
     }
 
+    if (ownerFilter !== "all") {
+      result = result.filter((l) =>
+        ownerFilter === "unassigned" ? !l.assignedTo : l.assignedTo === ownerFilter
+      )
+    }
+
     if (sortBy === "score") {
       // Highest score first; the API already returns newest-first, so equal
       // scores keep their recency order.
       result = [...result].sort((a, b) => computeLeadScore(b).score - computeLeadScore(a).score)
+    } else if (sortBy === "activity") {
+      // Last in, first out: whatever was worked on most recently sits on top,
+      // regardless of when it was originally submitted.
+      result = [...result].sort(
+        (a, b) => (Date.parse(b.updatedAt || "") || 0) - (Date.parse(a.updatedAt || "") || 0)
+      )
     }
 
     return result
-  }, [leads, searchQuery, statusFilter, sourceFilter, productFilter, dateFilter, scoreFilter, sortBy])
+  }, [leads, searchQuery, statusFilter, sourceFilter, productFilter, dateFilter, scoreFilter, ownerFilter, sortBy])
+
+  // Everyone who could own a lead: the admin users, plus any owner already set
+  // on a lead (so an owner who has since left the user list stays selectable).
+  const uniqueOwners = useMemo(() => {
+    const set = new Set<string>(assignees)
+    for (const l of leads) if (l.assignedTo) set.add(l.assignedTo)
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [assignees, leads])
 
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -334,6 +372,27 @@ export default function AdminLeadsPage() {
     }
   }
 
+  /* Assign (or clear) the salesperson who owns a lead. Optimistic, because the
+   * picker is used straight from the list; rolled back if the API refuses. */
+  const setOwner = async (id: string, assignedTo: string) => {
+    const previous = leads.find((l) => l.id === id)?.assignedTo || ""
+    if (assignedTo === previous) return
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, assignedTo } : l)))
+    try {
+      const res = await fetch("/api/admin/leads", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, assignedTo }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed")
+      setMessage(assignedTo ? `Assigned to ${assignedTo}.` : "Owner cleared.")
+    } catch {
+      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, assignedTo: previous } : l)))
+      setMessage("Failed to assign lead")
+    }
+  }
+
   const removeDeletedIds = (ids: Iterable<string>) => {
     const gone = new Set(ids)
     setLeads((prev) => prev.filter((l) => !gone.has(l.id)))
@@ -344,14 +403,29 @@ export default function AdminLeadsPage() {
     })
   }
 
+  /* Deleting a lead that was converted to a customer is blocked by the API to
+   * protect the email history. Offer the override when that happens, instead of
+   * leaving the operator with a dead-end error. */
+  const deleteLeads = async (query: string) => {
+    let res = await fetch(`/api/admin/leads?${query}`, { method: "DELETE" })
+    let data = await res.json()
+    if (res.status === 409 && data.requiresForce) {
+      if (!confirm(`${data.error}\n\nDelete anyway? This permanently removes that email history.`)) {
+        return { ok: false, data: { ...data, cancelled: true } }
+      }
+      res = await fetch(`/api/admin/leads?${query}&force=1`, { method: "DELETE" })
+      data = await res.json()
+    }
+    return { ok: res.ok, data }
+  }
+
   const deleteLead = async (id: string) => {
     if (!confirm("Delete this lead permanently?")) return
     try {
-      const res = await fetch(`/api/admin/leads?id=${id}`, { method: "DELETE" })
-      const data = await res.json()
-      if (res.ok && data.success) {
+      const { ok, data } = await deleteLeads(`id=${id}`)
+      if (ok && data.success) {
         removeDeletedIds([id])
-      } else {
+      } else if (!data.cancelled) {
         setMessage(data.error || "Failed to delete lead")
       }
     } catch {
@@ -387,12 +461,11 @@ export default function AdminLeadsPage() {
     if (!confirm(`Delete ${selectedIds.size} lead${selectedIds.size === 1 ? "" : "s"} permanently? This cannot be undone.`)) return
     setBulkDeleting(true)
     try {
-      const res = await fetch(`/api/admin/leads?ids=${[...selectedIds].join(",")}`, { method: "DELETE" })
-      const data = await res.json()
-      if (res.ok && data.success) {
+      const { ok, data } = await deleteLeads(`ids=${[...selectedIds].join(",")}`)
+      if (ok && data.success) {
         removeDeletedIds(selectedIds)
         setMessage(`${data.deleted ?? selectedIds.size} lead${(data.deleted ?? selectedIds.size) === 1 ? "" : "s"} deleted.`)
-      } else {
+      } else if (!data.cancelled) {
         setMessage(data.error || "Failed to delete leads")
       }
     } catch {
@@ -497,12 +570,11 @@ export default function AdminLeadsPage() {
 
   const deleteLeadFromModal = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/leads?id=${id}`, { method: "DELETE" })
-      const data = await res.json()
-      if (res.ok && data.success) {
+      const { ok, data } = await deleteLeads(`id=${id}`)
+      if (ok && data.success) {
         removeDeletedIds([id])
         setSelectedLead(null)
-      } else {
+      } else if (!data.cancelled) {
         setMessage(data.error || "Failed to delete lead")
       }
     } catch {
@@ -965,13 +1037,28 @@ export default function AdminLeadsPage() {
               </select>
             </div>
             <div>
+              <label className="block text-xs font-medium mb-1">Owner</label>
+              <select
+                value={ownerFilter}
+                onChange={(e) => setOwnerFilter(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">Anyone</option>
+                <option value="unassigned">Unassigned</option>
+                {uniqueOwners.map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-medium mb-1">Sort by</label>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "newest" | "score")}
+                onChange={(e) => setSortBy(e.target.value as "newest" | "activity" | "score")}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value="newest">Newest first</option>
+                <option value="newest">Newest submitted first</option>
+                <option value="activity">Last worked on first</option>
                 <option value="score">Highest score first</option>
               </select>
             </div>
@@ -983,6 +1070,7 @@ export default function AdminLeadsPage() {
                   setProductFilter("all")
                   setDateFilter("all")
                   setScoreFilter("all")
+                  setOwnerFilter("all")
                   setSortBy("newest")
                   setSearchQuery("")
                 }}
@@ -1106,6 +1194,7 @@ export default function AdminLeadsPage() {
                   <th className="px-4 py-3 font-medium">Source</th>
                   <th className="px-4 py-3 font-medium">Questionnaire</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Owner</th>
                   <th className="px-4 py-3 font-medium">Date</th>
                   <th className="px-4 py-3 font-medium w-10"></th>
                 </tr>
@@ -1154,6 +1243,19 @@ export default function AdminLeadsPage() {
                         {lead.status}
                       </span>
                     </td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={lead.assignedTo || ""}
+                        onChange={(e) => setOwner(lead.id, e.target.value)}
+                        className="max-w-[10rem] rounded-md border border-input bg-background px-2 py-1 text-xs"
+                        title="Assign this lead"
+                      >
+                        <option value="">Unassigned</option>
+                        {uniqueOwners.map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                       {new Date(lead.submittedAt).toLocaleDateString()}
                     </td>
@@ -1185,7 +1287,7 @@ export default function AdminLeadsPage() {
                 ))}
                 {filteredLeads.length === 0 && (
                   <tr>
-                    <td colSpan={13} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={14} className="px-4 py-8 text-center text-muted-foreground">
                       No leads match your filters.
                     </td>
                   </tr>
@@ -1482,6 +1584,18 @@ export default function AdminLeadsPage() {
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
+                  <select
+                    value={lead.assignedTo || ""}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setOwner(lead.id, e.target.value)}
+                    className="max-w-[9rem] rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                    title="Assign this lead"
+                  >
+                    <option value="">Unassigned</option>
+                    {uniqueOwners.map((o) => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -1730,6 +1844,7 @@ export default function AdminLeadsPage() {
           onCreateQuote={createQuote}
           onOpenQuestionnaire={openQuestionnaire}
           onMarkQuestionnaireReviewed={markQuestionnaireReviewed}
+          assignees={uniqueOwners}
         />
       )}
     </div>

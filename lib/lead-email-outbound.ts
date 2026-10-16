@@ -60,6 +60,8 @@ export interface SendLeadEmailInput {
   cc?: string | string[]
   /** File attachments — e.g. an .ics calendar invite or a requested document. */
   attachments?: EmailAttachment[]
+  /** Display name to front the shared mailbox — "send as" this person. */
+  senderName?: string
   metadata?: Record<string, unknown>
 }
 
@@ -94,12 +96,17 @@ export interface LeadSenders {
 /** From/Reply-To for lead mail. The mailbox username carries the mail when the
  *  "From Email" field holds only a display name ("MartPoint Solutions"), so a
  *  half-typed Settings → Email entry can't produce a From address the provider
- *  rejects. */
-export function resolveLeadSenders(settings: EmailSettings): LeadSenders {
+ *  rejects.
+ *
+ *  `senderName` implements "send as": the signed-in salesperson fronts the
+ *  shared mailbox, so the customer sees a person while every reply still lands
+ *  in the one inbox the IMAP sync reads. */
+export function resolveLeadSenders(settings: EmailSettings, senderName?: string): LeadSenders {
   const fromEmail = (settings.smtp.fromEmail || "").trim()
   const mailboxAddress = parseSenderAddress(fromEmail) || parseSenderAddress(settings.smtp.user)
   // A "From Email" entry without an address in it is a display name.
-  const displayName = parseSenderAddress(fromEmail)?.name || (fromEmail.includes("@") ? "" : fromEmail)
+  const configuredName = parseSenderAddress(fromEmail)?.name || (fromEmail.includes("@") ? "" : fromEmail)
+  const displayName = (senderName || "").trim() || configuredName
   const accountSender =
     parseSenderAddress(settings.fromEmail) ||
     parseSenderAddress(process.env.RESEND_FROM_EMAIL) ||
@@ -109,7 +116,7 @@ export function resolveLeadSenders(settings: EmailSettings): LeadSenders {
   if (!mailboxAddress) return { from: safeFrom, replyTo: REPLY_TO.sales, safeFrom }
 
   const from = `${displayName || "MartPoint"} <${mailboxAddress.address}>`
-  // Replies must reach the mailbox the IMAP sync reads.
+  // Replies must reach the mailbox the IMAP sync reads — never the sender.
   return { from, replyTo: from, safeFrom }
 }
 
@@ -168,7 +175,7 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
     settings.provider === "brevo"
       ? Boolean(settings.brevoApiKey || process.env.BREVO_API_KEY)
       : Boolean(settings.resendApiKey || process.env.RESEND_API_KEY)
-  const { from, replyTo, safeFrom } = resolveLeadSenders(settings)
+  const { from, replyTo, safeFrom } = resolveLeadSenders(settings, input.senderName)
 
   const { text: textBody, html } = await renderLeadEmail(input, settings)
 

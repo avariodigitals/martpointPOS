@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button"
 import {
   ArrowLeft, Save, Loader2, Building2, ClipboardCheck, Activity, Lock, Landmark,
   Headset, HeartHandshake, ShieldCheck, AlertTriangle, Trash2, Pencil, X,
-  CheckCircle2, MapPin, Users, CreditCard, Plus, Rocket, Paperclip, FileText, Download,
+  CheckCircle2, MapPin, Users, CreditCard, Plus, Rocket, Paperclip, FileText, Download, Mail,
 } from "lucide-react"
 import type { Business, BusinessStatus, BusinessBranch, BusinessUser, OnboardingStages, OnboardingStageKey } from "@/lib/businesses"
+import type { LeadEmailRecord } from "@/lib/lead-email-outbound"
 import { ONBOARDING_STAGES } from "@/lib/businesses"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
 import { LocationFields } from "@/components/location-fields"
@@ -46,6 +47,7 @@ const TABS: Tab[] = [
   { key: "files", label: "Files", icon: Paperclip, enabled: true },
   { key: "subscription", label: "Subscription", icon: CreditCard, enabled: true },
   { key: "activity", label: "Activity", icon: Activity, enabled: true },
+  { key: "email", label: "Email", icon: Mail, enabled: true },
   { key: "finance", label: "Finance", icon: Landmark, enabled: true, href: (id: string) => `/admin/businesses/${id}/finance` },
   { key: "deployment", label: "Deployment", icon: Lock, enabled: false },
   { key: "partner", label: "Partner", icon: Lock, enabled: false },
@@ -167,6 +169,33 @@ export function BusinessDetail({
     targetGoLive: business.targetGoLive ? business.targetGoLive.slice(0, 10) : "",
   })
   const [savingHealth, setSavingHealth] = useState(false)
+
+  // The Email tab shows the thread of the lead this business was converted
+  // from. Loaded when the tab is opened, not on mount, so the detail page stays
+  // cheap for every business.
+  const [emails, setEmails] = useState<LeadEmailRecord[] | null>(null)
+  const [emailsLoading, setEmailsLoading] = useState(false)
+  const [emailsError, setEmailsError] = useState("")
+
+  const loadEmails = async () => {
+    setEmailsLoading(true)
+    setEmailsError("")
+    try {
+      const res = await fetch(`/api/admin/businesses/${business.id}/emails`)
+      const data = await res.json()
+      if (res.ok) setEmails(data.emails || [])
+      else setEmailsError(data.error || "Failed to load email history")
+    } catch {
+      setEmailsError("Failed to load email history")
+    } finally {
+      setEmailsLoading(false)
+    }
+  }
+
+  const openTab = (key: string) => {
+    setTab(key)
+    if (key === "email" && emails === null && !emailsLoading) void loadEmails()
+  }
 
   const save = async () => {
     setSaving(true)
@@ -448,7 +477,7 @@ export function BusinessDetail({
           return (
             <button
               key={t.key}
-              onClick={() => t.enabled && setTab(t.key)}
+              onClick={() => t.enabled && openTab(t.key)}
               disabled={!t.enabled}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                 active ? "bg-primary text-primary-foreground"
@@ -1020,6 +1049,47 @@ export function BusinessDetail({
                       <span className="text-xs text-muted-foreground">{fmt(a.createdAt)}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">by {a.actorName || "system"}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "email" && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm font-medium">Email history</CardTitle></CardHeader>
+          <CardContent>
+            {emailsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : emailsError ? (
+              <p className="text-sm text-red-500">{emailsError}</p>
+            ) : !emails || emails.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No email history yet — either this business didn&apos;t come from a lead, or none of its replies have been imported.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  {emails.length} message{emails.length === 1 ? "" : "s"}, oldest first — the full thread is readable by
+                  anyone with access to Businesses. Replies are composed on the lead thread in Leads.
+                </p>
+                {emails.map((e) => (
+                  <div key={e.id} className="rounded-md border border-border p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">{e.subject || "(no subject)"}</span>
+                      <span className="text-xs text-muted-foreground">{fmt(e.createdAt)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {e.direction === "inbound" ? "From" : "To"} {e.direction === "inbound" ? e.fromEmail : e.toEmail}
+                      {e.status && e.status !== "sent" ? ` · ${e.status}` : ""}
+                    </p>
+                    {e.bodyText && (
+                      <p className="mt-2 whitespace-pre-wrap text-muted-foreground line-clamp-6">{e.bodyText}</p>
+                    )}
                   </div>
                 ))}
               </div>

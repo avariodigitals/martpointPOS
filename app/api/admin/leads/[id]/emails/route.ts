@@ -101,6 +101,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       html,
       noSignature,
       attachments: parsed.data.attachments,
+      // "Send as": the customer sees the salesperson's name, but the address
+      // stays the shared mailbox so the reply lands in the synced inbox.
+      senderName: auth.session.name,
       metadata: template ? { template: template.key, industry: template.industry || (lead.industry as string | null) || null } : undefined,
     })
 

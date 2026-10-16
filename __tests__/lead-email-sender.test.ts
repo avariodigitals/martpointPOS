@@ -43,3 +43,24 @@ describe("resolveLeadSenders", () => {
     expect(r.safeFrom).toBe("MartPoint <hello@martpoint.com.ng>")
   })
 })
+
+describe("send as a salesperson", () => {
+  const mailbox = settings({
+    smtp: { host: "mail.martpoint.com.ng", port: 465, secure: true, user: "sales@martpoint.com.ng", pass: "x", fromEmail: "MartPoint Solutions" },
+  })
+
+  it("fronts the shared mailbox with the sender's name", () => {
+    expect(resolveLeadSenders(mailbox, "Ralph").from).toBe("Ralph <sales@martpoint.com.ng>")
+  })
+
+  it("keeps replies in the one mailbox the IMAP sync reads, whoever sends", () => {
+    const r = resolveLeadSenders(mailbox, "Ada")
+    expect(r.replyTo).toBe("Ada <sales@martpoint.com.ng>")
+    expect(r.replyTo).toContain("sales@martpoint.com.ng")
+  })
+
+  it("falls back to the configured display name when no sender is given", () => {
+    expect(resolveLeadSenders(mailbox).from).toBe("MartPoint Solutions <sales@martpoint.com.ng>")
+    expect(resolveLeadSenders(mailbox, "   ").from).toBe("MartPoint Solutions <sales@martpoint.com.ng>")
+  })
+})

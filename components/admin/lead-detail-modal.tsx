@@ -181,6 +181,8 @@ interface LeadDetailModalProps {
   onCreateQuote: (lead: Lead) => void
   onOpenQuestionnaire: (lead: Lead) => Promise<void>
   onMarkQuestionnaireReviewed: (lead: Lead) => Promise<void>
+  /** People this lead can be assigned to (admin users + owners already in use). */
+  assignees?: string[]
 }
 
 export function LeadDetailModal({
@@ -193,6 +195,7 @@ export function LeadDetailModal({
   onCreateQuote,
   onOpenQuestionnaire,
   onMarkQuestionnaireReviewed,
+  assignees = [],
 }: LeadDetailModalProps) {
   const [tab, setTab] = useState<Tab>("overview")
   const [leadNoteDraft, setLeadNoteDraft] = useState("")
@@ -216,6 +219,7 @@ export function LeadDetailModal({
     message: lead.message || "",
     source: lead.source,
     status: lead.status,
+    assignedTo: lead.assignedTo || "",
   })
   const [converting, setConverting] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -467,6 +471,7 @@ export function LeadDetailModal({
         message: updated.message || "",
         source: updated.source,
         status: updated.status,
+        assignedTo: updated.assignedTo || "",
       })
       setTab("overview")
     }
@@ -1328,6 +1333,20 @@ export function LeadDetailModal({
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Assigned to</label>
+                  <select
+                    value={editForm.assignedTo}
+                    onChange={(e) => setEditForm((p) => ({ ...p, assignedTo: e.target.value }))}
+                    className={inputClass}
+                  >
+                    <option value="">Unassigned</option>
+                    {assignees.map((a) => (
+                      <option key={a} value={a}>{a}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-muted-foreground">The salesperson who owns this lead.</p>
                 </div>
               </div>
 

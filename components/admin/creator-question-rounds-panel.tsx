@@ -20,6 +20,7 @@ interface RoundField { name: string; label: string; type: string; required?: boo
 
 interface Round {
   id: string
+  token: string
   title: string
   status: "Sent" | "Submitted" | "Reviewed"
   fields: RoundField[]
@@ -69,6 +70,19 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
   const [draftFields, setDraftFields] = useState<DraftField[]>([newDraftField()])
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState("")
+  const [openSent, setOpenSent] = useState<Record<string, boolean>>({})
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  async function copyAnswerLink(round: Round) {
+    const url = `${window.location.origin}/creator/questions/${round.token}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedId(round.id)
+      setTimeout(() => setCopiedId((v) => (v === round.id ? null : v)), 2500)
+    } catch {
+      flash("Could not copy the link — open the Questions tab in your browser settings and allow clipboard access.")
+    }
+  }
 
   const load = useCallback(() => {
     return fetch(`/api/admin/creators/applications/${applicationId}/questions`)
@@ -194,6 +208,28 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
               {round.submitted_at ? ` · answered ${new Date(round.submitted_at).toLocaleString("en-GB")}` : ""}
               {round.reviewed_at ? ` · reviewed ${new Date(round.reviewed_at).toLocaleString("en-GB")}` : ""}
             </p>
+            {round.status === "Sent" && (
+              <div className="space-y-2 border-t pt-2">
+                <p className="text-xs text-muted-foreground">
+                  Awaiting the applicant's answers — they will appear on this card as soon as they submit.
+                </p>
+                <Button size="sm" variant="ghost" className="h-auto p-0 text-xs font-semibold uppercase text-muted-foreground" onClick={() => setOpenSent((c) => ({ ...c, [round.id]: !c[round.id] }))}>
+                  {openSent[round.id] ? "Hide" : "Show"} questions sent ({round.fields.length})
+                </Button>
+                {openSent[round.id] && (
+                  <ul className="space-y-1 list-disc pl-4 text-xs">
+                    {round.fields.map((f) => <li key={f.name}>{f.label}{f.required ? " · required" : ""}</li>)}
+                  </ul>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => copyAnswerLink(round)}>
+                    <Send className="w-3.5 h-3.5 mr-1" />
+                    {copiedId === round.id ? "Link copied" : "Copy answer link"}
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">For WhatsApp/email if the applicant did not get the message.</p>
+                </div>
+              </div>
+            )}
             {round.status !== "Sent" && (
               <div className="space-y-2.5 border-t pt-2">
                 {round.fields.map((field) => (

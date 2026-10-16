@@ -502,8 +502,11 @@ export default function CreatorApplicationDetailPage() {
               <ul className="text-xs space-y-1.5">
                 {(application.statusHistory || []).map((h, i) => (
                   <li key={i} className="flex justify-between gap-2">
-                    <span className="font-medium">{enumLabel(h.status)}</span>
-                    <span className="text-muted-foreground text-right">
+                    <div className="min-w-0">
+                      <span className="font-medium">{enumLabel(h.status)}</span>
+                      {h.reason && <p className="text-muted-foreground italic mt-0.5 break-words">{h.reason}</p>}
+                    </div>
+                    <span className="text-muted-foreground text-right shrink-0">
                       {h.by ? `${h.by} · ` : ""}{new Date(h.at).toLocaleString("en-GB")}
                     </span>
                   </li>

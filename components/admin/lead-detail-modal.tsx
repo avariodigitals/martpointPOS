@@ -273,6 +273,7 @@ export function LeadDetailModal({
   const [meetingActionId, setMeetingActionId] = useState<string | null>(null)
   const [notesOpenId, setNotesOpenId] = useState<string | null>(null)
   const [notesDraft, setNotesDraft] = useState({ summary: "", actionItems: "", transcriptUrl: "", recordingUrl: "" })
+  const [followup, setFollowup] = useState<{ meetingId: string; subject: string; body: string } | null>(null)
 
   const leadTemplate = getLeadAdditionalQuestionTemplate(lead.industry || lead.businessType || "")
 
@@ -660,7 +661,7 @@ export function LeadDetailModal({
     }
   }
 
-  const handleMeetingAction = async (m: Meeting, action: "cancel" | "resend_invite" | "set_status" | "email_summary", status?: Meeting["status"]) => {
+  const handleMeetingAction = async (m: Meeting, action: "cancel" | "resend_invite" | "set_status", status?: Meeting["status"]) => {
     if (action === "cancel" && !confirm("Cancel this meeting? The lead's calendar invite will be removed.")) return
     setMeetingActionId(m.id)
     setMeetingMessage("")
@@ -674,12 +675,58 @@ export function LeadDetailModal({
       if (data.success && data.meeting) {
         setMeetings((prev) => prev.map((x) => (x.id === m.id ? data.meeting : x)))
         if (action === "resend_invite") setMeetingMessage(data.emailSent ? "Invitation re-sent." : "Could not send the invitation email.")
-        if (action === "email_summary") setMeetingMessage(data.emailSent ? "Summary sent to the lead." : "Could not send the summary email.")
       } else {
         setMeetingMessage(data.error || "Action failed")
       }
     } catch {
       setMeetingMessage("Action failed")
+    } finally {
+      setMeetingActionId(null)
+    }
+  }
+
+  const draftMeetingFollowup = async (m: Meeting) => {
+    setMeetingActionId(m.id)
+    setMeetingMessage("")
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/meetings/${m.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "draft_followup" }),
+      })
+      const data = await res.json()
+      if (data.success && data.draft) {
+        setFollowup({ meetingId: m.id, subject: data.draft.subject, body: data.draft.body })
+      } else {
+        setMeetingMessage(data.error || "Could not draft the email")
+      }
+    } catch {
+      setMeetingMessage("Could not draft the email")
+    } finally {
+      setMeetingActionId(null)
+    }
+  }
+
+  const sendMeetingFollowup = async (m: Meeting) => {
+    if (!followup || !followup.subject.trim() || !followup.body.trim()) return
+    setMeetingActionId(m.id)
+    setMeetingMessage("")
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/meetings/${m.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send_followup", subject: followup.subject, body: followup.body }),
+      })
+      const data = await res.json()
+      if (data.success && data.meeting) {
+        setMeetings((prev) => prev.map((x) => (x.id === m.id ? data.meeting : x)))
+        setFollowup(null)
+        setMeetingMessage(data.emailSent ? "Follow-up email sent to the lead." : "Could not send the email.")
+      } else {
+        setMeetingMessage(data.error || "Could not send the email")
+      }
+    } catch {
+      setMeetingMessage("Could not send the email")
     } finally {
       setMeetingActionId(null)
     }
@@ -2217,16 +2264,46 @@ export function LeadDetailModal({
                                 <p className="mt-1 whitespace-pre-wrap max-h-48 overflow-y-auto">{m.transcript}</p>
                               </details>
                             )}
-                            {m.summary && lead.email && (
-                              <div className="flex items-center gap-2 pt-1">
-                                <Button size="sm" variant="outline" disabled={busy} onClick={() => handleMeetingAction(m, "email_summary")}>
-                                  {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Mail className="w-3.5 h-3.5 mr-1" />}
-                                  {m.summarySentAt ? "Resend to lead" : "Share with lead"}
-                                </Button>
-                                {m.summarySentAt && (
-                                  <span className="text-[11px] text-muted-foreground">
-                                    Sent {new Date(m.summarySentAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
-                                  </span>
+                            {(m.summary || m.transcript || m.actionItems?.length) && lead.email && (
+                              <div className="space-y-2 pt-1">
+                                {followup?.meetingId !== m.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <Button size="sm" variant="outline" disabled={busy} onClick={() => draftMeetingFollowup(m)}>
+                                      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Mail className="w-3.5 h-3.5 mr-1" />}
+                                      Draft follow-up email
+                                    </Button>
+                                    {m.summarySentAt && (
+                                      <span className="text-[11px] text-muted-foreground">
+                                        Last sent {new Date(m.summarySentAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="rounded-md border border-border p-3 space-y-2">
+                                    <p className={labelClass}>Follow-up to {lead.email}</p>
+                                    <input
+                                      value={followup.subject}
+                                      onChange={(e) => setFollowup((p) => (p ? { ...p, subject: e.target.value } : p))}
+                                      className={inputClass}
+                                      placeholder="Subject"
+                                    />
+                                    <textarea
+                                      rows={9}
+                                      value={followup.body}
+                                      onChange={(e) => setFollowup((p) => (p ? { ...p, body: e.target.value } : p))}
+                                      className={`${inputClass} resize-y`}
+                                    />
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <Button size="sm" disabled={busy || !followup.subject.trim() || !followup.body.trim()} onClick={() => sendMeetingFollowup(m)}>
+                                        {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Mail className="w-3.5 h-3.5 mr-1" />}
+                                        Send to lead
+                                      </Button>
+                                      <Button size="sm" variant="ghost" onClick={() => setFollowup(null)}>
+                                        Discard
+                                      </Button>
+                                      <span className="text-[11px] text-muted-foreground">Edit freely — it sends exactly as shown.</span>
+                                    </div>
+                                  </div>
                                 )}
                               </div>
                             )}

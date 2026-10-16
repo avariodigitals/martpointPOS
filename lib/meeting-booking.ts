@@ -11,7 +11,8 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { sendEmail, type EmailAttachment } from "./email"
 import { sendLeadEmail, escapeHtml } from "./lead-email-outbound"
-import { renderEmailTemplate } from "./email-templates"
+import { renderEmailTemplate, brandedEmailHtml } from "./email-templates"
+import { aiChat } from "./ai-chat"
 import { getBaseUrl } from "./marketing"
 import {
   normalizeScheduling,
@@ -328,39 +329,104 @@ export async function sendMeetingConfirmationEmails(
   })
 }
 
-/** Share the AI-generated recap + action items with the lead. */
-export async function sendMeetingSummaryEmail(meeting: MeetingRecord): Promise<boolean> {
-  if (!meeting.leadEmail || !meeting.summary) return false
-  const when = meeting.scheduledAt ? ` on ${formatWhen(meeting.scheduledAt, meeting.leadTimezone || meeting.timezone)}` : ""
+export interface MeetingFollowupDraft {
+  subject: string
+  body: string
+}
 
+function meetingWhen(meeting: MeetingRecord): string {
+  return meeting.scheduledAt ? ` on ${formatWhen(meeting.scheduledAt, meeting.leadTimezone || meeting.timezone)}` : ""
+}
+
+/* Plain recap built from the stored notes — used when no AI key is
+ * configured or the model returns something unusable. Needs a summary or
+ * action items; a bare transcript would read as raw noise in an email. */
+function localFollowupDraft(meeting: MeetingRecord): MeetingFollowupDraft | null {
+  const summary = (meeting.summary || "").trim()
   const items = meeting.actionItems ?? []
-  const actionItemsText = items.length ? `Action items:\n${items.map((i) => `• ${i}`).join("\n")}` : ""
-  const actionItemsBlock = items.length
-    ? `<p style="font-size:14px; color:#6b7280; margin:0 0 6px;">Action items</p>
-              <ul style="font-size:14px; line-height:1.7; color:#111827; margin:0 0 24px; padding-left:20px;">
-                ${items.map((i) => `<li>${escapeHtml(i)}</li>`).join("\n                ")}
-              </ul>`
-    : ""
+  if (!summary && !items.length) return null
+  const lines = [
+    `Hi ${firstName(meeting.leadFullName) || "there"},`,
+    ``,
+    `Thanks for your time on "${meeting.title}"${meetingWhen(meeting)}. Here's a quick recap:`,
+    ``,
+    summary,
+    ...(items.length ? [``, `Action points:`, ...items.map((i) => `• ${i}`)] : []),
+    ``,
+    `Anything we missed or want to follow up on? Just reply to this email.`,
+    ``,
+    `Best regards,`,
+    `MartPoint Sales Team`,
+  ]
+  return { subject: `Notes from our call — ${meeting.title}`, body: lines.join("\n") }
+}
 
-  const tpl = await renderEmailTemplate("meeting_summary", {
-    fullName: firstName(meeting.leadFullName),
-    title: meeting.title,
-    when,
-    summary: meeting.summary,
-    summaryHtml: escapeHtml(meeting.summary).replace(/\n/g, "<br>"),
-    actionItemsText,
-    actionItemsBlock,
-    linksText: "",
-    linksBlock: "",
-  })
+/** Draft a follow-up email (thank-you + highlights + action points) for the
+ *  admin to review. AI-written when a provider is configured, plain recap
+ *  otherwise — the admin always sees and edits the draft before it sends. */
+export async function draftMeetingFollowupEmail(meeting: MeetingRecord): Promise<MeetingFollowupDraft | null> {
+  const items = meeting.actionItems ?? []
+  const hasMaterial = Boolean(meeting.summary?.trim() || items.length || meeting.transcript?.trim())
+  if (!hasMaterial) return null
+
+  const context = [
+    `Recipient: ${meeting.leadFullName || meeting.leadEmail || "the client"}${meeting.leadBusinessName ? ` (${meeting.leadBusinessName})` : ""}`,
+    `Meeting: "${meeting.title}"${meetingWhen(meeting)}`,
+    `Summary: ${meeting.summary?.trim() || "(not provided)"}`,
+    `Action points: ${items.length ? items.join(" | ") : "(not provided)"}`,
+    meeting.transcript?.trim() ? `Transcript excerpt (may be cut off):\n${meeting.transcript.trim().slice(0, 8000)}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+
+  try {
+    const res = await aiChat({
+      json: true,
+      temperature: 0.4,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You write short post-meeting follow-up emails for MartPoint, a POS software company.",
+            "Return JSON with keys \"subject\" and \"body\"; the body is plain text.",
+            "Rules: thank the recipient for their time; recap only highlights present in the provided material — never invent details, numbers, promises or attendees; include an \"Action points\" bullet list (lines starting with •) drawn from the provided action items, kept as given; friendly professional tone; 120–220 words; no placeholders like [Name]; end the body with:",
+            "Best regards,",
+            "MartPoint Sales Team",
+          ].join("\n"),
+        },
+        { role: "user", content: `Write the follow-up email for this meeting:\n\n${context}` },
+      ],
+    })
+    const parsed = JSON.parse(res.content) as { subject?: unknown; body?: unknown }
+    const subject = typeof parsed.subject === "string" ? parsed.subject.trim().slice(0, 300) : ""
+    const body = typeof parsed.body === "string" ? parsed.body.trim().slice(0, 8000) : ""
+    if (subject && body) return { subject, body }
+  } catch {
+    // no key / bad response — fall through to the plain recap
+  }
+  return localFollowupDraft(meeting)
+}
+
+/** Send the admin-reviewed follow-up draft to the lead. */
+export async function sendMeetingFollowupEmail(meeting: MeetingRecord, subject: string, body: string): Promise<boolean> {
+  const to = (meeting.leadEmail || "").trim()
+  const subj = subject.trim()
+  const text = body.trim()
+  if (!to || !subj || !text) return false
+
+  const bodyHtml = text
+    .split(/\n{2,}/)
+    .map((p) => `<p style="font-size:15px; line-height:1.6; margin:0 0 16px; color:#374151;">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
+    .join("\n")
+  const html = brandedEmailHtml(bodyHtml, { eyebrow: "Sales", title: subj, signoff: "MartPoint Sales Team" })
 
   const result = await sendLeadEmail({
     leadId: meeting.leadId,
-    to: meeting.leadEmail,
-    subject: tpl.subject,
-    body: tpl.text,
-    html: tpl.html,
-    metadata: { meeting_id: meeting.id, kind: "meeting_summary" },
+    to,
+    subject: subj,
+    body: text,
+    html,
+    metadata: { meeting_id: meeting.id, kind: "meeting_followup" },
   })
   return result.sent
 }

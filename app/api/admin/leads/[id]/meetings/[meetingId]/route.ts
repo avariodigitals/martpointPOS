@@ -2,16 +2,18 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { MEETING_SELECT, mapMeeting, cancelMeeting, sendMeetingInviteEmail, sendMeetingSummaryEmail, computeAvailableSlots } from "@/lib/meeting-booking"
+import { MEETING_SELECT, mapMeeting, cancelMeeting, sendMeetingInviteEmail, draftMeetingFollowupEmail, sendMeetingFollowupEmail, computeAvailableSlots } from "@/lib/meeting-booking"
 
 const patchSchema = z.object({
-  action: z.enum(["cancel", "resend_invite", "set_status", "save_notes", "email_summary"]),
+  action: z.enum(["cancel", "resend_invite", "set_status", "save_notes", "draft_followup", "send_followup"]),
   status: z.enum(["COMPLETED", "NO_SHOW", "SCHEDULED"]).optional(),
   summary: z.string().nullable().optional(),
   actionItems: z.array(z.string()).nullable().optional(),
   transcript: z.string().nullable().optional(),
   transcriptUrl: z.string().nullable().optional(),
   recordingUrl: z.string().nullable().optional(),
+  subject: z.string().max(300).optional(),
+  body: z.string().max(20000).optional(),
 })
 
 async function loadMeeting(leadId: string, meetingId: string) {
@@ -87,10 +89,22 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     return NextResponse.json({ success: true, meeting: mapMeeting(data as Record<string, unknown>) })
   }
 
-  if (parsed.data.action === "email_summary") {
-    if (!meeting.summary) return NextResponse.json({ error: "No notes on this meeting yet" }, { status: 400 })
+  if (parsed.data.action === "draft_followup") {
+    if (!meeting.summary && !meeting.transcript && !meeting.actionItems?.length) {
+      return NextResponse.json({ error: "No notes on this meeting yet" }, { status: 400 })
+    }
     if (!meeting.leadEmail) return NextResponse.json({ error: "Lead has no email address" }, { status: 400 })
-    const sent = await sendMeetingSummaryEmail(meeting)
+    const draft = await draftMeetingFollowupEmail(meeting)
+    if (!draft) return NextResponse.json({ error: "Could not draft an email — add a meeting summary first" }, { status: 422 })
+    return NextResponse.json({ success: true, draft })
+  }
+
+  if (parsed.data.action === "send_followup") {
+    const subject = parsed.data.subject?.trim() || ""
+    const body = parsed.data.body?.trim() || ""
+    if (!subject || !body) return NextResponse.json({ error: "Subject and message are required" }, { status: 400 })
+    if (!meeting.leadEmail) return NextResponse.json({ error: "Lead has no email address" }, { status: 400 })
+    const sent = await sendMeetingFollowupEmail(meeting, subject, body)
     if (sent) {
       await supabase.from("lead_meetings").update({ summary_sent_at: new Date().toISOString() }).eq("id", meeting.id)
     }

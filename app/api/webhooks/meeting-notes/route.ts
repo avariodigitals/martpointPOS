@@ -51,7 +51,20 @@ function pickStr(obj: Record<string, unknown>, ...keys: string[]): string {
 
 function normalizeActionItems(raw: unknown): string[] | null {
   if (Array.isArray(raw)) {
-    const items = raw.map((i) => String(i).trim()).filter(Boolean)
+    const items = raw
+      .map((i) => {
+        if (typeof i === "string") return i.trim()
+        // Fathom-style objects — pull the human text out of whichever key it uses.
+        if (i && typeof i === "object") {
+          const o = i as Record<string, unknown>
+          for (const k of ["text", "title", "description", "content", "action_item"]) {
+            const v = o[k]
+            if (typeof v === "string" && v.trim()) return v.trim()
+          }
+        }
+        return ""
+      })
+      .filter(Boolean)
     return items.length ? items : null
   }
   if (typeof raw === "string" && raw.trim()) {

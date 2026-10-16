@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ChevronLeft, ChevronRight, Video, Calendar, Clock, FileText, Users } from "lucide-react"
+import { isValidTimeZone, ymdInTz } from "@/lib/scheduling"
 
 interface CalendarMeeting {
   id: string
@@ -35,12 +36,17 @@ function formatMonthYear(d: Date) {
   return d.toLocaleDateString("en-GB", { month: "long", year: "numeric" })
 }
 
+const VIEWER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+/** Calendar cell key — the cell is a local midnight Date, so read its own calendar day. */
 function dateKey(d: Date) {
-  return d.toISOString().split("T")[0]
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-function meetingDateKey(scheduledAt: string) {
-  return new Date(scheduledAt).toISOString().split("T")[0]
+/** Meeting key — the day the meeting falls on *in its own timezone*, matching the
+ *  time shown beside it. Never UTC-truncate: that shifts late-evening meetings a day. */
+function meetingDateKey(scheduledAt: string, tz?: string) {
+  return ymdInTz(new Date(scheduledAt), tz && isValidTimeZone(tz) ? tz : VIEWER_TZ)
 }
 
 export default function AdminCalendarPage() {
@@ -53,7 +59,10 @@ export default function AdminCalendarPage() {
   useEffect(() => {
     const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1)
     const end = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0, 23, 59, 59)
-    fetch(`/api/admin/calendar?from=${start.toISOString()}&to=${end.toISOString()}`)
+    // Meetings are bucketed by their own timezone, so widen the absolute window by a
+    // day on each side to keep events near the month edges.
+    const pad = (d: Date, days: number) => new Date(d.getTime() + days * 86_400_000)
+    fetch(`/api/admin/calendar?from=${pad(start, -1).toISOString()}&to=${pad(end, 1).toISOString()}`)
       .then((res) => res.json())
       .then((data) => {
         setMeetings(data.meetings || [])
@@ -86,7 +95,7 @@ export default function AdminCalendarPage() {
   const meetingsByDate = useMemo(() => {
     const map = new Map<string, CalendarMeeting[]>()
     for (const m of meetings) {
-      const key = meetingDateKey(m.scheduledAt)
+      const key = meetingDateKey(m.scheduledAt, m.timezone)
       if (!map.has(key)) map.set(key, [])
       map.get(key)?.push(m)
     }
@@ -212,6 +221,7 @@ export default function AdminCalendarPage() {
                     <Clock className="w-3 h-3" />
                     {new Date(m.scheduledAt).toLocaleTimeString("en-GB", { timeStyle: "short", timeZone: m.timezone })}
                     <span className="ml-1">({m.durationMinutes}m)</span>
+                    {m.timezone && m.timezone !== VIEWER_TZ && <span className="ml-1">· {m.timezone}</span>}
                   </div>
                   {m.meetingLink ? (
                     <a

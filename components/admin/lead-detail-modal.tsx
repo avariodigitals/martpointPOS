@@ -163,11 +163,17 @@ const inputClass =
 
 const labelClass = "block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5"
 
+interface LeadNote {
+  id: string
+  note: string
+  authorName: string | null
+  createdAt: string
+}
+
 interface LeadDetailModalProps {
   lead: Lead
   onClose: () => void
   onUpdateStatus: (id: string, status: Lead["status"]) => Promise<void>
-  onSaveNotes: (id: string, notes: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onUpdateLead: (id: string, data: Record<string, unknown>) => Promise<Lead | null>
   onConvertToBusiness: (lead: Lead) => Promise<void>
@@ -180,7 +186,6 @@ export function LeadDetailModal({
   lead,
   onClose,
   onUpdateStatus,
-  onSaveNotes,
   onDelete,
   onUpdateLead,
   onConvertToBusiness,
@@ -189,8 +194,11 @@ export function LeadDetailModal({
   onMarkQuestionnaireReviewed,
 }: LeadDetailModalProps) {
   const [tab, setTab] = useState<Tab>("overview")
-  const [noteDraft, setNoteDraft] = useState(lead.notes || "")
-  const [savingNotes, setSavingNotes] = useState(false)
+  const [leadNoteDraft, setLeadNoteDraft] = useState("")
+  const [leadNotes, setLeadNotes] = useState<LeadNote[]>([])
+  const [leadNotesLoading, setLeadNotesLoading] = useState(false)
+  const [leadNotesMessage, setLeadNotesMessage] = useState("")
+  const [savingLeadNote, setSavingLeadNote] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({
     fullName: lead.fullName,
@@ -207,7 +215,6 @@ export function LeadDetailModal({
     message: lead.message || "",
     source: lead.source,
     status: lead.status,
-    notes: lead.notes || "",
   })
   const [converting, setConverting] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -352,10 +359,57 @@ export function LeadDetailModal({
     return () => { cancelled = true }
   }, [tab, lead.id])
 
-  const handleSaveNotes = async () => {
-    setSavingNotes(true)
-    await onSaveNotes(lead.id, noteDraft)
-    setSavingNotes(false)
+  useEffect(() => {
+    if (tab !== "notes") return
+    let cancelled = false
+    setLeadNotesLoading(true)
+    fetch(`/api/admin/leads/${lead.id}/notes`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data.error) setLeadNotesMessage(data.error)
+        else setLeadNotes(data.notes || [])
+      })
+      .catch(() => {
+        if (!cancelled) setLeadNotesMessage("Failed to load notes")
+      })
+      .finally(() => {
+        if (!cancelled) setLeadNotesLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [tab, lead.id])
+
+  const flashLeadNotes = (text: string) => {
+    setLeadNotesMessage(text)
+    setTimeout(() => setLeadNotesMessage(""), 4000)
+  }
+
+  const handleAddNote = async () => {
+    const note = leadNoteDraft.trim()
+    if (!note) {
+      flashLeadNotes("Write a note before saving.")
+      return
+    }
+    setSavingLeadNote(true)
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        flashLeadNotes(data.error || "Failed to save note")
+        return
+      }
+      setLeadNotes((prev) => [data.note, ...prev])
+      setLeadNoteDraft("")
+      flashLeadNotes("Note added.")
+    } catch {
+      flashLeadNotes("Failed to save note")
+    } finally {
+      setSavingLeadNote(false)
+    }
   }
 
   const handleSaveEdit = async () => {
@@ -377,7 +431,6 @@ export function LeadDetailModal({
         message: updated.message || "",
         source: updated.source,
         status: updated.status,
-        notes: updated.notes || "",
       })
       setTab("overview")
     }
@@ -1040,14 +1093,6 @@ export function LeadDetailModal({
                   </div>
                 </div>
               )}
-              {lead.notes && (
-                <div>
-                  <p className={labelClass}>Existing Notes</p>
-                  <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                    {lead.notes}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -1241,29 +1286,49 @@ export function LeadDetailModal({
           {tab === "notes" && (
             <div className="space-y-4">
               <div>
-                <label className={labelClass}>Internal Notes</label>
+                <label className={labelClass}>Add an internal note</label>
                 <textarea
-                  rows={10}
-                  value={noteDraft}
-                  onChange={(e) => setNoteDraft(e.target.value)}
+                  rows={5}
+                  value={leadNoteDraft}
+                  onChange={(e) => setLeadNoteDraft(e.target.value)}
                   className={`${inputClass} resize-y`}
-                  placeholder="Add internal notes about this lead — call summaries, next steps, context for the team..."
+                  placeholder="Call summary, next steps, context for the team… Each save is kept as its own dated note — earlier ones are never overwritten."
                 />
               </div>
-              <div className="flex justify-end">
-                <Button size="sm" onClick={handleSaveNotes} disabled={savingNotes}>
-                  {savingNotes ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <CheckCircle2 className="w-4 h-4 mr-1.5" />}
-                  Save Notes
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">Internal only — never shown to the lead.</p>
+                <Button size="sm" onClick={handleAddNote} disabled={savingLeadNote || !leadNoteDraft.trim()}>
+                  {savingLeadNote ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Plus className="w-4 h-4 mr-1.5" />}
+                  Add note
                 </Button>
               </div>
-              {lead.notes && (
-                <div>
-                  <p className={labelClass}>Previous Notes (saved in DB)</p>
-                  <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                    {lead.notes}
-                  </div>
-                </div>
+              {leadNotesMessage && (
+                <p className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs">{leadNotesMessage}</p>
               )}
+              <div>
+                <p className={labelClass}>Note history {leadNotes.length > 0 ? `(${leadNotes.length})` : ""}</p>
+                {leadNotesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : leadNotes.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                    No notes yet. The first one you add will appear here.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {leadNotes.map((n) => (
+                      <div key={n.id} className="rounded-lg border border-border bg-muted/20 p-4">
+                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{n.note}</p>
+                        <p className="mt-2 text-[11px] text-muted-foreground">
+                          {n.authorName || "—"} ·{" "}
+                          {new Date(n.createdAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

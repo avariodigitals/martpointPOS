@@ -495,25 +495,6 @@ export default function AdminLeadsPage() {
     window.location.href = `/admin/quotations?leadId=${lead.id}`
   }
 
-  const saveNotesFromModal = async (id: string, notes: string) => {
-    try {
-      const res = await fetch("/api/admin/leads", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, notes }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, notes } : l)))
-        setSelectedLead((prev) => (prev && prev.id === id ? { ...prev, notes } : prev))
-        setMessage("Notes saved.")
-        setTimeout(() => setMessage(""), 2000)
-      }
-    } catch {
-      setMessage("Failed to save notes")
-    }
-  }
-
   const deleteLeadFromModal = async (id: string) => {
     try {
       const res = await fetch(`/api/admin/leads?id=${id}`, { method: "DELETE" })
@@ -1743,7 +1724,6 @@ export default function AdminLeadsPage() {
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
           onUpdateStatus={updateStatusFromModal}
-          onSaveNotes={saveNotesFromModal}
           onDelete={deleteLeadFromModal}
           onUpdateLead={updateLeadFromModal}
           onConvertToBusiness={convertToBusiness}

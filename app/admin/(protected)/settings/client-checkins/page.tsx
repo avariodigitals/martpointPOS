@@ -23,6 +23,13 @@ interface ClientRow {
   connectedAt: string | null
   daysUsing: number
   lastUsageAt: string | null
+  lastLoginAt: string | null
+  daysSinceLogin: number | null
+  retentionStatus: "no_login_recorded" | "active" | "at_risk"
+  renewalDate: string | null
+  subscriptionAmount: number | null
+  subscriptionCurrency: string | null
+  subscriptionInterval: string | null
   lastSystemPingAt: string | null
   connectionStatus: "not_connected" | "recently_active" | "no_checkin_30d"
   dormancyPaused: boolean
@@ -59,7 +66,7 @@ interface Overview {
 const MILESTONE_DAYS = [30, 60, 90, 120, 180, 270, 365]
 
 const CONNECTION_META: Record<ClientRow["connectionStatus"], { label: string; tone: string }> = {
-  not_connected: { label: "Not connected", tone: "text-muted-foreground" },
+  not_connected: { label: "No app activity yet", tone: "text-muted-foreground" },
   recently_active: { label: "Recently active", tone: "text-green-600" },
   no_checkin_30d: { label: "No check-in for 30 days", tone: "text-amber-600" },
 }
@@ -81,6 +88,7 @@ export default function ClientCheckinsPage() {
   const [founderEmail, setFounderEmail] = useState("ralph@martpoint.com.ng")
   const [signatureImageUrl, setSignatureImageUrl] = useState("")
   const [startWithWelcome, setStartWithWelcome] = useState(true)
+  const [showAtRiskOnly,setShowAtRiskOnly]=useState(false)
   const [showQuietOnly, setShowQuietOnly] = useState(false)
   const [copiedId, setCopiedId] = useState("")
   const sigFileRef = useRef<HTMLInputElement>(null)
@@ -201,7 +209,8 @@ export default function ClientCheckinsPage() {
   const clients = data?.clients || []
   const overdue = clients.filter((c) => c.daysUsing >= 30 && (!c.run || c.run.status === "cancelled" || c.run.status === "failed"))
   const quiet = clients.filter((c) => c.connectionStatus === "no_checkin_30d")
-  const visible = showQuietOnly ? quiet : clients
+  const atRisk=clients.filter((c)=>c.retentionStatus==="at_risk")
+  const visible = (showQuietOnly ? quiet : clients).filter((c)=>!showAtRiskOnly||c.retentionStatus==="at_risk")
 
   return (
     <div className="space-y-6">
@@ -211,13 +220,12 @@ export default function ClientCheckinsPage() {
         </Link>
         <h2 className="text-2xl font-bold tracking-tight mt-2 flex items-center gap-2">
           <HeartHandshake className="w-5 h-5" />
-          Client Check-ins
+          Client retention &amp; check-ins
         </h2>
         <p className="text-muted-foreground">
-          Personal founder emails to your clients: a welcome note the moment they receive their access details, then
-          check-ins at 30, 60, 90, 120, 180, 270 days — and a thank-you at 1 year. Plus a gentle &ldquo;we haven&apos;t
-          received a recent check-in&rdquo; note for installs that have gone quiet. Replies land directly at the
-          founder&apos;s inbox.
+          Monitor client logins and ongoing application activity to spot renewal risk. No login for 30 days is
+          flagged separately from activity in an existing signed-in session. Server health never counts as usage.
+          Founder check-in and quiet-client email settings are below the retention overview.
         </p>
       </div>
 
@@ -231,11 +239,172 @@ export default function ClientCheckinsPage() {
             <Card className="border-amber-300">
               <CardContent className="pt-6 text-sm">
                 The check-in automation is not installed yet — apply migrations{" "}
-                <code>089_client_checkin_automation.sql</code> and <code>092_install_checkin_tokens.sql</code> to
+                <code>089_client_checkin_automation.sql</code> and <code>092_install_checkin_tokens.sql</code> and <code>096_install_retention.sql</code> to
                 activate the sequence and install monitoring.
               </CardContent>
             </Card>
           )}
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[{label:"Clients monitored",value:clients.length},{label:"Logged in within 30 days",value:clients.filter((c)=>c.retentionStatus==="active").length},{label:"No login for 30 days",value:atRisk.length},{label:"No login recorded yet",value:clients.filter((c)=>c.retentionStatus==="no_login_recorded").length}].map((metric)=><Card key={metric.label}><CardContent className="pt-5"><p className="text-sm text-muted-foreground">{metric.label}</p><p className="mt-2 text-3xl font-semibold">{metric.value}</p></CardContent></Card>)}
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-4 w-4" /> Your clients ({clients.length})
+              </CardTitle>
+              <CardDescription>
+                Days are counted from when each client connected (access email sent; older clients fall back to their
+                creation date). Updated fleet installations enrol automatically with their existing private fleet identity.
+                No per-client token copying is needed. Manual tokens remain available for legacy integrations. &ldquo;Recently active&rdquo; reflects real POS usage only; server-health beats are shown
+                separately and never count.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={startWithWelcome}
+                    onChange={(e) => setStartWithWelcome(e.target.checked)}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  Include welcome note when starting clients
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={showQuietOnly}
+                    onChange={(e) => setShowQuietOnly(e.target.checked)}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  Quiet list only ({quiet.length})
+                </label>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showAtRiskOnly} onChange={(e)=>setShowAtRiskOnly(e.target.checked)} />No login in 30 days ({atRisk.length})</label>
+                <div className="ml-auto flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" disabled={busy !== "" || overdue.length === 0} onClick={() => post({ action: "backfill", sendWelcome: startWithWelcome }, "backfill", `Started ${overdue.length} overdue client(s).`)}>
+                    {busy === "backfill" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                    Backfill all overdue ({overdue.length})
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={busy !== ""} onClick={() => post({ action: "sweep" }, "sweep", "Ran the due-check-ins sweep.")}>
+                    {busy === "sweep" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                    Send all due check-ins now
+                  </Button>
+                </div>
+              </div>
+
+              {message && <p className="text-sm text-blue-700">{message}</p>}
+
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-left">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Business</th>
+                      <th className="px-3 py-2 font-medium">Contact</th>
+                      <th className="px-3 py-2 font-medium">Connected</th>
+                      <th className="px-3 py-2 font-medium">Days</th>
+                      <th className="px-3 py-2 font-medium">Connection</th>
+                      <th className="px-3 py-2 font-medium">Login & renewal</th><th className="px-3 py-2 font-medium">Check-in token</th>
+                      <th className="px-3 py-2 font-medium">Sequence</th>
+                      <th className="px-3 py-2 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.slice(0, 50).map((c) => {
+                      const st = runState(c)
+                      const conn = CONNECTION_META[c.connectionStatus] || CONNECTION_META.not_connected
+                      const noLiveRun = !c.run || c.run.status === "cancelled" || c.run.status === "failed"
+                      return (
+                        <tr key={c.id} className="border-t align-top">
+                          <td className="px-3 py-2">
+                            <span className="font-medium">{c.businessName}</span>
+                            <span className="ml-2 text-xs text-muted-foreground">{c.status}</span>
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">
+                            {c.contactName || "—"} <span className="block text-xs">{c.email}</span>
+                          </td>
+                          <td className="px-3 py-2">{fmtDate(c.connectedAt)}</td>
+                          <td className="px-3 py-2">{c.daysUsing}</td>
+                          <td className="px-3 py-2">
+                            <span className={conn.tone}>{conn.label}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              usage {fmtDate(c.lastUsageAt)}
+                              {c.lastSystemPingAt ? ` · server ${fmtDate(c.lastSystemPingAt)}` : ""}
+                            </span>
+                            {c.dormantLast && (
+                              <span className={`block text-xs ${c.dormantLast.status === "failed" ? "text-red-600" : "text-muted-foreground"}`}>
+                                quiet note {c.dormantLast.status} {fmtDate(c.dormantLast.at)}
+                                {c.dormantLast.error ? ` — ${c.dormantLast.error}` : ""}
+                              </span>
+                            )}
+                            <label className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                checked={c.dormancyPaused}
+                                disabled={busy !== ""}
+                                onChange={(e) => post({ action: "pause-dormancy", businessId: c.id, paused: e.target.checked }, `pause-${c.id}`, e.target.checked ? `Quiet-note paused for ${c.businessName}.` : `Quiet-note resumed for ${c.businessName}.`)}
+                                className="h-3.5 w-3.5 rounded border-input"
+                              />
+                              Pause reminders
+                            </label>
+                          </td>
+                          <td className="px-3 py-3 text-sm">
+                            <span className={c.retentionStatus==="at_risk"?"font-medium text-amber-600":"font-medium"}>{c.retentionStatus==="at_risk"?"At risk · no login for 30 days":c.retentionStatus==="active"?"Login within 30 days":"No login recorded yet"}</span>
+                            <span className="block text-xs text-muted-foreground">Last login: {fmtDate(c.lastLoginAt)}{c.daysSinceLogin!==null?` · ${c.daysSinceLogin} days ago`:""}</span>
+                            {c.retentionStatus==="at_risk"&&c.connectionStatus==="recently_active"&&<span className="block text-xs text-green-600">Recent signed-in activity — may be a continuing session</span>}
+                            <span className="block text-xs">Renewal: {c.renewalDate || "Not recorded"}</span>
+                            {c.subscriptionAmount!==null&&<span className="block text-xs text-muted-foreground">{c.subscriptionCurrency} {c.subscriptionAmount.toLocaleString()} / {c.subscriptionInterval?.toLowerCase()} · subscription price</span>}
+                          </td>
+                          <td className="px-3 py-2">
+                            {c.token ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{c.token.slice(0, 8)}…</code>
+                                <button type="button" onClick={() => copyToken(c)} className="text-muted-foreground hover:text-foreground" aria-label="Copy token" title="Copy full token">
+                                  {copiedId === c.id ? <span className="text-xs text-green-600">copied</span> : <Copy className="h-3.5 w-3.5" />}
+                                </button>
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">none yet</span>
+                            )}
+                            <Button size="sm" variant="ghost" className="ml-1 h-6 px-2 text-xs" disabled={busy !== ""} onClick={() => post({ action: "rotate-token", businessId: c.id }, `token-${c.id}`, c.token ? `New token issued for ${c.businessName} — the old one is retired; updated fleet installations recover automatically on their next check-in.` : `Token generated for ${c.businessName}.`)}>
+                              {busy === `token-${c.id}` ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <KeyRound className="mr-1 h-3 w-3" />}
+                              {c.token ? "Rotate" : "Generate"}
+                            </Button>
+                          </td>
+                          <td className={`px-3 py-2 ${st.tone}`}>{st.label}</td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap">
+                            {noLiveRun ? (
+                              <Button size="sm" variant="outline" disabled={busy !== ""} onClick={() => post({ action: "start", businessId: c.id, sendWelcome: startWithWelcome }, c.id, `Check-ins started for ${c.businessName}.`)}>
+                                {busy === c.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                                Start
+                              </Button>
+                            ) : c.run?.status === "pending" ? (
+                              <Button size="sm" variant="outline" disabled={busy !== ""} onClick={() => post({ action: "run-now", businessId: c.id }, c.id, `Next check-in sent to ${c.businessName}.`)}>
+                                {busy === c.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                                Send next now
+                              </Button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {visible.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">
+                          {showAtRiskOnly ? "No clients match the login-risk filter." : showQuietOnly
+                            ? "No clients are quiet right now."
+                            : "No live clients yet — the sequence starts automatically with the first access email."}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {visible.length > 50 && (
+                <p className="text-xs text-muted-foreground">Showing the first 50 of {visible.length} clients.</p>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
@@ -373,156 +542,6 @@ export default function ClientCheckinsPage() {
                   </Link>
                 </div>
               </form>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-4 w-4" /> Your clients ({clients.length})
-              </CardTitle>
-              <CardDescription>
-                Days are counted from when each client connected (access email sent; older clients fall back to their
-                creation date). Each install checks in with its own private token — generate one below and put it in the
-                POS config. &ldquo;Recently active&rdquo; reflects real POS usage only; server-health beats are shown
-                separately and never count.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={startWithWelcome}
-                    onChange={(e) => setStartWithWelcome(e.target.checked)}
-                    className="h-4 w-4 rounded border-input"
-                  />
-                  Include welcome note when starting clients
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showQuietOnly}
-                    onChange={(e) => setShowQuietOnly(e.target.checked)}
-                    className="h-4 w-4 rounded border-input"
-                  />
-                  Quiet list only ({quiet.length})
-                </label>
-                <div className="ml-auto flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" disabled={busy !== "" || overdue.length === 0} onClick={() => post({ action: "backfill", sendWelcome: startWithWelcome }, "backfill", `Started ${overdue.length} overdue client(s).`)}>
-                    {busy === "backfill" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
-                    Backfill all overdue ({overdue.length})
-                  </Button>
-                  <Button size="sm" variant="outline" disabled={busy !== ""} onClick={() => post({ action: "sweep" }, "sweep", "Ran the due-check-ins sweep.")}>
-                    {busy === "sweep" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                    Send all due check-ins now
-                  </Button>
-                </div>
-              </div>
-
-              {message && <p className="text-sm text-blue-700">{message}</p>}
-
-              <div className="overflow-x-auto rounded-md border">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 text-left">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">Business</th>
-                      <th className="px-3 py-2 font-medium">Contact</th>
-                      <th className="px-3 py-2 font-medium">Connected</th>
-                      <th className="px-3 py-2 font-medium">Days</th>
-                      <th className="px-3 py-2 font-medium">Connection</th>
-                      <th className="px-3 py-2 font-medium">Check-in token</th>
-                      <th className="px-3 py-2 font-medium">Sequence</th>
-                      <th className="px-3 py-2 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visible.slice(0, 50).map((c) => {
-                      const st = runState(c)
-                      const conn = CONNECTION_META[c.connectionStatus] || CONNECTION_META.not_connected
-                      const noLiveRun = !c.run || c.run.status === "cancelled" || c.run.status === "failed"
-                      return (
-                        <tr key={c.id} className="border-t align-top">
-                          <td className="px-3 py-2">
-                            <span className="font-medium">{c.businessName}</span>
-                            <span className="ml-2 text-xs text-muted-foreground">{c.status}</span>
-                          </td>
-                          <td className="px-3 py-2 text-muted-foreground">
-                            {c.contactName || "—"} <span className="block text-xs">{c.email}</span>
-                          </td>
-                          <td className="px-3 py-2">{fmtDate(c.connectedAt)}</td>
-                          <td className="px-3 py-2">{c.daysUsing}</td>
-                          <td className="px-3 py-2">
-                            <span className={conn.tone}>{conn.label}</span>
-                            <span className="block text-xs text-muted-foreground">
-                              usage {fmtDate(c.lastUsageAt)}
-                              {c.lastSystemPingAt ? ` · server ${fmtDate(c.lastSystemPingAt)}` : ""}
-                            </span>
-                            {c.dormantLast && (
-                              <span className={`block text-xs ${c.dormantLast.status === "failed" ? "text-red-600" : "text-muted-foreground"}`}>
-                                quiet note {c.dormantLast.status} {fmtDate(c.dormantLast.at)}
-                                {c.dormantLast.error ? ` — ${c.dormantLast.error}` : ""}
-                              </span>
-                            )}
-                            <label className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <input
-                                type="checkbox"
-                                checked={c.dormancyPaused}
-                                disabled={busy !== ""}
-                                onChange={(e) => post({ action: "pause-dormancy", businessId: c.id, paused: e.target.checked }, `pause-${c.id}`, e.target.checked ? `Quiet-note paused for ${c.businessName}.` : `Quiet-note resumed for ${c.businessName}.`)}
-                                className="h-3.5 w-3.5 rounded border-input"
-                              />
-                              Pause reminders
-                            </label>
-                          </td>
-                          <td className="px-3 py-2">
-                            {c.token ? (
-                              <span className="inline-flex items-center gap-1.5">
-                                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{c.token.slice(0, 8)}…</code>
-                                <button type="button" onClick={() => copyToken(c)} className="text-muted-foreground hover:text-foreground" aria-label="Copy token" title="Copy full token">
-                                  {copiedId === c.id ? <span className="text-xs text-green-600">copied</span> : <Copy className="h-3.5 w-3.5" />}
-                                </button>
-                              </span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">none yet</span>
-                            )}
-                            <Button size="sm" variant="ghost" className="ml-1 h-6 px-2 text-xs" disabled={busy !== ""} onClick={() => post({ action: "rotate-token", businessId: c.id }, `token-${c.id}`, c.token ? `New token issued for ${c.businessName} — the old one is retired; update the POS config.` : `Token generated for ${c.businessName}.`)}>
-                              {busy === `token-${c.id}` ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <KeyRound className="mr-1 h-3 w-3" />}
-                              {c.token ? "Rotate" : "Generate"}
-                            </Button>
-                          </td>
-                          <td className={`px-3 py-2 ${st.tone}`}>{st.label}</td>
-                          <td className="px-3 py-2 text-right whitespace-nowrap">
-                            {noLiveRun ? (
-                              <Button size="sm" variant="outline" disabled={busy !== ""} onClick={() => post({ action: "start", businessId: c.id, sendWelcome: startWithWelcome }, c.id, `Check-ins started for ${c.businessName}.`)}>
-                                {busy === c.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
-                                Start
-                              </Button>
-                            ) : c.run?.status === "pending" ? (
-                              <Button size="sm" variant="outline" disabled={busy !== ""} onClick={() => post({ action: "run-now", businessId: c.id }, c.id, `Next check-in sent to ${c.businessName}.`)}>
-                                {busy === c.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                                Send next now
-                              </Button>
-                            ) : null}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                    {visible.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
-                          {showQuietOnly
-                            ? "No clients are quiet right now."
-                            : "No live clients yet — the sequence starts automatically with the first access email."}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              {visible.length > 50 && (
-                <p className="text-xs text-muted-foreground">Showing the first 50 of {visible.length} clients.</p>
-              )}
             </CardContent>
           </Card>
 

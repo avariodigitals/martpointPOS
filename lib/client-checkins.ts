@@ -12,7 +12,6 @@
  *   • runCheckinNow()   — the manual "send the next check-in now" button
  */
 
-import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import {
   getAutomationByKey,
@@ -253,6 +252,13 @@ export interface CheckinOverviewRow {
   daysUsing: number
   lastSeenAt: string | null
   lastUsageAt: string | null
+  lastLoginAt: string | null
+  daysSinceLogin: number | null
+  retentionStatus: "no_login_recorded" | "active" | "at_risk"
+  renewalDate: string | null
+  subscriptionAmount: number | null
+  subscriptionCurrency: string | null
+  subscriptionInterval: string | null
   lastSystemPingAt: string | null
   connectionStatus: ConnectionStatus
   dormancyPaused: boolean
@@ -266,17 +272,18 @@ export async function getCheckinOverview(): Promise<CheckinOverviewRow[]> {
   if (!isSupabaseConfigured()) return []
 
   const automation = await getAutomationByKey(CLIENT_CHECKIN_KEY)
-  const { data: businesses } = await supabase
+  const { data: businesses, error: businessError } = await supabase
     .from("businesses")
-    .select("id, business_name, primary_contact_name, primary_email, status, created_at, access_sent_at, last_seen_at, last_usage_at, last_system_ping_at, dormancy_paused")
+    .select("id, business_name, primary_contact_name, primary_email, status, created_at, access_sent_at, last_seen_at, last_usage_at, last_login_at, last_system_ping_at, dormancy_paused")
     .in("status", ["ONBOARDING", "ACTIVE", "SUSPENDED"])
     .order("access_sent_at", { ascending: false, nullsFirst: false })
     .limit(300)
 
+  if(businessError)throw new Error("Retention schema unavailable; apply migration 096_install_retention.sql.")
   if (!businesses || businesses.length === 0) return []
 
   const ids = businesses.map((b) => b.id as string)
-  const [runsRes, tokensRes, deliveriesRes] = await Promise.all([
+  const [runsRes, tokensRes, deliveriesRes, subscriptionsRes] = await Promise.all([
     supabase
       .from("automation_runs")
       .select("subject_id, status, step, scheduled_for, last_sent_at")
@@ -294,8 +301,11 @@ export async function getCheckinOverview(): Promise<CheckinOverviewRow[]> {
       .in("business_id", ids)
       .order("created_at", { ascending: false })
       .limit(600),
+    supabase.from("subscriptions").select("business_id, renewal_date, price_at_activation, currency, billing_interval")
+      .in("business_id",ids).in("status",["ACTIVE","PAST_DUE","SUSPENDED"]).order("renewal_date",{ascending:true,nullsFirst:false}),
   ])
 
+  if(tokensRes.error || subscriptionsRes.error)throw new Error("Unable to load retention credentials or renewal information.")
   const { data: runs } = runsRes
   const runByBusiness = new Map<string, Record<string, unknown>>()
   for (const r of runs || []) runByBusiness.set(r.subject_id as string, r as Record<string, unknown>)
@@ -315,6 +325,9 @@ export async function getCheckinOverview(): Promise<CheckinOverviewRow[]> {
   return businesses.map((b) => {
     const connected = (b.access_sent_at as string) || (b.created_at as string)
     const run = runByBusiness.get(b.id as string)
+    const subscription=(subscriptionsRes.data || []).find((row) => row.business_id===b.id)
+    const login=(b.last_login_at as string) || null
+    const retention=retentionState(login,now)
     const lastUsage = (b.last_usage_at as string) ?? (b.last_seen_at as string) ?? null
     return {
       id: b.id as string,
@@ -326,6 +339,12 @@ export async function getCheckinOverview(): Promise<CheckinOverviewRow[]> {
       daysUsing: Math.max(0, Math.floor((now - Date.parse(connected)) / DAY_MS)),
       lastSeenAt: (b.last_seen_at as string) ?? null,
       lastUsageAt: lastUsage,
+      lastLoginAt: login,
+      ...retention,
+      renewalDate: subscription?.renewal_date ?? null,
+      subscriptionAmount: subscription ? Number(subscription.price_at_activation) : null,
+      subscriptionCurrency: subscription?.currency ?? null,
+      subscriptionInterval: subscription?.billing_interval ?? null,
       lastSystemPingAt: (b.last_system_ping_at as string) ?? null,
       connectionStatus: computeConnectionStatus(lastUsage, now),
       dormancyPaused: b.dormancy_paused === true,
@@ -450,10 +469,23 @@ export async function recordInstallCheckin(opts: {
   token?: string
   key?: string
   type?: "usage" | "system"
+  loginAt?: string
+  activityAt?: string
+  systemAt?: string
 }): Promise<{ matched: boolean }> {
   if (!isSupabaseConfigured()) return { matched: false }
   const type = opts.type === "system" ? "system" : "usage"
   const token = String(opts.token || "").trim()
+  if(opts.loginAt || opts.activityAt || opts.systemAt){
+    const valid=(v: string | undefined)=>!v || (Number.isFinite(Date.parse(v)) && Date.parse(v)>=Date.parse("2000-01-01") && Date.parse(v)<=Date.now()+300000)
+    if(!token || ![opts.loginAt,opts.activityAt,opts.systemAt].every(valid) || (type==="system" && opts.activityAt))return {matched:false}
+    const {data,error}=await supabase.rpc("record_install_retention",{
+      p_token:token,p_login_at:opts.loginAt || null,p_activity_at:opts.activityAt || null,p_system_at:opts.systemAt || null,
+    })
+    const matched=!error&&data===true
+    await logPing({source:"token",pingType:type,outcome:matched?"saved":"invalid"})
+    return {matched}
+  }
 
   if (token) {
     const { data: tok } = await supabase
@@ -507,21 +539,8 @@ export async function recordInstallCheckin(opts: {
 /** Issue (or rotate) the install's private check-in token. Admin-only. */
 export async function rotateInstallToken(businessId: string): Promise<{ ok: boolean; token?: string; error?: string }> {
   if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
-  const token = crypto.randomBytes(24).toString("base64url")
-  const nowIso = new Date().toISOString()
-  const { error: retireErr } = await supabase
-    .from("install_tokens")
-    .update({ status: "retired", retired_at: nowIso })
-    .eq("business_id", businessId)
-    .eq("status", "active")
-  if (retireErr) return { ok: false, error: retireErr.message }
-  const { data, error } = await supabase
-    .from("install_tokens")
-    .insert({ business_id: businessId, token, status: "active", created_at: nowIso })
-    .select("token")
-    .single()
-  if (error || !data) return { ok: false, error: error?.message || "Insert failed" }
-  return { ok: true, token: data.token as string }
+  const {data,error}=await supabase.rpc("issue_install_checkin_token",{p_business_id:businessId,p_rotate:true})
+  return !error&&typeof data==="string" ? {ok:true,token:data} : {ok:false,error:"Token rotation failed"}
 }
 
 export async function setDormancyPaused(businessId: string, paused: boolean): Promise<{ ok: boolean; error?: string }> {
@@ -531,6 +550,13 @@ export async function setDormancyPaused(businessId: string, paused: boolean): Pr
     .update({ dormancy_paused: paused, updated_at: new Date().toISOString() })
     .eq("id", businessId)
   return error ? { ok: false, error: error.message } : { ok: true }
+}
+
+/** Login recency is separate from activity in a long-lived signed-in session. */
+export function retentionState(lastLoginAt: string | null,nowMs=Date.now()): {daysSinceLogin:number|null;retentionStatus:"no_login_recorded"|"active"|"at_risk"} {
+  const stamp=lastLoginAt?Date.parse(lastLoginAt):NaN
+  if(!Number.isFinite(stamp))return {daysSinceLogin:null,retentionStatus:"no_login_recorded"}
+  return {daysSinceLogin:Math.max(0,Math.floor((nowMs-stamp)/DAY_MS)),retentionStatus:nowMs-stamp>=30*DAY_MS?"at_risk":"active"}
 }
 
 export type ConnectionStatus = "not_connected" | "recently_active" | "no_checkin_30d"

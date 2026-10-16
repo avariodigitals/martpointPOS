@@ -42,18 +42,22 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   let { token, key, type } = paramsFrom(request)
-  if (!token && !key) {
+  let loginAt: string | undefined,activityAt: string | undefined,systemAt: string | undefined
+  {
     try {
       const body = await request.json()
-      token = String(body?.token || token)
-      key = String(body?.key || body?.url || key)
-      type = String(body?.type || type)
+      token = token || String(body?.token || "")
+      key = key || String(body?.key || body?.url || "")
+      type = type || String(body?.type || "")
+      loginAt=typeof body?.login_at==="string"?body.login_at:undefined
+      activityAt=typeof body?.activity_at==="string"?body.activity_at:undefined
+      systemAt=typeof body?.system_at==="string"?body.system_at:undefined
     } catch {
       // fall through — empty check-in is recorded as invalid
     }
   }
   return NextResponse.json({
     ok: true,
-    matched: (await recordInstallCheckin({ token, key, type: type === "system" ? "system" : "usage" })).matched,
+    matched: (await recordInstallCheckin({ token, key, loginAt,activityAt,systemAt, type: type === "system" ? "system" : "usage" })).matched,
   })
 }

@@ -42,6 +42,7 @@ import {
   Bell,
   Ban,
   Eye,
+  RefreshCw,
 } from "lucide-react"
 
 export interface Lead {
@@ -239,6 +240,10 @@ export function LeadDetailModal({
   const [emails, setEmails] = useState<LeadEmailMessage[]>([])
   const [emailsLoading, setEmailsLoading] = useState(false)
   const [emailsError, setEmailsError] = useState("")
+  const [emailsReloadKey, setEmailsReloadKey] = useState(0)
+  const [inboxMailbox, setInboxMailbox] = useState<{ configured: boolean; mailbox: string } | null>(null)
+  const [inboxChecking, setInboxChecking] = useState(false)
+  const [inboxSummary, setInboxSummary] = useState("")
   const [emailForm, setEmailForm] = useState({ subject: "", body: "" })
   const [emailTemplateKey, setEmailTemplateKey] = useState<LeadEmailStageKey | null>(null)
   const [emailTemplateIndustry, setEmailTemplateIndustry] = useState(
@@ -320,7 +325,37 @@ export function LeadDetailModal({
         if (!cancelled) setEmailsLoading(false)
       })
     return () => { cancelled = true }
-  }, [tab, lead.id])
+  }, [tab, lead.id, emailsReloadKey])
+
+  useEffect(() => {
+    if (tab !== "email" || inboxMailbox) return
+    fetch("/api/admin/email-inbox")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.configured === "boolean") {
+          setInboxMailbox({ configured: data.configured, mailbox: data.mailbox || "" })
+        }
+      })
+      .catch(() => {})
+  }, [tab, inboxMailbox])
+
+  const checkLeadMailbox = async () => {
+    setInboxChecking(true)
+    setInboxSummary("")
+    try {
+      const res = await fetch("/api/admin/email-inbox", { method: "POST" })
+      const data = await res.json()
+      setInboxSummary(data.summary || data.error || "Could not reach the mailbox.")
+      if (res.ok) {
+        setEmailsReloadKey((key) => key + 1)
+        setEmailsLoading(true)
+      }
+    } catch {
+      setInboxSummary("Could not reach the mailbox.")
+    } finally {
+      setInboxChecking(false)
+    }
+  }
 
   useEffect(() => {
     if (tab !== "questionnaire") return
@@ -1335,12 +1370,33 @@ export function LeadDetailModal({
           {/* ─── Email ─── */}
           {tab === "email" && (
             <div className="space-y-5">
-              <div className="rounded-lg border border-border bg-muted/20 p-3 flex items-center gap-2 text-xs text-muted-foreground">
-                <Mail className="w-3.5 h-3.5 shrink-0" />
-                <span>
-                  Two-way thread with <span className="font-medium text-foreground">{lead.email}</span>{lead.additionalEmail ? <> (copy: <span className="font-medium text-foreground">{lead.additionalEmail}</span>)</> : null}.
-                  Replies from the lead appear here once inbound email is connected.
-                </span>
+              <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <Mail className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    Two-way thread with <span className="font-medium text-foreground">{lead.email}</span>
+                    {lead.additionalEmail ? <> (copy: <span className="font-medium text-foreground">{lead.additionalEmail}</span>)</> : null}.
+                    Replies pulled from <span className="font-medium text-foreground">{inboxMailbox?.mailbox || "the lead mailbox"}</span> land here.
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {inboxSummary || (inboxMailbox === null
+                      ? "Checking mailbox status…"
+                      : inboxMailbox.configured
+                        ? "Mailbox connected — new replies are imported every 10 minutes."
+                        : "Mailbox not connected. Add the IMAP details in Settings → Email to collect replies.")}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={checkLeadMailbox}
+                    disabled={inboxChecking || inboxMailbox?.configured === false}
+                  >
+                    {inboxChecking ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
+                    Check mailbox for replies
+                  </Button>
+                </div>
               </div>
 
               {emailsLoading ? (

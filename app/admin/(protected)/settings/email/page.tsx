@@ -508,8 +508,11 @@ export default function EmailSettingsPage() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  New unread mail in this folder is matched to leads by sender address and added to their
-                  email thread every cron run. Fetched messages are marked as read. Test it any time at
+                  Mail from the last 7 days in this folder is matched to leads by sender address and added to their
+                  email thread every 10 minutes. Your read/unread state is never changed — imported mail is marked
+                  with a private mailbox tag instead. You can also run it on demand with
+                  <span className="font-medium text-foreground"> &ldquo;Check mailbox for replies&rdquo; </span>
+                  on any lead&apos;s Email tab, or test the job at
                   <code className="text-xs bg-muted px-1 py-0.5 rounded mx-1">/api/cron/email-sync?secret=…</code>.
                 </p>
               </div>

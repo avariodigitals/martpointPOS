@@ -19,6 +19,7 @@ interface NormalizedEmail {
   text: string
   html: string
   messageId: string | null
+  sentAt: string | null
 }
 
 function extractAddress(value: unknown): string {
@@ -56,6 +57,10 @@ function normalizeOne(raw: Record<string, unknown>): NormalizedEmail {
 
   const headers = (data.headers && typeof data.headers === "object" ? data.headers : {}) as Record<string, unknown>
 
+  const rawDate = pick(data, "date", "Date", "received_at", "receivedAt", "timestamp")
+  const parsedDate = rawDate ? new Date(String(rawDate)) : null
+  const sentAt = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : null
+
   return {
     from: extractAddress(pick(data, "from", "From", "sender", "Sender")),
     to: extractAllAddresses(pick(data, "to", "To", "recipients")),
@@ -63,6 +68,7 @@ function normalizeOne(raw: Record<string, unknown>): NormalizedEmail {
     text: String(pick(data, "text", "text_body", "textBody", "RawTextBody", "plain", "body") ?? ""),
     html: String(pick(data, "html", "html_body", "htmlBody", "RawHtmlBody") ?? ""),
     messageId: (pick(data, "message_id", "messageId", "MessageId", "email_id", "id") as string) ?? (headers["message-id"] as string) ?? null,
+    sentAt,
   }
 }
 
@@ -99,7 +105,7 @@ export async function POST(request: Request) {
 
     let matched = 0
     for (const email of emails) {
-      if (await fileInboundLeadEmail(email)) matched++
+      if (await fileInboundLeadEmail({ ...email, provider: "webhook" })) matched++
     }
 
     return NextResponse.json({ ok: true, matched })

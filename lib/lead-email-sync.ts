@@ -152,15 +152,26 @@ export async function syncLeadInbox(preloadedSettings?: EmailSettings): Promise<
     }
   } catch (err) {
     base.ran = false
-    base.error = err instanceof Error ? err.message : "Mailbox sync failed"
-    if (base.error.toLowerCase().includes("auth")) {
-      base.error = `${base.error} — check the IMAP username and password (an app password is often required).`
-    }
+    base.error = describeImapError(err instanceof Error ? err.message : "Mailbox sync failed", imap.host)
   } finally {
     await client.logout().catch(() => {})
   }
 
   return base
+}
+
+/** Turn a raw IMAP connection error into something an operator can act on. */
+export function describeImapError(raw: string, host: string): string {
+  const lowered = raw.toLowerCase()
+  if (lowered.includes("auth")) {
+    return `${raw} — check the IMAP username and password (an app password is often required).`
+  }
+  if (lowered.includes("enotfound") || lowered.includes("getaddrinfo") || lowered.includes("ebusy")) {
+    // Almost always the host field holding an address rather than a server
+    // name, e.g. "mail@martpoint.com.ng" instead of "mail.martpoint.com.ng".
+    return `${raw} — the IMAP host "${host}" could not be resolved. Use the mail server name only, e.g. mail.martpoint.com.ng (no @, no spaces), in Settings → Email → Lead Thread Mailbox.`
+  }
+  return raw
 }
 
 export function describeSyncResult(result: LeadInboxSyncResult): string {

@@ -6,6 +6,7 @@ import { getIntegrationDefaults } from "@/lib/integrations"
 import { DEFAULT_SCHEDULING } from "@/lib/scheduling"
 import { DEFAULT_MEETING_NOTES } from "@/lib/meeting-notes"
 import { DEFAULT_DRIVE_SETTINGS } from "@/lib/drive-storage"
+import { validateEmailSettings } from "@/lib/email-settings-guard"
 
 async function readSettings(): Promise<Record<string, unknown>> {
   if (!isSupabaseConfigured()) {
@@ -326,6 +327,12 @@ export async function POST(request: Request) {
     const body = await request.json()
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+    }
+    if (body.email && typeof body.email === "object" && !Array.isArray(body.email)) {
+      const emailError = validateEmailSettings(body.email as Record<string, unknown>)
+      if (emailError) {
+        return NextResponse.json({ error: emailError }, { status: 400 })
+      }
     }
     const current = await readSettings()
     const updated = { ...current }

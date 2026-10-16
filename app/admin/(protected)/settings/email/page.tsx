@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import EmailRichEditor from "@/components/admin/email-rich-editor"
 import { htmlToText, textToHtml } from "@/lib/email-html"
+import { isBadHost } from "@/lib/email-settings-guard"
 import { Loader2, Save, Mail, ArrowLeft, Code2 } from "lucide-react"
 
 interface SmtpForm {
@@ -40,12 +41,6 @@ interface EmailSettingsForm {
 
 const emptySmtp: SmtpForm = { host: "", port: "465", secure: true, user: "", pass: "", fromEmail: "" }
 const emptyImap: ImapForm = { host: "", port: "993", secure: true, user: "", pass: "", mailbox: "INBOX" }
-
-/** Server fields want a machine name (smtp.martpoint.com.ng), not a mail address. */
-function isBadHost(value: string) {
-  const v = value.trim()
-  return Boolean(v) && /[@\s]/.test(v)
-}
 
 export default function EmailSettingsPage() {
   const [settings, setSettings] = useState<EmailSettingsForm>({

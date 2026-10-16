@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { hasSyncFlag, scopeUids, LEAD_INBOX_SYNC_FLAG } from "../lib/lead-email-sync"
+import { hasSyncFlag, scopeUids, describeImapError, LEAD_INBOX_SYNC_FLAG } from "../lib/lead-email-sync"
 import { inboundMessageKey } from "../lib/lead-emails-inbound"
 
 describe("hasSyncFlag", () => {
@@ -22,6 +22,29 @@ describe("scopeUids", () => {
     expect(scoped).toHaveLength(400)
     expect(scoped[0]).toBe(51)
     expect(scoped[scoped.length - 1]).toBe(450)
+  })
+})
+
+describe("describeImapError", () => {
+  it("explains an unresolvable host, which is nearly always an address in the host field", () => {
+    const msg = describeImapError("getaddrinfo ENOTFOUND mail@martpoint.com.ng", "mail@martpoint.com.ng")
+    expect(msg).toContain("mail@martpoint.com.ng")
+    expect(msg).toContain("mail.martpoint.com.ng")
+    expect(msg).toContain("Settings → Email")
+  })
+
+  it("recognises the other DNS failure shapes the mail server returns", () => {
+    expect(describeImapError("getaddrinfo EBUSY smtp@martpoint.com.ng", "smtp@martpoint.com.ng")).toContain("could not be resolved")
+    expect(describeImapError("getaddrinfo ENOTFOUND x", "x")).toContain("could not be resolved")
+  })
+
+  it("points at credentials when the failure is authentication", () => {
+    const msg = describeImapError("AUTHENTICATIONFAILED", "mail.martpoint.com.ng")
+    expect(msg).toContain("app password")
+  })
+
+  it("passes an unrecognised error through unchanged", () => {
+    expect(describeImapError("socket hang up", "mail.martpoint.com.ng")).toBe("socket hang up")
   })
 })
 

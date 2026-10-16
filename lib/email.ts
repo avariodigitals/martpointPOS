@@ -101,6 +101,24 @@ export interface EmailLogInsert {
   sent_at?: string | null
 }
 
+/**
+ * Everything needed to replay a failed send from the Email Logs screen.
+ * Stored on the log row's `metadata.resend` at send time, because the log is
+ * written after the attempt — we cannot decide to keep it only on failure.
+ * Attachments are deliberately excluded (see `logBase` in sendEmail).
+ */
+export interface ResendPayload {
+  to: string
+  cc: string
+  subject: string
+  text: string
+  html: string
+  from: string | null
+  replyTo: string | null
+  route: string | null
+  skipBranding: boolean
+}
+
 const DEFAULT_ROUTES: Record<string, string> = {
   lead_submission: "sales@martpoint.com.ng",
   estimate_submission: "sales@martpoint.com.ng",
@@ -206,6 +224,31 @@ async function loadEmailSettingsFromDb(): Promise<EmailSettings> {
   }
 }
 
+/**
+ * The replayable copy of a message, stored on the log row so a failure can be
+ * retried from the Email Logs screen. Returns null for messages that carried
+ * attachments: we do not keep the files, and re-sending an invoice without its
+ * PDF would be worse than refusing the retry.
+ */
+export function buildResendPayload(
+  message: EmailMessage,
+  toList: string[],
+  ccList: string[],
+): ResendPayload | null {
+  if (message.attachments?.length) return null
+  return {
+    to: toList.join(", "),
+    cc: ccList.join(", "),
+    subject: message.subject,
+    text: message.text || "",
+    html: message.html || "",
+    from: message.from || null,
+    replyTo: message.replyTo || null,
+    route: message.route || null,
+    skipBranding: message.skipBranding === true,
+  }
+}
+
 export async function getEmailSettings(): Promise<EmailSettings> {
   const now = Date.now()
   if (cachedSettings && now - cachedAt < CACHE_TTL_MS) {
@@ -294,13 +337,21 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
   const to = toList.join(", ")
   const ccList = normalizeRecipients(message.cc)
 
+  // Keep a replayable copy of the message so a failure can be retried from the
+  // Email Logs screen (see buildResendPayload for what is deliberately dropped).
   const logBase: EmailLogInsert = {
     from,
     to,
     subject: message.subject,
     status: "pending",
     provider,
-    metadata: { html: !!message.html, route: message.route || null, cc: ccList.length ? ccList.join(", ") : null },
+    metadata: {
+      html: !!message.html,
+      route: message.route || null,
+      cc: ccList.length ? ccList.join(", ") : null,
+      attachments: message.attachments?.length || 0,
+      resend: buildResendPayload(message, toList, ccList),
+    },
   }
 
   if (toList.length === 0) {

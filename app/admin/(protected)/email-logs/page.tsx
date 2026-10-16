@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, ChevronLeft, ChevronRight } from "lucide-react"
+import { Loader2, Mail, ChevronLeft, ChevronRight, RotateCw } from "lucide-react"
 
 interface EmailLog {
   id: string
@@ -19,6 +19,11 @@ interface EmailLog {
   sent_at: string | null
 }
 
+/** A failed send can only be replayed when the message body was stored. */
+function isResendable(log: EmailLog): boolean {
+  return log.status === "failed" && Boolean(log.metadata && log.metadata.resend)
+}
+
 export default function EmailLogsPage() {
   const [logs, setLogs] = useState<EmailLog[]>([])
   const [count, setCount] = useState(0)
@@ -26,6 +31,9 @@ export default function EmailLogsPage() {
   const [toFilter, setToFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [page, setPage] = useState(1)
+  const [resendingId, setResendingId] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const limit = 25
 
   useEffect(() => {
@@ -59,7 +67,26 @@ export default function EmailLogsPage() {
       })
 
     return () => { cancelled = true }
-  }, [page, toFilter, statusFilter])
+  }, [page, toFilter, statusFilter, reloadKey])
+
+  const resend = async (log: EmailLog) => {
+    setResendingId(log.id)
+    setNotice(null)
+    try {
+      const res = await fetch(`/api/admin/email-logs/${log.id}/resend`, { method: "POST" })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
+        setNotice({ tone: "ok", text: `Resent "${log.subject}". A new entry appears below.` })
+        setReloadKey((k) => k + 1)
+      } else {
+        setNotice({ tone: "error", text: data.error || "Resend failed." })
+      }
+    } catch {
+      setNotice({ tone: "error", text: "Resend failed — could not reach the server." })
+    } finally {
+      setResendingId(null)
+    }
+  }
 
   const totalPages = Math.ceil(count / limit)
 
@@ -102,6 +129,17 @@ export default function EmailLogsPage() {
 
       <Card>
         <CardContent className="p-0">
+          {notice && (
+            <div
+              className={`border-b px-4 py-2 text-sm ${
+                notice.tone === "ok"
+                  ? "bg-green-50 text-green-800 border-green-100"
+                  : "bg-red-50 text-red-800 border-red-100"
+              }`}
+            >
+              {notice.text}
+            </div>
+          )}
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -119,6 +157,7 @@ export default function EmailLogsPage() {
                     <th className="text-left px-4 py-2 font-medium">Subject</th>
                     <th className="text-left px-4 py-2 font-medium">Sent</th>
                     <th className="text-left px-4 py-2 font-medium">Error</th>
+                    <th className="text-right px-4 py-2 font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -140,6 +179,35 @@ export default function EmailLogsPage() {
                       <td className="px-4 py-2 max-w-xs truncate" title={log.subject}>{log.subject}</td>
                       <td className="px-4 py-2 whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</td>
                       <td className="px-4 py-2 max-w-xs truncate text-red-600" title={log.error_message || ""}>{log.error_message || "—"}</td>
+                      <td className="px-4 py-2 text-right">
+                        {isResendable(log) ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => resend(log)}
+                            disabled={resendingId === log.id}
+                            title="Send this message again"
+                          >
+                            {resendingId === log.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <RotateCw className="w-3.5 h-3.5" />
+                            )}
+                            Resend
+                          </Button>
+                        ) : (
+                          <span
+                            className="text-xs text-muted-foreground"
+                            title={
+                              log.status !== "failed"
+                                ? "Only failed emails can be resent."
+                                : "The original message was not stored for this entry — resend it from the screen that sent it."
+                            }
+                          >
+                            —
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

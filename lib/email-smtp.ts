@@ -10,7 +10,7 @@
 
 import nodemailer from "nodemailer"
 import type { EmailMessage, EmailSettings } from "./email"
-import { writeEmailLog } from "./email"
+import { buildResendPayload, writeEmailLog } from "./email"
 import { ensureBrandedHtml } from "./email-templates"
 import { getEmailFooterSettings } from "./settings"
 
@@ -51,6 +51,7 @@ export async function sendEmailViaSmtp(
 ): Promise<boolean> {
   const smtp = settings.smtp
   const sender = from || smtp.fromEmail || smtp.user
+  const ccList = normalizeRecipients(message.cc)
 
   const logBase = {
     from: sender,
@@ -58,7 +59,13 @@ export async function sendEmailViaSmtp(
     subject: message.subject,
     status: "pending" as const,
     provider: "smtp",
-    metadata: { html: !!message.html, route: message.route || null },
+    metadata: {
+      html: !!message.html,
+      route: message.route || null,
+      cc: ccList.length ? ccList.join(", ") : null,
+      attachments: message.attachments?.length || 0,
+      resend: buildResendPayload(message, toList, ccList),
+    },
   }
 
   if (!smtp.host || !smtp.user || !sender) {
@@ -78,8 +85,6 @@ export async function sendEmailViaSmtp(
       secure: smtp.secure,
       auth: smtp.pass ? { user: smtp.user, pass: smtp.pass } : undefined,
     })
-
-    const ccList = normalizeRecipients(message.cc)
 
     const info = await transporter.sendMail({
       from: sender,

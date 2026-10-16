@@ -1,7 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   LayoutDashboard,
@@ -48,7 +46,6 @@ import {
   Briefcase,
   UserCheck,
   MapPin,
-  ChevronDown,
   Trophy,
   Video,
   CalendarClock,
@@ -57,15 +54,16 @@ import {
   Calculator,
   Sparkles,
   CreditCard,
+  type LucideIcon,
 } from "lucide-react"
 import { PortalMobileNav } from "@/components/shared/portal-mobile-nav"
-import { LogoutButton } from "./logout-button"
+import { PortalSidebar } from "@/components/shared/portal-sidebar"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
 
 interface NavItem {
   href: string
   label: string
-  icon: React.ElementType
+  icon: LucideIcon
   page: string
   section?: string
 }
@@ -193,39 +191,10 @@ export function AdminSidebarNav({
   const pathname = usePathname()
   const router = useRouter()
 
-  // Collapsed/expanded state per section, persisted across navigations.
-  // null = not yet hydrated from localStorage → fall back to "section with active page is open".
-  const [openSections, setOpenSections] = useState<Record<string, boolean> | null>(null)
-
-  useEffect(() => {
-    let stored: Record<string, boolean> = {}
-    try {
-      stored = JSON.parse(localStorage.getItem("admin-nav-sections") || "{}")
-    } catch {}
-    const t = setTimeout(() => setOpenSections(stored), 0)
-    return () => clearTimeout(t)
-  }, [])
-
   const handleLogout = async () => {
     await fetch("/api/admin/logout", { method: "POST" })
     router.push("/admin/login")
     router.refresh()
-  }
-
-  const pathUnder = (item: NavItem) => {
-    const base = item.href.split("?")[0]
-    return pathname === base || (base !== "/admin" && pathname.startsWith(base + "/"))
-  }
-
-  const isOpen = (section: string, items: NavItem[]) =>
-    openSections && section in openSections ? openSections[section] : items.some(pathUnder)
-
-  const toggleSection = (section: string, currentlyOpen: boolean) => {
-    const next = { ...(openSections || {}), [section]: !currentlyOpen }
-    setOpenSections(next)
-    try {
-      localStorage.setItem("admin-nav-sections", JSON.stringify(next))
-    } catch {}
   }
 
   const visibleItems = navItems.filter((item) => hasPermission(userRole, item.page))
@@ -273,62 +242,17 @@ export function AdminSidebarNav({
         logoutLabel="Logout"
       />
 
-      <aside className="hidden md:flex md:flex-col md:w-64 border-r border-white/10 bg-[#0A0F1C] text-white">
-        <div className="p-6">
-          <h1 className="text-xl font-bold text-white">MartPoint Control Centre</h1>
-          <p className="text-xs text-gray-400 mt-1">Operational source of truth</p>
-        </div>
-
-        <nav className="px-4 pb-2 space-y-6">
-          {Object.entries(grouped).map(([section, items]) => {
-            const open = isOpen(section, items)
-            return (
-            <div key={section}>
-              <button
-                type="button"
-                onClick={() => toggleSection(section, open)}
-                className="w-full flex items-center justify-between px-3 py-1 mb-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-300 transition-colors"
-                aria-expanded={open}
-              >
-                {section}
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
-              </button>
-              {open && (
-              <div className="space-y-1">
-                {items.map((item) => {
-                  const active = isItemActive(item.href)
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                        active
-                          ? "bg-retail text-white"
-                          : "text-gray-300 hover:bg-white/10 hover:text-white"
-                      }`}
-                    >
-                      <item.icon className="w-4 h-4" />
-                      {item.label}
-                    </Link>
-                  )
-                })}
-              </div>
-              )}
-            </div>
-            )
-          })}
-        </nav>
-
-        <div className="px-4 pb-4">
-          <div className="pt-4 border-t border-white/10">
-            <div className="mb-3 px-3">
-              <p className="text-xs font-medium text-white">{userName}</p>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wider">{userRole}</p>
-            </div>
-            <LogoutButton />
-          </div>
-        </div>
-      </aside>
+      <PortalSidebar
+        title="MartPoint Control Centre"
+        subtitle="Operational source of truth"
+        sections={sections}
+        userName={userName}
+        userMeta={userRole}
+        onLogout={handleLogout}
+        logoutLabel="Logout"
+        storageKey="admin-nav"
+        isItemActive={isItemActive}
+      />
     </>
   )
 }

@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   LayoutDashboard,
@@ -9,7 +8,6 @@ import {
   FileCheck,
   FileText,
   FolderOpen,
-  LogOut,
   Target,
   Share2,
   Briefcase,
@@ -24,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { PortalMobileNav } from "@/components/shared/portal-mobile-nav"
+import { PortalSidebar } from "@/components/shared/portal-sidebar"
 import { partnerUserHasPermission, type PartnerUserRole, type PartnerOrgCapability, type PartnerPermission } from "@/lib/partner-permissions"
 
 interface NavItem {
@@ -101,52 +100,19 @@ export function PartnerSidebarNav({
         logoutLabel="Logout"
       />
 
-      <aside className="hidden md:flex md:flex-col md:w-64 border-r border-white/10 bg-[#0A0F1C] text-white">
-        <div className="p-6">
-          <h1 className="text-lg font-bold text-white">Partner Portal</h1>
-          <p className="text-xs text-gray-400 mt-1 truncate">{partnerName}</p>
-          <p className="text-[10px] text-gray-500 font-mono mt-0.5">{partnerId}</p>
-        </div>
-
-        <nav className="px-4 pb-2 space-y-1">
-          {visibleItems.map((item) => {
-            const active = pathname === item.href
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-retail text-white"
-                    : "text-gray-300 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <item.icon className="w-4 h-4" />
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
-
-        <div className="px-4 pb-4 mt-auto">
-          <div className="pt-4 border-t border-white/10">
-            <div className="mb-3 px-3">
-              <p className="text-xs font-medium text-white">{userName}</p>
-              <p className="text-[11px] text-gray-400 uppercase tracking-wider">{userRole.replace("PARTNER_", "")}</p>
-              {capabilities.length > 0 && (
-                <p className="text-[10px] text-gray-500 mt-1">{capabilities.join(" · ")}</p>
-              )}
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-400 hover:text-white hover:bg-white/10 transition-colors w-full"
-            >
-              <LogOut className="w-4 h-4" />
-              Logout
-            </button>
-          </div>
-        </div>
-      </aside>
+      <PortalSidebar
+        title="Partner Portal"
+        subtitle={partnerName}
+        meta={[partnerId]}
+        sections={[{ items: visibleItems }]}
+        userName={userName}
+        userMeta={userRole.replace("PARTNER_", "")}
+        footerNote={capabilities.length > 0 ? capabilities.join(" · ") : undefined}
+        onLogout={handleLogout}
+        logoutLabel="Logout"
+        storageKey="partner-nav"
+        isItemActive={(href) => pathname === href}
+      />
     </>
   )
 }

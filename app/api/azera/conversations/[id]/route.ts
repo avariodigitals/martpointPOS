@@ -65,7 +65,9 @@ export async function PATCH(
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (status !== undefined) updates.status = status
-    if (assigned_admin_user_id !== undefined) updates.assigned_admin_user_id = assigned_admin_user_id
+    if (assigned_admin_user_id !== undefined) {
+      updates.assigned_admin_user_id = assigned_admin_user_id === "me" ? session.userId : assigned_admin_user_id
+    }
     if (customer_name !== undefined) updates.customer_name = customer_name
     if (customer_phone !== undefined) updates.customer_phone = customer_phone
     if (ai_enabled !== undefined) updates.ai_enabled = ai_enabled

@@ -5,6 +5,7 @@ import { PermissionGuard } from "@/components/admin/permission-guard"
 import { AdminSessionTimeoutWatcher } from "@/components/admin/admin-session-timeout-watcher"
 import { AdminToastProvider } from "@/components/admin/admin-toast"
 import { AdminFetchInterceptor } from "@/components/admin/admin-fetch-interceptor"
+import { AdminNotificationBell } from "@/components/admin/admin-notification-bell"
 
 export default async function AdminProtectedLayout({
   children,
@@ -25,7 +26,10 @@ export default async function AdminProtectedLayout({
         <AdminSidebarNav userName={session.name || session.username} userRole={session.role} />
 
         {/* Main Content */}
-        <main className="flex-1 p-6 pb-24 md:p-8 overflow-auto">
+        <main className="min-w-0 flex-1 overflow-auto p-6 pb-24 md:p-8">
+          <div className="mb-6 flex justify-end">
+            <AdminNotificationBell />
+          </div>
           <PermissionGuard role={session.role}>
             {children}
           </PermissionGuard>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { aiChat, type AiChatMessage } from "@/lib/ai-chat"
 import { readSettings } from "@/lib/settings"
+import { notifySupportAgents } from "@/lib/omnichannel-notifications"
 
 function ok<T>(data: T) {
   return NextResponse.json({ success: true, data })
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
       business_id,
       external_id,
       customer_name,
+      source = "public_site",
       message,
     } = body
 
@@ -43,6 +45,7 @@ export async function POST(request: Request) {
         .insert({
           business_id,
           channel: "website",
+          source,
           external_id,
           customer_name,
           status: "open",
@@ -82,6 +85,13 @@ export async function POST(request: Request) {
       .from("azera_conversations")
       .update({ last_message_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("id", conv.id)
+
+    void notifySupportAgents({
+      title: "New customer message",
+      message: `${customer_name || "A customer"} sent a message via ${source === "retail_app" ? "the retail app" : "website chat"}.`,
+      deepLink: `/admin/azera?conversation=${conv.id}`,
+      sourceId: conv.id,
+    })
 
     // 3. AI reply (if enabled)
     let aiReply: string | null = null

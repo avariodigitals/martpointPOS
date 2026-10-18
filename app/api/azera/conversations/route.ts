@@ -24,6 +24,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const businessId = searchParams.get("business_id")
   const status = searchParams.get("status")
+  const channel = searchParams.get("channel")
   const assignedToMe = searchParams.get("assigned_to_me") === "1"
 
   try {
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
 
     if (businessId) query = query.eq("business_id", businessId)
     if (status) query = query.eq("status", status)
+    if (channel) query = query.eq("channel", channel)
     if (assignedToMe) query = query.eq("assigned_admin_user_id", session.userId)
 
     const { data, error } = await query.limit(200)
@@ -50,7 +52,9 @@ export async function GET(request: Request) {
 
     const conversations = (data || []).map((c: any) => {
       const msgs = c.azera_messages || []
-      const last = msgs[0]
+      const last = msgs
+        .slice()
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
       const unread = msgs.filter(
         (m: any) => m.direction === "inbound" && m.author_type !== "agent"
       ).length

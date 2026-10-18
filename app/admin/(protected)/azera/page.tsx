@@ -93,34 +93,33 @@ export default function AzeraConsolePage() {
   const [isRecording, setIsRecording] = useState(false)
 
   // WebRTC hook for active call
-  const webrtc = activeCall?.type === "webrtc"
-    ? useWebRTCCall({
-        callId: activeCall.id,
-        isAgent: true,
-        onCallEnded: () => {
-          setActiveCall(null)
-          setIsRecording(false)
-        },
-        onStartRecording: async () => {
-          setIsRecording(true)
-          try {
-            await fetch("/api/azera/call-recordings", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                call_id: activeCall.id,
-                business_id: selected?.business_id || "",
-                recording_url: "",
-                recording_type: "manual",
-              }),
-            })
-          } catch {
-            // ignore
-          }
-        },
-        onStopRecording: () => setIsRecording(false),
-      })
-    : { state: "idle" as const, error: null, startCall: () => {}, answerCall: () => {}, endCall: () => {}, toggleMute: () => {}, onStartRecording: () => {}, onStopRecording: () => {}, isMuted: false }
+  const webrtc = useWebRTCCall({
+    callId: activeCall?.id || "",
+    enabled: activeCall?.type === "webrtc",
+    isAgent: true,
+    onCallEnded: () => {
+      setActiveCall(null)
+      setIsRecording(false)
+    },
+    onStartRecording: async () => {
+      setIsRecording(true)
+      try {
+        await fetch("/api/azera/call-recordings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            call_id: activeCall?.id || "",
+            business_id: selected?.business_id || "",
+            recording_url: "",
+            recording_type: "manual",
+          }),
+        })
+      } catch {
+        // ignore
+      }
+    },
+    onStopRecording: () => setIsRecording(false),
+  })
 
   useEffect(() => {
     loadConversations()

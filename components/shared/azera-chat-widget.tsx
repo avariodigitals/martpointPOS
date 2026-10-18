@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
-import { Send, MessageCircle, X, Loader2, User, Bot, Phone, PhoneOff } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Send, MessageCircle, X, Loader2, Bot, Phone } from "lucide-react"
 import { useWebRTCCall, AzeraCallUI } from "@/components/shared/azera-webrtc-call"
 
 interface AzeraChatWidgetProps {
@@ -71,13 +71,12 @@ export function AzeraChatWidget({
   const [callError, setCallError] = useState<string | null>(null)
 
   // WebRTC hook for customer side
-  const webrtc = activeCall?.type === "webrtc"
-    ? useWebRTCCall({
-        callId: activeCall.id,
-        isAgent: false,
-        onCallEnded: () => setActiveCall(null),
-      })
-    : { state: "idle" as const, error: null, startCall: () => {}, answerCall: () => {}, endCall: () => {}, toggleMute: () => {}, isMuted: false }
+  const webrtc = useWebRTCCall({
+    callId: activeCall?.id || "",
+    enabled: activeCall?.type === "webrtc",
+    isAgent: false,
+    onCallEnded: () => setActiveCall(null),
+  })
 
   const externalId =
     externalIdProp ||
@@ -116,7 +115,7 @@ export function AzeraChatWidget({
       const json = await res.json()
       if (json.messages) {
         setMessages(
-          json.messages.map((m: any) => ({
+          json.messages.map((m: ChatMessage) => ({
             id: m.id,
             author_type: m.author_type,
             message: m.message,
@@ -130,8 +129,8 @@ export function AzeraChatWidget({
     }
   }
 
-  async function sendMessage(e: React.FormEvent) {
-    e.preventDefault()
+  async function sendMessage(e?: React.FormEvent) {
+    e?.preventDefault()
     if (!input.trim() || !businessId) return
     const text = input.trim()
     setInput("")
@@ -237,111 +236,124 @@ export function AzeraChatWidget({
     scrollToBottom()
   }, [messages])
 
-  // Auto-greeting on open
-  useEffect(() => {
-    if (open && !connected && greeting) {
+  function toggleChat() {
+    const nextOpen = !open
+    setOpen(nextOpen)
+    if (nextOpen && !connected && greeting) {
       setConnected(true)
-      setMessages((prev) =>
-        prev.length === 0
-          ? [
-              {
-                id: "welcome",
-                author_type: "ai",
-                message: greeting,
-                direction: "outbound",
-                created_at: new Date().toISOString(),
-              },
-            ]
-          : prev
-      )
+      setMessages((prev) => prev.length === 0 ? [{
+        id: "welcome",
+        author_type: "ai",
+        message: greeting,
+        direction: "outbound",
+        created_at: new Date().toISOString(),
+      }] : prev)
     }
-  }, [open, greeting, connected])
-
-  const bubblePosition = position === "bottom-left" ? "left-1/2 -translate-x-1/2" : "right-0"
+  }
 
   return (
     <div className="fixed z-50">
       {/* Chat button */}
       <button
-        onClick={() => setOpen(!open)}
+        onClick={toggleChat}
+        style={{ backgroundColor: brandColor }}
         className={cn(
-          "fixed w-12 h-12 rounded-full flex items-center justify-center shadow-lg text-white transition-transform duration-200 active:scale-95",
-          `bottom-8 ${position === "bottom-right" ? "right-8" : "left-8"}`,
-          `bg-${brandColor}`
+          "fixed bottom-5 flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-[0_14px_35px_rgba(15,23,42,0.24)] ring-4 ring-white/80 transition-transform duration-200 hover:-translate-y-0.5 active:scale-95 sm:bottom-6",
+          position === "bottom-right" ? "right-5 sm:right-6" : "left-5 sm:left-6",
         )}
         aria-label="Open chat"
+        aria-expanded={open}
       >
-        <MessageCircle className="w-6 h-6" />
+        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
       </button>
 
       {/* Chat panel */}
       {open && (
         <div
           className={cn(
-            "fixed z-50 w-full max-w-xs h-[90vh] flex flex-col border border-border bg-white rounded-2xl shadow-2xl",
-            `bottom-20 ${position === "bottom-right" ? "right-8" : "left-8"}`,
-            `border-t-4 ${brandColor ? `border-${brandColor}` : ""}`
+            "fixed z-50 flex max-h-[min(680px,calc(100vh-7rem))] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)] sm:w-[380px]",
+            "bottom-24 sm:bottom-28",
+            position === "bottom-right" ? "right-4 sm:right-6" : "left-4 sm:left-6",
           )}
+          role="dialog"
+          aria-label={title}
         >
           {/* Header */}
-          <div className={`bg-${brandColor} text-white rounded-t-xl p-4 flex items-center gap-3`}>
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+          <div style={{ backgroundColor: brandColor }} className="flex items-center gap-3 px-4 py-3.5 text-white">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/20">
               <Bot className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm">{title}</div>
-              <div className="text-xs opacity-90">Azera · MartPoint</div>
+              <div className="truncate text-sm font-semibold">{title}</div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/80">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                Azera · MartPoint
+              </div>
             </div>
-            <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white">
+            <button onClick={() => setOpen(false)} aria-label="Close chat" className="rounded-lg p-1.5 text-white/75 transition hover:bg-white/15 hover:text-white">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/80 p-4">
+            {messages.length === 0 && (
+              <div className="flex h-full min-h-40 flex-col items-center justify-center px-6 text-center text-slate-500">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">
+                  <MessageCircle className="h-5 w-5" />
+                </div>
+                <p className="text-sm font-medium text-slate-700">Start a conversation</p>
+                <p className="mt-1 text-xs leading-relaxed">Ask about MartPoint, setup, pricing, or support.</p>
+              </div>
+            )}
             {messages.map((m) => (
               <div
                 key={m.id}
                 className={cn(
-                  "max-w-[85%] rounded-lg p-3 text-sm break-words",
+                  "max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed break-words shadow-sm",
                   m.direction === "outbound"
-                    ? "ml-auto bg-retail text-white rounded-tr-none"
-                    : "mr-auto bg-muted text-foreground rounded-tl-none"
+                    ? "ml-auto rounded-br-md text-white"
+                    : "mr-auto rounded-bl-md border border-slate-200 bg-white text-slate-700"
                 )}
+                style={m.direction === "outbound" ? { backgroundColor: brandColor } : undefined}
               >
                 {m.author_type === "ai" && (
                   <span className="text-[10px] uppercase tracking-wider opacity-60 block mb-1">Azera</span>
                 )}
                 {m.message}
-                <span className="text-[10px] block mt-1 opacity-50">
+                <span className="mt-1 block text-[10px] opacity-50">
                   {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               </div>
             ))}
             {loading && (
-              <div className="ml-auto max-w-[85%] rounded-lg bg-retail text-white p-3 text-sm rounded-tr-none flex items-center gap-2">
+              <div style={{ backgroundColor: brandColor }} className="ml-auto flex max-w-[88%] items-center gap-2 rounded-2xl rounded-br-md px-3.5 py-2.5 text-sm text-white shadow-sm">
                 <Loader2 className="w-4 h-4 animate-spin" /> Typing…
               </div>
             )}
           </div>
 
           {/* Input */}
-          <form onSubmit={sendMessage} className="p-3 border-t border-border bg-white flex gap-2">
+          <form onSubmit={sendMessage} className="flex gap-2 border-t border-slate-200 bg-white p-3">
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type a message…"
               rows={1}
-              className="flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-retail/50"
+              className="min-h-10 flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10"
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) e.preventDefault()
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  if (!loading) void sendMessage()
+                }
               }}
             />
             <button
               type="submit"
               disabled={!input.trim() || loading}
-              className={`rounded-lg p-2.5 text-white transition-opacity disabled:opacity-50 ${brandColor ? `bg-${brandColor}` : "bg-retail"}`}
+              style={{ backgroundColor: brandColor }}
+              className="h-10 w-10 shrink-0 rounded-xl p-2.5 text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Send"
             >
               <Send className="w-5 h-5" />
@@ -356,6 +368,7 @@ export function AzeraChatWidget({
               <Phone className="w-5 h-5" />
             </button>
           </form>
+          {callError && <p className="border-t border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">{callError}</p>}
         </div>
       )}
 

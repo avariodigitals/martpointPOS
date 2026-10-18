@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import { AnalyticsData } from "@/components/analytics-data";
 import { TrackingScript } from "@/components/tracking-script";
 import { CookieConsentLoader } from "@/components/cookie-consent-loader";
@@ -8,11 +7,6 @@ import { OrganizationSchema, WebsiteSchema, SiteNavigationSchema } from "@/compo
 import { AzeraChatWidget } from "@/components/shared/azera-chat-widget";
 import { readSettings } from "@/lib/settings";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -102,7 +96,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://www.googletagmanager.com" />
         <link rel="preconnect" href="https://connect.facebook.net" />

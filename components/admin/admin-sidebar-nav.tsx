@@ -86,8 +86,6 @@ const navItems: NavItem[] = [
   // CUSTOMERS
   { href: "/admin/customers", label: "Customers", icon: Users, page: "customers", section: "Customers" },
   { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, page: "customers", section: "Customers" },
-  { href: "/admin/azera", label: "Azera Chat", icon: MessageCircle, page: "support", section: "Customers" },
-  { href: "/admin/azera/reports", label: "Call Reports", icon: FileAudio, page: "support", section: "Customers" },
   { href: "/admin/businesses", label: "Businesses", icon: Building2, page: "businesses", section: "Customers" },
   { href: "/admin/city-requests", label: "City Requests", icon: MapPin, page: "businesses", section: "Customers" },
   { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardCheck, page: "onboarding", section: "Customers" },
@@ -95,13 +93,11 @@ const navItems: NavItem[] = [
   { href: "/admin/support", label: "Support", icon: Ticket, page: "support", section: "Customers" },
 
   // OMNICHANNEL
+  { href: "/admin/azera", label: "Azera Chat", icon: MessageCircle, page: "support", section: "Omnichannel" },
+  { href: "/admin/azera/reports", label: "Call Reports", icon: FileAudio, page: "support", section: "Omnichannel" },
   { href: "/admin/messenger", label: "Messenger", icon: MessageCircle, page: "support", section: "Omnichannel" },
   { href: "/admin/instagram", label: "Instagram DM", icon: Share2, page: "support", section: "Omnichannel" },
   { href: "/admin/google-reviews", label: "Google Reviews", icon: Star, page: "support", section: "Omnichannel" },
-  { href: "/admin/city-requests", label: "City Requests", icon: MapPin, page: "businesses", section: "Customers" },
-  { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardCheck, page: "onboarding", section: "Customers" },
-  { href: "/admin/customer-success", label: "Customer Success", icon: Activity, page: "customer_success", section: "Customers" },
-  { href: "/admin/support", label: "Support", icon: Ticket, page: "support", section: "Customers" },
 
   // PARTNERS
   { href: "/admin/partners", label: "Partners", icon: Handshake, page: "partners", section: "Partners" },

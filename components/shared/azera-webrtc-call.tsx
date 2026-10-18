@@ -5,6 +5,7 @@ import { Phone, PhoneOff, Mic, MicOff, Loader2, User, FileAudio } from "lucide-r
 
 interface UseWebRTCCallProps {
   callId: string
+  enabled?: boolean
   isAgent: boolean
   localStream?: MediaStream
   remoteAudioEl?: HTMLAudioElement
@@ -35,6 +36,7 @@ interface SignalingMessage {
  */
 export function useWebRTCCall({
   callId,
+  enabled = true,
   isAgent,
   localStream,
   remoteAudioEl,
@@ -48,6 +50,7 @@ export function useWebRTCCall({
   const remoteStreamRef = useRef<MediaStream | null>(null)
   const [state, setState] = useState<"idle" | "connecting" | "ringing" | "active" | "ended" | "error">("idle")
   const [error, setError] = useState<string | null>(null)
+  const [isMuted, setIsMuted] = useState(false)
   const iceCandidatesRef = useRef<RTCIceCandidate[]>([])
 
   const STUN_SERVERS = [
@@ -203,11 +206,13 @@ export function useWebRTCCall({
   const toggleMute = useCallback(() => {
     localStreamRef.current?.getAudioTracks().forEach((t) => {
       t.enabled = !t.enabled
+      setIsMuted(!t.enabled)
     })
   }, [])
 
   // Poll for incoming offer (callee side)
   useEffect(() => {
+    if (!enabled || !callId || !isAgent && state !== "idle") return
     if (!isAgent && state === "idle") {
       const interval = setInterval(async () => {
         const messages = await fetchSignaling()
@@ -218,11 +223,11 @@ export function useWebRTCCall({
       }, 2000)
       return () => clearInterval(interval)
     }
-  }, [isAgent, state, fetchSignaling])
+  }, [callId, enabled, isAgent, state, fetchSignaling])
 
   // Poll for answer (caller side)
   useEffect(() => {
-    if (state === "ringing") {
+    if (enabled && callId && state === "ringing") {
       const interval = setInterval(async () => {
         const messages = await fetchSignaling()
         const answerMsg = messages.find((m) => m.event_type === "webrtc_answer")
@@ -241,11 +246,11 @@ export function useWebRTCCall({
       }, 1500)
       return () => clearInterval(interval)
     }
-  }, [state, fetchSignaling])
+  }, [callId, enabled, state, fetchSignaling])
 
   // Handle incoming ICE candidates
   useEffect(() => {
-    if (!pcRef.current) return
+    if (!enabled || !callId || !pcRef.current) return
     const interval = setInterval(async () => {
       const messages = await fetchSignaling()
       const iceMsgs = messages.filter((m) => m.event_type === "webrtc_ice_candidate")
@@ -263,22 +268,18 @@ export function useWebRTCCall({
       }
     }, 1500)
     return () => clearInterval(interval)
-  }, [pcRef.current, fetchSignaling])
+  }, [callId, enabled, fetchSignaling])
 
   return {
     state,
     error,
-    localStream: localStreamRef.current,
-    remoteStream: remoteStreamRef.current,
     startCall,
     answerCall,
     endCall,
     toggleMute,
     onStartRecording,
     onStopRecording,
-    isMuted: localStreamRef.current
-      ? localStreamRef.current.getAudioTracks().some((t) => !t.enabled)
-      : false,
+    isMuted,
   }
 }
 

@@ -89,7 +89,7 @@ export function buildExpleeLeadInput(lead: ExpleeHotLead): LeadInput | null {
   ].filter(Boolean)
 
   const message = [
-    `Explee hot lead${lead.campaign_id ? ` (campaign ${lead.campaign_id})` : ""}.`,
+    `LeadsRite hot lead${lead.campaign_id ? ` (campaign ${lead.campaign_id})` : ""}.`,
     details.length ? details.join("\n") : "",
     lead.why_hot ? `\nTheir reply:\n${lead.why_hot}` : "",
   ]
@@ -106,7 +106,7 @@ export function buildExpleeLeadInput(lead: ExpleeHotLead): LeadInput | null {
     branches: "1",
     staffSize: "1-5",
     message,
-    source: "explee",
+    source: "leadsrite",
     externalId: `explee:${lead.person_id}`,
   }
 }

@@ -62,6 +62,8 @@ export interface SendLeadEmailInput {
   attachments?: EmailAttachment[]
   /** Display name to front the shared mailbox — "send as" this person. */
   senderName?: string
+  /** Per-user signature override. An omitted value uses the global fallback. */
+  signatureHtml?: string
   metadata?: Record<string, unknown>
 }
 
@@ -126,15 +128,16 @@ export function resolveLeadSenders(settings: EmailSettings, senderName?: string)
  * block. Shared by sendLeadEmail and the admin preview endpoint so "Preview"
  * always matches the real delivery. */
 export async function renderLeadEmail(
-  input: Pick<SendLeadEmailInput, "body" | "html" | "noSignature">,
+  input: Pick<SendLeadEmailInput, "body" | "html" | "noSignature" | "signatureHtml">,
   settings?: EmailSettings,
 ): Promise<{ text: string; html: string }> {
   const s = settings || (await getEmailSettings())
   // HTML signature (rich editor) wins; the plain-text field is the legacy
   // fallback. The text part always gets a derived plain-text version, like a
   // normal mail client signature.
-  const signatureHtml = s.signatureHtml.trim()
-  const signatureText = (signatureHtml ? htmlToText(signatureHtml) : s.signature).trim()
+  const hasSignatureOverride = input.signatureHtml !== undefined
+  const signatureHtml = hasSignatureOverride ? input.signatureHtml!.trim() : s.signatureHtml.trim()
+  const signatureText = (signatureHtml ? htmlToText(signatureHtml) : hasSignatureOverride ? "" : s.signature).trim()
   const hasSignature =
     !input.noSignature && Boolean(signatureText || /<img\b/i.test(signatureHtml))
 

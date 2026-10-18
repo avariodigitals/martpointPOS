@@ -44,6 +44,7 @@ const FINANCE_PERMISSIONS: Record<UserRole, FinanceAction[]> = {
   ],
   "Digital Marketer": ["finance:view"],
   Sales: ["finance:view", "finance:quotes:create"],
+  "Customer Care": [],
   Tech: ["finance:view"],
   Editor: [],
   "HR Manager": [],

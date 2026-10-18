@@ -27,6 +27,7 @@ import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib
 import { ADVANCED_QUESTIONNAIRE_FIELDS } from "@/lib/questionnaire-catalog"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 import { computeLeadScore, BUCKET_LABEL, type LeadScoreBucket } from "@/lib/lead-score"
+import { LEAD_SOURCE_OPTIONS, leadSourceLabel } from "@/lib/lead-sources"
 
 const COUNTRY_OPTIONS = COUNTRIES.map((c) => c.name)
 const STATE_OPTIONS = [...new Set(Object.values(STATES).flat())].sort()
@@ -80,6 +81,22 @@ function resolvedIndustry(lead: Lead): string {
 }
 
 const PIPELINE_STAGES: Lead["status"][] = ["New", "Contacted", "Qualified", "Proposal", "Won", "Lost"]
+
+/* A lead is worked by the front-line team only. "Marketing" is the
+ * "Digital Marketer" role. Every other role (Finance, Tech, HR…) is excluded
+ * from the assign picker. */
+const ASSIGNABLE_ROLES = new Set(["Sales", "Digital Marketer", "Customer Care"])
+
+/* Quick-pick windows for the KPI cards. "custom" reveals from/to date inputs. */
+const KPI_RANGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "all", label: "All time" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "this_month", label: "This month" },
+  { value: "last_month", label: "Last month" },
+  { value: "this_year", label: "This year" },
+  { value: "custom", label: "Custom" },
+]
 
 const STAGE_COLORS: Record<string, string> = {
   New: "bg-info",
@@ -154,6 +171,12 @@ export default function AdminLeadsPage() {
   const [sourceFilter, setSourceFilter] = useState<string>("all")
   const [productFilter, setProductFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<string>("all")
+  // KPI range drives ONLY the stat cards + charts, never the list below — so
+  // the list stays a default full view while the cards answer "when to when".
+  const [kpiRange, setKpiRange] = useState<string>("all")
+  // Inclusive custom bounds for the KPI cards, as yyyy-mm-dd from <input type="date">.
+  const [kpiCustomFrom, setKpiCustomFrom] = useState<string>("")
+  const [kpiCustomTo, setKpiCustomTo] = useState<string>("")
   const [scoreFilter, setScoreFilter] = useState<string>("all")
   const [ownerFilter, setOwnerFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<"newest" | "activity" | "score">("newest")
@@ -223,12 +246,15 @@ export default function AdminLeadsPage() {
   }, [])
 
   useEffect(() => {
-    // The assignee picker needs the admin user list. A leads-only account may
-    // not be allowed to read it — that is fine, owners already in use still show.
+    // A lead is owned by the front-line team only — Sales, Marketing and
+    // Customer Care. Other roles (Finance, Tech, HR…) are never assignable.
+    // A leads-only account may not be allowed to read the user list — that is
+    // fine, owners already in use still show.
     fetch("/api/admin/users")
       .then((res) => (res.ok ? res.json() : { users: [] }))
       .then((data) => {
-        const names = ((data.users || []) as { name?: string; username?: string }[])
+        const names = ((data.users || []) as { name?: string; username?: string; role?: string }[])
+          .filter((u) => ASSIGNABLE_ROLES.has((u.role || "") as string))
           .map((u) => (u.name || u.username || "").trim())
           .filter(Boolean)
         setAssignees(names)
@@ -321,14 +347,69 @@ export default function AdminLeadsPage() {
     setPage(1)
   }, [searchQuery, statusFilter, sourceFilter, productFilter, dateFilter, scoreFilter, sortBy, pageSize])
 
+  /* Resolve a KPI range key to an inclusive [from, to] window over `submittedAt`.
+   * "custom" uses the two date inputs; null bounds mean unbounded on that side. */
+  const kpiRangeBounds = useMemo<{ from: Date | null; to: Date | null }>(() => {
+    const now = new Date()
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+    switch (kpiRange) {
+      case "7d":
+        return { from: new Date(now.getTime() - 6 * 864e5), to: endOfDay(now) }
+      case "30d":
+        return { from: new Date(now.getTime() - 29 * 864e5), to: endOfDay(now) }
+      case "this_month":
+        return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: endOfDay(now) }
+      case "last_month": {
+        const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const to = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)
+        return { from, to }
+      }
+      case "this_year":
+        return { from: new Date(now.getFullYear(), 0, 1), to: endOfDay(now) }
+      case "custom": {
+        const from = kpiCustomFrom ? startOfDay(new Date(kpiCustomFrom)) : null
+        const to = kpiCustomTo ? endOfDay(new Date(kpiCustomTo)) : null
+        return { from, to }
+      }
+      default:
+        return { from: null, to: null } // "all"
+    }
+  }, [kpiRange, kpiCustomFrom, kpiCustomTo])
+
+  const kpiRangeLeads = useMemo(() => {
+    const { from, to } = kpiRangeBounds
+    if (!from && !to) return leads
+    return leads.filter((l) => {
+      const t = new Date(l.submittedAt).getTime()
+      if (Number.isNaN(t)) return false
+      if (from && t < from.getTime()) return false
+      if (to && t > to.getTime()) return false
+      return true
+    })
+  }, [leads, kpiRangeBounds])
+
+  const kpiRangeLabel = useMemo(() => {
+    const { from, to } = kpiRangeBounds
+    if (!from && !to) return "— all time"
+    const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    if (from && to) return `— ${fmt(from)} to ${fmt(to)}`
+    if (from) return `— from ${fmt(from)}`
+    if (to) return `— up to ${fmt(to)}`
+    return "— all time"
+  }, [kpiRangeBounds])
+
   const stats = useMemo(() => {
-    const total = filteredLeads.length
-    const newLeads = filteredLeads.filter((l) => l.status === "New").length
-    const contacted = filteredLeads.filter((l) => l.status === "Contacted").length
-    const won = filteredLeads.filter((l) => l.status === "Won").length
+    // KPIs answer "when to when" — they depend only on the date range chosen
+    // above, never on the list's search/status/owner filters.
+    const inRange = kpiRangeLeads
+    const total = inRange.length
+    const newLeads = inRange.filter((l) => l.status === "New").length
+    const contacted = inRange.filter((l) => l.status === "Contacted").length
+    const won = inRange.filter((l) => l.status === "Won").length
     const conversionRate = total > 0 ? Math.round((won / total) * 100) : 0
     return { total, newLeads, contacted, won, conversionRate }
-  }, [filteredLeads])
+  }, [kpiRangeLeads])
 
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -818,6 +899,46 @@ export default function AdminLeadsPage() {
         </p>
       )}
 
+      {/* KPI range filter — drives only the cards + charts below, not the list */}
+      <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-muted/30 p-3">
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+          {KPI_RANGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setKpiRange(opt.value)}
+              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                kpiRange === opt.value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {kpiRange === "custom" && (
+          <div className="flex items-center gap-2 text-sm">
+            <input
+              type="date"
+              value={kpiCustomFrom}
+              onChange={(e) => setKpiCustomFrom(e.target.value)}
+              className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+              aria-label="KPI range from"
+            />
+            <span className="text-muted-foreground">→</span>
+            <input
+              type="date"
+              value={kpiCustomTo}
+              onChange={(e) => setKpiCustomTo(e.target.value)}
+              className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+              aria-label="KPI range to"
+            />
+          </div>
+        )}
+        <p className="ml-auto text-xs text-muted-foreground">Showing leads submitted {kpiRangeLabel}</p>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
@@ -1141,7 +1262,7 @@ export default function AdminLeadsPage() {
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <LeadScoreBadge lead={lead} />
                           <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
-                            {lead.source}
+                            {leadSourceLabel(lead.source)}
                           </span>
                           <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
                             {productInterestLabel(lead.productInterest, "?")}
@@ -1232,7 +1353,7 @@ export default function AdminLeadsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted font-medium">
-                        {lead.source}
+                        {leadSourceLabel(lead.source)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -1483,16 +1604,7 @@ export default function AdminLeadsPage() {
                   onChange={(e) => setAddForm((prev) => ({ ...prev, source: e.target.value }))}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="manual">Manual Entry</option>
-                  <option value="website">Website</option>
-                  <option value="google-search">Google Search</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="referral">Referral</option>
-                  <option value="social-media">Social Media</option>
-                  <option value="cold-call">Cold Call</option>
-                  <option value="email">Email</option>
-                  <option value="event">Event</option>
-                  <option value="other">Other</option>
+                  {LEAD_SOURCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
               <div>

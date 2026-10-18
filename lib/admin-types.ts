@@ -3,6 +3,7 @@ export type UserRole =
   | "Finance"
   | "Digital Marketer"
   | "Sales"
+  | "Customer Care"
   | "Tech"
   | "Editor"
   | "HR Manager"
@@ -13,7 +14,9 @@ export type UserRole =
 export interface User {
   id: string
   username: string
+  email: string
   name: string
+  signatureHtml: string
   passwordHash: string
   role: UserRole
   status: "ACTIVE" | "DISABLED"
@@ -42,6 +45,7 @@ export const ALL_ROLES: UserRole[] = [
   "Finance",
   "Digital Marketer",
   "Sales",
+  "Customer Care",
   "Tech",
   "Editor",
   "HR Manager",
@@ -112,6 +116,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   Finance: "Dashboard, finance, tracker, analytics, leads, customers, onboarding",
   "Digital Marketer": "Dashboard, SEO, blog, FAQs, tracker, analytics, leads, customers, onboarding",
   Sales: "Tracker, analytics, leads, customers, finance, onboarding",
+  "Customer Care": "Leads, customers, onboarding, support and customer success",
   Tech: "Settings, SEO, blog, FAQs, customers",
   Editor: "Blog & FAQs content only",
   "HR Manager": "Full Careers access — vacancies, applicants, talent pool, assessments, deployments",
@@ -125,6 +130,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   Finance: ["dashboard", "finance", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "compliance"],
   "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "marketing", ...CREATOR_PERMISSIONS],
   Sales: ["tracker", "analytics", "leads", "quotations", "customers", "finance", "onboarding", "businesses", "partners", "customer_success", "marketing", "creator.view", "creator.report.view"],
+  "Customer Care": ["dashboard", "leads", "customers", "onboarding", "businesses", "support", "customer_success"],
   Tech: ["settings", "integrations", "seo", "blog", "faqs", "customers", "businesses", "support", "customer_success", "compliance", "tasks", "status"],
   Editor: ["blog", "faqs"],
   "HR Manager": [...CAREERS_HR_PERMISSIONS, "dashboard"],

@@ -11,10 +11,12 @@ interface LoginFormProps {
   logo: string
   /** True when we arrived here because the admin session expired. */
   sessionExpired?: boolean
+  invited?: boolean
+  initialUsername?: string
 }
 
-export function LoginForm({ logo, sessionExpired = false }: LoginFormProps) {
-  const [username, setUsername] = useState("")
+export function LoginForm({ logo, sessionExpired = false, invited = false, initialUsername = "" }: LoginFormProps) {
+  const [username, setUsername] = useState(initialUsername)
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -88,6 +90,7 @@ export function LoginForm({ logo, sessionExpired = false }: LoginFormProps) {
               <span>Your session expired due to inactivity. Please sign in again.</span>
             </div>
           )}
+          {invited && <p className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">Your password is set. You can now sign in.</p>}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="username" className="block text-sm font-medium mb-1">

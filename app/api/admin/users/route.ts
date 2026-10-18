@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
-import { isAdminAuthenticated, getAllUsers, createUser, updateUser, disableUser, enableUser } from "@/lib/admin-auth"
+import { isAdminAuthenticated, getAllUsers, createAdminInvitation, updateUser, disableUser, enableUser } from "@/lib/admin-auth"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 import { getSession } from "@/lib/admin-auth"
+import { sendEmail } from "@/lib/email"
+import { escapeHtml } from "@/lib/email-html"
 
 /* ─── GET ─── */
 export async function GET() {
@@ -23,13 +25,26 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { username, password, name, role } = body
+    const { username, email, name, role, signatureHtml } = body
 
-    if (!username || !password || !name || !role) {
-      return NextResponse.json({ error: "All fields are required" }, { status: 400 })
+    if (!username || !name || !role || !email) {
+      return NextResponse.json({ error: "Username, email, name and role are required" }, { status: 400 })
     }
 
-    const user = await createUser(username, password, name, role)
+    const invitation = await createAdminInvitation(username, email, name, role)
+    const origin = new URL(request.url).origin
+    const inviteUrl = `${origin}/admin/invite/${encodeURIComponent(invitation.token)}`
+    const emailSent = await sendEmail({
+      to: invitation.user.email,
+      subject: "Your MartPoint Admin invitation",
+      text: `Hello ${invitation.user.name},\n\nYou have been invited to MartPoint Admin as ${invitation.user.role}.\n\nUsername: ${invitation.user.username}\n\nSet your password and activate your account here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
+      html: `<p>Hello ${escapeHtml(invitation.user.name)},</p><p>You have been invited to MartPoint Admin as <strong>${escapeHtml(invitation.user.role)}</strong>.</p><p><strong>Username:</strong> ${escapeHtml(invitation.user.username)}</p><p><a href="${inviteUrl}">Set your password and activate your account</a></p><p>This link expires in 48 hours.</p>`,
+    })
+    if (!emailSent) {
+      return NextResponse.json({ error: "User was created, but the invitation email could not be sent." }, { status: 502 })
+    }
+    const user = await updateUser(invitation.user.id, { signatureHtml: signatureHtml || "" })
+    if (!user) return NextResponse.json({ error: "User was created, but could not be loaded." }, { status: 500 })
     const { passwordHash: _, ...safe } = user
 
     const ctx = auditContextFromSession(session, request)

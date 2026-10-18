@@ -53,7 +53,9 @@ import {
   FolderOpen,
   Calculator,
   Sparkles,
+  FileAudio,
   CreditCard,
+  Star,
   type LucideIcon,
 } from "lucide-react"
 import { PortalMobileNav } from "@/components/shared/portal-mobile-nav"
@@ -84,6 +86,12 @@ const navItems: NavItem[] = [
   // CUSTOMERS
   { href: "/admin/customers", label: "Customers", icon: Users, page: "customers", section: "Customers" },
   { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, page: "customers", section: "Customers" },
+  { href: "/admin/azera", label: "Azera Chat", icon: MessageCircle, page: "support", section: "Customers" },
+  { href: "/admin/azera/reports", label: "Call Reports", icon: FileAudio, page: "support", section: "Customers" },
+  { href: "/admin/azera/settings", label: "Azera Settings", icon: Settings, page: "settings", section: "Customers" },
+  { href: "/admin/messenger", label: "Messenger", icon: MessageCircle, page: "support", section: "Customers" },
+  { href: "/admin/instagram", label: "Instagram DM", icon: Share2, page: "support", section: "Customers" },
+  { href: "/admin/google-reviews", label: "Google Reviews", icon: Star, page: "support", section: "Customers" },
   { href: "/admin/businesses", label: "Businesses", icon: Building2, page: "businesses", section: "Customers" },
   { href: "/admin/city-requests", label: "City Requests", icon: MapPin, page: "businesses", section: "Customers" },
   { href: "/admin/onboarding", label: "Onboarding", icon: ClipboardCheck, page: "onboarding", section: "Customers" },

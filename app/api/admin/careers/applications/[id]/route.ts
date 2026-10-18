@@ -3,6 +3,7 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordAudit, auditContextFromSession, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { changeApplicationStatus, APPLICATION_STATUSES, type ApplicationStatus } from "@/lib/careers"
+import { listCareerApplicationAiReviews } from "@/lib/careers-ai"
 import { sendCareerNotification, templateForStatusChange } from "@/lib/careers-notifications"
 
 export const dynamic = "force-dynamic"
@@ -30,7 +31,7 @@ export async function GET(_request: Request, ctx: Ctx) {
     }
   }
 
-  const [answers, documents, history, notes, otherApps] = await Promise.all([
+  const [answers, documents, history, notes, otherApps, aiReviews] = await Promise.all([
     supabase
       .from("career_application_answers")
       .select("*, career_screening_questions(question_text, answer_type, sort_order)")
@@ -56,6 +57,7 @@ export async function GET(_request: Request, ctx: Ctx) {
       .ilike("email", app.email)
       .neq("id", id)
       .order("submitted_at", { ascending: false }),
+    listCareerApplicationAiReviews(id),
   ])
 
   return NextResponse.json({
@@ -68,6 +70,7 @@ export async function GET(_request: Request, ctx: Ctx) {
     history: history.data || [],
     notes: notes.data || [],
     otherApplications: otherApps.data || [],
+    aiReviews,
   })
 }
 

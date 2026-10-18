@@ -42,7 +42,7 @@ describe("buildExpleeLeadInput", () => {
       businessName: "Acme Ltd",
       email: "ada@acme.com",
       phone: "+2348012345678",
-      source: "explee",
+      source: "leadsrite",
       externalId: "explee:per_123",
     })
     expect(input!.message).toContain("campaign 7")

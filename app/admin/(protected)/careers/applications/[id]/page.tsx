@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, FileText, Download, StickyNote, ArrowLeft, MailPlus, X } from "lucide-react"
+import { Loader2, FileText, Download, StickyNote, ArrowLeft, MailPlus, X, Sparkles } from "lucide-react"
 import { APPLICATION_STATUSES, APPLICATION_STATUS_LABELS, applicationStatusLabel } from "@/lib/careers"
 
 interface AppData {
@@ -41,8 +41,38 @@ interface Doc { id: string; kind: string; original_filename: string | null; mime
 interface Hist { id: string; previous_status: string | null; new_status: string; reason: string | null; changed_by_name: string | null; created_at: string }
 interface Note { id: string; note: string; author_name: string | null; created_at: string }
 interface OtherApp { id: string; reference_number: string; status: string; submitted_at: string; career_vacancies: { title?: string } | null }
+interface AiReview {
+  id: string; status: string; model: string | null
+  total_score: number | null; recommendation: string | null; summary: string | null
+  score_role_fit: number | null; score_experience: number | null
+  score_skills: number | null; score_logistics: number | null; score_communication: number | null
+  strengths: string[]; concerns: string[]; suggested_questions: string[]
+  data_notes: string | null; error_message: string | null
+  triggered_by: string | null; created_at: string
+}
 
 const inputCls = "rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+
+const AI_REC_LABEL: Record<string, string> = {
+  SHORTLIST: "Shortlist",
+  REVIEW: "Needs Review",
+  DO_NOT_PROGRESS: "Do Not Progress",
+}
+
+function AiScoreBar({ label, score, max }: { label: string; score: number | null; max: number }) {
+  const v = score ?? 0
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium">{v}/{max}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-muted">
+        <div className="h-full rounded-full bg-retail" style={{ width: `${(v / max) * 100}%` }} />
+      </div>
+    </div>
+  )
+}
 
 function fmtAnswer(a: Answer): string {
   if (a.answer_json?.options?.length) return a.answer_json.options.join(", ")
@@ -79,6 +109,9 @@ export default function ApplicationDetailPage() {
   const [offerOpen, setOfferOpen] = useState(false)
   const [offer, setOffer] = useState({ employmentType: "", location: "", compensation: "", startDate: "", workSchedule: "", benefits: "", terms: "", responseNote: "" })
   const [offerBusy, setOfferBusy] = useState(false)
+  const [aiReviews, setAiReviews] = useState<AiReview[]>([])
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiMode, setAiMode] = useState<"AUTO" | "MANUAL">("MANUAL")
 
   const load = useCallback(() => {
     Promise.all([
@@ -92,6 +125,8 @@ export default function ApplicationDetailPage() {
       setNotes(d.notes || [])
       setOthers(d.otherApplications || [])
       setReviewers(m.admins || [])
+      setAiReviews(d.aiReviews || [])
+      setAiMode(m.settings?.ai_assessment?.mode === "AUTO" ? "AUTO" : "MANUAL")
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [id])
@@ -119,6 +154,15 @@ export default function ApplicationDetailPage() {
     load()
   }
 
+  async function runAiReview() {
+    setAiBusy(true); setMsg("")
+    const res = await fetch(`/api/admin/careers/applications/${id}/ai-review`, { method: "POST" })
+    const d = await res.json()
+    setAiBusy(false)
+    setMsg(res.ok ? "AI assessment completed." : d.error || "AI assessment failed")
+    if (res.ok) load()
+  }
+
   async function sendOffer() {
     setOfferBusy(true)
     const res = await fetch(`/api/admin/careers/applications/${id}/offer`, {
@@ -144,6 +188,8 @@ export default function ApplicationDetailPage() {
     app.smartphone_model ? `Model: ${app.smartphone_model}` : null,
     app.transportation ? `Transport: ${app.transportation}` : null,
   ].filter((x): x is string => Boolean(x))
+
+  const latestAi = aiReviews[0]
 
   return (
     <div className="space-y-6">
@@ -213,6 +259,72 @@ export default function ApplicationDetailPage() {
         </CardContent>
       </Card>
       {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
+
+      {/* AI assessment */}
+      <Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Sparkles className="w-4 h-4 text-retail" /> AI assessment</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            {aiMode === "AUTO"
+              ? "Every new application is assessed automatically (Careers → Settings → AI assessment)."
+              : "Automatic assessment is off — run it manually when you need it (Careers → Settings → AI assessment)."}
+          </p>
+          {!latestAi || latestAi.status !== "COMPLETED" ? (
+            <p className="text-sm text-muted-foreground">
+              {latestAi?.status === "FAILED" ? `Last run failed: ${latestAi.error_message || "error"}` : "No assessment yet."}
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <p className="text-3xl font-bold">{latestAi.total_score}<span className="text-sm text-muted-foreground">/100</span></p>
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold">
+                    {AI_REC_LABEL[latestAi.recommendation || ""] || latestAi.recommendation}
+                  </span>
+                </div>
+                <AiScoreBar label="Role fit" score={latestAi.score_role_fit} max={30} />
+                <AiScoreBar label="Experience" score={latestAi.score_experience} max={25} />
+                <AiScoreBar label="Skills & equipment" score={latestAi.score_skills} max={20} />
+                <AiScoreBar label="Logistics & availability" score={latestAi.score_logistics} max={15} />
+                <AiScoreBar label="Communication" score={latestAi.score_communication} max={10} />
+                <p className="text-[11px] text-muted-foreground">
+                  Assessed {new Date(latestAi.created_at).toLocaleString()}
+                  {latestAi.triggered_by ? " · run by admin" : " · automatic"}
+                </p>
+              </div>
+              <div className="space-y-3">
+                {latestAi.summary && <p className="text-sm">{latestAi.summary}</p>}
+                {latestAi.strengths?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-green-700 mb-1">Strengths</p>
+                    <ul className="text-xs space-y-1 list-disc pl-4">{latestAi.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                  </div>
+                )}
+                {latestAi.concerns?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-amber-700 mb-1">Concerns</p>
+                    <ul className="text-xs space-y-1 list-disc pl-4">{latestAi.concerns.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                  </div>
+                )}
+                {latestAi.suggested_questions?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-muted-foreground mb-1">Suggested interview questions</p>
+                    <ul className="text-xs space-y-1 list-disc pl-4">{latestAi.suggested_questions.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                  </div>
+                )}
+                {latestAi.data_notes && <p className="text-xs text-muted-foreground border-t pt-2">{latestAi.data_notes}</p>}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] text-muted-foreground">AI recommends — the final decision is always yours.</p>
+            <Button size="sm" variant="outline" disabled={aiBusy} onClick={runAiReview}>
+              {aiBusy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+              {latestAi ? "Re-run AI assessment" : "Run AI assessment"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Applicant info */}

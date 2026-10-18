@@ -9,7 +9,9 @@ import { ALL_ROLES, ROLE_DESCRIPTIONS, type UserRole } from "@/lib/admin-types"
 type AdminUser = {
   id: string
   username: string
+  email: string
   name: string
+  signatureHtml: string
   role: UserRole
   createdAt: string
 }
@@ -27,8 +29,10 @@ export default function AdminUsersPage() {
 
   const emptyForm = {
     username: "",
+    email: "",
     name: "",
     password: "",
+    signatureHtml: "",
     role: "Editor" as AdminUser["role"],
   }
   const [form, setForm] = useState(emptyForm)
@@ -69,7 +73,9 @@ export default function AdminUsersPage() {
         const body: Record<string, unknown> = {
           id: editing.id,
           username: form.username,
+          email: form.email,
           name: form.name,
+          signatureHtml: form.signatureHtml,
           role: form.role,
         }
         if (form.password.trim()) body.password = form.password.trim()
@@ -95,9 +101,10 @@ export default function AdminUsersPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             username: form.username,
-            password: form.password,
+            email: form.email,
             name: form.name,
             role: form.role,
+            signatureHtml: form.signatureHtml,
           }),
         })
         const data = await parseResponse(res)
@@ -147,8 +154,10 @@ export default function AdminUsersPage() {
   const startEdit = (user: AdminUser) => {
     setForm({
       username: user.username,
+      email: user.email || "",
       name: user.name,
       password: "",
+      signatureHtml: user.signatureHtml || "",
       role: user.role,
     })
     setEditing(user)
@@ -203,6 +212,10 @@ export default function AdminUsersPage() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium mb-1">Email</label>
+                  <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="name@example.com" required={!editing} />
+                </div>
+                <div>
                   <label className="block text-sm font-medium mb-1">Full Name</label>
                   <input
                     type="text"
@@ -225,8 +238,8 @@ export default function AdminUsersPage() {
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    placeholder={editing ? "••••••••" : "Create a password"}
-                    {...(!editing && { required: true })}
+                    placeholder={editing ? "••••••••" : "Set by invitee from email link"}
+                    {...(editing ? {} : { disabled: true })}
                   />
                 </div>
                 <div>
@@ -242,6 +255,12 @@ export default function AdminUsersPage() {
                   </select>
                   <p className="text-xs text-muted-foreground mt-1">{ROLE_DESCRIPTIONS[form.role]}</p>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Personal email signature (optional)</label>
+                <textarea value={form.signatureHtml} onChange={(e) => setForm({ ...form, signatureHtml: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono" rows={4} placeholder="<p><strong>Your Name</strong><br>MartPoint Sales</p>" />
+                <p className="text-xs text-muted-foreground mt-1">Used when this user replies to leads. If empty, MartPoint Sales Team is used.</p>
               </div>
 
               <div className="flex items-center gap-3">
@@ -284,6 +303,7 @@ export default function AdminUsersPage() {
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">{user.name}</h3>
                       <p className="text-xs text-muted-foreground">@{user.username}</p>
+                      {user.email && <p className="text-xs text-muted-foreground truncate max-w-48">{user.email}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">

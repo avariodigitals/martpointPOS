@@ -28,6 +28,11 @@ const SUPPORT_ADMIN_PERMISSIONS: Record<UserRole, SupportAdminAction[]> = {
   Finance: ["support:view", "customer_success:view"],
   "Digital Marketer": ["support:view", "customer_success:view"],
   Sales: ["support:view", "customer_success:view", "customer_success:manage"],
+  "Customer Care": [
+    "support:view", "support:create", "support:assign", "support:update", "support:resolve",
+    "support:close", "support:internal_notes",
+    "customer_success:view", "customer_success:manage",
+  ],
   Tech: ["support:view", "support:create", "support:update", "support:resolve", "support:sla_manage"],
   Editor: [],
   "HR Manager": [],

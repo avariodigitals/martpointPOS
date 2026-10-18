@@ -36,7 +36,7 @@ const BRANCH_POINTS: Record<string, number> = { "1": 4, "2-3": 8, "4-6": 12, "7-
 const STAFF_POINTS: Record<string, number> = { "1-5": 2, "6-15": 5, "16-30": 8, "31-50": 10, "50+": 12 }
 const PRODUCT_POINTS: Record<string, number> = { erp: 12, retail: 8, "not-sure": 3 }
 const QUESTIONNAIRE_POINTS: Record<string, number> = { Submitted: 15, Reviewed: 15, "In Progress": 8, Sent: 3 }
-const SOURCE_POINTS: Record<string, number> = { explee: 12, whatsapp: 8, website: 5, brochure: 5, meta: 3, tiktok: 3 }
+const SOURCE_POINTS: Record<string, number> = { leadsrite: 12, explee: 12, whatsapp: 8, website: 5, brochure: 5, meta: 3, tiktok: 3 }
 
 const hasText = (s?: string | null) => !!s && s.trim().length > 2
 
@@ -89,7 +89,7 @@ export function computeLeadScore(lead: LeadScoreInput, now: Date = new Date()): 
   const srcPts = SOURCE_POINTS[(lead.source || "").trim()]
   if (srcPts) {
     score += srcPts
-    const label = lead.source === "explee" ? "Flagged hot by outbound campaign" : lead.source === "whatsapp" ? "Came in via WhatsApp conversation" : `Source: ${lead.source}`
+    const label = (lead.source === "leadsrite" || lead.source === "explee") ? "Flagged hot by outbound campaign" : lead.source === "whatsapp" ? "Came in via WhatsApp conversation" : `Source: ${lead.source}`
     reasons.push(`${label} (${srcPts} pts)`)
   }
 

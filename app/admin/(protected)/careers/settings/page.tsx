@@ -16,6 +16,7 @@ export default function CareersSettingsPage() {
   const [newName, setNewName] = useState<Record<"department" | "category", string>>({ department: "", category: "" })
   const [confirmMsg, setConfirmMsg] = useState(DEFAULT_APPLICATION_CONFIRMATION)
   const [savingMsg, setSavingMsg] = useState(false)
+  const [aiMode, setAiMode] = useState<"AUTO" | "MANUAL">("MANUAL")
   const [msg, setMsg] = useState("")
 
   const load = useCallback(() => {
@@ -23,6 +24,7 @@ export default function CareersSettingsPage() {
       setDepartments(d.departments || [])
       setCategories(d.categories || [])
       setSettings(d.settings || {})
+      setAiMode(d.settings?.ai_assessment?.mode === "AUTO" ? "AUTO" : "MANUAL")
       if (typeof d.settings?.default_confirmation_message === "string" && d.settings.default_confirmation_message.trim()) {
         setConfirmMsg(d.settings.default_confirmation_message)
       }
@@ -40,6 +42,11 @@ export default function CareersSettingsPage() {
     const d = await res.json()
     setMsg(res.ok ? "Saved." : d.error || "Failed")
     if (res.ok) load()
+  }
+
+  async function setAiModeAndSave(mode: "AUTO" | "MANUAL") {
+    setAiMode(mode)
+    await post({ type: "setting", key: "ai_assessment", value: { mode } })
   }
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
@@ -109,6 +116,34 @@ export default function CareersSettingsPage() {
             <Button size="sm" variant="outline" onClick={() => setConfirmMsg(DEFAULT_APPLICATION_CONFIRMATION)}>
               Reset to built-in template
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">AI assessment</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            When AI assesses new applications, it scores them against the vacancy and leaves a note with
+            strengths, concerns and interview questions on each application. AI never changes an
+            application&apos;s status — you still decide.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {([
+              ["AUTO", "Automatic", "Every new application is assessed in the background as soon as it is submitted."],
+              ["MANUAL", "Manual only", "Nothing runs on its own — use “Run AI assessment” on an application when you need it."],
+            ] as const).map(([mode, label, desc]) => {
+              const active = aiMode === mode
+              return (
+                <button key={mode} type="button" onClick={() => setAiModeAndSave(mode)}
+                  className={`text-left rounded-md border px-3 py-2.5 text-sm transition-colors ${active ? "border-retail bg-retail/5" : "border-border hover:bg-muted/50"}`}>
+                  <span className="font-medium flex items-center gap-2">
+                    <input type="radio" readOnly checked={active} className="accent-retail" /> {label}
+                  </span>
+                  <span className="text-xs text-muted-foreground block mt-1">{desc}</span>
+                </button>
+              )
+            })}
           </div>
         </CardContent>
       </Card>

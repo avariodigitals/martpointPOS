@@ -32,7 +32,7 @@ describe("computeLeadScore", () => {
         challenge: "stock keeps running out",
         message: "we need this before December",
         questionnaireStatus: "Submitted",
-        source: "explee",
+        source: "leadsrite",
       },
       NOW,
     )
@@ -48,7 +48,7 @@ describe("computeLeadScore", () => {
 
   it("caps at 100", () => {
     const huge = computeLeadScore(
-      { ...base, branches: "10+", staffSize: "50+", productInterest: "erp", estimate: {}, challenge: "x", message: "y", questionnaireStatus: "Reviewed", source: "explee" },
+      { ...base, branches: "10+", staffSize: "50+", productInterest: "erp", estimate: {}, challenge: "x", message: "y", questionnaireStatus: "Reviewed", source: "leadsrite" },
       NOW,
     )
     expect(huge.score).toBeLessThanOrEqual(100)

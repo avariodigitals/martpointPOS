@@ -43,7 +43,9 @@ function mapUser(row: Record<string, unknown>): User {
   return {
     id: row.id as string,
     username: row.username as string,
+    email: (row.email as string) || "",
     name: row.name as string,
+    signatureHtml: (row.signature_html as string) || "",
     passwordHash: row.password_hash as string,
     role: row.role as UserRole,
     status: (row.status as "ACTIVE" | "DISABLED") ?? "ACTIVE",
@@ -84,12 +86,15 @@ export async function createUser(
   username: string,
   password: string,
   name: string,
-  role: UserRole
+  role: UserRole,
+  options?: { email?: string; signatureHtml?: string },
 ): Promise<User> {
   const user: User = {
     id: crypto.randomUUID(),
     username: username.toLowerCase().trim(),
+    email: (options?.email || "").trim().toLowerCase(),
     name: name.trim(),
+    signatureHtml: options?.signatureHtml || "",
     passwordHash: hashPassword(password),
     role,
     status: "ACTIVE",
@@ -99,7 +104,9 @@ export async function createUser(
     await supabase.from("users").insert({
       id: user.id,
       username: user.username,
+      email: user.email || null,
       name: user.name,
+      signature_html: user.signatureHtml,
       password_hash: user.passwordHash,
       role: user.role,
       status: user.status,
@@ -119,7 +126,9 @@ export async function updateUser(
 
   const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (updates.username) updateData.username = updates.username
+  if (updates.email !== undefined) updateData.email = updates.email.trim().toLowerCase() || null
   if (updates.name) updateData.name = updates.name
+  if (updates.signatureHtml !== undefined) updateData.signature_html = updates.signatureHtml
   if (updates.role) updateData.role = updates.role
   if (updates.status) updateData.status = updates.status
   if (updates.password) updateData.password_hash = hashPassword(updates.password)
@@ -127,6 +136,73 @@ export async function updateUser(
   const { data: updated } = await supabase.from("users").update(updateData).eq("id", id).select().single()
   if (!updated) return null
   return mapUser(updated)
+}
+
+export interface AdminInvitation {
+  user: User
+  token: string
+  expiresAt: string
+}
+
+/** Create an admin account with an unusable temporary hash until the invitee sets a password. */
+export async function createAdminInvitation(
+  username: string,
+  email: string,
+  name: string,
+  role: UserRole,
+  expiresInHours = 48,
+): Promise<AdminInvitation> {
+  const token = crypto.randomBytes(32).toString("base64url")
+  const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString()
+  const user: User = {
+    id: crypto.randomUUID(),
+    username: username.toLowerCase().trim(),
+    email: email.toLowerCase().trim(),
+    name: name.trim(),
+    signatureHtml: "",
+    passwordHash: hashPassword(crypto.randomBytes(32).toString("hex")),
+    role,
+    status: "ACTIVE",
+    createdAt: new Date().toISOString(),
+  }
+
+  if (isSupabaseConfigured()) {
+    const { error } = await supabase.from("users").insert({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      signature_html: user.signatureHtml,
+      password_hash: user.passwordHash,
+      role: user.role,
+      status: user.status,
+      invite_token_hash: crypto.createHash("sha256").update(token).digest("hex"),
+      invite_expires_at: expiresAt,
+      created_at: user.createdAt,
+    })
+    if (error) throw new Error(error.message)
+  }
+
+  return { user, token, expiresAt }
+}
+
+export async function acceptAdminInvitation(token: string, password: string): Promise<{ username: string } | null> {
+  if (!isSupabaseConfigured()) return null
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
+  const { data: row, error } = await supabase
+    .from("users")
+    .select("id, username")
+    .eq("invite_token_hash", tokenHash)
+    .gt("invite_expires_at", new Date().toISOString())
+    .eq("status", "ACTIVE")
+    .maybeSingle()
+  if (error || !row) return null
+
+  const { error: updateError } = await supabase
+    .from("users")
+    .update({ password_hash: hashPassword(password), invite_token_hash: null, invite_expires_at: null, updated_at: new Date().toISOString() })
+    .eq("id", row.id)
+  return updateError ? null : { username: row.username as string }
 }
 
 export async function deleteUser(id: string): Promise<boolean> {

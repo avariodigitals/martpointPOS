@@ -252,12 +252,6 @@ export function PortalSidebar({
                             : "font-medium text-white/85 hover:bg-white/10 hover:text-white"
                         }`}
                       >
-                        {active && (
-                          <span
-                            aria-hidden
-                            className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-white"
-                          />
-                        )}
                         <item.icon className="h-4 w-4 shrink-0" />
                         {collapsed ? (
                           <span className="sr-only">{item.label}</span>

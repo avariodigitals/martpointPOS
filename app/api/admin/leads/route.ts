@@ -6,6 +6,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordAuditBatch, auditContextFromSession, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { resolveIndustryName } from "@/lib/industries"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
+import { normalizeLeadSource } from "@/lib/lead-sources"
 
 interface LeadRecord {
   id: string
@@ -157,7 +158,7 @@ export async function PUT(request: Request) {
     if (staffSize !== undefined) updateData.staff_size = staffSize
     if (challenge !== undefined) updateData.challenge = challenge
     if (message !== undefined) updateData.message = message
-    if (source !== undefined) updateData.source = source
+    if (source !== undefined) updateData.source = normalizeLeadSource(source)
 
     const { data, error } = await supabase
       .from("leads")
@@ -257,7 +258,7 @@ export async function POST(request: Request) {
       staffSize,
       challenge: challenge || "",
       message: message || "",
-      source: source || "manual",
+      source: normalizeLeadSource(source || "manual"),
       status: status || "New",
       assignedTo: assignedTo || "",
       notes: notes || "",
@@ -281,7 +282,7 @@ export async function POST(request: Request) {
         staff_size: staffSize,
         challenge: challenge || "",
         message: message || "",
-        source: source || "manual",
+        source: normalizeLeadSource(source || "manual"),
         status: status || "New",
         assigned_to: assignedTo || "",
         notes: notes || "",

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
-import { buildLeadEmailTemplate, LEAD_EMAIL_STAGES, type LeadEmailStageKey } from "@/lib/lead-email-templates"
+import { buildLeadEmailTemplate, buildLeadEmailSubject, LEAD_EMAIL_STAGES, type LeadEmailStageKey } from "@/lib/lead-email-templates"
 import { cloneTemplateFields, getLeadAdditionalQuestionTemplate, LEAD_ADDITIONAL_QUESTION_TEMPLATES } from "@/lib/lead-additional-question-templates"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 import {
@@ -24,6 +24,7 @@ import {
   Plus,
   ExternalLink,
   Copy,
+  ChevronDown,
   User,
   Tag,
   Layers,
@@ -44,6 +45,7 @@ import {
   Eye,
   RefreshCw,
 } from "lucide-react"
+import { LEAD_SOURCE_OPTIONS, leadSourceLabel, normalizeLeadSource } from "@/lib/lead-sources"
 
 export interface Lead {
   id: string
@@ -217,7 +219,7 @@ export function LeadDetailModal({
     staffSize: lead.staffSize,
     challenge: lead.challenge || "",
     message: lead.message || "",
-    source: lead.source,
+    source: normalizeLeadSource(lead.source),
     status: lead.status,
     assignedTo: lead.assignedTo || "",
   })
@@ -245,6 +247,9 @@ export function LeadDetailModal({
   const [emailsLoading, setEmailsLoading] = useState(false)
   const [emailsError, setEmailsError] = useState("")
   const [emailsReloadKey, setEmailsReloadKey] = useState(0)
+  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null)
+  // True once the admin types their own subject; auto-fill then stands down.
+  const [emailSubjectEdited, setEmailSubjectEdited] = useState(false)
   const [inboxMailbox, setInboxMailbox] = useState<{ configured: boolean; mailbox: string } | null>(null)
   const [inboxChecking, setInboxChecking] = useState(false)
   const [inboxSummary, setInboxSummary] = useState("")
@@ -320,7 +325,7 @@ export function LeadDetailModal({
           setEmailsError(data.detail ? `${data.error} — ${data.detail}` : data.error)
           setEmails([])
         } else {
-          setEmails(data.emails || [])
+          setEmails([...(data.emails || [])].reverse())
         }
       })
       .catch(() => {
@@ -329,6 +334,12 @@ export function LeadDetailModal({
       .finally(() => {
         if (!cancelled) setEmailsLoading(false)
       })
+
+    // Seed the composer with a generated subject so the admin never faces a
+    // blank field — but never overwrite a subject they've already typed.
+    setEmailSubjectEdited(false)
+    setEmailForm((p) => (p.subject.trim() ? p : { ...p, subject: buildLeadEmailSubject(null, lead.businessName) }))
+
     return () => { cancelled = true }
   }, [tab, lead.id, emailsReloadKey])
 
@@ -469,7 +480,7 @@ export function LeadDetailModal({
         staffSize: updated.staffSize,
         challenge: updated.challenge || "",
         message: updated.message || "",
-        source: updated.source,
+        source: normalizeLeadSource(updated.source),
         status: updated.status,
         assignedTo: updated.assignedTo || "",
       })
@@ -809,7 +820,10 @@ export function LeadDetailModal({
   const applyEmailTemplate = (key: LeadEmailStageKey, industry = emailTemplateIndustry) => {
     const tpl = buildLeadEmailTemplate(key, industry, emailTemplateVars)
     setEmailTemplateKey(key)
-    setEmailForm({ subject: tpl.subject, body: tpl.text })
+    setEmailForm((p) => ({
+      subject: emailSubjectEdited ? p.subject : tpl.subject,
+      body: tpl.text,
+    }))
   }
 
   /* Server-side render of the exact message the send route would deliver —
@@ -864,8 +878,9 @@ export function LeadDetailModal({
       })
       const data = await res.json()
       if (data.email) {
-        setEmails((prev) => [...prev, data.email])
-        setEmailForm({ subject: "", body: "" })
+        setEmails((prev) => [data.email, ...prev])
+        setEmailSubjectEdited(false)
+        setEmailForm({ subject: buildLeadEmailSubject(null, lead.businessName), body: "" })
         setEmailTemplateKey(null)
         setEmailAttachments([])
         setEmailPreview(null)
@@ -943,6 +958,7 @@ export function LeadDetailModal({
     if (t === "email") {
       setEmailsLoading(true)
       setEmailsError("")
+      setExpandedEmailId(null)
     }
     if (t === "questionnaire") {
       setQuestionnaireData(null)
@@ -1309,17 +1325,8 @@ export function LeadDetailModal({
                     onChange={(e) => setEditForm((p) => ({ ...p, source: e.target.value }))}
                     className={inputClass}
                   >
-                    <option value="manual">Manual Entry</option>
-                    <option value="website">Website</option>
-                    <option value="google-search">Google Search</option>
-                    <option value="whatsapp">WhatsApp</option>
-                    <option value="referral">Referral</option>
-                    <option value="social-media">Social Media</option>
-                    <option value="cold-call">Cold Call</option>
-                    <option value="email">Email</option>
-                    <option value="event">Event</option>
+                    {LEAD_SOURCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                     <option value="estimate-calculator">Estimate Calculator</option>
-                    <option value="other">Other</option>
                   </select>
                 </div>
                 <div>
@@ -1472,27 +1479,19 @@ export function LeadDetailModal({
               ) : emails.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No emails in this thread yet.</p>
               ) : (
-                <div className="space-y-3">
-                  {emails.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`rounded-lg border p-4 space-y-2 ${
-                        msg.direction === "outbound"
-                          ? "border-retail/20 bg-retail-soft/30 ml-8"
-                          : "border-border bg-muted/20 mr-8"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate">{msg.subject || "(no subject)"}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {msg.direction === "outbound" ? "You" : msg.fromEmail || "Lead"} → {msg.direction === "outbound" ? msg.toEmail : "you"}
-                            {" "}· {new Date(msg.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">
+                  {emails.map((msg) => {
+                    const open = expandedEmailId === msg.id
+                    const preview = (msg.bodyText || "").replace(/\s+/g, " ").trim()
+                    return (
+                      <div key={msg.id} className={open ? "bg-muted/20" : "bg-background"}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedEmailId(open ? null : msg.id)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors"
+                        >
                           <span
-                            className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${
+                            className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium shrink-0 ${
                               msg.direction === "outbound"
                                 ? msg.status === "failed"
                                   ? "bg-red-100 text-red-700"
@@ -1502,23 +1501,45 @@ export function LeadDetailModal({
                           >
                             {msg.direction === "outbound" ? (msg.status === "failed" ? "Failed" : "Sent") : "Received"}
                           </span>
-                          {(msg.bodyText || msg.subject) && (
-                            <button
-                              type="button"
-                              onClick={() => copyEmailBody(msg)}
-                              className="text-muted-foreground hover:text-foreground p-1"
-                              title="Copy message body"
-                            >
-                              {copiedEmailId === msg.id ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
-                            </button>
-                          )}
-                        </div>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-medium truncate">{msg.subject || "(no subject)"}</span>
+                            {!open && preview && (
+                              <span className="block text-xs text-muted-foreground truncate">{preview}</span>
+                            )}
+                          </span>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                            {new Date(msg.createdAt).toLocaleString()}
+                          </span>
+                          <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+                        </button>
+                        {open && (
+                          <div className="px-4 pb-4 space-y-3">
+                            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                              <span className="min-w-0 truncate">
+                                {msg.direction === "outbound" ? "You" : msg.fromEmail || "Lead"} → {msg.direction === "outbound" ? msg.toEmail : "you"}
+                              </span>
+                              {(msg.bodyText || msg.subject) && (
+                                <button
+                                  type="button"
+                                  onClick={() => copyEmailBody(msg)}
+                                  className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
+                                  title="Copy message body"
+                                >
+                                  {copiedEmailId === msg.id ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                                  {copiedEmailId === msg.id ? "Copied" : "Copy"}
+                                </button>
+                              )}
+                            </div>
+                            {msg.bodyText ? (
+                              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{msg.bodyText}</p>
+                            ) : (
+                              <p className="text-sm text-muted-foreground italic">No message body stored for this entry.</p>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {msg.bodyText && (
-                        <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{msg.bodyText}</p>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
 
@@ -1597,8 +1618,11 @@ export function LeadDetailModal({
                 <input
                   type="text"
                   value={emailForm.subject}
-                  onChange={(e) => setEmailForm((p) => ({ ...p, subject: e.target.value }))}
-                  placeholder={`Subject — e.g. Re: MartPoint for ${lead.businessName}`}
+                  onChange={(e) => {
+                    setEmailSubjectEdited(true)
+                    setEmailForm((p) => ({ ...p, subject: e.target.value }))
+                  }}
+                  placeholder={`Subject — e.g. MartPoint for ${lead.businessName || "your business"}`}
                   className={inputClass}
                 />
                 <textarea
@@ -2659,18 +2683,7 @@ function formatSource(source: string): { sourceLabel: string; sourcePartner?: st
     return { sourceLabel: "Partner Referral", sourcePartner: source.split(":partner:")[1] }
   }
 
-  const map: Record<string, string> = {
-    website: "Website",
-    "google-search": "Google Search",
-    whatsapp: "WhatsApp",
-    referral: "Referral",
-    "social-media": "Social Media",
-    "cold-call": "Cold Call",
-    email: "Email",
-    event: "Event",
-    manual: "Manual Entry",
-  }
-  return { sourceLabel: map[source] || source.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) }
+  return { sourceLabel: leadSourceLabel(source) }
 }
 
 function sourceIcon(source: string): React.ReactNode {

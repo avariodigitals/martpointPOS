@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { authorizeAdmin } from "@/lib/admin-auth"
+import { authorizeAdmin, getUserById } from "@/lib/admin-auth"
 import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendLeadEmail, mapLeadEmail, leadTemplateBrandedHtml } from "@/lib/lead-email-outbound"
@@ -104,6 +104,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // "Send as": the customer sees the salesperson's name, but the address
       // stays the shared mailbox so the reply lands in the synced inbox.
       senderName: auth.session.name,
+      signatureHtml: (await getUserById(auth.session.userId))?.signatureHtml || "<p><strong>MartPoint Sales Team</strong></p>",
       metadata: template ? { template: template.key, industry: template.industry || (lead.industry as string | null) || null } : undefined,
     })
 

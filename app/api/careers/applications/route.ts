@@ -5,6 +5,7 @@ import { verifyCaptchaToken } from "@/lib/captcha"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { recordAudit, auditContextFromSession, AUDIT_ACTIONS } from "@/lib/audit"
 import { sendCareerNotification } from "@/lib/careers-notifications"
+import { getCareerAiAssessmentMode, runCareerApplicationAiReview } from "@/lib/careers-ai"
 import { escapeHtml } from "@/lib/email-html"
 import { uploadCareerDocument, validateCareerFile } from "@/lib/careers-storage"
 import {
@@ -276,6 +277,21 @@ export async function POST(request: Request) {
       changed_by_name: "System",
       reason: "Application submitted",
     })
+
+    // AI assessment (Careers → Settings → AI assessment): in AUTO mode every new
+    // application is assessed in the background. Skipped when knockout screening
+    // already failed the applicant — no reason to spend a call on it.
+    if (screening.passed !== false) {
+      after(async () => {
+        try {
+          if ((await getCareerAiAssessmentMode()) === "AUTO") {
+            await runCareerApplicationAiReview(applicationId, null)
+          }
+        } catch (err) {
+          console.error("[careers] auto AI review failed:", err)
+        }
+      })
+    }
 
     // Talent pool opt-in → create/update reusable candidate profile
     if (fields.consentTalentPool === true) {

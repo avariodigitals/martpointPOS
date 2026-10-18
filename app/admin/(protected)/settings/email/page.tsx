@@ -305,10 +305,11 @@ export default function EmailSettingsPage() {
 
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle>Email Signature</CardTitle>
+              <CardTitle>Company Email Signature</CardTitle>
               <CardDescription>
-                Appended under a <code className="text-xs bg-muted px-1 py-0.5 rounded">--</code> separator to emails
-                sent from a lead&apos;s Email tab and meeting emails — just like a normal email signature.
+                Used as the company fallback for system and meeting emails. Lead emails sent by a named team member
+                use that user&apos;s personal signature first. Appended under a <code className="text-xs bg-muted px-1 py-0.5 rounded">--</code> separator
+                just like a normal email signature.
                 A plain-text version is generated automatically for mail clients that don&apos;t render HTML.
               </CardDescription>
             </CardHeader>

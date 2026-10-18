@@ -35,6 +35,32 @@ export interface LeadEmailStageMeta {
   description: string
 }
 
+/* ─── Auto-generated subject line ───
+ * Pre-fills the composer's subject for a lead so the admin never faces a blank
+ * field. Deterministic and offline — the lead's business name anchors the line
+ * and the stage sets the framing. A template's own subject always wins, and the
+ * admin can edit the result freely. */
+export function buildLeadEmailSubject(
+  stage: LeadEmailStageKey | null,
+  businessName?: string | null,
+): string {
+  const business = (businessName || "").trim()
+  switch (stage) {
+    case "introduction":
+      return business
+        ? `MartPoint POS & inventory for ${business}`
+        : "Meet MartPoint — POS & inventory for your business"
+    case "follow_up":
+      return business ? `Following up on MartPoint for ${business}` : "Following up on MartPoint"
+    case "nurture":
+      return business ? `A few quick ${business} ideas from MartPoint` : "A few quick ideas from MartPoint"
+    case "thank_you":
+      return business ? `Welcome to MartPoint, ${business}!` : "Welcome to MartPoint!"
+    default:
+      return business ? `MartPoint for ${business}` : "MartPoint for your business"
+  }
+}
+
 export const LEAD_EMAIL_STAGES: LeadEmailStageMeta[] = [
   {
     key: "introduction",

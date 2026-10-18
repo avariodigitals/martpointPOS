@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, Phone, MessageCircle, Save as SaveIcon } from "lucide-react"
+import { Loader2, Save, MessageCircle, Save as SaveIcon } from "lucide-react"
 
 interface AzeraSettings {
   widget_enabled: boolean
@@ -36,7 +36,6 @@ interface AzeraSettings {
 }
 
 export default function AzeraSettingsPage() {
-  const [settings, setSettings] = useState<AzeraSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
@@ -67,16 +66,11 @@ export default function AzeraSettingsPage() {
     google_review_message: null,
   })
 
-  useEffect(() => {
-    loadSettings()
-  }, [])
-
   async function loadSettings() {
     try {
       const res = await fetch("/api/azera/settings?business_id=1")
       const json = await res.json()
       if (json.settings) {
-        setSettings(json.settings)
         setForm(json.settings)
       }
     } catch {
@@ -85,6 +79,12 @@ export default function AzeraSettingsPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    // The request synchronizes the form with the persisted admin settings.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadSettings()
+  }, [])
 
   async function saveSettings() {
     setSaving(true)
@@ -101,7 +101,6 @@ export default function AzeraSettingsPage() {
       const json = await res.json()
       if (json.success) {
         setMessage("Settings saved successfully")
-        setSettings(json.settings)
         setTimeout(() => setMessage(""), 3000)
       } else {
         setMessage(json.error || "Failed to save settings")
@@ -390,9 +389,10 @@ export default function AzeraSettingsPage() {
                   setForm({ ...form, google_review_message: e.target.value })
                 }
                 rows={2}
-                placeholder="Hi {{name}}, how was your experience? Leave us a review: {{link}}"
+                placeholder="Hi {{name}}! Thanks for choosing {{businessName}}. We’d appreciate a quick Google review: {{link}}"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
+              <p className="text-xs text-muted-foreground">Use <code>{"{{name}}"}</code>, <code>{"{{businessName}}"}</code>, and <code>{"{{link}}"}</code>. Review requests are tracked here; connect an outbound WhatsApp, SMS, or email sender before sending automatically.</p>
             </div>
           </CardContent>
         </Card>
@@ -413,7 +413,7 @@ export default function AzeraSettingsPage() {
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="">None (internet calls only)</option>
-                <option value="africas_talking">Africa's Talking</option>
+                <option value="africas_talking">Africa&apos;s Talking</option>
                 <option value="twilio">Twilio</option>
                 <option value="generic">Generic Webhook</option>
               </select>

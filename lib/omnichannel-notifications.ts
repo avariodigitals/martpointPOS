@@ -1,10 +1,12 @@
 import { getAllUsers } from "./admin-auth"
 import { createAdminNotification } from "./admin-notifications"
+import { supabase, isSupabaseConfigured } from "./supabase"
 
-const SUPPORT_ROLES = new Set(["Admin", "Customer Care", "Tech"])
+type Queue = "sales" | "support" | "customer_support"
 
 /** Fan an inbound conversation event out to the staff who can act on it. */
 export async function notifySupportAgents(input: {
+  queue: Queue
   title: string
   message: string
   deepLink: string
@@ -12,9 +14,23 @@ export async function notifySupportAgents(input: {
 }) {
   if (!input.sourceId) return
 
-  const users = (await getAllUsers()).filter(
-    (user) => user.status === "ACTIVE" && SUPPORT_ROLES.has(user.role),
-  )
+  if (!isSupabaseConfigured()) return
+
+  const { data: agentRows, error } = await supabase
+    .from("azera_agent_presence")
+    .select("user_id")
+    .eq("is_online", true)
+    .contains("queues", [input.queue])
+
+  if (error) {
+    console.error("[Omnichannel notification agents lookup error]", error)
+    return
+  }
+
+  const onlineIds = new Set((agentRows || []).map((row) => row.user_id as string))
+  // Portal access alone is never enough. Only users explicitly registered as
+  // Azera agents and currently online receive a live-chat alert.
+  const users = (await getAllUsers()).filter((user) => user.status === "ACTIVE" && onlineIds.has(user.id))
 
   await Promise.all(
     users.map((user) =>

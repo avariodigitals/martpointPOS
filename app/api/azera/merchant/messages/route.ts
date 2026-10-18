@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { isConversationIdentityMatch, resolveChatBusinessId } from "@/lib/azera-identity"
+import { issueConversationToken, tokenFromRequest, verifyConversationToken } from "@/lib/azera-public-auth"
 
 function ok<T>(data: T) {
   return NextResponse.json({ success: true, data })
@@ -8,40 +10,63 @@ function err(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status })
 }
 
+type ChatMessage = Record<string, unknown> & { attachment_path?: string | null }
+
 /**
  * Public endpoint for MartPoint merchants (PHP app) to fetch their own
  * support conversation messages. No admin session required — access is
  * scoped by business_id + external_id which the merchant knows from their
  * own session.
  *
- * Query params:
- *   external_id  — the merchant's chat session ID (from PHP session)
- *   business_id  — the merchant's store ID
+ * Query params are retained for compatibility, but they are not credentials.
+ * A server-issued X-Azera-Chat-Token is required for every private read.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const externalId = searchParams.get("external_id")
   const businessId = searchParams.get("business_id")
 
-  if (!externalId || !businessId) {
-    return err("external_id and business_id are required", 400)
-  }
-
   if (!isSupabaseConfigured()) {
     return err("Supabase not configured", 500)
   }
 
   try {
-    // Find the conversation for this merchant
+    let claims = verifyConversationToken(tokenFromRequest(request))
+    let bridgeBusinessId: string | undefined
+    if (!claims) {
+      // The PHP application may bootstrap a token for an existing merchant
+      // thread. It is accepted only with the server-to-server bridge secret
+      // and the authenticated PHP store identity headers.
+      const resolved = await resolveChatBusinessId(request, "retail_app", request.headers.get("x-martpoint-store-id"), {
+        email: request.headers.get("x-martpoint-store-email"),
+        phone: request.headers.get("x-martpoint-store-phone"),
+        name: request.headers.get("x-martpoint-store-name"),
+      })
+      if (resolved.id) bridgeBusinessId = resolved.id
+      else return err("Conversation authorization required", 401)
+    }
+    const lookupExternalId = externalId || claims?.externalId || ""
+    if (!lookupExternalId) return err("Conversation identity is required", 400)
+    const lookupBusinessId = claims ? claims.businessId : bridgeBusinessId!
+
     const { data: conv, error: convError } = await supabase
       .from("azera_conversations")
       .select("id, business_id, external_id, status, customer_name, customer_phone")
-      .eq("business_id", businessId)
-      .eq("external_id", externalId)
+      .eq(claims ? "id" : "business_id", claims ? claims.conversationId : lookupBusinessId)
+      .eq("external_id", lookupExternalId)
       .maybeSingle()
 
     if (convError || !conv) {
       return err("Conversation not found", 404)
+    }
+    if (claims && (!isConversationIdentityMatch(claims, conv) || (businessId && businessId !== conv.business_id && businessId !== "martpoint-support") || (externalId && externalId !== conv.external_id))) {
+      return err("Conversation not found", 404)
+    }
+    if (conv.status === "closed") return err("Conversation is closed", 410)
+    if (!claims) {
+      const issued = issueConversationToken({ conversationId: conv.id, businessId: conv.business_id, externalId: conv.external_id })
+      claims = verifyConversationToken(issued)
+      if (!claims) return err("Conversation authorization could not be issued", 500)
     }
 
     // Fetch messages for this conversation
@@ -55,9 +80,16 @@ export async function GET(request: Request) {
       return err("Failed to load messages", 500)
     }
 
+    const enrichedMessages = await Promise.all((messages || []).map(async (message: ChatMessage) => {
+      if (!message.attachment_path) return message
+      const { data: signed } = await supabase.storage.from("azera-chat-attachments").createSignedUrl(message.attachment_path, 3600)
+      return { ...message, attachment_url: signed?.signedUrl || null }
+    }))
+
     return ok({
       conversation: conv,
-      messages: messages || [],
+      conversation_token: tokenFromRequest(request) || issueConversationToken({ conversationId: conv.id, businessId: conv.business_id, externalId: conv.external_id }),
+      messages: enrichedMessages,
     })
   } catch (err_) {
     return err(String(err_), 500)

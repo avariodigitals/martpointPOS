@@ -5,7 +5,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "support")) {
+  if (!session || !hasPermission(session.role as UserRole, "azera")) {
     return null
   }
   return session
@@ -66,7 +66,16 @@ export async function PATCH(
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (status !== undefined) updates.status = status
     if (assigned_admin_user_id !== undefined) {
-      updates.assigned_admin_user_id = assigned_admin_user_id === "me" ? session.userId : assigned_admin_user_id
+      const assignee = assigned_admin_user_id === "me" ? session.userId : assigned_admin_user_id
+      const { data: agent } = await supabase
+        .from("azera_agent_presence")
+        .select("user_id")
+        .eq("user_id", assignee)
+        .eq("is_online", true)
+        .maybeSingle()
+      if (!agent) return NextResponse.json({ error: "Only an online, explicitly enabled agent can take a chat" }, { status: 409 })
+      updates.assigned_admin_user_id = assignee
+      updates.waiting_for_agent = false
     }
     if (customer_name !== undefined) updates.customer_name = customer_name
     if (customer_phone !== undefined) updates.customer_phone = customer_phone

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Send, MessageCircle, X, Loader2, Bot, Phone } from "lucide-react"
+import { Send, MessageCircle, X, Loader2, Phone, Sparkles } from "lucide-react"
 import { useWebRTCCall, AzeraCallUI } from "@/components/shared/azera-webrtc-call"
 
 interface AzeraChatWidgetProps {
@@ -19,6 +19,8 @@ interface AzeraChatWidgetProps {
   brandColor?: string
   /** Position: bottom-right | bottom-left */
   position?: "bottom-right" | "bottom-left"
+  /** Public website chats are treated as sales leads; retail_app is reserved for merchant support. */
+  source?: "public_site" | "retail_app"
 }
 
 interface ChatMessage {
@@ -56,12 +58,16 @@ export function AzeraChatWidget({
   greeting = "Hello! How can we help you today?",
   brandColor = "#0057FF",
   position = "bottom-right",
+  source = "public_site",
 }: AzeraChatWidgetProps) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [conversation, setConversation] = useState<Conversation | null>(null)
+  const [conversationToken, setConversationToken] = useState<string | null>(() =>
+    typeof window !== "undefined" ? localStorage.getItem("azera_chat_token") : null
+  )
   const [connected, setConnected] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -91,31 +97,33 @@ export function AzeraChatWidget({
 
   useEffect(() => {
     if (!businessId || !externalId) return
-    fetchConversation(businessId, externalId)
+    void fetchConversation(businessId, externalId)
+    // fetchConversation is intentionally kept local to this widget instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, externalId])
 
   async function fetchConversation(bizId: string, extId: string) {
     try {
-      const res = await fetch(
-        `/api/azera/conversations?business_id=${encodeURIComponent(bizId)}&channel=website&external_id=${encodeURIComponent(extId)}`
-      )
-      const json = await res.json()
-      if (json.conversations && json.conversations.length > 0) {
-        setConversation(json.conversations[0])
-        loadMessages(json.conversations[0].id)
-      }
+      await loadMessages(bizId, extId)
     } catch {
       // ignore — conversation will be created on first message
     }
   }
 
-  async function loadMessages(convId: string) {
+  async function loadMessages(bizId = businessId || "", extId = externalId) {
     try {
-      const res = await fetch(`/api/azera/conversations/${encodeURIComponent(convId)}/messages?limit=100`)
+      const res = await fetch(`/api/azera/merchant/messages?business_id=${encodeURIComponent(bizId)}&external_id=${encodeURIComponent(extId)}`, {
+        headers: conversationToken ? { "X-Azera-Chat-Token": conversationToken } : undefined,
+      })
       const json = await res.json()
-      if (json.messages) {
+      const data = json.data || json
+      if (data.conversation_token) {
+        setConversationToken(data.conversation_token)
+        localStorage.setItem("azera_chat_token", data.conversation_token)
+      }
+      if (data.messages) {
         setMessages(
-          json.messages.map((m: ChatMessage) => ({
+          data.messages.map((m: ChatMessage) => ({
             id: m.id,
             author_type: m.author_type,
             message: m.message,
@@ -124,6 +132,7 @@ export function AzeraChatWidget({
           }))
         )
       }
+      if (data.conversation) setConversation(data.conversation)
     } catch {
       setMessages([])
     }
@@ -147,16 +156,25 @@ export function AzeraChatWidget({
     try {
       const res = await fetch("/api/azera/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(conversationToken ? { "X-Azera-Chat-Token": conversationToken } : {}),
+        },
         body: JSON.stringify({
           business_id: businessId,
           external_id: externalId,
           customer_name: customerName || undefined,
+          source,
           message: text,
         }),
       })
       const json = await res.json()
       if (json.success) {
+        const issuedToken = json.data?.conversation_token
+        if (issuedToken) {
+          setConversationToken(issuedToken)
+          localStorage.setItem("azera_chat_token", issuedToken)
+        }
         if (json.data.conversation) setConversation(json.data.conversation)
         // Replace optimistic message with real one if ids align, else append
         if (json.data.customer_message) {
@@ -188,11 +206,9 @@ export function AzeraChatWidget({
     }
 
     // Poll for new messages (AI or agent) for a few seconds
-    if (conversation?.id) {
-      for (let i = 0; i < 6; i++) {
-        await new Promise((r) => setTimeout(r, 2000))
-        await loadMessages(conversation.id)
-      }
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => setTimeout(r, 2000))
+      await loadMessages()
     }
     setLoading(false)
     scrollToBottom()
@@ -258,13 +274,16 @@ export function AzeraChatWidget({
         onClick={toggleChat}
         style={{ backgroundColor: brandColor }}
         className={cn(
-          "fixed bottom-5 flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-[0_14px_35px_rgba(15,23,42,0.24)] ring-4 ring-white/80 transition-transform duration-200 hover:-translate-y-0.5 active:scale-95 sm:bottom-6",
+          "group relative fixed bottom-5 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_14px_35px_rgba(15,23,42,0.24)] ring-4 ring-white/80 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_18px_42px_rgba(15,23,42,0.3)] active:scale-95 sm:bottom-6",
           position === "bottom-right" ? "right-5 sm:right-6" : "left-5 sm:left-6",
         )}
-        aria-label="Open chat"
+        aria-label="Open MartPoint Assist"
         aria-expanded={open}
       >
-        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+        {!open && <span className="absolute inset-0 rounded-full bg-white/30 opacity-40 animate-ping" aria-hidden="true" />}
+        <span className="relative flex h-full w-full items-center justify-center">
+          {open ? <X className="h-6 w-6" /> : <Sparkles className="h-7 w-7 animate-[pulse_3s_ease-in-out_infinite]" />}
+        </span>
       </button>
 
       {/* Chat panel */}
@@ -281,7 +300,7 @@ export function AzeraChatWidget({
           {/* Header */}
           <div style={{ backgroundColor: brandColor }} className="flex items-center gap-3 px-4 py-3.5 text-white">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/20">
-              <Bot className="w-5 h-5" />
+              <Sparkles className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="truncate text-sm font-semibold">{title}</div>

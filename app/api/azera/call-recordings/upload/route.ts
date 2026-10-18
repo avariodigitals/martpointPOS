@@ -5,7 +5,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "support")) {
+  if (!session || !hasPermission(session.role as UserRole, "azera")) {
     return null
   }
   return session

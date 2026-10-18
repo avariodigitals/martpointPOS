@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidateTag } from "next/cache"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
@@ -11,6 +12,14 @@ async function requireSession(): Promise<SessionPayload | null> {
   return session
 }
 
+async function resolveBusinessId(value: string | null | undefined): Promise<string | null> {
+  if (value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) return value
+  // The old admin form sent business_id=1. Resolve that legacy value to the
+  // first configured tenant instead of sending an integer into a UUID column.
+  const { data } = await supabase.from("businesses").select("id").order("created_at", { ascending: true }).limit(1).maybeSingle()
+  return (data?.id as string | undefined) || null
+}
+
 export async function GET(request: Request) {
   const session = await requireSession()
   if (!session) {
@@ -18,15 +27,13 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url)
-  const businessId = searchParams.get("business_id")
+  const businessId = await resolveBusinessId(searchParams.get("business_id"))
 
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ settings: null })
   }
 
-  if (!businessId) {
-    return NextResponse.json({ error: "business_id is required" }, { status: 400 })
-  }
+  if (!businessId) return NextResponse.json({ error: "No business is configured for Azera settings" }, { status: 400 })
 
   try {
     const { data, error } = await supabase
@@ -40,7 +47,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Failed to load settings" }, { status: 500 })
     }
 
-    return NextResponse.json({ settings: data || null })
+    const { data: globalRow } = await supabase.from("settings").select("data").eq("id", 1).maybeSingle()
+    const globalSip = ((globalRow?.data as Record<string, unknown> | null)?.sip as Record<string, unknown> | undefined) || {}
+    return NextResponse.json({ settings: data ? { ...data, sip_provider: globalSip.provider || null, sip_from_number: globalSip.from_number || null, africas_talking_api_key: globalSip.api_key || null, africas_talking_username: globalSip.username || null, twilio_account_sid: globalSip.account_sid || null, twilio_auth_token: globalSip.auth_token || null, twilio_from: globalSip.from_number || null } : null })
   } catch (err) {
     console.error("[Azera settings get error]", err)
     return NextResponse.json({ error: "Failed to load settings" }, { status: 500 })
@@ -60,7 +69,7 @@ export async function PATCH(request: Request) {
   try {
     const body = await request.json()
     const {
-      business_id,
+      business_id: requestedBusinessId,
       widget_enabled,
       widget_title,
       widget_greeting,
@@ -68,11 +77,17 @@ export async function PATCH(request: Request) {
       position,
       ai_enabled,
       ai_prompt,
+      sip_provider,
+      sip_from_number,
+      africas_talking_api_key,
+      africas_talking_username,
+      twilio_account_sid,
+      twilio_auth_token,
+      twilio_from,
     } = body
 
-    if (!business_id) {
-      return NextResponse.json({ error: "business_id is required" }, { status: 400 })
-    }
+    const business_id = await resolveBusinessId(requestedBusinessId)
+    if (!business_id) return NextResponse.json({ error: "No business is configured for Azera settings" }, { status: 400 })
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (widget_enabled !== undefined) updates.widget_enabled = widget_enabled
@@ -109,9 +124,26 @@ export async function PATCH(request: Request) {
       result = data
     }
 
+    if (sip_provider !== undefined || sip_from_number !== undefined || africas_talking_api_key !== undefined || africas_talking_username !== undefined || twilio_account_sid !== undefined || twilio_auth_token !== undefined || twilio_from !== undefined) {
+      const { data: globalRow } = await supabase.from("settings").select("data").eq("id", 1).maybeSingle()
+      const global = (globalRow?.data as Record<string, unknown> | null) || {}
+      const currentSip = (global.sip as Record<string, unknown> | undefined) || {}
+      const nextSip = {
+        ...currentSip,
+        provider: sip_provider ?? currentSip.provider ?? "",
+        from_number: sip_from_number ?? twilio_from ?? currentSip.from_number ?? "",
+        api_key: africas_talking_api_key ?? currentSip.api_key ?? "",
+        username: africas_talking_username ?? currentSip.username ?? "",
+        account_sid: twilio_account_sid ?? currentSip.account_sid ?? "",
+        auth_token: twilio_auth_token ?? currentSip.auth_token ?? "",
+      }
+      await supabase.from("settings").upsert({ id: 1, data: { ...global, sip: nextSip } })
+      revalidateTag("settings", { expire: 0 })
+    }
+
     return NextResponse.json({ settings: result })
   } catch (err) {
     console.error("[Azera settings patch error]", err)
-    return NextResponse.json({ error: "Failed to save settings" }, { status: 500 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to save settings" }, { status: 500 })
   }
 }

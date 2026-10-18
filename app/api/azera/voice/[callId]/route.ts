@@ -4,6 +4,8 @@ import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { readSettings } from "@/lib/settings"
 
+type VoiceSettings = { openai?: { apiKey?: string } }
+
 function ok<T>(data: T) {
   return NextResponse.json({ success: true, data })
 }
@@ -13,7 +15,7 @@ function err(message: string, status = 400) {
 
 async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "support")) {
+  if (!session || !hasPermission(session.role as UserRole, "azera")) {
     return null
   }
   return session
@@ -61,7 +63,7 @@ export async function POST(
       try {
         const settingsData = await readSettings()
         const openaiKey =
-          (settingsData as any)?.openai?.apiKey || process.env.OPENAI_API_KEY
+          (settingsData as VoiceSettings)?.openai?.apiKey || process.env.OPENAI_API_KEY
         if (!openaiKey) {
           return err("OpenAI API key not configured for STT")
         }
@@ -107,7 +109,7 @@ export async function POST(
     // 2. AI Brain via OpenAI GPT
     const settingsData = await readSettings()
     const openaiKey =
-      (settingsData as any)?.openai?.apiKey || process.env.OPENAI_API_KEY
+      (settingsData as VoiceSettings)?.openai?.apiKey || process.env.OPENAI_API_KEY
     if (!openaiKey) {
       return err("OpenAI API key not configured for AI responses")
     }
@@ -117,6 +119,8 @@ export async function POST(
       .from("azera_knowledge")
       .select("title, content, keywords")
       .eq("business_id", call.business_id)
+      .eq("status", "published")
+      .limit(100)
 
     // Build system prompt
     let systemPrompt = `You are Azera, an AI customer service assistant for a MartPoint business.

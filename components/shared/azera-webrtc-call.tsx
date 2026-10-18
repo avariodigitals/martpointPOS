@@ -124,9 +124,13 @@ export function useWebRTCCall({
 
   const startCall = useCallback(async () => {
     if (!localStreamRef.current) {
-      setError("Microphone not available")
-      setState("error")
-      return
+      try {
+        localStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch {
+        setError("Microphone permission is required for this call")
+        setState("error")
+        return
+      }
     }
     setState("connecting")
 
@@ -150,9 +154,13 @@ export function useWebRTCCall({
 
   const answerCall = useCallback(async () => {
     if (!localStreamRef.current) {
-      setError("Microphone not available")
-      setState("error")
-      return
+      try {
+        localStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch {
+        setError("Microphone permission is required to answer this call")
+        setState("error")
+        return
+      }
     }
     setState("connecting")
 

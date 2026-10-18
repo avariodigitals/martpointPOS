@@ -3,9 +3,11 @@ import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
+type ChatMessage = Record<string, unknown> & { attachment_path?: string | null }
+
 async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "support")) {
+  if (!session || !hasPermission(session.role as UserRole, "azera")) {
     return null
   }
   return session
@@ -42,7 +44,13 @@ export async function GET(
       return NextResponse.json({ error: "Failed to load messages" }, { status: 500 })
     }
 
-    return NextResponse.json({ messages: data || [] })
+    const messages = await Promise.all((data || []).map(async (message: ChatMessage) => {
+      if (!message.attachment_path) return message
+      const { data: signed } = await supabase.storage.from("azera-chat-attachments").createSignedUrl(message.attachment_path, 3600)
+      return { ...message, attachment_url: signed?.signedUrl || null }
+    }))
+
+    return NextResponse.json({ messages })
   } catch (err) {
     console.error("[Azera messages error]", err)
     return NextResponse.json({ error: "Failed to load messages" }, { status: 500 })
@@ -66,7 +74,7 @@ export async function POST(
 
   try {
     const body = await request.json()
-    const { message, author_type = "agent", direction = "outbound", author_id } = body
+    const { message, author_type = "agent", direction = "outbound", author_id, message_type = "text", metadata = {} } = body
 
     if (!message || !message.trim()) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 })
@@ -89,6 +97,8 @@ export async function POST(
         author_type,
         author_id: author_id || session.userId,
         message: message.trim(),
+        message_type,
+        metadata,
         direction,
         created_at: new Date().toISOString(),
       })
@@ -104,6 +114,7 @@ export async function POST(
       .update({
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        ...(author_type === "agent" ? { waiting_for_agent: false, ai_enabled: false } : {}),
         status: direction === "inbound" && conv.status === "closed" ? "open" : conv.status,
       })
       .eq("id", id)

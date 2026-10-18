@@ -3,9 +3,14 @@ import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
+type ConversationRow = {
+  azera_messages?: Array<{ created_at: string; direction: string; author_type: string; message: string }>
+  [key: string]: unknown
+}
+
 async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "support")) {
+  if (!session || !hasPermission(session.role as UserRole, "azera")) {
     return null
   }
   return session
@@ -50,13 +55,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Failed to load conversations" }, { status: 500 })
     }
 
-    const conversations = (data || []).map((c: any) => {
+    const conversations = ((data || []) as ConversationRow[]).map((c) => {
       const msgs = c.azera_messages || []
       const last = msgs
         .slice()
-        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
       const unread = msgs.filter(
-        (m: any) => m.direction === "inbound" && m.author_type !== "agent"
+        (m) => m.direction === "inbound" && m.author_type !== "agent"
       ).length
       return {
         id: c.id,
@@ -69,6 +74,12 @@ export async function GET(request: Request) {
         assigned_admin_user_id: c.assigned_admin_user_id,
         ticket_id: c.ticket_id,
         ai_enabled: c.ai_enabled,
+        queue: c.queue || "customer_support",
+        triage_state: c.triage_state || "needs_triage",
+        waiting_for_agent: Boolean(c.waiting_for_agent),
+        handoff_summary: c.handoff_summary || null,
+        escalation_reason: c.escalation_reason || null,
+        knowledge_refs: c.knowledge_refs || [],
         last_message_at: c.last_message_at,
         created_at: c.created_at,
         last_message: last

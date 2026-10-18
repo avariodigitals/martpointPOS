@@ -91,7 +91,9 @@ const navItems: NavItem[] = [
   { href: "/admin/support", label: "Support", icon: Ticket, page: "support", section: "Customers" },
 
   // OMNICHANNEL
-  { href: "/admin/azera", label: "Azera Chat", icon: MessageCircle, page: "support", section: "Omnichannel" },
+  { href: "/admin/azera", label: "Azera Chat", icon: MessageCircle, page: "azera", section: "Omnichannel" },
+  { href: "/admin/azera/knowledge", label: "AI Knowledge Base", icon: BookOpen, page: "azera", section: "Omnichannel" },
+  { href: "/admin/azera/settings", label: "Azera Settings", icon: Settings, page: "azera", section: "Omnichannel" },
   { href: "/admin/azera/reports", label: "Call Reports", icon: FileAudio, page: "support", section: "Omnichannel" },
   { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, page: "customers", section: "Omnichannel" },
   { href: "/admin/messenger", label: "Messenger", icon: MessageCircle, page: "support", section: "Omnichannel" },

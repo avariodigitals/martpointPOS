@@ -363,13 +363,15 @@ export async function POST(request: Request) {
 
     const result = await writeSettings(updated)
     if (!result.success) {
-      return NextResponse.json({ error: "Failed to save settings", details: result.error }, { status: 500 })
+      return NextResponse.json({ error: result.error || "Failed to save settings", details: result.error }, { status: 500 })
     }
 
     revalidateTag("settings", { expire: 0 })
 
     return NextResponse.json({ success: true, settings: updated })
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error("[Settings POST Error]", message)
+    return NextResponse.json({ error: message || "Invalid request body" }, { status: 400 })
   }
 }

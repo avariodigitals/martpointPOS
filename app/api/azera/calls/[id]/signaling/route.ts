@@ -25,7 +25,7 @@ function err(message: string, status = 400) {
 async function getActor(request: Request) {
   // Try admin session first
   const admin = await getAdminSession()
-  if (admin && hasPermission(admin.role as UserRole, "support")) {
+  if (admin && hasPermission(admin.role as UserRole, "azera")) {
     return { type: "agent" as const, id: admin.userId, name: admin.name }
   }
 

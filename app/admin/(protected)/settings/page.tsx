@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, Settings, Wand2, MousePointerClick, ShieldCheck, MessageCircle, Star } from "lucide-react"
+import { Loader2, Save, Settings, Wand2, MousePointerClick, ShieldCheck, MessageCircle } from "lucide-react"
 import { GoogleMeetSettingsCard } from "@/components/admin/google-meet-settings-card"
 import { DriveSettingsCard } from "@/components/admin/drive-settings-card"
 
@@ -13,7 +13,6 @@ interface GeneralSettings {
   phone: string
   companyName: string
   accountNumber: string
-  googleReviewUrl: string
 }
 
 interface MartpointEntitySettings {
@@ -137,7 +136,6 @@ export default function AdminSettingsPage() {
     phone: "",
     companyName: "",
     accountNumber: "",
-    googleReviewUrl: "",
   })
   const [social, setSocial] = useState<SocialSettings>({
     facebook: "",
@@ -517,7 +515,7 @@ export default function AdminSettingsPage() {
           <Settings className="w-5 h-5" />
           General Settings
         </h2>
-        <p className="text-muted-foreground">Update contact details and site identity.</p>
+        <p className="text-muted-foreground">Update contact details and site identity. Chat, calls, Google Reviews, Facebook, and Instagram are configured in <a href="/admin/azera/settings" className="text-retail underline">Azera Settings</a>.</p>
       </div>
 
       {!loading && (
@@ -608,19 +606,6 @@ export default function AdminSettingsPage() {
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder={"Bank Name: Access Bank\nAccount Number: 0123456789\nAccount Name: Company Ltd\n(shown on quotations)"}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Google Review URL</label>
-                <input
-                  type="url"
-                  value={settings.googleReviewUrl || ""}
-                  onChange={(e) => setSettings({ ...settings, googleReviewUrl: e.target.value })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="https://g.page/r/.../review"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Used by the “Rate us on Google” prompts on customer stories and testimonials. Leave blank to hide them.
-                </p>
               </div>
             </CardContent>
             <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
@@ -1831,7 +1816,7 @@ export default function AdminSettingsPage() {
           </div>
 
           {/* Omnichannel Settings */}
-          <Card className={activeTab === "content" ? "hidden" : "lg:col-span-2"}>
+          <Card className="hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MessageCircle className="w-5 h-5" />

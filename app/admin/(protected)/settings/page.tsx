@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, Settings, Wand2, MousePointerClick, ShieldCheck } from "lucide-react"
+import { Loader2, Save, Settings, Wand2, MousePointerClick, ShieldCheck, MessageCircle, Star } from "lucide-react"
 import { GoogleMeetSettingsCard } from "@/components/admin/google-meet-settings-card"
 import { DriveSettingsCard } from "@/components/admin/drive-settings-card"
 
@@ -120,6 +120,16 @@ interface PricingSettings {
   erp: PricingPlan[]
 }
 
+interface OmnichannelSettings {
+  whatsappPhoneId: string
+  whatsappAccessToken: string
+  messengerPageId: string
+  instagramAccountId: string
+  googlePlaceId: string
+  googleReviewEnabled: boolean
+  googleReviewMessage: string
+}
+
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<GeneralSettings>({
     contactEmail: "",
@@ -177,6 +187,15 @@ export default function AdminSettingsPage() {
     priceSubtext: "1 branch · 5 users · Standard Online Store included.",
     ctaText: "Get Started on WhatsApp",
     ctaLink: "https://wa.me/+2348037978230",
+  })
+  const [omnichannel, setOmnichannel] = useState<OmnichannelSettings>({
+    whatsappPhoneId: "",
+    whatsappAccessToken: "",
+    messengerPageId: "",
+    instagramAccountId: "",
+    googlePlaceId: "",
+    googleReviewEnabled: false,
+    googleReviewMessage: "",
   })
   const [header, setHeader] = useState<HeaderSettings>({
     logo: "/logo.webp",
@@ -374,6 +393,65 @@ export default function AdminSettingsPage() {
       window.alert(displayMsg)
     } finally {
       setSaving((prev) => ({ ...prev, [section]: false }))
+    }
+  }
+
+  async function doSaveOmnichannel() {
+    setSaving((prev) => ({ ...prev, omnichannel: true }))
+    setMessage((prev) => ({ ...prev, omnichannel: "" }))
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+    try {
+      const res = await fetch("/api/azera/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_id: 1,
+          messenger_page_id: omnichannel.messengerPageId || null,
+          instagram_account_id: omnichannel.instagramAccountId || null,
+          google_place_id: omnichannel.googlePlaceId || null,
+          google_review_enabled: omnichannel.googleReviewEnabled,
+          google_review_message: omnichannel.googleReviewMessage || null,
+        }),
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+
+      let data: Record<string, unknown> = {}
+      const text = await res.text()
+      try {
+        data = JSON.parse(text)
+      } catch {
+        console.error("Non-JSON response:", text.slice(0, 500))
+        const errMsg = `Server error (${res.status}). Check console for details.`
+        setMessage((prev) => ({ ...prev, omnichannel: errMsg }))
+        window.alert(errMsg)
+        setSaving((prev) => ({ ...prev, omnichannel: false }))
+        return
+      }
+
+      if (res.ok && data.success) {
+        setMessage((prev) => ({ ...prev, omnichannel: "Omnichannel settings saved successfully." }))
+        window.alert("Omnichannel settings saved successfully.")
+      } else {
+        const errorMsg = (data.error as string) || `Failed to save (${res.status}).`
+        console.error("Save error:", errorMsg, data)
+        setMessage((prev) => ({ ...prev, omnichannel: errorMsg }))
+        window.alert(errorMsg)
+      }
+    } catch (err) {
+      clearTimeout(timeoutId)
+      const errMsg = err instanceof Error ? err.message : String(err)
+      console.error("Network or unexpected error:", err)
+      const displayMsg = errMsg.includes("abort") || errMsg.includes("Abort")
+        ? "Request timed out. The server took too long to respond."
+        : "Network error. Check your connection and try again."
+      setMessage((prev) => ({ ...prev, omnichannel: displayMsg }))
+      window.alert(displayMsg)
+    } finally {
+      setSaving((prev) => ({ ...prev, omnichannel: false }))
     }
   }
 
@@ -1751,6 +1829,130 @@ export default function AdminSettingsPage() {
               )}
             </Button>
           </div>
+
+          {/* Omnichannel Settings */}
+          <Card className={activeTab === "content" ? "hidden" : "lg:col-span-2"}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5" />
+                Omnichannel — Azera Live Chat
+              </CardTitle>
+              <CardDescription>
+                Configure WhatsApp, Messenger, Instagram DM, and Google Reviews for customer chat.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium mb-1">WhatsApp Business API</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Phone ID</label>
+                    <input
+                      type="text"
+                      value={omnichannel.whatsappPhoneId}
+                      onChange={(e) => setOmnichannel({ ...omnichannel, whatsappPhoneId: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="123456789012345"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Access Token</label>
+                    <input
+                      type="password"
+                      value={omnichannel.whatsappAccessToken}
+                      onChange={(e) => setOmnichannel({ ...omnichannel, whatsappAccessToken: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="EAAxxxxxxxxx"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Webhook URL: <code className="bg-muted px-1 py-0.5 rounded">/api/azera/webhook/meta</code>
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-4 border-t border-border/50">
+                <label className="block text-sm font-medium mb-1">Messenger (Facebook)</label>
+                <input
+                  type="text"
+                  value={omnichannel.messengerPageId}
+                  onChange={(e) => setOmnichannel({ ...omnichannel, messengerPageId: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="Messenger Page ID"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Webhook URL: <code className="bg-muted px-1 py-0.5 rounded">/api/azera/webhook/messenger</code>
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-4 border-t border-border/50">
+                <label className="block text-sm font-medium mb-1">Instagram DM</label>
+                <input
+                  type="text"
+                  value={omnichannel.instagramAccountId}
+                  onChange={(e) => setOmnichannel({ ...omnichannel, instagramAccountId: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="Instagram Account ID"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Webhook URL: <code className="bg-muted px-1 py-0.5 rounded">/api/azera/webhook/instagram</code>
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-4 border-t border-border/50">
+                <label className="block text-sm font-medium mb-1">Google Reviews</label>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    id="google-review-enabled"
+                    checked={omnichannel.googleReviewEnabled}
+                    onChange={(e) => setOmnichannel({ ...omnichannel, googleReviewEnabled: e.target.checked })}
+                    className="h-4 w-4 rounded border-border"
+                  />
+                  <label htmlFor="google-review-enabled" className="text-sm font-medium">
+                    Enable Google review requests
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  value={omnichannel.googlePlaceId}
+                  onChange={(e) => setOmnichannel({ ...omnichannel, googlePlaceId: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="Google Business Place ID"
+                />
+                <div>
+                  <label className="block text-xs font-medium mb-1">Review Message</label>
+                  <textarea
+                    value={omnichannel.googleReviewMessage}
+                    onChange={(e) => setOmnichannel({ ...omnichannel, googleReviewMessage: e.target.value })}
+                    rows={2}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="Hi {{name}}, how was your experience? Leave us a review: {{link}}"
+                  />
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
+              {message.omnichannel && (
+                <span className={`text-sm px-2 py-1 rounded ${message.omnichannel.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {message.omnichannel}
+                </span>
+              )}
+              <Button type="button" onClick={() => doSaveOmnichannel()} disabled={saving["omnichannel"]}>
+                {saving["omnichannel"] ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Omnichannel
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
         </form>
       )}
     </div>

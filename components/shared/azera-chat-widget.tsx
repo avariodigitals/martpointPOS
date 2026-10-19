@@ -431,7 +431,7 @@ export function AzeraChatWidget({
           )}
 
           {/* Messages */}
-          <div ref={scrollRef} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto bg-slate-50/80 p-3">
+          <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50/80 p-3.5">
             {needsVisitorProfile && (
               <div className="flex h-full min-h-40 flex-col items-center justify-center px-6 text-center text-slate-500">
                 <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-500 shadow-sm ring-1 ring-blue-100">

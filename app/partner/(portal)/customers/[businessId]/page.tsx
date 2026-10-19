@@ -4,7 +4,8 @@ import { getPartnerCustomerDetail } from "@/lib/partner-customers"
 import Link from "next/link"
 import { enumLabel } from "@/lib/utils"
 
-export default async function CustomerDetailPage({ params }: { params: { businessId: string } }) {
+export default async function CustomerDetailPage({ params }: { params: Promise<{ businessId: string }> }) {
+  const { businessId } = await params
   const session = await getPartnerSession()
   if (!session) redirect("/partner/login")
 
@@ -14,7 +15,7 @@ export default async function CustomerDetailPage({ params }: { params: { busines
   const user = await getPartnerUserById(session.partnerUserId)
   if (!user) redirect("/partner/login")
 
-  const result = await getPartnerCustomerDetail(session.partnerId, params.businessId, user)
+  const result = await getPartnerCustomerDetail(session.partnerId, businessId, user)
   if (!result.ok) notFound()
 
   const { business, assignment, deployment, entitlement } = result.detail
@@ -57,7 +58,7 @@ export default async function CustomerDetailPage({ params }: { params: { busines
 
       {assignment.accessLevel === "ONBOARDING_MANAGER" && (
         <Link
-          href={`/partner/customers/${params.businessId}/onboarding`}
+          href={`/partner/customers/${businessId}/onboarding`}
           className="inline-flex rounded-md bg-retail px-4 py-2 text-sm font-medium text-white hover:bg-retail/90"
         >
           Open Onboarding Workspace

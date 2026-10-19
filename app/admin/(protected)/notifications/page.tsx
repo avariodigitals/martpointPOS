@@ -23,7 +23,7 @@ export default function NotificationsPage() {
 
   const load = async () => {
     setLoading(true)
-    const res = await fetch("/api/admin/notifications")
+    const res = await fetch("/api/admin/notifications?all=1")
     const data = await res.json()
     if (data.success) setNotifications(data.notifications || [])
     setLoading(false)
@@ -34,9 +34,9 @@ export default function NotificationsPage() {
   const markRead = async (id: string) => {
     setWorking(true)
     await fetch("/api/admin/notifications", {
-      method: "POST",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark_read", notificationId: id }),
+      body: JSON.stringify({ id }),
     })
     setWorking(false)
     load()
@@ -45,9 +45,9 @@ export default function NotificationsPage() {
   const markAllRead = async () => {
     setWorking(true)
     await fetch("/api/admin/notifications", {
-      method: "POST",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark_all_read" }),
+      body: JSON.stringify({ all: true }),
     })
     setWorking(false)
     load()

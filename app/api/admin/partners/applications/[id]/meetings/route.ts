@@ -7,6 +7,7 @@ import { sendEmail, REPLY_TO } from "@/lib/email"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 import { createMeetEvent, deleteCalendarEvent, getGoogleSettings, isGoogleConnected } from "@/lib/google-calendar"
 import { getBaseUrl } from "@/lib/marketing"
+import { completeExpiredMeetings } from "@/lib/meeting-status"
 
 const schema = z.object({
   title: z.string().trim().min(3).max(200),
@@ -39,10 +40,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { denied } = await authorizeAdmin("partners", "view")
   if (denied) return denied
   if (!isSupabaseConfigured()) return NextResponse.json({ meetings: [] })
+  await completeExpiredMeetings()
   const { id } = await params
   const { data, error } = await supabase
     .from("partner_meetings")
-    .select("id, title, scheduled_at, duration_minutes, timezone, meeting_link, provider, status, email_sent, team_notified, meet_error, created_by_name, created_at")
+    .select("id, title, scheduled_at, duration_minutes, timezone, meeting_link, provider, status, email_sent, team_notified, meet_error, summary, action_items, transcript, transcript_url, recording_url, notes_provider, notes_received_at, created_by_name, created_at")
     .eq("application_id", id)
     .order("scheduled_at", { ascending: false })
   if (error) {

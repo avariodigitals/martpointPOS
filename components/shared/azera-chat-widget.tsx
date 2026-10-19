@@ -73,7 +73,7 @@ export function AzeraChatWidget({
   customerName,
   title = "Chat with us",
   greeting = "Hello! How can we help you today?",
-  brandColor = "#0057FF",
+  brandColor = "#2563EB",
   position = "bottom-right",
   source = "public_site",
 }: AzeraChatWidgetProps) {
@@ -431,7 +431,7 @@ export function AzeraChatWidget({
           )}
 
           {/* Messages */}
-          <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50/80 p-3.5">
+          <div ref={scrollRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto scroll-py-2 bg-slate-50/80 p-4">
             {needsVisitorProfile && (
               <div className="flex h-full min-h-40 flex-col items-center justify-center px-6 text-center text-slate-500">
                 <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-500 shadow-sm ring-1 ring-blue-100">
@@ -450,38 +450,46 @@ export function AzeraChatWidget({
                 <p className="mt-1 text-xs leading-relaxed">Ask about MartPoint, setup, pricing, or support.</p>
               </div>
             )}
-            {!needsVisitorProfile && messages.map((m) => (
-              <div
-                key={m.id}
-                className={cn(
-                  "relative mb-1 max-w-[88%] rounded-2xl px-3 py-2 text-[13px] leading-relaxed break-words shadow-sm",
-                  m.direction === "outbound"
-                    ? "ml-auto rounded-br-md text-white"
-                    : "mr-auto rounded-bl-md border border-slate-200 bg-white text-slate-700"
-                )}
-                style={m.direction === "outbound" ? { backgroundColor: brandColor } : undefined}
-              >
-                {m.author_type === "ai" && (
-                  <span className="text-[10px] uppercase tracking-wider opacity-60 block mb-1">Azera</span>
-                )}
-                {m.message}
-                <span className="mt-1 block text-[9px] opacity-50">
-                  {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
-                <span
-                  aria-hidden="true"
-                  style={m.direction === "outbound" ? { backgroundColor: brandColor } : undefined}
+            {!needsVisitorProfile && messages.map((m) => {
+              const isCustomer = m.author_type === "customer"
+              return (
+                <div
+                  key={m.id}
                   className={cn(
-                    "absolute bottom-[-5px] h-3 w-3 rotate-45",
-                    m.direction === "outbound"
-                      ? "right-2 rounded-br-[3px]"
-                      : "left-2 rounded-bl-[3px] border-b border-l border-slate-200 bg-white",
+                    "relative w-fit max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed break-words shadow-sm",
+                    isCustomer
+                      ? "ml-auto rounded-br-md text-white"
+                      : "mr-auto rounded-bl-md border border-slate-200 bg-white text-slate-700",
                   )}
-                />
-              </div>
-            ))}
+                  style={isCustomer ? { backgroundColor: brandColor } : undefined}
+                >
+                  {(m.author_type === "ai" || m.author_type === "agent") && (
+                    <span className="mb-1 block text-[10px] uppercase tracking-wider opacity-60">
+                      {m.author_type === "agent" ? "MartPoint Support" : "Azera"}
+                    </span>
+                  )}
+                  {m.message}
+                  <span className="mt-1 block text-[9px] opacity-50">
+                    {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  {isCustomer && (
+                    <span className="mt-0.5 block text-right text-[9px] opacity-60">Delivered</span>
+                  )}
+                  <span
+                    aria-hidden="true"
+                    style={isCustomer ? { backgroundColor: brandColor } : undefined}
+                    className={cn(
+                      "absolute bottom-[-5px] h-3 w-3 rotate-45",
+                      isCustomer
+                        ? "right-2 rounded-br-[3px]"
+                        : "left-2 rounded-bl-[3px] border-b border-l border-slate-200 bg-white",
+                    )}
+                  />
+                </div>
+              )
+            })}
             {!needsVisitorProfile && loading && (
-              <div style={{ backgroundColor: brandColor }} className="ml-auto flex max-w-[88%] items-center gap-2 rounded-2xl rounded-br-md px-3 py-2 text-[13px] text-white shadow-sm">
+              <div className="mr-auto flex w-fit max-w-[88%] items-center gap-2 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 shadow-sm">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Typing…
               </div>
             )}
@@ -529,6 +537,9 @@ export function AzeraChatWidget({
             </button>
           </form>
           {callError && <p className="border-t border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">{callError}</p>}
+          <div className="border-t border-slate-100 bg-white px-3 py-1.5 text-center text-[10px] text-slate-400">
+            Powered by <a href="https://www.avariodigitals.com" target="_blank" rel="noreferrer" className="font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-blue-600">Avario</a>
+          </div>
         </div>
       )}
 

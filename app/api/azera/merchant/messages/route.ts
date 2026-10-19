@@ -81,9 +81,13 @@ export async function GET(request: Request) {
     }
 
     const enrichedMessages = await Promise.all((messages || []).map(async (message: ChatMessage) => {
-      if (!message.attachment_path) return message
+      const metadata = message.metadata as Record<string, unknown> | undefined
+      const safeMessage = metadata?.escalation_reason === "no_approved_knowledge"
+        ? { ...message, message: "I want to make sure you receive accurate MartPoint information. I’ve sent this to a specialist who can help. Is your question about sales, a technical issue, or how to use MartPoint?" }
+        : message
+      if (!message.attachment_path) return safeMessage
       const { data: signed } = await supabase.storage.from("azera-chat-attachments").createSignedUrl(message.attachment_path, 3600)
-      return { ...message, attachment_url: signed?.signedUrl || null }
+      return { ...safeMessage, attachment_url: signed?.signedUrl || null }
     }))
 
     return ok({

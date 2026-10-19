@@ -30,7 +30,24 @@ export async function enrolInstall(installUrl: string, installKey: string): Prom
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ install_url: root, install_key: installKey }),
     })
-    if (!proof.ok || (await proof.json()).verified !== true) return null
+    if (!proof.ok) return null
+    const proofBody = await proof.json() as {
+      verified?: boolean
+      fleet_id?: string | null
+      installation_id?: string | null
+      identity_status?: string | null
+    }
+    if (proofBody.verified !== true) return null
+    if (proofBody.fleet_id && proofBody.installation_id) {
+      await supabase.from("business_deployments").update({
+        fleet_id: proofBody.fleet_id,
+        installation_id: proofBody.installation_id,
+        identity_status: "REVIEW_REQUIRED",
+        identity_verified_at: null,
+        identity_last_reconciled_at: new Date().toISOString(),
+        identity_issue: "Central proof succeeded but business ownership still requires Central review.",
+      }).eq("business_id", [...ids][0])
+    }
     const { data, error: issueError } = await supabase.rpc("issue_install_checkin_token", {
       p_business_id: [...ids][0], p_rotate: false,
     })

@@ -134,9 +134,38 @@ Respond with a single JSON object:
 
 function parseReview(raw: string): PartnerAiReviewResult | null {
   try {
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return null
-    const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>
+    const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "")
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(cleaned) as Record<string, unknown>
+    } catch {
+      // Some OpenAI-compatible providers ignore response_format and add prose.
+      // Extract the first balanced JSON object instead of using a greedy regex,
+      // which breaks when a response contains more than one brace-delimited part.
+      const start = cleaned.indexOf("{")
+      if (start < 0) return null
+      let depth = 0
+      let inString = false
+      let escaped = false
+      let end = -1
+      for (let i = start; i < cleaned.length; i += 1) {
+        const char = cleaned[i]
+        if (inString) {
+          if (escaped) escaped = false
+          else if (char === "\\") escaped = true
+          else if (char === '"') inString = false
+          continue
+        }
+        if (char === '"') inString = true
+        else if (char === "{") depth += 1
+        else if (char === "}" && --depth === 0) {
+          end = i + 1
+          break
+        }
+      }
+      if (end < 0) return null
+      parsed = JSON.parse(cleaned.slice(start, end)) as Record<string, unknown>
+    }
     const s = (parsed.scores || {}) as Record<string, unknown>
     const num = (v: unknown, max: number) =>
       Math.max(0, Math.min(max, typeof v === "number" ? v : 0))
@@ -226,18 +255,19 @@ export async function runPartnerAiReview(
 
   let raw = ""
   let model = ""
+  const prompt = buildPrompt(appRow, fetched, answersLines)
   try {
     const completion = await aiChat({
       json: true,
       temperature: 0.3,
-      maxTokens: 1600,
+      maxTokens: 2400,
       messages: [
         {
           role: "system",
           content:
             "You are a careful partner-review analyst for MartPoint, a Nigerian retail/business operating system. You assess partner applications objectively and never invent data. You respond with JSON only.",
         },
-        { role: "user", content: buildPrompt(appRow, fetched, answersLines) },
+        { role: "user", content: prompt },
       ],
     })
     raw = completion.content
@@ -254,7 +284,31 @@ export async function runPartnerAiReview(
     return { ok: false, error: message }
   }
 
-  const review = parseReview(raw)
+  let review = parseReview(raw)
+  // A configured OpenAI-compatible fallback may accept the request but still
+  // return prose or malformed JSON. Give it one concise, strict retry before
+  // recording a failed assessment.
+  if (!review) {
+    try {
+      const retry = await aiChat({
+        json: true,
+        temperature: 0,
+        maxTokens: 2400,
+        messages: [
+          {
+            role: "system",
+            content: "Return only one valid JSON object. No markdown, no code fences, no explanation, and no text before or after the object. Follow every key and allowed value in the user schema exactly.",
+          },
+          { role: "user", content: prompt },
+        ],
+      })
+      raw = retry.content
+      model = retry.model
+      review = parseReview(raw)
+    } catch {
+      // Preserve the original failure below with the raw response for diagnosis.
+    }
+  }
   if (!review) {
     await supabase.from("partner_ai_reviews").insert({
       application_id: applicationId,

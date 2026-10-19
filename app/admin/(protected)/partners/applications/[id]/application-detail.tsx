@@ -202,7 +202,7 @@ export function ApplicationDetail({ id }: { id: string }) {
   const [meetingMessage, setMeetingMessage] = useState("")
   const [sendingMeeting, setSendingMeeting] = useState(false)
   const [questionRounds, setQuestionRounds] = useState<{ id: string; title: string; fields: { name: string; label: string }[]; responses: Record<string, unknown>; status: string; created_at: string; submitted_at: string | null }[]>([])
-  const [meetingRows, setMeetingRows] = useState<{ id: string; title: string; scheduled_at: string; duration_minutes: number; meeting_link: string | null; status: string; email_sent: boolean; team_notified: boolean; meet_error: string | null; created_by_name: string | null; created_at: string }[]>([])
+  const [meetingRows, setMeetingRows] = useState<{ id: string; title: string; scheduled_at: string; duration_minutes: number; meeting_link: string | null; status: string; email_sent: boolean; team_notified: boolean; meet_error: string | null; summary: string | null; action_items: string[] | null; transcript: string | null; transcript_url: string | null; recording_url: string | null; notes_provider: string | null; created_by_name: string | null; created_at: string }[]>([])
   const [meetingBusyId, setMeetingBusyId] = useState<string | null>(null)
   const [rescheduleId, setRescheduleId] = useState<string | null>(null)
   const [rescheduleAt, setRescheduleAt] = useState("")
@@ -212,6 +212,13 @@ export function ApplicationDetail({ id }: { id: string }) {
 
   const [actionStatus, setActionStatus] = useState("")
   const [reason, setReason] = useState("")
+
+  const openPartnerDocument = async (documentId: string) => {
+    const res = await fetch(`/api/admin/partners/applications/${id}/documents/${documentId}`, { cache: "no-store" })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok && data.signedUrl) window.open(data.signedUrl, "_blank", "noopener,noreferrer")
+    else setActionMsg(data.error || "Could not open document")
+  }
   const [infoMessage, setInfoMessage] = useState("")
   const [rejectionPublic, setRejectionPublic] = useState("")
   const [acting, setActing] = useState(false)
@@ -778,13 +785,13 @@ export function ApplicationDetail({ id }: { id: string }) {
                             <p className="text-xs text-muted-foreground">{d.document_type} · {(d.file_size / 1024).toFixed(0)} KB · {d.verification_status}</p>
                           </div>
                           {d.signedUrl ? (
-                            <a href={d.signedUrl} target="_blank" rel="noopener noreferrer"><Button size="sm" variant="outline"><Download className="w-3.5 h-3.5 mr-1" /> View</Button></a>
+                            <Button size="sm" variant="outline" onClick={() => void openPartnerDocument(d.id)}><Download className="w-3.5 h-3.5 mr-1" /> View</Button>
                           ) : <span className="text-xs text-muted-foreground">unavailable</span>}
                         </div>
                       ))}
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground mt-2">Signed URLs expire after 60 seconds.</p>
+                  <p className="text-xs text-muted-foreground mt-2">A fresh secure download link is generated each time you open a document.</p>
                 </CardContent>
               </Card>
             </div>
@@ -962,6 +969,15 @@ export function ApplicationDetail({ id }: { id: string }) {
                       <span className="text-muted-foreground">{m.email_sent ? "Invitation emailed" : "Invitation email failed"}</span>
                       <span className="text-muted-foreground">{m.team_notified ? "Team notified" : "Team not notified"}</span>
                     </div>
+                    {(m.summary || m.action_items?.length || m.transcript || m.transcript_url || m.recording_url) && (
+                      <div className="mt-3 rounded-md bg-muted/30 p-3 text-sm">
+                        <p className="font-medium">Meeting notes{m.notes_provider ? ` · ${m.notes_provider}` : ""}</p>
+                        {m.summary && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{m.summary}</p>}
+                        {m.action_items?.length ? <ul className="mt-2 list-disc pl-5 text-muted-foreground">{m.action_items.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+                        {m.transcript && <details className="mt-2"><summary className="cursor-pointer text-retail">Transcript</summary><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">{m.transcript}</pre></details>}
+                        <div className="mt-2 flex gap-3 text-xs">{m.transcript_url && <a href={m.transcript_url} target="_blank" rel="noopener noreferrer" className="text-retail hover:underline">Transcript link</a>}{m.recording_url && <a href={m.recording_url} target="_blank" rel="noopener noreferrer" className="text-retail hover:underline">Recording</a>}</div>
+                      </div>
+                    )}
                     {m.status !== "CANCELLED" && m.status !== "COMPLETED" && (
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         {rescheduleId === m.id ? (

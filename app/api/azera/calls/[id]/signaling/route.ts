@@ -97,7 +97,8 @@ export async function POST(
 
     return ok(data)
   } catch (e) {
-    return err(String(e), 500)
+    console.error("[Azera signaling create error]", e)
+    return err("We couldn't connect the call right now. Please try again shortly.", 500)
   }
 }
 
@@ -124,6 +125,7 @@ export async function GET(
 
     return ok(data || [])
   } catch (e) {
-    return err(String(e), 500)
+    console.error("[Azera signaling list error]", e)
+    return err("We couldn't load call connection details right now. Please try again shortly.", 500)
   }
 }

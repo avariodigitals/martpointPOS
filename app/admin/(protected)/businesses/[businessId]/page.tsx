@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import { requireAdminPage } from "@/lib/admin-auth"
 import { getBusinessById, listBusinessBranches, listBusinessUsers, type Business } from "@/lib/businesses"
+import { getBusinessDeployment } from "@/lib/partner-onboarding"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { BusinessDetail } from "./business-detail"
 
@@ -52,6 +53,7 @@ export default async function BusinessDetailPage({
     listBusinessBranches(businessId),
     listBusinessUsers(businessId),
   ])
+  const deployment = await getBusinessDeployment(businessId)
 
   // Training sessions
   let trainingSessions: Array<Record<string, unknown>> = []
@@ -119,6 +121,7 @@ export default async function BusinessDetailPage({
       subscription={subscription}
       entitlement={entitlement}
       licence={licence}
+      deployment={deployment}
       invoiceSummary={invoiceSummary}
       actorName={session.name || session.username}
     />

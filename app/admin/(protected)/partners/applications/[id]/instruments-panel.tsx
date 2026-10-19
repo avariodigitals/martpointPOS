@@ -12,7 +12,7 @@ import { useToast } from "@/components/admin/admin-toast"
  * the commission engine reads — they are never decided in code.
  */
 
-type Status = { id: string; reference: string; status: string; version: number; next: string[]; title?: string; executedAt?: string | null }
+type Status = { id: string; reference: string; status: string; version: number; next: string[]; title?: string; executedAt?: string | null; documentId?: string | null; previewUrl?: string | null }
 type Schedule = Status & {
   firstYearRate: number
   firstRenewalRate: number
@@ -264,9 +264,22 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
                   {a.executedAt && <span className="text-xs text-muted-foreground">executed {new Date(a.executedAt).toLocaleDateString()}</span>}
                 </div>
                 {a.title && <p className="text-xs text-muted-foreground">{a.title}</p>}
-                {detail.can.agreementReview && (
-                  <div className="flex flex-wrap gap-2">
-                    {a.next
+                <div className="flex flex-wrap gap-2">
+                  {a.previewUrl ? (
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={a.previewUrl} target="_blank" rel="noopener noreferrer">Preview document</a>
+                    </Button>
+                  ) : detail.can.agreementReview && detail.partner && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy === a.id + "document"}
+                      onClick={() => act(a.id + "document", { action: "issue_agreement_document", agreementId: a.id })}
+                    >
+                      {busy === a.id + "document" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Generate preview
+                    </Button>
+                  )}
+                  {detail.can.agreementReview && a.next
                       .filter((to) => to !== "SUPERSEDED")
                       .map((to) => (
                         <Button
@@ -279,8 +292,7 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
                           {busy === a.id + to ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} {ACTION_LABELS[to] || label(to)}
                         </Button>
                       ))}
-                  </div>
-                )}
+                </div>
               </div>
             ))
           )}
@@ -324,9 +336,22 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
                   {s.approvedSplit ? ` · Approved split: ${s.approvedSplit}` : ""}
                 </p>
                 {s.notes && <p className="text-xs text-amber-800">{s.notes}</p>}
-                {detail.can.scheduleApprove && (
-                  <div className="flex flex-wrap gap-2">
-                    {s.next
+                <div className="flex flex-wrap gap-2">
+                  {s.previewUrl ? (
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={s.previewUrl} target="_blank" rel="noopener noreferrer">Preview document</a>
+                    </Button>
+                  ) : detail.can.scheduleApprove && detail.partner && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy === s.id + "document"}
+                      onClick={() => act(s.id + "document", { action: "issue_schedule_document", scheduleId: s.id })}
+                    >
+                      {busy === s.id + "document" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Generate preview
+                    </Button>
+                  )}
+                  {detail.can.scheduleApprove && s.next
                       .filter((to) => to !== "SUPERSEDED")
                       .map((to) => (
                         <Button
@@ -339,8 +364,7 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
                           {busy === s.id + to ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} {ACTION_LABELS[to] || label(to)}
                         </Button>
                       ))}
-                  </div>
-                )}
+                </div>
               </div>
             ))
           )}

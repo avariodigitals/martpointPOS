@@ -17,6 +17,10 @@
       "schedule": "17 * * * *"
     },
     {
+      "path": "/api/cron/meetings",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/invoice-reminders",
       "schedule": "0 7 * * *"
     },

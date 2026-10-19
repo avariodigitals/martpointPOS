@@ -62,7 +62,15 @@ const VARIANT_STYLES: Record<ToastVariant, { container: string; icon: ReactNode 
 
 export function AdminToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [mounted, setMounted] = useState(false)
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+  // Portals must wait until hydration completes. `document` exists during
+  // client rendering, but not during the server render, which otherwise makes
+  // the provider produce different markup on the two passes.
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Clear any pending auto-dismiss timers on unmount.
   useEffect(() => {
@@ -106,7 +114,7 @@ export function AdminToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      {typeof document !== "undefined" &&
+      {mounted &&
         createPortal(
           <div
             aria-live="polite"

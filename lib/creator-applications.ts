@@ -23,6 +23,7 @@ import {
 } from "./creator-notifications"
 import { getGoogleSettings, isGoogleConnected, createMeetEvent } from "./google-calendar"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
+import { notifyAllAdmins } from "./admin-notifications"
 
 const SITE_URL = () => (process.env.NEXT_PUBLIC_SITE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
 
@@ -117,6 +118,15 @@ export async function submitCreatorApplication(
   }
 
   const applicationId = data.id as string
+
+  await notifyAllAdmins({
+    type: "CREATOR_APPLICATION_SUBMITTED",
+    title: "New creator application",
+    message: `${reference}: ${input.fullName}`,
+    deep_link: `/admin/creators/applications/${applicationId}`,
+    source_type: "creator_application",
+    source_id: applicationId,
+  })
 
   if (input.socialProfiles.length > 0) {
     await supabase.from("creator_social_profiles").insert(

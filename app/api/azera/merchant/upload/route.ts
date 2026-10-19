@@ -31,6 +31,41 @@ export async function POST(request: Request) {
     if (conversationError || !conversation) return NextResponse.json({ success: false, error: "Conversation not found" }, { status: 404 })
     if (!isConversationIdentityMatch(claims, conversation) || conversation.status === "closed") return NextResponse.json({ success: false, error: "Conversation not available" }, { status: 403 })
 
+    // File uploads are deliberately a one-time, agent-approved action. Voice
+    // notes remain available through the existing microphone flow, but a
+    // customer cannot push arbitrary files into storage until an authorised
+    // agent has sent a file_request message for this conversation. A request
+    // is consumed by the next file upload, so every subsequent file needs a
+    // fresh approval.
+    if (messageType !== "voice") {
+      const [{ data: approval, error: approvalError }, { data: lastUpload, error: uploadLookupError }] = await Promise.all([
+        supabase.from("azera_messages")
+          .select("created_at")
+          .eq("conversation_id", conversation.id)
+          .eq("author_type", "agent")
+          .eq("direction", "outbound")
+          .eq("message_type", "file_request")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase.from("azera_messages")
+          .select("created_at")
+          .eq("conversation_id", conversation.id)
+          .eq("author_type", "customer")
+          .neq("message_type", "voice")
+          .not("attachment_path", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
+      if (approvalError || uploadLookupError) return NextResponse.json({ success: false, error: "Upload approval could not be verified" }, { status: 503 })
+      const approvedAt = approval?.created_at ? Date.parse(String(approval.created_at)) : 0
+      const lastUploadedAt = lastUpload?.created_at ? Date.parse(String(lastUpload.created_at)) : 0
+      if (!approvedAt || approvedAt <= lastUploadedAt) {
+        return NextResponse.json({ success: false, error: "An agent must approve a file upload first" }, { status: 403 })
+      }
+    }
+
     const path = `${businessId}/${externalId}/${crypto.randomUUID()}-${safeName(file.name)}`
     const bytes = new Uint8Array(await file.arrayBuffer())
     const { error: uploadError } = await supabase.storage.from("azera-chat-attachments").upload(path, bytes, { contentType: file.type, upsert: false })

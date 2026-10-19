@@ -111,7 +111,7 @@ export default async function PartnerDocumentsPage() {
                           {d.signedUrl && (
                             <a href={d.signedUrl} target="_blank" rel="noopener noreferrer">
                               <Button size="sm" variant="outline">
-                                <Download className="w-3.5 h-3.5 mr-1" /> Download
+                                <Download className="w-3.5 h-3.5 mr-1" /> Preview / download
                               </Button>
                             </a>
                           )}

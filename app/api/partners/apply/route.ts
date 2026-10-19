@@ -2,10 +2,10 @@ import { NextResponse, after } from "next/server"
 import { z } from "zod"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { verifyCaptchaToken } from "@/lib/captcha"
-import { submitPartnerApplication, sendApplicationSubmittedEmail, type PartnerType, type ApplicantType } from "@/lib/partners"
+import { submitPartnerApplication, sendApplicationSubmittedEmail } from "@/lib/partners"
 import { runPartnerAiReview } from "@/lib/partner-ai"
 import { readSettings } from "@/lib/settings"
-import { uploadPartnerDocument, validatePartnerFile, MAX_PARTNER_FILE_BYTES } from "@/lib/partner-documents"
+import { uploadPartnerDocument, validatePartnerFile } from "@/lib/partner-documents"
 import { getLeadByInviteToken } from "@/lib/partner-leads"
 import { getPartnerProspectByToken } from "@/lib/partner-prospects"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
@@ -228,4 +228,3 @@ export async function POST(request: Request) {
 }
 
 export const runtime = "nodejs"
-export { MAX_PARTNER_FILE_BYTES }

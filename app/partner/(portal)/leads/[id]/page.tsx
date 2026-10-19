@@ -4,14 +4,15 @@ import { getPartnerLeadByIdForPartner } from "@/lib/partner-leads"
 import Link from "next/link"
 import { enumLabel } from "@/lib/utils"
 
-export default async function LeadDetailPage({ params }: { params: { id: string } }) {
+export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getPartnerSession()
   if (!session) redirect("/partner/login")
 
   const auth = await authorizePartner({ session, permission: "leads:view" })
   if (!auth.authorized) redirect("/partner/leads")
 
-  const lead = await getPartnerLeadByIdForPartner(params.id, session.partnerId)
+  const lead = await getPartnerLeadByIdForPartner(id, session.partnerId, session.partnerUserId)
   if (!lead) notFound()
 
   const editable = ["REGISTERED", "UNDER_REVIEW"].includes(lead.status)
@@ -23,7 +24,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
         <div className="flex items-center gap-3">
           {editable && (
             <Link
-              href={`/partner/leads/${params.id}/edit`}
+              href={`/partner/leads/${id}/edit`}
               className="inline-flex items-center rounded-md bg-retail px-4 py-2 text-sm font-medium text-white hover:bg-retail/90"
             >
               Edit Lead

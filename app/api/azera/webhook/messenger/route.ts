@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { notifySupportAgents } from "@/lib/omnichannel-notifications"
 
 /**
  * Facebook Messenger webhook.
@@ -120,13 +121,23 @@ export async function POST(request: Request) {
           .maybeSingle()
 
         if (!existing) {
-          await supabase.from("azera_messages").insert({
+          const { error: messageError } = await supabase.from("azera_messages").insert({
             conversation_id: conv.id,
             author_type: "customer",
             message: text,
             direction: "inbound",
             created_at: timestamp,
           })
+
+          if (!messageError) {
+            void notifySupportAgents({
+              queue: "customer_support",
+              title: "New Messenger message",
+              message: `${conv.customer_name || "A customer"} sent a new Messenger message.`,
+              deepLink: `/admin/azera?conversation=${conv.id}`,
+              sourceId: conv.id,
+            })
+          }
 
           await supabase
             .from("azera_conversations")

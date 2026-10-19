@@ -4,7 +4,7 @@ import { TrackingScript } from "@/components/tracking-script";
 import { CookieConsentLoader } from "@/components/cookie-consent-loader";
 import { CreatorRefCapture } from "@/components/creator-ref-capture";
 import { OrganizationSchema, WebsiteSchema, SiteNavigationSchema } from "@/components/structured-data";
-import { AzeraChatWidget } from "@/components/shared/azera-chat-widget";
+import { PublicChatWidget } from "@/components/shared/public-chat-widget";
 import { readSettings } from "@/lib/settings";
 import "./globals.css";
 
@@ -112,7 +112,7 @@ export default function RootLayout({
         {children}
         <CreatorRefCapture />
         <CookieConsentLoader />
-        <AzeraChatWidget businessId="martpoint-support" />
+        <PublicChatWidget />
       </body>
     </html>
   );

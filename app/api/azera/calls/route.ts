@@ -50,7 +50,8 @@ export async function GET(request: Request) {
 
     return ok(data || [])
   } catch (e) {
-    return err(String(e), 500)
+    console.error("[Azera calls list error]", e)
+    return err("We couldn't load call history right now. Please try again shortly.", 500)
   }
 }
 
@@ -106,7 +107,7 @@ export async function POST(request: Request) {
       .select()
       .single()
 
-    if (error || !data) return err("Failed to create call", 500)
+    if (error || !data) return err("We couldn't start the call right now. Please try again shortly.", 500)
 
     // Log call initiated event
     await supabase.from("azera_call_events").insert({
@@ -120,6 +121,7 @@ export async function POST(request: Request) {
 
     return ok(data)
   } catch (e) {
-    return err(String(e), 500)
+    console.error("[Azera call create error]", e)
+    return err("We couldn't start the call right now. Please try again shortly.", 500)
   }
 }

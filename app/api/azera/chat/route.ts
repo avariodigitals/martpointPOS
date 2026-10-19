@@ -92,6 +92,8 @@ export async function POST(request: Request) {
       business_id: requestedBusinessId,
       external_id,
       customer_name,
+      customer_email,
+      customer_phone,
       source = "public_site",
       store_email,
       store_phone,
@@ -139,6 +141,7 @@ export async function POST(request: Request) {
           source,
           external_id,
           customer_name,
+          customer_phone,
           queue: initialQueue,
           triage_state: source === "public_site" ? "sales" : "needs_triage",
           status: "open",
@@ -156,6 +159,14 @@ export async function POST(request: Request) {
       conv = created
     }
 
+    if (isNewConversation === false && (customer_name || customer_phone)) {
+      await supabase.from("azera_conversations").update({
+        ...(customer_name ? { customer_name: String(customer_name).trim() } : {}),
+        ...(customer_phone ? { customer_phone: String(customer_phone).trim() } : {}),
+        updated_at: new Date().toISOString(),
+      }).eq("id", conv.id)
+    }
+
     // 2. Save the customer's inbound message
     const { data: custMsg, error: me } = await supabase
       .from("azera_messages")
@@ -164,6 +175,10 @@ export async function POST(request: Request) {
         author_type: "customer",
         message: message.trim(),
         direction: "inbound",
+        metadata: {
+          ...(customer_email ? { customer_email: String(customer_email).trim() } : {}),
+          ...(customer_phone ? { customer_phone: String(customer_phone).trim() } : {}),
+        },
         created_at: new Date().toISOString(),
       })
       .select()
@@ -176,7 +191,7 @@ export async function POST(request: Request) {
     let humanHandoff = requestedHuman(message.trim())
     let escalationReason = humanHandoff ? "customer_requested_human" : immediateEscalation(message.trim())
     const queue = classifyQueue(message.trim(), source, isNewConversation)
-    const shouldAskTriage = source !== "public_site" && isNewConversation && isGreeting(message.trim())
+    const shouldAskTriage = isNewConversation && isGreeting(message.trim())
     const audience = source === "public_site" ? "prospect" : "merchant"
     let relevantKnowledge: KnowledgeArticle[] = []
     let conversationHistory: Array<{ role: "user" | "assistant" | "system"; content: string }> = []
@@ -285,8 +300,8 @@ export async function POST(request: Request) {
           conversation_id: conv.id,
           author_type: "system",
           message: reason === "no_approved_knowledge"
-            ? "I do not have an approved answer for that yet. I have sent this to the appropriate MartPoint team for assistance."
-            : "This request needs a MartPoint team member. Your conversation has been placed in the support queue.",
+            ? "I want to make sure you receive accurate MartPoint information. I’ve sent this to a specialist who can help. Is your question about sales, a technical issue, or how to use MartPoint?"
+            : "I’m bringing a MartPoint specialist into this conversation now. Please tell me what you’re trying to achieve so they can help you faster.",
           direction: "outbound",
           message_type: "system",
           metadata: { escalation_reason: reason },

@@ -4,12 +4,13 @@ import type { PartnerOrgCapability } from "./partner-permissions"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import { sendEmail, getEmailSettings, getEmailRoute, REPLY_TO } from "./email"
 import { renderEmailTemplate, escapeHtml, statusPillHtml, type StatusTone } from "./email-templates"
+import { notifyAllAdmins } from "./admin-notifications"
+import { PARTNER_TYPE_LABELS as SHARED_PARTNER_TYPE_LABELS, type PartnerType as SharedPartnerType } from "./partner-constants"
 
 /* ───────────────────────────  Partner types & helpers  ─────────────────────────── */
 
 export type ApplicantType = "INDIVIDUAL" | "COMPANY"
-export type PartnerType =
-  | "REFERRAL" | "CHANNEL" | "IMPLEMENTATION" | "CHANNEL_IMPLEMENTATION" | "TECHNOLOGY" | "PAYMENT"
+export type PartnerType = SharedPartnerType
 
 export type ApplicationStatus =
   | "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "MORE_INFORMATION_REQUIRED" | "COMPLIANCE_REQUIRED"
@@ -18,14 +19,7 @@ export type ApplicationStatus =
 
 export type PartnerStatus = "PENDING_ACTIVATION" | "ACTIVE" | "SUSPENDED" | "INACTIVE" | "TERMINATED"
 
-export const PARTNER_TYPE_LABELS: Record<PartnerType, string> = {
-  REFERRAL: "Referral Partner",
-  CHANNEL: "Channel Partner",
-  IMPLEMENTATION: "Implementation Partner",
-  CHANNEL_IMPLEMENTATION: "Channel + Implementation",
-  TECHNOLOGY: "Technology Partner",
-  PAYMENT: "Payment Partner",
-}
+export const PARTNER_TYPE_LABELS = SHARED_PARTNER_TYPE_LABELS
 
 export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   DRAFT: "Draft",
@@ -231,6 +225,15 @@ export async function submitPartnerApplication(
     entityType: AUDIT_ENTITIES.PARTNER_APPLICATION,
     entityId: applicationId,
     metadata: { reference, partnerType: input.requestedPartnerType, email: input.email },
+  })
+
+  await notifyAllAdmins({
+    type: "PARTNER_APPLICATION_SUBMITTED",
+    title: "New partner application",
+    message: `${reference}: ${input.fullName}${input.businessName ? ` · ${input.businessName}` : ""}`,
+    deep_link: `/admin/partners/applications/${applicationId}`,
+    source_type: "partner_application",
+    source_id: applicationId,
   })
 
   return { ok: true, reference, applicationId }

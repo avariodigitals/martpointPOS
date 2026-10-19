@@ -45,7 +45,8 @@ export async function GET(
 
     return ok(data)
   } catch (e) {
-    return err(String(e), 500)
+    console.error("[Azera call read error]", e)
+    return err("We couldn't load this call right now. Please try again shortly.", 500)
   }
 }
 
@@ -105,6 +106,7 @@ export async function PATCH(
 
     return ok(data)
   } catch (e) {
-    return err(String(e), 500)
+    console.error("[Azera call update error]", e)
+    return err("We couldn't update this call right now. Please try again shortly.", 500)
   }
 }

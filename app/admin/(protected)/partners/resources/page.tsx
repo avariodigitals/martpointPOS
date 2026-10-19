@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Plus, Trash2, Download, UploadCloud } from "lucide-react"
-import { PARTNER_TYPE_LABELS, type PartnerType } from "@/lib/partners"
+import { PARTNER_TYPE_LABELS, type PartnerType } from "@/lib/partner-constants"
 import { ORG_CAPABILITY_LABELS, type PartnerOrgCapability } from "@/lib/partner-permissions"
 
 interface Resource {

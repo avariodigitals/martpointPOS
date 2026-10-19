@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { completeExpiredMeetings } from "@/lib/meeting-status"
 
 interface CalendarMeeting {
   id: string
@@ -69,11 +70,11 @@ function mapPartnerMeetingRow(row: Record<string, unknown>): CalendarMeeting {
     provider: row.provider as string | null,
     status: row.status as CalendarMeeting["status"],
     notes: null,
-    summary: null,
-    actionItems: null,
-    transcriptUrl: null,
-    recordingUrl: null,
-    notesProvider: null,
+    summary: row.summary as string | null,
+    actionItems: Array.isArray(row.action_items) ? (row.action_items as string[]) : null,
+    transcriptUrl: row.transcript_url as string | null,
+    recordingUrl: row.recording_url as string | null,
+    notesProvider: row.notes_provider as string | null,
     leadFullName: (app.full_name as string) || "Partner applicant",
     leadBusinessName: (app.business_name as string) || "",
     leadEmail: (app.email as string) || "",
@@ -94,6 +95,8 @@ export async function GET(request: Request) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ meetings: [] })
   }
+
+  await completeExpiredMeetings()
 
   const { searchParams } = new URL(request.url)
   const from = searchParams.get("from")

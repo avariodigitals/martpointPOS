@@ -111,6 +111,7 @@ const navItems: NavItem[] = [
   { href: "/admin/partners/grades", label: "Partner Grades", icon: Award, page: "partners", section: "Partners" },
   { href: "/admin/partners/branding-requests", label: "Branding Requests", icon: Palette, page: "partners", section: "Partners" },
   { href: "/admin/partners/resources", label: "Partner Resources", icon: BookOpen, page: "partners", section: "Partners" },
+  { href: "/admin/partners/guide", label: "Partner Admin Guide", icon: BookOpen, page: "partners", section: "Partners" },
   { href: "/admin/partners/assessments", label: "Partner Assessments", icon: ClipboardCheck, page: "partners", section: "Partners" },
   { href: "/admin/compliance", label: "Compliance", icon: Shield, page: "compliance", section: "Partners" },
 

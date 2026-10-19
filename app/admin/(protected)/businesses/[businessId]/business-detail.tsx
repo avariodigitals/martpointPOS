@@ -27,6 +27,7 @@ interface Props {
   subscription: Record<string, unknown> | null
   entitlement: Record<string, unknown> | null
   licence: Record<string, unknown> | null
+  deployment: Record<string, unknown> | null
   invoiceSummary: { total: number; outstanding: number; count: number }
   actorName: string
 }
@@ -49,7 +50,7 @@ const TABS: Tab[] = [
   { key: "activity", label: "Activity", icon: Activity, enabled: true },
   { key: "email", label: "Email", icon: Mail, enabled: true },
   { key: "finance", label: "Finance", icon: Landmark, enabled: true, href: (id: string) => `/admin/businesses/${id}/finance` },
-  { key: "deployment", label: "Deployment", icon: Lock, enabled: false },
+  { key: "deployment", label: "Deployment", icon: Lock, enabled: true },
   { key: "partner", label: "Partner", icon: Lock, enabled: false },
   { key: "support", label: "Support", icon: Headset, enabled: true, href: (id: string) => `/admin/businesses/${id}/support` },
   { key: "customer-success", label: "Customer Success", icon: HeartHandshake, enabled: true, href: (id: string) => `/admin/businesses/${id}/customer-success` },
@@ -94,7 +95,7 @@ function fmtMoney(amount: number, currency = "NGN") {
 
 export function BusinessDetail({
   business, onboardingRecords, trainingSessions: initialTrainingSessions, activity, branches: initialBranches,
-  businessUsers: initialUsers, subscription, entitlement, licence, invoiceSummary, actorName,
+  businessUsers: initialUsers, subscription, entitlement, licence, deployment, invoiceSummary, actorName,
 }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<string>("overview")
@@ -1029,6 +1030,33 @@ export function BusinessDetail({
               <Link href={`/admin/businesses/${business.id}/finance`} className="inline-block mt-3 text-xs text-primary underline">
                 Open Finance tab →
               </Link>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {tab === "deployment" && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-medium">Canonical Fleet Identity</CardTitle></CardHeader>
+            <CardContent>
+              {!deployment ? (
+                <p className="text-sm text-muted-foreground">No deployment record exists for this business.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                  <Detail label="Fleet ID" value={(deployment.fleet_id as string) || "Not assigned"} />
+                  <Detail label="Installation ID" value={(deployment.installation_id as string) || "Not assigned"} />
+                  <Detail label="Deployment domain" value={(deployment.environment_url as string) || "—"} />
+                  <Detail label="Deployment status" value={(deployment.status as string) || "—"} />
+                  <Detail label="Identity status" value={(deployment.identity_status as string) || "UNMATCHED"} />
+                  <Detail label="Last verified" value={(deployment.identity_verified_at as string) || "—"} />
+                  <Detail label="Last reconciled" value={(deployment.identity_last_reconciled_at as string) || "—"} />
+                  <Detail label="Identity issue" value={(deployment.identity_issue as string) || "None recorded"} />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-4">
+                Identity is read-only here. Existing Fleet URLs, installation keys, licences and updater behavior are unchanged.
+              </p>
             </CardContent>
           </Card>
         </div>

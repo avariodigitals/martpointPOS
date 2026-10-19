@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       .select()
       .single()
 
-    if (callError || !call) return err("Failed to create call record", 500)
+    if (callError || !call) return err("We couldn't start the call right now. Please try again shortly.", 500)
 
     // Log event
     await supabase.from("azera_call_events").insert({
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
         .from("azera_calls")
         .update({ status: "failed", updated_at: now })
         .eq("id", call.id)
-      return ok({ ...call, status: "failed", sip_error: String(e) })
+      return ok({ ...call, status: "failed", message: "The call could not be connected. Please try again shortly." })
     }
 
     // Store provider call reference
@@ -118,7 +118,8 @@ export async function POST(request: Request) {
 
     return ok({ ...call, sip_result: sipResult })
   } catch (e) {
-    return err(String(e), 500)
+    console.error("[Azera outbound call error]", e)
+    return err("We couldn't start the call right now. Please try again shortly.", 500)
   }
 }
 

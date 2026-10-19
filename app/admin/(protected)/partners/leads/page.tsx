@@ -375,15 +375,17 @@ export default function AdminPartnerLeadsPage() {
             <option key={s} value={s}>{STAGE_LABELS[s]}</option>
           ))}
         </select>
-        <button
-          onClick={() => act(lead, "invite")}
-          disabled={!lead.email || !!lead.invitedAt}
-          title={lead.email ? "Email the lead a link to complete the partner application form" : "Lead has no email address"}
-          className="text-xs bg-retail/10 text-retail rounded px-2 py-1 disabled:opacity-50 inline-flex items-center gap-1"
-        >
-          <Send className="w-3 h-3" />
-          {lead.invitedAt ? "Invited" : "Invite to Apply"}
-        </button>
+        {!lead.partnerId && (
+          <button
+            onClick={() => act(lead, "invite")}
+            disabled={!lead.email || !!lead.invitedAt}
+            title={lead.email ? "Email this unattributed prospect a link to complete the partner application form" : "Lead has no email address"}
+            className="text-xs bg-retail/10 text-retail rounded px-2 py-1 disabled:opacity-50 inline-flex items-center gap-1"
+          >
+            <Send className="w-3 h-3" />
+            {lead.invitedAt ? "Application Invited" : "Invite to Partner Application"}
+          </button>
+        )}
       </div>
     )
   }

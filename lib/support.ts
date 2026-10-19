@@ -3,6 +3,7 @@ import { isSensitiveSupportCategory } from "./support-permissions"
 import { canPartnerAccessBusiness } from "./partner-auth"
 import { logFinanceAudit } from "./finance-commercial"
 import { resolveAdminTasks } from "./tasks"
+import { notifyAllAdmins } from "./admin-notifications"
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPES
@@ -297,6 +298,17 @@ export async function createTicket(input: {
   await addEvent(data.id, "CREATED", input.created_by_type, input.created_by_id, { ticket_number: ticketNumber })
   await logSupportAudit(input.created_by_type, input.created_by_id, "SUPPORT_TICKET_CREATED", data.id)
 
+  if (input.created_by_type !== "ADMIN") {
+    await notifyAllAdmins({
+      type: "SUPPORT_TICKET_CREATED",
+      title: "New support ticket",
+      message: `${ticketNumber}: ${input.subject}`,
+      deep_link: `/admin/support/${data.id}`,
+      source_type: "support_ticket",
+      source_id: data.id as string,
+    })
+  }
+
   return data as SupportTicket
 }
 
@@ -328,6 +340,22 @@ export async function addMessage(
 
   if (visibility === "INTERNAL") {
     await logSupportAudit(authorType, authorId, "SUPPORT_INTERNAL_NOTE_ADDED", ticketId)
+  }
+
+  if (visibility === "PUBLIC" && authorType !== "ADMIN") {
+    const { data: ticket } = await supabase
+      .from("support_tickets")
+      .select("ticket_number, subject")
+      .eq("id", ticketId)
+      .maybeSingle()
+    await notifyAllAdmins({
+      type: "SUPPORT_TICKET_MESSAGE",
+      title: "New support ticket reply",
+      message: `${ticket?.ticket_number || "Support ticket"}: ${ticket?.subject || "New customer message"}`,
+      deep_link: `/admin/support/${ticketId}`,
+      source_type: "support_ticket",
+      source_id: ticketId,
+    })
   }
 
   // First qualifying customer-facing public response (admin or partner only)

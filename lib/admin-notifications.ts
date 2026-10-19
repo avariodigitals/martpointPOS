@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { getAllUsers } from "./admin-auth"
 
 export type AdminNotification = {
   id: string
@@ -47,6 +48,43 @@ export async function createAdminNotification(input: {
 
   if (error || !data) throw new Error(`Notification create failed: ${error?.message || "unknown"}`)
   return data as AdminNotification
+}
+
+/**
+ * Fan an operational event out to every active admin account.
+ * Notification delivery is deliberately best-effort: an alert must never
+ * make the customer-facing request fail.
+ */
+export async function notifyAllAdmins(input: {
+  type: string
+  title: string
+  message?: string
+  deep_link?: string
+  source_type?: string
+  source_id?: string
+  exclude_admin_user_id?: string
+}): Promise<void> {
+  if (!isSupabaseConfigured()) return
+
+  const users = (await getAllUsers()).filter(
+    (user) => user.status === "ACTIVE" && user.id !== input.exclude_admin_user_id,
+  )
+
+  await Promise.all(
+    users.map((user) =>
+      createAdminNotification({
+        admin_user_id: user.id,
+        type: input.type,
+        title: input.title,
+        message: input.message,
+        deep_link: input.deep_link,
+        source_type: input.source_type,
+        source_id: input.source_id,
+      }).catch((error) => {
+        console.error("[admin notifications] fan-out failed", error)
+      }),
+    ),
+  )
 }
 
 export async function listAdminNotifications(adminUserId: string, options?: { read?: boolean }): Promise<AdminNotification[]> {

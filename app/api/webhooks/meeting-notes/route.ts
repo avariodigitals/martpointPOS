@@ -5,7 +5,7 @@ import { getMeetingNotesSettings } from "@/lib/meeting-notes"
 /* ───────────────────────  Meeting-notes webhook  ───────────────────────
  * Receives AI minutes / transcripts from the notetaker configured in
  * Admin → Settings → AI Meeting Notes and files them onto the matching
- * lead_meetings row.
+ * lead_meetings or partner_meetings row.
  *
  * Auth: requests must send the shared secret via the `x-webhook-secret`
  * header or `?secret=` query param. The secret is either the
@@ -20,7 +20,8 @@ import { getMeetingNotesSettings } from "@/lib/meeting-notes"
  * Providers:
  *   fireflies — ping-only webhook { meetingId, eventType }; we fetch the
  *               transcript via their GraphQL API using the stored API key
- *   fathom    — payload carries summary/action_items/transcript inline
+ *   fathom    — webhook payload identifies the recording; we fetch its
+ *               summary/transcript from the Fathom API using the configured key
  *   generic   — tl;dv via Zapier/Make or any tool posting the fields below
  *
  * Generic content fields (all optional):
@@ -101,7 +102,7 @@ function normalize(payload: unknown, provider: string): NormalizedNotes {
   const defaultSummary = (data.default_summary && typeof data.default_summary === "object" ? data.default_summary : {}) as Record<string, unknown>
 
   return {
-    meetingId: pickStr(data, "meetingId", "meeting_id", "leadMeetingId", "id"),
+    meetingId: pickStr(data, "meetingId", "meeting_id", "recording_id", "leadMeetingId", "id"),
     customerToken: pickStr(data, "customerToken", "customer_token", "clientReferenceId", "token"),
     meetingLink: pickStr(data, "meetingLink", "meeting_link", "meetingUrl", "meeting_url", "meeting_join_url", "joinUrl", "join_url", "hangoutLink", "url"),
     summary: pickStr(data, "summary", "overview", "notes", "minutes") || pickStr(defaultSummary, "markdown_formatted", "summary") || null,
@@ -142,6 +143,39 @@ async function fetchFireflies(meetingId: string, apiKey: string): Promise<Partia
     transcript: normalizeTranscript(t.sentences) || null,
     transcriptUrl: pickStr(t, "transcript_url") || null,
     recordingUrl: pickStr(t, "video_url") || pickStr(t, "audio_url") || null,
+  }
+}
+
+/* Fathom webhooks can be configured to include content, but the durable path
+ * is to use the recording id from the event and pull the content from Fathom.
+ * The public API uses X-Api-Key and exposes separate summary/transcript
+ * endpoints under /external/v1/recordings/{recording_id}. */
+async function fetchFathom(recordingId: string, apiKey: string): Promise<Partial<NormalizedNotes>> {
+  const base = `https://api.fathom.ai/external/v1/recordings/${encodeURIComponent(recordingId)}`
+  const headers = { Accept: "application/json", "X-Api-Key": apiKey }
+  const [summaryRes, transcriptRes] = await Promise.all([
+    fetch(`${base}/summary`, { headers }),
+    fetch(`${base}/transcript`, { headers }),
+  ])
+  if (!summaryRes.ok && !transcriptRes.ok) {
+    throw new Error(`Fathom API ${summaryRes.status}/${transcriptRes.status}`)
+  }
+
+  const summaryBody = summaryRes.ok ? (await summaryRes.json()) as Record<string, unknown> : {}
+  const transcriptBody = transcriptRes.ok ? (await transcriptRes.json()) as Record<string, unknown> : {}
+  const summaryData = (summaryBody.summary && typeof summaryBody.summary === "object" ? summaryBody.summary : summaryBody) as Record<string, unknown>
+  const transcriptData = (transcriptBody.transcript && typeof transcriptBody.transcript === "object" ? transcriptBody.transcript : transcriptBody) as Record<string, unknown>
+  const summary = pickStr(summaryData, "markdown_formatted", "summary", "overview", "text") || null
+  const actionItems = normalizeActionItems(summaryData.action_items ?? summaryData.actionItems)
+  const transcript = normalizeTranscript(transcriptBody.transcript ?? transcriptData.sentences ?? transcriptData.segments ?? transcriptData) || null
+
+  return {
+    meetingLink: pickStr(summaryData, "share_url", "url", "meeting_url") || pickStr(transcriptData, "share_url", "url", "meeting_url") || undefined,
+    summary: summary || undefined,
+    actionItems,
+    transcript: transcript || undefined,
+    transcriptUrl: pickStr(transcriptData, "transcript_url") || undefined,
+    recordingUrl: pickStr(summaryData, "share_url", "url", "record_url") || undefined,
   }
 }
 
@@ -199,16 +233,32 @@ export async function POST(request: Request) {
         notes.meetingId = "" // vendor id is not our lead_meetings id
       }
     }
+    if (cfg.provider === "fathom" && cfg.apiKey) {
+      const recordingId = pickStr(payload as Record<string, unknown>, "recording_id", "recordingId") || notes.meetingId
+      if (recordingId) {
+        const webhookMeetingLink = notes.meetingLink
+        const fetched = await fetchFathom(recordingId, cfg.apiKey)
+        Object.assign(notes, Object.fromEntries(Object.entries(fetched).filter(([, v]) => v != null && v !== "")))
+        if (webhookMeetingLink) notes.meetingLink = webhookMeetingLink
+        // Fathom's recording id is not our local meeting id. Match the local
+        // meeting below using the Google Meet link when Fathom supplies it.
+        notes.meetingId = ""
+      }
+    }
 
     // ── Find the meeting row ──
-    let row: { id: string; status: string } | null = null
+    let row: { id: string; status: string; table: "lead_meetings" | "partner_meetings" } | null = null
     if (notes.meetingId) {
       const { data } = await supabase.from("lead_meetings").select("id, status").eq("id", notes.meetingId).maybeSingle()
-      row = data
+      if (data) row = { ...data, table: "lead_meetings" }
+      if (!row) {
+        const { data: partnerMeeting } = await supabase.from("partner_meetings").select("id, status").eq("id", notes.meetingId).maybeSingle()
+        if (partnerMeeting) row = { ...partnerMeeting, table: "partner_meetings" }
+      }
     }
     if (!row && notes.customerToken) {
       const { data } = await supabase.from("lead_meetings").select("id, status").eq("customer_token", notes.customerToken).maybeSingle()
-      row = data
+      if (data) row = { ...data, table: "lead_meetings" }
     }
     if (!row && notes.meetingLink) {
       const code = meetCode(notes.meetingLink)
@@ -220,7 +270,17 @@ export async function POST(request: Request) {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle()
-        row = data
+        if (data) row = { ...data, table: "lead_meetings" }
+        if (!row) {
+          const { data: partnerMeeting } = await supabase
+            .from("partner_meetings")
+            .select("id, status")
+            .ilike("meeting_link", `%${code}%`)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (partnerMeeting) row = { ...partnerMeeting, table: "partner_meetings" }
+        }
       }
     }
 
@@ -239,7 +299,7 @@ export async function POST(request: Request) {
     // A transcript means the call happened — mark it completed automatically.
     const statusPatch = row.status === "SCHEDULED" ? { status: "COMPLETED" } : {}
     const { error } = await supabase
-      .from("lead_meetings")
+      .from(row.table)
       .update({
         summary: notes.summary,
         action_items: notes.actionItems,
@@ -258,7 +318,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Failed to save notes" }, { status: 500 })
     }
 
-    return NextResponse.json({ ok: true, meetingId: row.id })
+    return NextResponse.json({ ok: true, meetingId: row.id, meetingType: row.table === "partner_meetings" ? "partner" : "lead" })
   } catch (err) {
     console.error("[meeting-notes] webhook error:", err)
     return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 })

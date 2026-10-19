@@ -259,17 +259,25 @@ export async function getPartnerLeadById(id: string): Promise<PartnerLeadRecord 
 
 export async function getPartnerLeadByIdForPartner(
   id: string,
-  partnerId: string
+  partnerId: string,
+  partnerUserId?: string
 ): Promise<PartnerLeadRecord | null> {
   if (!isSupabaseConfigured()) return null
   const { data, error } = await supabase
     .from("partner_leads")
     .select("*")
     .eq("id", id)
-    .eq("partner_id", partnerId)
     .single()
   if (error || !data) return null
-  return mapLead(data)
+
+  const lead = mapLead(data)
+  // partner_id is the canonical tenant boundary. The submitter fallback keeps
+  // older leads readable when their partner_id was not populated consistently,
+  // without allowing a user from another partner to open the record.
+  if (lead.partnerId === partnerId || (partnerUserId && lead.submittedByPartnerUserId === partnerUserId)) {
+    return lead
+  }
+  return null
 }
 
 export async function updatePartnerLead(
@@ -285,7 +293,7 @@ export async function updatePartnerLead(
     .from("partner_leads")
     .select("*")
     .eq("id", id)
-    .eq("partner_id", partnerId)
+    .or(`partner_id.eq.${partnerId},submitted_by_partner_user_id.eq.${submittedBy}`)
     .single()
 
   if (!current) return { ok: false, error: "Lead not found" }
@@ -327,6 +335,7 @@ export async function updatePartnerLead(
     .from("partner_leads")
     .update(updateData)
     .eq("id", id)
+    .or(`partner_id.eq.${partnerId},submitted_by_partner_user_id.eq.${submittedBy}`)
     .select()
     .single()
 
@@ -637,6 +646,9 @@ export async function createLeadInvite(
   const lead = await getPartnerLeadById(leadId)
   if (!lead) return { ok: false, error: "Lead not found" }
   if (!lead.email) return { ok: false, error: "Lead has no email address" }
+  if (lead.partnerId) {
+    return { ok: false, error: "This is a customer referral owned by an existing partner, not a partner prospect" }
+  }
 
   const token = crypto.randomBytes(24).toString("hex")
 
@@ -667,5 +679,9 @@ export async function getLeadByInviteToken(token: string): Promise<PartnerLeadRe
     .eq("invite_token", token)
     .maybeSingle()
   if (error || !data) return null
+  // Partner-owned leads are customer referrals, not partner prospects. This
+  // also invalidates any old invite token that may have been issued before the
+  // distinction was enforced in the admin UI.
+  if (data.partner_id) return null
   return mapLead(data)
 }

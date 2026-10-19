@@ -20,7 +20,7 @@ export interface OfferInput {
 }
 
 /** Validate + normalize offer-letter input. Exported for tests. */
-export function validateOfferInput(body: Record<string, unknown>): { offer?: OfferInput; error?: string } {
+function validateOfferInput(body: Record<string, unknown>): { offer?: OfferInput; error?: string } {
   const str = (k: string) => (body[k] != null ? String(body[k]).trim() : "")
   const offer: OfferInput = {
     employmentType: str("employmentType") || undefined,

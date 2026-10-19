@@ -5,6 +5,8 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { generatePartnerId } from "@/lib/partners"
 import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { referralAdminCan } from "@/lib/referral-permissions"
+import { createSignedDocUrl } from "@/lib/partner-documents"
+import { issueReferralAgreementDocument, issueReferralScheduleDocument } from "@/lib/referral-documents"
 import { STANDARD_SCHEDULE_TERMS } from "@/lib/referral-commission-engine"
 import {
   agreementNextStatuses,
@@ -79,7 +81,7 @@ async function loadContext(applicationId: string) {
   const { data: partner } = await supabase.from("partners").select("*").eq("application_id", applicationId).maybeSingle()
   const partnerId = partner ? str(partner.id) : ""
 
-  const [agreementsRes, schedulesRes, profileRes, requiredDocsRes] = await Promise.all([
+  const [agreementsRes, schedulesRes, profileRes, requiredDocsRes, generatedDocsRes] = await Promise.all([
     supabase
       .from("partner_agreements")
       .select("*")
@@ -93,7 +95,39 @@ async function loadContext(applicationId: string) {
       ? supabase.from("partner_payout_profiles").select("*").eq("partner_id", partnerId).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from("partner_documents").select("verification_status").eq("application_id", applicationId).eq("required", true),
+    partnerId
+      ? supabase
+          .from("partner_generated_documents")
+          .select("id, document_id, document_type, source_record_id, storage_path, status")
+          .eq("partner_id", partnerId)
+          .in("document_type", ["REFERRAL_PARTNER_AGREEMENT", "REFERRAL_COMMISSION_SCHEDULE"])
+          .neq("status", "SUPERSEDED")
+          .order("generated_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
   ])
+
+  const generatedDocs = (generatedDocsRes.data || []) as Record<string, unknown>[]
+  const docFor = async (type: string, sourceRecordId: string, linkedDocumentId?: string | null) => {
+    const row = generatedDocs.find(
+      (d) => (linkedDocumentId && d.id === linkedDocumentId) || (d.document_type === type && d.source_record_id === sourceRecordId),
+    )
+    if (!row?.storage_path) return { documentId: null, previewUrl: null }
+    return {
+      documentId: str(row.document_id),
+      previewUrl: await createSignedDocUrl(str(row.storage_path), 300),
+    }
+  }
+
+  const agreementDocs = await Promise.all(
+    ((agreementsRes.data || []) as Record<string, unknown>[]).map((a) =>
+      docFor("REFERRAL_PARTNER_AGREEMENT", str(a.id), a.document_id ? str(a.document_id) : null),
+    ),
+  )
+  const scheduleDocs = await Promise.all(
+    ((schedulesRes.data || []) as Record<string, unknown>[]).map((s) =>
+      docFor("REFERRAL_COMMISSION_SCHEDULE", str(s.id)),
+    ),
+  )
 
   const docs = (requiredDocsRes.data || []) as Record<string, unknown>[]
   const identityVerified = docs.every(
@@ -109,7 +143,7 @@ async function loadContext(applicationId: string) {
     application: app as Record<string, unknown>,
     partner: partner ? (partner as Record<string, unknown>) : null,
     gates,
-    agreements: ((agreementsRes.data || []) as Record<string, unknown>[]).map((a) => ({
+    agreements: ((agreementsRes.data || []) as Record<string, unknown>[]).map((a, index) => ({
       id: str(a.id),
       reference: str(a.reference_number),
       title: str(a.title),
@@ -117,9 +151,11 @@ async function loadContext(applicationId: string) {
       status: str(a.status),
       executedAt: a.executed_at ? str(a.executed_at) : null,
       activatedAt: a.activated_at ? str(a.activated_at) : null,
+      documentId: agreementDocs[index]?.documentId || null,
+      previewUrl: agreementDocs[index]?.previewUrl || null,
       next: agreementNextStatuses(str(a.status)),
     })),
-    schedules: ((schedulesRes.data || []) as Record<string, unknown>[]).map((s) => ({
+    schedules: ((schedulesRes.data || []) as Record<string, unknown>[]).map((s, index) => ({
       id: str(s.id),
       reference: str(s.reference_number),
       version: Number(s.version) || 1,
@@ -134,6 +170,8 @@ async function loadContext(applicationId: string) {
       approvedSplit: str(s.approved_split),
       effectiveFrom: s.effective_from ? str(s.effective_from) : null,
       notes: str(s.notes),
+      documentId: scheduleDocs[index]?.documentId || null,
+      previewUrl: scheduleDocs[index]?.previewUrl || null,
       next: agreementNextStatuses(str(s.status)),
     })),
     payoutProfile: profileRes.data
@@ -187,6 +225,7 @@ export async function GET(
 
 const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("add_agreement"), title: z.string().min(3).max(200).optional() }),
+  z.object({ action: z.literal("issue_agreement_document"), agreementId: z.string().uuid() }),
   z.object({
     action: z.literal("transition_agreement"),
     agreementId: z.string().uuid(),
@@ -210,6 +249,7 @@ const actionSchema = z.discriminatedUnion("action", [
     to: z.string().min(3),
     reason: z.string().max(2000).optional(),
   }),
+  z.object({ action: z.literal("issue_schedule_document"), scheduleId: z.string().uuid() }),
   z.object({
     action: z.literal("save_payout_profile"),
     bankName: z.string().max(120),
@@ -270,6 +310,19 @@ export async function POST(
       return NextResponse.json({ ok: true, detail: await loadContext(id) })
     }
 
+    if (body.action === "issue_agreement_document") {
+      if (!referralAdminCan(role, "agreement:review")) return NextResponse.json({ error: "Your role cannot issue agreements" }, { status: 403 })
+      const partner = ctxData.partner ? str(ctxData.partner.id) : ""
+      if (!partner) return NextResponse.json({ error: "Create the partner record before generating its document" }, { status: 400 })
+      const res = await issueReferralAgreementDocument(partner, body.agreementId, {
+        id: session.userId,
+        name: session.name || session.username,
+        title: "Partner Operations",
+      })
+      if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 })
+      return NextResponse.json({ ok: true, detail: await loadContext(id) })
+    }
+
     if (body.action === "add_schedule") {
       if (!referralAdminCan(role, "schedule:approve")) return NextResponse.json({ error: "Your role cannot approve commercial terms" }, { status: 403 })
       const partner = await ensurePartnerRow(ctxData.application)
@@ -312,6 +365,19 @@ export async function POST(
     if (body.action === "transition_schedule") {
       if (!referralAdminCan(role, "schedule:approve")) return NextResponse.json({ error: "Your role cannot approve commercial terms" }, { status: 403 })
       const res = await transitionCommissionSchedule(body.scheduleId, body.to as AgreementStatus, actor, { reason: body.reason })
+      if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 })
+      return NextResponse.json({ ok: true, detail: await loadContext(id) })
+    }
+
+    if (body.action === "issue_schedule_document") {
+      if (!referralAdminCan(role, "schedule:approve")) return NextResponse.json({ error: "Your role cannot issue commercial schedules" }, { status: 403 })
+      const partner = ctxData.partner ? str(ctxData.partner.id) : ""
+      if (!partner) return NextResponse.json({ error: "Create the partner record before generating its document" }, { status: 400 })
+      const res = await issueReferralScheduleDocument(partner, body.scheduleId, {
+        id: session.userId,
+        name: session.name || session.username,
+        title: "Finance and Management approval",
+      })
       if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 })
       return NextResponse.json({ ok: true, detail: await loadContext(id) })
     }

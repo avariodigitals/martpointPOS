@@ -29,7 +29,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const auth = await authorizePartner({ session, permission: "leads:view" })
   if (!auth.authorized) return auth.response!
 
-  const lead = await getPartnerLeadByIdForPartner(id, session.partnerId)
+  const lead = await getPartnerLeadByIdForPartner(id, session.partnerId, session.partnerUserId)
   if (!lead) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 })
   }

@@ -19,6 +19,7 @@ import {
   FileQuestion,
   ClipboardList,
   LifeBuoy,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react"
 import { PortalMobileNav } from "@/components/shared/portal-mobile-nav"
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { href: "/partner/team", label: "Team", icon: Users, permission: "partner:users:view" },
   { href: "/partner/compliance", label: "Compliance", icon: FileCheck, permission: "partner:compliance:view" },
   { href: "/partner/documents", label: "Documents", icon: FileText, permission: "partner:resources:view" },
+  { href: "/partner/guide", label: "Portal Guide", icon: BookOpen, permission: "partner:resources:view" },
   { href: "/partner/training", label: "Training", icon: GraduationCap, permission: "partner:resources:view" },
   { href: "/partner/certification", label: "Certification", icon: Award, permission: "partner:resources:view" },
   { href: "/partner/assessments", label: "Assessments", icon: ClipboardList, permission: "partner:resources:view" },

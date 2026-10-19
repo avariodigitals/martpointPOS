@@ -13,6 +13,7 @@ import {
   sendMeetingConfirmationEmails,
   getSchedulingSettings,
 } from "@/lib/meeting-booking"
+import { completeExpiredMeetings } from "@/lib/meeting-status"
 
 const postSchema = z.object({
   mode: z.enum(["invite", "direct"]).default("direct"),
@@ -38,6 +39,8 @@ export async function GET(_: Request, props: { params: Promise<{ id: string }> }
   const { id } = await props.params
 
   if (!isSupabaseConfigured()) return NextResponse.json({ meetings: [] })
+
+  await completeExpiredMeetings()
 
   const { data, error } = await supabase
     .from("lead_meetings")

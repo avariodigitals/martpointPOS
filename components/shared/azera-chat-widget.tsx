@@ -454,7 +454,7 @@ export function AzeraChatWidget({
               <div
                 key={m.id}
                 className={cn(
-                  "max-w-[88%] rounded-2xl px-3 py-2 text-[13px] leading-relaxed break-words shadow-sm",
+                  "relative mb-1 max-w-[88%] rounded-2xl px-3 py-2 text-[13px] leading-relaxed break-words shadow-sm",
                   m.direction === "outbound"
                     ? "ml-auto rounded-br-md text-white"
                     : "mr-auto rounded-bl-md border border-slate-200 bg-white text-slate-700"
@@ -468,6 +468,16 @@ export function AzeraChatWidget({
                 <span className="mt-1 block text-[9px] opacity-50">
                   {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
+                <span
+                  aria-hidden="true"
+                  style={m.direction === "outbound" ? { backgroundColor: brandColor } : undefined}
+                  className={cn(
+                    "absolute bottom-[-5px] h-3 w-3 rotate-45",
+                    m.direction === "outbound"
+                      ? "right-2 rounded-br-[3px]"
+                      : "left-2 rounded-bl-[3px] border-b border-l border-slate-200 bg-white",
+                  )}
+                />
               </div>
             ))}
             {!needsVisitorProfile && loading && (

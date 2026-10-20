@@ -18,6 +18,7 @@ import {
   normalizeScheduling,
   generateSlots,
   filterProposedSlots,
+  isValidTimeZone,
   type SchedulingSettings,
   type BusyInterval,
 } from "./scheduling"
@@ -266,7 +267,7 @@ export async function sendMeetingInviteEmail(meeting: MeetingRecord): Promise<bo
 
 export async function sendMeetingConfirmationEmails(
   meeting: MeetingRecord,
-  opts: { notifyTeam?: boolean } = {},
+  opts: { notifyTeam?: boolean; rescheduled?: boolean } = {},
 ): Promise<void> {
   if (!meeting.scheduledAt) return
   const leadTz = meeting.leadTimezone || meeting.timezone
@@ -284,7 +285,7 @@ export async function sendMeetingConfirmationEmails(
       meeting.meetingLink ? "Join Google Meet" : "View meeting details"
     }</a></p>`
 
-    const tpl = await renderEmailTemplate("meeting_confirmation", {
+    const tpl = await renderEmailTemplate(opts.rescheduled ? "meeting_rescheduled" : "meeting_confirmation", {
       fullName: firstName(meeting.leadFullName),
       title: meeting.title,
       when: whenLead,
@@ -306,7 +307,7 @@ export async function sendMeetingConfirmationEmails(
       body: tpl.text,
       html: tpl.html,
       attachments: ics ? [ics] : undefined,
-      metadata: { meeting_id: meeting.id, kind: "meeting_confirmation" },
+      metadata: { meeting_id: meeting.id, kind: opts.rescheduled ? "meeting_rescheduled" : "meeting_confirmation" },
     })
   }
 
@@ -315,9 +316,9 @@ export async function sendMeetingConfirmationEmails(
   await sendEmail({
     route: "lead_submission",
     cc: "support@martpoint.com.ng",
-    subject: `Meeting booked: ${meeting.leadFullName || meeting.leadEmail || "Lead"} — ${whenTeam}`,
+    subject: `${opts.rescheduled ? "Meeting rescheduled" : "Meeting booked"}: ${meeting.leadFullName || meeting.leadEmail || "Lead"} — ${whenTeam}`,
     text: [
-      `${meeting.leadFullName || "A lead"}${meeting.leadBusinessName ? ` (${meeting.leadBusinessName})` : ""} booked "${meeting.title}".`,
+      `${meeting.leadFullName || "A lead"}${meeting.leadBusinessName ? ` (${meeting.leadBusinessName})` : ""} ${opts.rescheduled ? "moved" : "booked"} "${meeting.title}".`,
       ``,
       `When: ${whenTeam}`,
       `Duration: ${meeting.durationMinutes} minutes`,
@@ -433,6 +434,30 @@ export async function sendMeetingFollowupEmail(meeting: MeetingRecord, subject: 
 
 /* ─── Create the Google Meet event for a meeting (best effort) ─── */
 
+export function meetEventSummary(meeting: MeetingRecord): string {
+  const who = [meeting.leadFullName, meeting.leadBusinessName].filter(Boolean).join(" · ")
+  return who ? `${meeting.title} — ${who}` : meeting.title
+}
+
+export function meetEventDescription(meeting: MeetingRecord): string {
+  return [
+    meeting.leadFullName ? `Lead: ${meeting.leadFullName}` : null,
+    meeting.leadBusinessName ? `Business: ${meeting.leadBusinessName}` : null,
+    meeting.leadEmail ? `Email: ${meeting.leadEmail}` : null,
+    meeting.leadPhone ? `Phone: ${meeting.leadPhone}` : null,
+    ``,
+    `Booking page: ${meetingPageUrl(meeting.customerToken)}`,
+  ]
+    .filter((l) => l !== null)
+    .join("\n")
+}
+
+/** Google rejects unknown timezones — fall back to the scheduling timezone. */
+export async function meetingEventTimezone(meeting: MeetingRecord): Promise<string> {
+  if (isValidTimeZone(meeting.timezone)) return meeting.timezone
+  return (await getSchedulingSettings()).timezone
+}
+
 export async function attachGoogleMeet(
   meeting: MeetingRecord,
   opts: { sendUpdates?: boolean } = {},
@@ -443,23 +468,13 @@ export async function attachGoogleMeet(
 
   const start = new Date(meeting.scheduledAt)
   const end = new Date(start.getTime() + meeting.durationMinutes * 60_000)
-  const who = [meeting.leadFullName, meeting.leadBusinessName].filter(Boolean).join(" · ")
   const event = await createMeetEvent({
     sendUpdates: opts.sendUpdates,
-    summary: who ? `${meeting.title} — ${who}` : meeting.title,
-    description: [
-      meeting.leadFullName ? `Lead: ${meeting.leadFullName}` : null,
-      meeting.leadBusinessName ? `Business: ${meeting.leadBusinessName}` : null,
-      meeting.leadEmail ? `Email: ${meeting.leadEmail}` : null,
-      meeting.leadPhone ? `Phone: ${meeting.leadPhone}` : null,
-      ``,
-      `Booking page: ${meetingPageUrl(meeting.customerToken)}`,
-    ]
-      .filter((l) => l !== null)
-      .join("\n"),
+    summary: meetEventSummary(meeting),
+    description: meetEventDescription(meeting),
     start,
     end,
-    timezone: meeting.timezone,
+    timezone: await meetingEventTimezone(meeting),
     attendeeEmail: meeting.leadEmail || undefined,
     attendeeName: meeting.leadFullName || undefined,
   })

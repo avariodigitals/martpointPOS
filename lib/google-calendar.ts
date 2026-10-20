@@ -39,6 +39,30 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token"
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const CAL_BASE = "https://www.googleapis.com/calendar/v3"
 
+/** Google API failure with the HTTP status kept so callers can react to 404s. */
+export class GoogleApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "GoogleApiError"
+    this.status = status
+  }
+}
+
+/** Turn OAuth/API text into something an admin can act on. */
+function friendlyGoogleMessage(message: string): string {
+  const text = message.trim()
+  const lower = text.toLowerCase()
+  if (lower.includes("invalid_grant") || lower.includes("expired or revoked") || lower.includes("token has been")) {
+    return "Google authorization has expired — reconnect Google in Settings → Google Meet, then try again."
+  }
+  if (lower.includes("insufficient") || lower.includes("invalid_scope")) {
+    return "Google permissions are missing calendar access — reconnect Google in Settings → Google Meet."
+  }
+  return text
+}
+
 let cached: GoogleSettings | null = null
 let cachedAt = 0
 const CACHE_TTL_MS = 10_000
@@ -195,7 +219,10 @@ async function getAccessToken(s?: GoogleSettings): Promise<string> {
   })
   const json = (await res.json()) as Record<string, unknown>
   if (!res.ok || !json.access_token) {
-    throw new Error(String(json.error_description || json.error || "Failed to refresh Google access token"))
+    throw new GoogleApiError(
+      friendlyGoogleMessage(String(json.error_description || json.error || "Failed to refresh Google access token")),
+      res.status,
+    )
   }
   accessToken = {
     value: String(json.access_token),
@@ -221,7 +248,10 @@ async function calendarFetch<T>(path: string, init: RequestInit & { query?: Reco
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
   if (!res.ok) {
     const err = json.error as Record<string, unknown> | undefined
-    throw new Error(String(err?.message || `Google Calendar request failed (${res.status})`))
+    throw new GoogleApiError(
+      friendlyGoogleMessage(String(err?.message || `Google Calendar request failed (${res.status})`)),
+      res.status,
+    )
   }
   return json as T
 }
@@ -247,6 +277,33 @@ export interface MeetEvent {
   htmlLink: string
 }
 
+type CalendarEvent = Record<string, unknown>
+
+function meetLinkFromEvent(ev: CalendarEvent): string {
+  const conference = ev.conferenceData as { entryPoints?: { entryPointType?: string; uri?: string }[] } | undefined
+  const video = conference?.entryPoints?.find((e) => e.entryPointType === "video")?.uri
+  return String(ev.hangoutLink || video || "")
+}
+
+function conferenceFailureReason(ev: CalendarEvent): string | null {
+  const conference = ev.conferenceData as {
+    createRequest?: { status?: { statusCode?: string; statusMessage?: string } }
+  } | undefined
+  const status = conference?.createRequest?.status
+  return status?.statusCode === "failure" ? status.statusMessage || "Google could not create the Meet link" : null
+}
+
+function eventIdOf(ev: CalendarEvent): string {
+  return String(ev.id || "")
+}
+
+async function getCalendarEvent(eventId: string, calendarId: string): Promise<CalendarEvent> {
+  return calendarFetch<CalendarEvent>(
+    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    { method: "GET", query: { conferenceDataVersion: "1" } },
+  )
+}
+
 export async function createMeetEvent(input: CreateMeetEventInput): Promise<MeetEvent> {
   const settings = await getGoogleSettings()
   const body = {
@@ -266,7 +323,7 @@ export async function createMeetEvent(input: CreateMeetEventInput): Promise<Meet
     reminders: { useDefault: true },
   }
 
-  const ev = await calendarFetch<Record<string, unknown>>(
+  let ev = await calendarFetch<CalendarEvent>(
     `/calendars/${encodeURIComponent(settings.calendarId)}/events`,
     {
       method: "POST",
@@ -278,12 +335,63 @@ export async function createMeetEvent(input: CreateMeetEventInput): Promise<Meet
     },
   )
 
-  const conference = ev.conferenceData as { entryPoints?: { entryPointType?: string; uri?: string }[] } | undefined
-  const video = conference?.entryPoints?.find((e) => e.entryPointType === "video")?.uri
-  const meetLink = String(ev.hangoutLink || video || "")
-  if (!meetLink) throw new Error("Google did not return a Meet link for the event")
+  let meetLink = meetLinkFromEvent(ev)
+  // Google can accept the event before the conference finishes provisioning.
+  // Poll the event briefly instead of failing a booking that actually worked.
+  if (!meetLink && !conferenceFailureReason(ev) && eventIdOf(ev)) {
+    for (let attempt = 0; attempt < 3 && !meetLink; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 700))
+      ev = await getCalendarEvent(eventIdOf(ev), settings.calendarId).catch(() => ev)
+      meetLink = meetLinkFromEvent(ev)
+    }
+  }
 
-  return { eventId: String(ev.id), meetLink, htmlLink: String(ev.htmlLink || "") }
+  if (!meetLink) {
+    const reason = conferenceFailureReason(ev)
+    const eventId = eventIdOf(ev)
+    // Don't leave a Meet-less orphan on the calendar.
+    if (eventId) await deleteCalendarEvent(eventId, settings.calendarId).catch(() => undefined)
+    throw new Error(
+      reason ? `Google could not create the Meet link: ${reason}` : "Google did not return a Meet link for the event",
+    )
+  }
+
+  return { eventId: eventIdOf(ev), meetLink, htmlLink: String(ev.htmlLink || "") }
+}
+
+export interface UpdateMeetEventInput {
+  summary: string
+  description?: string
+  start: Date
+  end: Date
+  timezone: string
+  attendeeEmail?: string
+  attendeeName?: string
+}
+
+/** Patch an existing Meet event in place — keeps the same Meet link and attendee. */
+export async function updateMeetEvent(eventId: string, input: UpdateMeetEventInput): Promise<MeetEvent> {
+  const settings = await getGoogleSettings()
+  const body = {
+    summary: input.summary,
+    description: input.description || undefined,
+    start: { dateTime: input.start.toISOString(), timeZone: input.timezone },
+    end: { dateTime: input.end.toISOString(), timeZone: input.timezone },
+    attendees: input.attendeeEmail
+      ? [{ email: input.attendeeEmail, displayName: input.attendeeName || undefined }]
+      : undefined,
+  }
+
+  const ev = await calendarFetch<CalendarEvent>(
+    `/calendars/${encodeURIComponent(settings.calendarId)}/events/${encodeURIComponent(eventId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
+      query: { conferenceDataVersion: "1", sendUpdates: "none" },
+    },
+  )
+
+  return { eventId: eventIdOf(ev) || eventId, meetLink: meetLinkFromEvent(ev), htmlLink: String(ev.htmlLink || "") }
 }
 
 export async function deleteCalendarEvent(eventId: string, calendarId?: string): Promise<void> {

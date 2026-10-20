@@ -148,6 +148,14 @@ const MEETING_STATUS_COLORS: Record<Meeting["status"], string> = {
   NO_SHOW: "bg-gray-100 text-gray-700",
 }
 
+/** ISO instant → value for <input type="datetime-local"> in the admin's browser timezone. */
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 const PIPELINE_STAGES: Lead["status"][] = ["New", "Contacted", "Qualified", "Proposal", "Won", "Lost"]
 
 const STAGE_COLORS: Record<string, string> = {
@@ -283,6 +291,14 @@ export function LeadDetailModal({
   const [notesOpenId, setNotesOpenId] = useState<string | null>(null)
   const [notesDraft, setNotesDraft] = useState({ summary: "", actionItems: "", transcriptUrl: "", recordingUrl: "" })
   const [followup, setFollowup] = useState<{ meetingId: string; subject: string; body: string } | null>(null)
+  const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null)
+  const [editMeetingForm, setEditMeetingForm] = useState({
+    title: "",
+    scheduledAt: "",
+    durationMinutes: 30,
+    timezone: "Africa/Lagos",
+    notes: "",
+  })
 
   const leadTemplate = getLeadAdditionalQuestionTemplate(lead.industry || lead.businessType || "")
 
@@ -696,6 +712,79 @@ export function LeadDetailModal({
       }
     } catch {
       setMeetingMessage("Action failed")
+    } finally {
+      setMeetingActionId(null)
+    }
+  }
+
+  const startEditingMeeting = (m: Meeting) => {
+    setEditingMeetingId(m.id)
+    setEditMeetingForm({
+      title: m.title,
+      scheduledAt: m.scheduledAt ? toDatetimeLocalValue(m.scheduledAt) : "",
+      durationMinutes: m.durationMinutes,
+      timezone: m.timezone,
+      notes: m.notes || "",
+    })
+    setMeetingMessage("")
+  }
+
+  const handleUpdateMeeting = async (m: Meeting) => {
+    setMeetingActionId(m.id)
+    setMeetingMessage("")
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/meetings/${m.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update",
+          title: editMeetingForm.title.trim() || m.title,
+          scheduledAt: editMeetingForm.scheduledAt ? new Date(editMeetingForm.scheduledAt).toISOString() : undefined,
+          durationMinutes: Number(editMeetingForm.durationMinutes) || m.durationMinutes,
+          timezone: editMeetingForm.timezone.trim() || m.timezone,
+          notes: editMeetingForm.notes,
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.meeting) {
+        setMeetings((prev) => prev.map((x) => (x.id === m.id ? data.meeting : x)))
+        setEditingMeetingId(null)
+        setMeetingMessage(
+          data.warning ||
+            (data.scheduleChanged
+              ? data.emailSent
+                ? "Meeting updated — the lead was emailed the new time."
+                : "Meeting updated, but the email to the lead could not be sent."
+              : "Meeting updated."),
+        )
+      } else {
+        setMeetingMessage(data.error || "Could not update the meeting")
+      }
+    } catch {
+      setMeetingMessage("Could not update the meeting")
+    } finally {
+      setMeetingActionId(null)
+    }
+  }
+
+  const handleCreateMeet = async (m: Meeting) => {
+    setMeetingActionId(m.id)
+    setMeetingMessage("")
+    try {
+      const res = await fetch(`/api/admin/leads/${lead.id}/meetings/${m.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create_meet" }),
+      })
+      const data = await res.json()
+      if (data.success && data.meeting) {
+        setMeetings((prev) => prev.map((x) => (x.id === m.id ? data.meeting : x)))
+        setMeetingMessage(data.emailSent ? "Google Meet link created — the lead was emailed." : "Google Meet link created.")
+      } else {
+        setMeetingMessage(data.error || "Could not create a Google Meet link")
+      }
+    } catch {
+      setMeetingMessage("Could not create a Google Meet link")
     } finally {
       setMeetingActionId(null)
     }
@@ -2249,13 +2338,97 @@ export function LeadDetailModal({
                             {m.status === "PENDING" ? "Awaiting lead" : m.status.replace("_", " ")}
                           </span>
                         </div>
+                        {editingMeetingId === m.id ? (
+                          <div className="rounded-md border border-border p-3 space-y-3">
+                            <p className="text-sm font-medium">Edit meeting</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="sm:col-span-2">
+                                <label className={labelClass}>Title</label>
+                                <input
+                                  type="text"
+                                  value={editMeetingForm.title}
+                                  onChange={(e) => setEditMeetingForm((p) => ({ ...p, title: e.target.value }))}
+                                  className={inputClass}
+                                />
+                              </div>
+                              {m.status === "SCHEDULED" && (
+                                <div>
+                                  <label className={labelClass}>Date &amp; time</label>
+                                  <input
+                                    type="datetime-local"
+                                    value={editMeetingForm.scheduledAt}
+                                    onChange={(e) => setEditMeetingForm((p) => ({ ...p, scheduledAt: e.target.value }))}
+                                    className={inputClass}
+                                  />
+                                  <p className="mt-1 text-[11px] text-muted-foreground">
+                                    Entered in your browser time; the meeting displays in {editMeetingForm.timezone}.
+                                  </p>
+                                </div>
+                              )}
+                              <div>
+                                <label className={labelClass}>Duration (minutes)</label>
+                                <input
+                                  type="number"
+                                  min={10}
+                                  max={240}
+                                  value={editMeetingForm.durationMinutes}
+                                  onChange={(e) =>
+                                    setEditMeetingForm((p) => ({ ...p, durationMinutes: Number(e.target.value) }))
+                                  }
+                                  className={inputClass}
+                                />
+                              </div>
+                              <div>
+                                <label className={labelClass}>Timezone</label>
+                                <input
+                                  type="text"
+                                  value={editMeetingForm.timezone}
+                                  onChange={(e) => setEditMeetingForm((p) => ({ ...p, timezone: e.target.value }))}
+                                  className={inputClass}
+                                  placeholder="Africa/Lagos"
+                                />
+                              </div>
+                              <div className="sm:col-span-2">
+                                <label className={labelClass}>Internal notes</label>
+                                <textarea
+                                  rows={2}
+                                  value={editMeetingForm.notes}
+                                  onChange={(e) => setEditMeetingForm((p) => ({ ...p, notes: e.target.value }))}
+                                  className={`${inputClass} resize-none`}
+                                  placeholder="Agenda, talking points, preparation..."
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Button
+                                size="sm"
+                                disabled={busy || (m.status === "SCHEDULED" && !editMeetingForm.scheduledAt)}
+                                onClick={() => handleUpdateMeeting(m)}
+                              >
+                                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                                Save changes
+                              </Button>
+                              <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditingMeetingId(null)}>
+                                Cancel
+                              </Button>
+                              <span className="text-[11px] text-muted-foreground">
+                                {m.status === "SCHEDULED"
+                                  ? "Changing the time or duration emails the lead an updated invite."
+                                  : "The invite page picks up these changes automatically."}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
                         {m.meetingLink ? (
                           <a href={m.meetingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-retail hover:underline">
                             <Video className="w-3.5 h-3.5" />
                             {m.provider || "Meeting link"} · {m.meetingLink}
                           </a>
                         ) : m.status === "SCHEDULED" ? (
-                          <p className="text-xs text-amber-700">No meeting link yet.</p>
+                          <p className="text-xs text-amber-700">
+                            No meeting link yet.{googleConnected ? " Use Generate Meet link below." : " Connect Google Meet in Settings, then generate one."}
+                          </p>
                         ) : null}
                         <div className="flex items-center gap-2">
                           <input
@@ -2401,6 +2574,16 @@ export function LeadDetailModal({
                         )}
                         {active && (
                           <div className="flex items-center gap-2 flex-wrap">
+                            <Button size="sm" variant="outline" disabled={busy} onClick={() => startEditingMeeting(m)}>
+                              <Pencil className="w-3.5 h-3.5 mr-1" />
+                              {m.status === "SCHEDULED" ? "Edit / reschedule" : "Edit"}
+                            </Button>
+                            {m.status === "SCHEDULED" && !m.meetingLink && googleConnected && (
+                              <Button size="sm" variant="outline" disabled={busy} onClick={() => handleCreateMeet(m)}>
+                                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Video className="w-3.5 h-3.5 mr-1" />}
+                                Generate Meet link
+                              </Button>
+                            )}
                             {m.status === "PENDING" && (
                               <Button size="sm" variant="outline" disabled={busy} onClick={() => handleMeetingAction(m, "resend_invite")}>
                                 {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Mail className="w-3.5 h-3.5 mr-1" />}
@@ -2423,6 +2606,8 @@ export function LeadDetailModal({
                               Cancel
                             </Button>
                           </div>
+                        )}
+                          </>
                         )}
                       </div>
                     )

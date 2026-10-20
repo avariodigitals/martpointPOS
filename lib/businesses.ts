@@ -409,6 +409,30 @@ export async function createBusiness(
     return { ok: false, error: "Failed to create business" }
   }
 
+  // Keep direct Admin-created businesses on the same canonical onboarding
+  // path as lead-converted businesses: entitlement and deployment records are
+  // created before the business becomes actionable in the deployment panel.
+  // The deployment remains PENDING until Central/Fleet identity is verified.
+  await supabase.from("business_entitlements").insert({
+    business_id: id,
+    max_branches: 1,
+    max_users: 1,
+    online_store_enabled: false,
+    implementation_enabled: true,
+    subscription_status: "ACTIVE",
+    effective_from: now,
+    created_by: actor.actorId ?? null,
+    created_at: now,
+    updated_at: now,
+  })
+
+  await supabase.from("business_deployments").insert({
+    business_id: id,
+    status: "PENDING",
+    created_at: now,
+    updated_at: now,
+  })
+
   const business = mapBusiness(created)
   await recordAudit(actor, {
     action: AUDIT_ACTIONS.BUSINESS_CREATED,

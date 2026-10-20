@@ -2077,6 +2077,52 @@ MartPoint Sales Team`,
     ),
   },
   {
+    key: "meeting_rescheduled",
+    label: "Meeting Rescheduled (lead)",
+    description: "Sent to a lead when an admin moves a confirmed meeting to a new time.",
+    variables: ["fullName", "title", "when", "durationMinutes", "joinLine", "joinBlock", "detailsUrl"],
+    subject: "Rescheduled: {{title}} — {{when}}",
+    text: `Hi {{fullName}},
+
+Your meeting has been moved. Here are the new details:
+
+{{title}}
+{{when}}
+{{durationMinutes}} minutes
+
+{{joinLine}}
+
+Our call may be recorded and transcribed for notes.
+
+You can revisit the details anytime at {{detailsUrl}}. Need to change the time again? Just reply to this email.
+
+Best regards,
+MartPoint Sales Team`,
+    html: brandedEmailHtml(
+      `<p style="font-size:18px; font-weight:600; margin:0 0 16px;">Hi {{fullName}},</p>
+              <p style="font-size:15px; line-height:1.6; margin:0 0 24px; color:#374151;">
+                Your meeting has been moved. Here are the new details:
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f9fafb; border-radius:8px; margin:0 0 24px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 8px;">{{title}}</p>
+                    <p style="font-size:15px; color:#111827; margin:0 0 4px;">{{when}}</p>
+                    <p style="font-size:14px; color:#6b7280; margin:0;">{{durationMinutes}} minutes · Google Meet</p>
+                  </td>
+                </tr>
+              </table>
+              {{joinBlock}}
+              <p style="font-size:12px; line-height:1.6; margin:0 0 16px; color:#6b7280;">
+                Our call may be recorded and transcribed for notes.
+              </p>
+              <p style="font-size:12px; line-height:1.6; margin:0; color:#6b7280;">
+                Details: <a href="{{detailsUrl}}" style="color:#0057FF; text-decoration:underline;">{{detailsUrl}}</a> — need to change the time again? Just reply to this email.
+              </p>`,
+      { eyebrow: "Sales", title: "Meeting rescheduled", signoff: "MartPoint Sales Team" },
+    ),
+  },
+  {
     key: "meeting_summary",
     label: "Meeting Summary / Notes (lead)",
     description: "Sent to a lead when an admin shares the AI-generated summary and action items after a call.",

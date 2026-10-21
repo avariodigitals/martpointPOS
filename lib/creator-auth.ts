@@ -20,10 +20,26 @@ export interface CreatorSession {
   email: string
   name: string
   sessionVersion: number
+  iat: number
+  lastActive: number
 }
 
 const CREATOR_COOKIE_NAME = "creator-session"
-const SESSION_VERSION = 1
+const SESSION_VERSION = 2
+const CREATOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+
+export function getCreatorSessionTimeoutMs(): number {
+  const raw = process.env.PORTAL_SESSION_TIMEOUT_MINUTES || process.env.CREATOR_SESSION_TIMEOUT_MINUTES
+  if (!raw) return 30 * 60 * 1000
+  const minutes = Number(raw)
+  if (!Number.isFinite(minutes) || minutes <= 0) return 0
+  return minutes * 60 * 1000
+}
+
+function isCreatorSessionExpired(payload: CreatorSession): boolean {
+  const timeout = getCreatorSessionTimeoutMs()
+  return timeout > 0 && Date.now() - payload.lastActive > timeout
+}
 
 function isCreatorSession(value: unknown): value is CreatorSession {
   if (!value || typeof value !== "object") return false
@@ -32,24 +48,29 @@ function isCreatorSession(value: unknown): value is CreatorSession {
     typeof v.creatorId === "string" &&
     typeof v.email === "string" &&
     typeof v.name === "string" &&
-    typeof v.sessionVersion === "number"
+    typeof v.sessionVersion === "number" &&
+    typeof v.iat === "number" &&
+    typeof v.lastActive === "number"
   )
 }
 
 export async function createCreatorSession(creator: CreatorRecord): Promise<void> {
   const cookieStore = await cookies()
+  const now = Date.now()
   const payload: CreatorSession = {
     creatorId: creator.id,
     email: creator.email,
     name: creator.fullName,
     sessionVersion: SESSION_VERSION,
+    iat: now,
+    lastActive: now,
   }
   const token = signSession(payload)
   cookieStore.set(CREATOR_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: CREATOR_COOKIE_MAX_AGE,
     path: "/",
   })
 }
@@ -58,12 +79,35 @@ export async function getCreatorSession(): Promise<CreatorSession | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(CREATOR_COOKIE_NAME)
   if (!token?.value) return null
-  return verifySession(token.value, isCreatorSession)
+  const session = verifySession(token.value, isCreatorSession)
+  if (!session || session.sessionVersion !== SESSION_VERSION || isCreatorSessionExpired(session)) return null
+  return session
 }
 
 export async function destroyCreatorSession(): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.delete(CREATOR_COOKIE_NAME)
+}
+
+export async function refreshCreatorSessionActivity(): Promise<CreatorSession | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(CREATOR_COOKIE_NAME)
+  if (!token?.value) return null
+  const session = verifySession(token.value, isCreatorSession)
+  if (!session || session.sessionVersion !== SESSION_VERSION || isCreatorSessionExpired(session)) {
+    cookieStore.delete(CREATOR_COOKIE_NAME)
+    return null
+  }
+  const refreshed: CreatorSession = { ...session, lastActive: Date.now() }
+  const refreshedToken = signSession(refreshed)
+  cookieStore.set(CREATOR_COOKIE_NAME, refreshedToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: CREATOR_COOKIE_MAX_AGE,
+    path: "/",
+  })
+  return refreshed
 }
 
 async function validateCreatorSession(session: CreatorSession): Promise<CreatorRecord | null> {

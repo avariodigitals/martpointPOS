@@ -25,6 +25,8 @@ async function authorize() {
 }
 
 async function resolveBusinessId() {
+  const configured = process.env.AZERA_PUBLIC_BUSINESS_ID?.trim()
+  if (configured) return configured
   const { data } = await supabase
     .from("businesses")
     .select("id")

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { requirePartnerSession, getPartnerById, getPartnerUserById, getPartnerCapabilities } from "@/lib/partner-auth"
 import { PartnerSidebarNav } from "@/components/partner/partner-sidebar-nav"
+import { PortalSessionTimeoutWatcher } from "@/components/shared/portal-session-timeout-watcher"
 
 export default async function PartnerPortalLayout({
   children,
@@ -20,6 +21,7 @@ export default async function PartnerPortalLayout({
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background">
+      <PortalSessionTimeoutWatcher endpoint="/api/partner/session" loginPath="/partner/login" storageKey="partner" />
       <PartnerSidebarNav
         partnerName={partner.displayName || partner.businessName}
         partnerId={partner.partnerId}

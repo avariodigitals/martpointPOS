@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Send, MessageCircle, X, Loader2, Phone, Smile, UserRound } from "lucide-react"
+import { Send, MessageCircle, X, Loader2, Phone, Smile } from "lucide-react"
 import { useWebRTCCall, AzeraCallUI } from "@/components/shared/azera-webrtc-call"
 
 interface AzeraChatWidgetProps {
@@ -626,21 +626,6 @@ export function AzeraChatWidget({
                 <p className="relative mx-auto mt-2 max-w-[18rem] text-sm leading-relaxed opacity-80">
                   Our sales team is ready to help with setup, pricing, and everyday questions.
                 </p>
-                <p className="relative mt-5 text-xs font-bold uppercase tracking-[0.18em] opacity-70">Meet the team</p>
-                <div className="relative mt-3 flex items-end justify-center gap-4">
-                  {["Nia", "Sam", "Tobi"].map((name, index) => (
-                    <div key={name} className={cn("flex flex-col items-center", index === 1 && "-translate-y-2")}>
-                      <div
-                        className="relative flex h-14 w-14 items-center justify-center rounded-full border-2 border-white/80 shadow-lg"
-                        style={{ background: ["linear-gradient(145deg, #fb923c, #c2410c)", "linear-gradient(145deg, #38bdf8, #2563eb)", "linear-gradient(145deg, #c084fc, #7e22ce)"][index] }}
-                      >
-                        <UserRound className="h-8 w-8 text-white/90" strokeWidth={1.7} />
-                        <span className="absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
-                      </div>
-                      <span className="mt-2 text-xs font-bold">{name}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
 
               <div className="px-5 py-5">

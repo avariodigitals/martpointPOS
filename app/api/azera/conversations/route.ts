@@ -4,7 +4,7 @@ import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 type ConversationRow = {
-  azera_messages?: Array<{ created_at: string; direction: string; author_type: string; message: string }>
+  azera_messages?: Array<{ created_at: string; direction: string; author_type: string; message: string; read_at?: string | null }>
   [key: string]: unknown
 }
 
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
       .select(`
         *,
         azera_messages (
-          id, author_type, author_id, message, direction, created_at
+          id, author_type, author_id, message, direction, created_at, read_at
         )
       `)
       .order("last_message_at", { ascending: false })
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
         .slice()
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
       const unread = msgs.filter(
-        (m) => m.direction === "inbound" && m.author_type !== "agent"
+        (m) => m.direction === "inbound" && m.author_type !== "agent" && !m.read_at
       ).length
       return {
         id: c.id,

@@ -108,6 +108,15 @@ function isGreeting(message: string): boolean {
   return /^(hi|hello|hey|good morning|good afternoon|good evening|greetings)[!. ,]*$/i.test(message.trim())
 }
 
+function localFallbackReply(message: string, knowledge: KnowledgeArticle[], shouldAskTriage: boolean): string {
+  if (shouldAskTriage || isGreeting(message)) {
+    return "Hello! I’m MartPoint Assist. Are you looking for a product demo, help with a technical issue, or guidance using MartPoint?"
+  }
+  const article = knowledge[0]
+  if (article) return article.content
+  return "I’m sorry, I can’t confirm that from my approved MartPoint information yet. Would you like a specialist to help, or can you tell me a little more about what you need?"
+}
+
 export async function POST(request: Request) {
   if (!isSupabaseConfigured()) {
     return err("Supabase not configured", 500)
@@ -250,7 +259,7 @@ export async function POST(request: Request) {
     const complaintReason = immediateEscalation(message.trim())
     const salesFollowUp = queue === "sales" && requestedSalesFollowUp(message.trim())
     const humanHandoff = directHumanRequest || salesFollowUp
-    let escalationReason = directHumanRequest
+    const escalationReason = directHumanRequest
       ? "customer_requested_human"
       : complaintReason || (salesFollowUp ? "sales_follow_up_requested" : null)
 
@@ -316,14 +325,20 @@ export async function POST(request: Request) {
         }
       } catch (aiErr) {
         console.error("[Azera chat AI error]", aiErr)
-        escalationReason = "ai_provider_failure"
-        // AI failure is non-fatal — we still return the customer's message
+        // AI provider failure is non-fatal. A deterministic reply keeps basic
+        // greetings and approved knowledge answers working while the provider
+        // is repaired, without falsely creating a human handoff.
       }
     }
 
-    // Only explicit requests, serious complaints/safety issues, and AI failures
-    // enter the human handoff path. A missing KB match alone is not a handoff.
-    let waitingForAgent = Boolean(humanHandoff || escalationReason || (conv.ai_enabled && !aiReply))
+    if (!aiReply && !humanHandoff && !escalationReason) {
+      aiReply = localFallbackReply(message.trim(), relevantKnowledge, shouldAskTriage)
+    }
+
+    // Only explicit requests and serious complaints/safety issues enter the
+    // human handoff path. A missing KB match or provider outage alone is not a
+    // handoff; the visitor still receives a safe response.
+    let waitingForAgent = Boolean(humanHandoff || escalationReason)
     if (waitingForAgent) {
       const reason = escalationReason || "ai_provider_failure"
       const summary = handoffSummary(message.trim(), queue, reason, conversationHistory)

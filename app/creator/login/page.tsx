@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,8 +14,15 @@ export default function CreatorLoginPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const [expired, setExpired] = useState(false)
   const captchaRef = useRef<CaptchaFieldHandle>(null)
   const [captcha, setCaptcha] = useState<CaptchaState>({ configured: false, token: null })
+
+  useEffect(() => {
+    // The query string only exists in the browser after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpired(new URLSearchParams(window.location.search).get("expired") === "1")
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -56,6 +63,7 @@ export default function CreatorLoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {expired && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Your session expired due to inactivity. Please sign in again.</p>}
             <div>
               <label htmlFor="email" className="block text-sm font-medium mb-1">Email</label>
               <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />

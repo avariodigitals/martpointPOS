@@ -23,6 +23,8 @@ export interface PartnerSession {
   role: PartnerUserRole
   name: string
   sessionVersion: number
+  iat: number
+  lastActive: number
 }
 
 export interface PartnerUserRecord {
@@ -67,7 +69,21 @@ export interface PartnerRecord {
 }
 
 const PARTNER_COOKIE_NAME = "partner-session"
-const SESSION_VERSION = 1
+const SESSION_VERSION = 2
+const PARTNER_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+
+export function getPartnerSessionTimeoutMs(): number {
+  const raw = process.env.PORTAL_SESSION_TIMEOUT_MINUTES || process.env.PARTNER_SESSION_TIMEOUT_MINUTES
+  if (!raw) return 30 * 60 * 1000
+  const minutes = Number(raw)
+  if (!Number.isFinite(minutes) || minutes <= 0) return 0
+  return minutes * 60 * 1000
+}
+
+function isPartnerSessionExpired(payload: PartnerSession): boolean {
+  const timeout = getPartnerSessionTimeoutMs()
+  return timeout > 0 && Date.now() - payload.lastActive > timeout
+}
 
 /* Re-export capability/permission helpers and constants. */
 export { partnerUserHasPermission, PARTNER_TYPE_DEFAULT_CAPABILITIES }
@@ -82,25 +98,30 @@ function isPartnerSession(value: unknown): value is PartnerSession {
     typeof v.partnerId === "string" &&
     typeof v.role === "string" &&
     typeof v.name === "string" &&
-    typeof v.sessionVersion === "number"
+    typeof v.sessionVersion === "number" &&
+    typeof v.iat === "number" &&
+    typeof v.lastActive === "number"
   )
 }
 
 export async function createPartnerSession(user: PartnerUserRecord): Promise<void> {
   const cookieStore = await cookies()
+  const now = Date.now()
   const payload: PartnerSession = {
     partnerUserId: user.id,
     partnerId: user.partnerId,
     role: user.role,
     name: user.fullName,
     sessionVersion: SESSION_VERSION,
+    iat: now,
+    lastActive: now,
   }
   const token = signSession(payload)
   cookieStore.set(PARTNER_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: PARTNER_COOKIE_MAX_AGE,
     path: "/",
   })
 }
@@ -109,12 +130,35 @@ export async function getPartnerSession(): Promise<PartnerSession | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(PARTNER_COOKIE_NAME)
   if (!token?.value) return null
-  return verifySession(token.value, isPartnerSession)
+  const session = verifySession(token.value, isPartnerSession)
+  if (!session || session.sessionVersion !== SESSION_VERSION || isPartnerSessionExpired(session)) return null
+  return session
 }
 
 export async function destroyPartnerSession(): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.delete(PARTNER_COOKIE_NAME)
+}
+
+export async function refreshPartnerSessionActivity(): Promise<PartnerSession | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(PARTNER_COOKIE_NAME)
+  if (!token?.value) return null
+  const session = verifySession(token.value, isPartnerSession)
+  if (!session || session.sessionVersion !== SESSION_VERSION || isPartnerSessionExpired(session)) {
+    cookieStore.delete(PARTNER_COOKIE_NAME)
+    return null
+  }
+  const refreshed: PartnerSession = { ...session, lastActive: Date.now() }
+  const refreshedToken = signSession(refreshed)
+  cookieStore.set(PARTNER_COOKIE_NAME, refreshedToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: PARTNER_COOKIE_MAX_AGE,
+    path: "/",
+  })
+  return refreshed
 }
 
 export async function requirePartnerSession(): Promise<PartnerSession> {

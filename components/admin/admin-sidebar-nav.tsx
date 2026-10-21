@@ -95,9 +95,6 @@ const navItems: NavItem[] = [
   { href: "/admin/azera/knowledge", label: "AI Knowledge Base", icon: BookOpen, page: "azera", section: "Omnichannel" },
   { href: "/admin/azera/settings", label: "Azera Settings", icon: Settings, page: "azera", section: "Omnichannel" },
   { href: "/admin/azera/reports", label: "Call Reports", icon: FileAudio, page: "support", section: "Omnichannel" },
-  { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, page: "customers", section: "Omnichannel" },
-  { href: "/admin/messenger", label: "Messenger", icon: MessageCircle, page: "support", section: "Omnichannel" },
-  { href: "/admin/instagram", label: "Instagram DM", icon: Share2, page: "support", section: "Omnichannel" },
   { href: "/admin/google-reviews", label: "Google Reviews", icon: Star, page: "support", section: "Omnichannel" },
 
   // PARTNERS
@@ -236,8 +233,8 @@ export function AdminSidebarNav({
       }
       return true
     }
-    // A plain path is active only when no distinguishing query is present on a
-    // sibling entry (avoids both highlighting on the estimator deep-link).
+    // A plain path is active only when no distinguishing query is present on
+    // a sibling entry (avoids both highlighting on the estimator deep-link).
     return true
   }
 
@@ -258,8 +255,7 @@ export function AdminSidebarNav({
         title="MartPoint Control Centre"
         subtitle="Operational source of truth"
         sections={sections}
-        userName={userName}
-        userMeta={userRole}
+        userName={userMeta}
         onLogout={handleLogout}
         logoutLabel="Logout"
         storageKey="admin-nav"

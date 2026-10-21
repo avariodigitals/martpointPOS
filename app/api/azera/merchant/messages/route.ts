@@ -51,7 +51,7 @@ export async function GET(request: Request) {
 
     const { data: conv, error: convError } = await supabase
       .from("azera_conversations")
-      .select("id, business_id, external_id, status, customer_name, customer_phone")
+      .select("id, business_id, external_id, status, customer_name, customer_phone, last_message_at, created_at, queue, waiting_for_agent")
       .eq(claims ? "id" : "business_id", claims ? claims.conversationId : lookupBusinessId)
       .eq("external_id", lookupExternalId)
       .maybeSingle()
@@ -62,7 +62,6 @@ export async function GET(request: Request) {
     if (claims && (!isConversationIdentityMatch(claims, conv) || (businessId && businessId !== conv.business_id && businessId !== "martpoint-support") || (externalId && externalId !== conv.external_id))) {
       return err("Conversation not found", 404)
     }
-    if (conv.status === "closed") return err("Conversation is closed", 410)
     if (!claims) {
       const issued = issueConversationToken({ conversationId: conv.id, businessId: conv.business_id, externalId: conv.external_id })
       claims = verifyConversationToken(issued)
@@ -70,14 +69,34 @@ export async function GET(request: Request) {
     }
 
     // Fetch messages for this conversation
-    const { data: messages, error: msgError } = await supabase
-      .from("azera_messages")
-      .select("*")
-      .eq("conversation_id", conv.id)
-      .order("created_at", { ascending: true })
+    // Closed chats remain available to Azera as context, but the public widget
+    // only receives the last-chat timestamp, never the prior transcript.
+    const { data: messages, error: msgError } = conv.status === "closed"
+      ? { data: [], error: null }
+      : await supabase
+        .from("azera_messages")
+        .select("*")
+        .eq("conversation_id", conv.id)
+        .order("created_at", { ascending: true })
 
     if (msgError) {
       return err("Failed to load messages", 500)
+    }
+
+    let queuePosition: number | null = null
+    if (conv.status === "open" && conv.waiting_for_agent && conv.queue) {
+      const { data: queuedConversations, error: queueError } = await supabase
+        .from("azera_conversations")
+        .select("id")
+        .eq("business_id", conv.business_id)
+        .eq("queue", conv.queue)
+        .eq("status", "open")
+        .eq("waiting_for_agent", true)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+      if (queueError) return err("Failed to load queue position", 500)
+      const index = (queuedConversations || []).findIndex((queued) => queued.id === conv.id)
+      if (index >= 0) queuePosition = index + 1
     }
 
     const enrichedMessages = await Promise.all((messages || []).map(async (message: ChatMessage) => {
@@ -91,7 +110,7 @@ export async function GET(request: Request) {
     }))
 
     return ok({
-      conversation: conv,
+      conversation: { ...conv, queue_position: queuePosition },
       conversation_token: tokenFromRequest(request) || issueConversationToken({ conversationId: conv.id, businessId: conv.business_id, externalId: conv.external_id }),
       messages: enrichedMessages,
     })

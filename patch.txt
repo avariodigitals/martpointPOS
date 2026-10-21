@@ -1,0 +1,27 @@
+*** Begin Patch
+*** Update File: /Users/ralphmore/Documents/GitHub/martpointPOS/components/shared/azera-chat-widget.tsx
+@@
+-  const arcPathId = `azera-chat-arc-\${useId().replace(/:/g, "")}`
++  // arcPathId removed as text arc is no longer used
+@@
+-          <span className="relative block h-24 w-24 drop-shadow-[0_6px_8px_rgba(15,23,42,0.22)]">
+-            <svg className="pointer-events-none absolute inset-x-0 top-0 h-[4.5rem] w-full overflow-visible" viewBox="0 0 120 72" aria-hidden="true">
+-              <defs>
+-                <path id={arcPathId} d="M 10 58 Q 60 7 110 58" fill="none" />
+-              </defs>
+-              <text fill="currentColor" fontSize="8" fontWeight="700" letterSpacing="0.15">
+-                <textPath href={`#${arcPathId}`} startOffset="50%" textAnchor="middle">Hi, I’m Azera · I can help</textPath>
+-              </text>
+-            </svg>
+-            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 animate-[pulse_3s_ease-in-out_infinite]">
+-              <MartPointBubbleIcon className="h-14 w-14 transition-transform group-hover:rotate-6" />
+-            </span>
+-            <Smile className="absolute right-1 top-12 h-6 w-6 rounded-full bg-white/90 p-0.5 text-amber-500 shadow-sm" aria-hidden="true" />
+-          </span>
++          <span className="relative flex h-24 w-24 items-center justify-center drop-shadow-[0_12px_20px_rgba(15,23,42,0.3)]">
++            <span className="animate-[pulse_3s_ease-in-out_infinite]">
++              <MartPointBubbleIcon className="h-20 w-20 transition-transform group-hover:rotate-6" />
++            </span>
++            <Smile className="absolute right-2 top-14 h-6 w-6 rounded-full bg-white/90 p-0.5 text-amber-500 shadow-sm" aria-hidden="true" />
++          </span>
+*** End Patch

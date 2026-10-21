@@ -14,7 +14,11 @@ export function PublicChatWidget() {
   )
 
   // Do not render during SSR/hydration or anywhere in the protected admin shell.
-  // This prevents the fixed visitor launcher from flashing over the sidebar.
   if (!mounted || pathname === "/admin" || pathname?.startsWith("/admin/")) return null
-  return <AzeraChatWidget businessId="martpoint-support" />
+  
+  // Use the environment-defined business ID for the public site to ensure 
+  // the configuration is resolved correctly on the backend.
+  const businessId = process.env.NEXT_PUBLIC_AZERA_BUSINESS_ID || "martpoint-support"
+
+  return <AzeraChatWidget businessId={businessId} />
 }

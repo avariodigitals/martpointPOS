@@ -45,6 +45,21 @@ const industries = [
     scenario:
       "Handle bulk pricing tiers, multi-customer invoicing, and stock transfers between depots.",
   },
+  {
+    name: "Construction Materials",
+    scenario:
+      "Manage bulk aggregates, steel, and hardware with specialized units and project-based tracking.",
+  },
+  {
+    name: "Frozen Foods",
+    scenario:
+      "Optimize cold-chain inventory, track batch expiry in freezers, and manage weight-based pricing.",
+  },
+  {
+    name: "Physiotherapy Clinics",
+    scenario:
+      "Combine retail pharmacy with clinical scheduling, patient records, and session management.",
+  },
 ]
 
 export function IndustryCoverage() {

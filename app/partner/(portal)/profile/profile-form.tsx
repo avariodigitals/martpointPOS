@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Save, Building2, Globe, Phone, Mail, MapPin, Loader2 } from "lucide-react"
+import { Save, Building2, Globe, Phone, Mail, MapPin, Loader2, Upload } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
 
 interface PartnerProfileFormProps {
@@ -30,6 +30,7 @@ interface PartnerProfileFormProps {
 export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileFormProps) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState("")
   const [form, setForm] = useState({
     displayName: partner.displayName || "",
@@ -41,6 +42,34 @@ export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileF
     country: partner.country || "",
     logoUrl: partner.logoUrl || "",
   })
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    setUploading(true)
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("partnerId", partner.id)
+
+    try {
+      const res = await fetch("/api/partner/profile/upload-logo", {
+        method: "POST",
+        body: formData,
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setForm(prev => ({ ...prev, logoUrl: data.url }))
+        setMessage("Logo uploaded successfully. Please submit the profile update.")
+      } else {
+        setMessage(data.error || "Logo upload failed.")
+      }
+    } catch (err) {
+      setMessage("Error uploading logo.")
+    } finally {
+      setUploading(false)
+    }
+  }
 
   async function submitUpdate() {
     setSaving(true)
@@ -65,9 +94,17 @@ export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileF
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Partner Profile</h2>
-        <p className="text-muted-foreground">View and request updates to your organisation profile.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Partner Profile</h2>
+          <p className="text-muted-foreground">View and request updates to your organisation profile.</p>
+        </div>
+        {partner.logoUrl && (
+          <div className="flex items-center gap-3">
+            <img src={partner.logoUrl} alt="Logo" className="h-12 w-12 rounded-lg object-cover border" />
+            <span className="text-xs text-muted-foreground">Active Logo</span>
+          </div>
+        )}
       </div>
 
       <Card>
@@ -84,14 +121,13 @@ export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileF
       <Card>
         <CardHeader><CardTitle className="text-sm font-medium">Request Profile Update</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          {message && <p className={`text-sm ${message.includes("submitted") ? "text-green-600" : "text-red-500"}`}>{message}</p>}
+          {message && <p className={`text-sm ${message.includes("submitted") || message.includes("successfully") ? "text-green-600" : "text-red-500"}`}>{message}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
               { label: "Display Name", key: "displayName" },
               { label: "Public Email", key: "publicEmail", type: "email" },
               { label: "Public Phone", key: "publicPhone" },
               { label: "Website", key: "website" },
-              { label: "Logo URL", key: "logoUrl" },
             ].map((field) => (
               <div key={field.key}>
                 <label className="block text-xs font-medium mb-1">{field.label}</label>
@@ -103,6 +139,37 @@ export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileF
                 />
               </div>
             ))}
+            <div className="flex flex-col">
+              <label className="block text-xs font-medium mb-1">Organization Logo</label>
+              <div className="flex gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  id="logo-upload"
+                  onChange={handleLogoUpload}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => document.getElementById("logo-upload")?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <Upload className="w-3.5 h-3.5 mr-2" />}
+                  {form.logoUrl ? "Change Logo" : "Upload Logo"}
+                </Button>
+                {form.logoUrl && (
+                  <input
+                    type="text"
+                    value={form.logoUrl}
+                    onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="Or enter URL"
+                  />
+                )}
+              </div>
+            </div>
             <LocationFields
               country={form.country}
               state={form.state}
@@ -126,7 +193,7 @@ export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileF
           ) : (
             <div className="space-y-2">
               {pendingRequests.map((r) => (
-                <div key={r.id as string} className="text-sm border-b border-border last:border-0 pb-2">
+                <div key={r.id as string} className="text-sm border-b border-border last:border-zero pb-2">
                   <span className="font-medium">{new Date(r.created_at as string).toLocaleDateString()}</span>
                   <span className="text-xs text-muted-foreground ml-2">{Object.keys((r.changes as Record<string, unknown>) || {}).join(", ")}</span>
                 </div>

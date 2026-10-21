@@ -3,7 +3,7 @@ import { requirePartnerSession, authorizePartner, getPartnerCapabilities, getPar
 import { listPartnerResourcesForPartner, getSignedResourceUrl } from "@/lib/partner-service"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FolderOpen, ExternalLink, FileText } from "lucide-react"
+import { FolderOpen, ExternalLink, FileText, Download } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 
 interface ResourceCard {
@@ -13,6 +13,14 @@ interface ResourceCard {
   category: string
   signedUrl: string | null
   external_url: string | null
+  storagePath: string | null
+  builtInDownload: string | null
+}
+
+function builtInDownloadFor(title: string): string | null {
+  return title.trim().toLowerCase() === "partner guide"
+    ? "/partner-resources/martpoint-partner-portal-guide.pdf"
+    : null
 }
 
 function ResourceGrid({ items }: { items: ResourceCard[] }) {
@@ -28,11 +36,26 @@ function ResourceGrid({ items }: { items: ResourceCard[] }) {
               {r.description && <p className="text-xs text-muted-foreground mt-1">{r.description}</p>}
             </div>
           </div>
-          {(r.signedUrl || r.external_url) && (
-            <a href={(r.signedUrl || r.external_url)!} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex">
-              <Button size="sm" variant="outline"><ExternalLink className="w-3.5 h-3.5 mr-1" /> Open</Button>
-            </a>
-          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {r.signedUrl && (
+              <a href={r.signedUrl} target="_blank" rel="noopener noreferrer">
+                <Button size="sm" variant="outline"><ExternalLink className="w-3.5 h-3.5 mr-1" /> Preview</Button>
+              </a>
+            )}
+            {(r.storagePath || r.builtInDownload) && (
+              <a
+                href={r.storagePath ? `/api/partner/resources/${encodeURIComponent(r.id)}/download` : r.builtInDownload!}
+                {...(!r.storagePath ? { download: true } : {})}
+              >
+                <Button size="sm"><Download className="w-3.5 h-3.5 mr-1" /> Download</Button>
+              </a>
+            )}
+            {!r.storagePath && !r.builtInDownload && r.external_url && (
+              <a href={r.external_url} target="_blank" rel="noopener noreferrer">
+                <Button size="sm" variant="outline"><ExternalLink className="w-3.5 h-3.5 mr-1" /> Open resource</Button>
+              </a>
+            )}
+          </div>
         </div>
       ))}
     </div>
@@ -60,6 +83,8 @@ export default async function PartnerResourcesPage() {
       category: r.category as string,
       signedUrl: await getSignedResourceUrl(r),
       external_url: r.external_url as string | null,
+      storagePath: r.storage_path as string | null,
+      builtInDownload: builtInDownloadFor(r.title as string),
       partner_id: r.partner_id as string | null,
     }))
   )

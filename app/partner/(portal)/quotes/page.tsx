@@ -74,7 +74,7 @@ export default async function PartnerQuotesPage({ searchParams }: { searchParams
                   <div key={r.id as string} className="p-4 rounded-xl border border-border bg-background">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold">{(lead?.company_name as string) || "Opportunity"}</p>
+                        <p className="text-sm font-semibold">{(lead?.business_name as string) || "Opportunity"}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {[r.plan_name, r.locations, r.users_estimate ? `${r.users_estimate} users` : null]
                             .filter(Boolean)

@@ -101,7 +101,7 @@ export async function listPartnerQuoteRequests(partnerId: string): Promise<Recor
   if (!isSupabaseConfigured()) return []
   const { data } = await supabase
     .from("partner_quote_requests")
-    .select("*, partner_leads(company_name, contact_name, status)")
+    .select("*, partner_leads(business_name, contact_name, status)")
     .eq("partner_id", partnerId)
     .order("created_at", { ascending: false })
   return (data || []) as Record<string, unknown>[]
@@ -148,7 +148,7 @@ export async function listQuoteRequestsForAdmin(partnerId?: string): Promise<Rec
   if (!isSupabaseConfigured()) return []
   let q = supabase
     .from("partner_quote_requests")
-    .select("*, partners(business_name, partner_id), partner_leads(company_name, contact_name)")
+    .select("*, partners(business_name, partner_id), partner_leads(business_name, contact_name)")
     .order("created_at", { ascending: false })
   if (partnerId) q = q.eq("partner_id", partnerId)
   const { data } = await q

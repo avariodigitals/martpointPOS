@@ -1185,7 +1185,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                     <div key={qr.id as string} className="p-3 rounded-lg border border-border">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-medium">{(lead?.company_name as string) || "Opportunity"}</p>
+                          <p className="text-sm font-medium">{(lead?.business_name as string) || "Opportunity"}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {[qr.plan_name, qr.locations, qr.users_estimate ? `${qr.users_estimate} users` : null].filter(Boolean).join(" · ") || "General quote"}
                             {qr.services_requested ? ` · ${qr.services_requested as string}` : ""}

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import {
   Loader2, ArrowLeft, FileText, Download, Save, UserCheck, X, Check,
   AlertTriangle, ShieldCheck, RefreshCw, Send, CheckCircle, XCircle,
-  Clock, AlertCircle, Pencil, CalendarDays, ClipboardCheck, Sparkles, type LucideIcon,
+  Clock, AlertCircle, Pencil, CalendarDays, ClipboardCheck, Sparkles, FileSignature, type LucideIcon,
 } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
 import { AgreementForm } from "./agreement-form"
@@ -142,7 +142,7 @@ interface AppDetail {
   reviewed_by_name?: string | null
 }
 
-type TabKey = "overview" | "timeline" | "meetings" | "questions" | "assessments" | "compliance" | "actions"
+type TabKey = "overview" | "timeline" | "meetings" | "questions" | "assessments" | "compliance" | "activation" | "actions"
 
 const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "overview", label: "Overview", icon: FileText },
@@ -151,6 +151,7 @@ const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "questions", label: "Questions", icon: FileText },
   { key: "assessments", label: "Assessments", icon: ClipboardCheck },
   { key: "compliance", label: "Compliance Docs", icon: ShieldCheck },
+  { key: "activation", label: "Activation & Agreements", icon: FileSignature },
   { key: "actions", label: "Actions & Notes", icon: UserCheck },
 ]
 
@@ -246,6 +247,9 @@ export function ApplicationDetail({ id }: { id: string }) {
 
   // Recreated only when the application id changes, so the mount effect below
   // can depend on it without re-running on every render.
+  // The React compiler flags stable state setters in this intentionally narrow
+  // callback even though the callback is correctly scoped to the application.
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const fetchDetail = useCallback(async () => {
     setLoading(true)
     try {
@@ -1142,6 +1146,50 @@ export function ApplicationDetail({ id }: { id: string }) {
         </Card>
       )}
 
+      {/* ─────────── Activation & Agreements ─────────── */}
+      {tab === "activation" && (
+        <div className="space-y-6">
+          {app.requested_partner_type === "REFERRAL" && <InstrumentsPanel applicationId={id} />}
+
+          {["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"].includes(app.status) && (
+            <AgreementForm applicationId={id} onGenerated={fetchDetail} />
+          )}
+
+          {["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"].includes(app.status) && (
+            <Card>
+              <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><UserCheck className="w-4 h-4" /> Partner Activation</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className={`flex items-start gap-2 rounded-md p-3 text-sm ${score.complete ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800"}`}>
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>
+                    {score.complete
+                      ? "All required compliance documents are verified. You can activate this partner."
+                      : `Activation is blocked until all required compliance documents are verified/approved (${score.verified}/${score.total}).`}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label className="block text-xs font-medium mb-1">Display name</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={activateDisplay} onChange={(e) => setActivateDisplay(e.target.value)} /></div>
+                  <div><label className="block text-xs font-medium mb-1">Public email</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={activateEmail} onChange={(e) => setActivateEmail(e.target.value)} /></div>
+                  <div><label className="block text-xs font-medium mb-1">Public phone</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={activatePhone} onChange={(e) => setActivatePhone(e.target.value)} /></div>
+                  <div><label className="block text-xs font-medium mb-1">Website</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={activateWebsite} onChange={(e) => setActivateWebsite(e.target.value)} /></div>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={activatePublic} onChange={(e) => setActivatePublic(e.target.checked)} className="w-4 h-4 rounded border-border" />
+                  Show this partner in the public directory
+                </label>
+                <Button onClick={activatePartner} disabled={activating || !canActivate}>
+                  {activating ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />} Activate Partner
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {!app.requested_partner_type || (app.requested_partner_type === "REFERRAL" && !["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"].includes(app.status)) ? (
+            <p className="text-sm text-muted-foreground">Activation readiness and agreement controls become available after approval.</p>
+          ) : null}
+        </div>
+      )}
+
       {/* ─────────── Actions & Notes ─────────── */}
       {tab === "actions" && (
         <div className="space-y-6">
@@ -1216,40 +1264,6 @@ export function ApplicationDetail({ id }: { id: string }) {
             </CardContent>
           </Card>
 
-          {app.requested_partner_type === "REFERRAL" && <InstrumentsPanel applicationId={id} />}
-
-          {["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"].includes(app.status) && (
-            <AgreementForm applicationId={id} onGenerated={fetchDetail} />
-          )}
-
-          {["APPROVED", "AGREEMENT_PENDING", "TRAINING", "CERTIFICATION_PENDING", "ACTIVE"].includes(app.status) && (
-            <Card>
-              <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><UserCheck className="w-4 h-4" /> Partner Activation</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div className={`flex items-start gap-2 rounded-md p-3 text-sm ${score.complete ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800"}`}>
-                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                  <span>
-                    {score.complete
-                      ? "All required compliance documents are verified. You can activate this partner."
-                      : `Activation is blocked until all required compliance documents are verified/approved (${score.verified}/${score.total}).`}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label className="block text-xs font-medium mb-1">Display name</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={activateDisplay} onChange={(e) => setActivateDisplay(e.target.value)} /></div>
-                  <div><label className="block text-xs font-medium mb-1">Public email</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={activateEmail} onChange={(e) => setActivateEmail(e.target.value)} /></div>
-                  <div><label className="block text-xs font-medium mb-1">Public phone</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={activatePhone} onChange={(e) => setActivatePhone(e.target.value)} /></div>
-                  <div><label className="block text-xs font-medium mb-1">Website</label><input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={activateWebsite} onChange={(e) => setActivateWebsite(e.target.value)} /></div>
-                </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={activatePublic} onChange={(e) => setActivatePublic(e.target.checked)} className="w-4 h-4 rounded border-border" />
-                  Show this partner in the public directory
-                </label>
-                <Button onClick={activatePartner} disabled={activating || !canActivate}>
-                  {activating ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />} Activate Partner
-                </Button>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
     </div>

@@ -30,22 +30,24 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Failed to fetch applications" }, { status: 500 })
   }
 
-  const { data: partners } = await supabase
+  // The Partners tab is the approved/active partner register. Applications
+  // remain in the Applications tab regardless of their workflow status.
+  const { data: allPartners } = await supabase
     .from("partners")
     .select("id, partner_id, business_name, display_name, partner_type, status, country, state, city, partner_since, current_grade, grade_review_date, public_profile_enabled, created_at")
     .order("created_at", { ascending: false })
 
   // Stats
   const allApps = applications || []
-  const allPartners = partners || []
+  const partnerRows = (allPartners || []).filter((partner) => partner.status === "ACTIVE")
   const stats = {
     applications: allApps.length,
     awaitingReview: allApps.filter((a) => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW").length,
     informationRequired: allApps.filter((a) => a.status === "MORE_INFORMATION_REQUIRED").length,
     approved: allApps.filter((a) => a.status === "APPROVED" || a.status === "APPROVED_CONDITIONAL").length,
-    activePartners: allPartners.filter((p) => p.status === "ACTIVE").length,
-    suspendedPartners: allPartners.filter((p) => p.status === "SUSPENDED").length,
+    activePartners: (allPartners || []).filter((p) => p.status === "ACTIVE").length,
+    suspendedPartners: (allPartners || []).filter((p) => p.status === "SUSPENDED").length,
   }
 
-  return NextResponse.json({ stats, applications: allApps, partners: allPartners })
+  return NextResponse.json({ stats, applications: allApps, partners: partnerRows })
 }

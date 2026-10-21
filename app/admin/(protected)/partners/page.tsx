@@ -1,9 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Loader2, Handshake, FileText, Clock, AlertCircle, CheckCircle2, UserCheck, PauseCircle } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 
@@ -74,11 +73,7 @@ export default function AdminPartnersPage() {
   const [typeFilter, setTypeFilter] = useState("")
   const [countryFilter, setCountryFilter] = useState("")
 
-  useEffect(() => {
-    fetchData()
-  }, [statusFilter, typeFilter, countryFilter])
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams()
     if (statusFilter) params.set("status", statusFilter)
@@ -95,7 +90,12 @@ export default function AdminPartnersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [statusFilter, typeFilter, countryFilter])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchData()
+  }, [fetchData])
 
   return (
     <div className="space-y-6">
@@ -177,7 +177,7 @@ export default function AdminPartnersPage() {
         </Card>
       ) : (
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Active Partners</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Approved Partners</CardTitle></CardHeader>
           <CardContent>
             {partners.length === 0 ? (
               <p className="text-sm text-muted-foreground py-6 text-center">No partners yet.</p>

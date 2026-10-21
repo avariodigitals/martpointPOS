@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Handshake, FileText, Clock, AlertCircle, CheckCircle2, UserCheck, PauseCircle } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
@@ -64,7 +65,10 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function AdminPartnersPage() {
-  const [tab, setTab] = useState<"applications" | "partners">("applications")
+  const searchParams = useSearchParams()
+  const [tab, setTab] = useState<"applications" | "partners">(
+    searchParams.get("tab") === "applications" ? "applications" : "partners",
+  )
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<Stats | null>(null)
   const [applications, setApplications] = useState<AppRow[]>([])
@@ -72,6 +76,11 @@ export default function AdminPartnersPage() {
   const [statusFilter, setStatusFilter] = useState("")
   const [typeFilter, setTypeFilter] = useState("")
   const [countryFilter, setCountryFilter] = useState("")
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTab(searchParams.get("tab") === "applications" ? "applications" : "partners")
+  }, [searchParams])
 
   const fetchData = useCallback(async () => {
     setLoading(true)

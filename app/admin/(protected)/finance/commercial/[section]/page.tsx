@@ -789,7 +789,9 @@ export default function CommercialSectionPage() {
         <select
           id={f.name}
           value={value}
-          onChange={(e) => setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
+          onChange={(e) => f.name === "plan_id" && resource === "quotes"
+            ? selectQuotePlan(e.target.value)
+            : setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
           className={base}
         >
           <option value="">{f.optionSource ? "Select…" : ""}</option>
@@ -841,6 +843,29 @@ export default function CommercialSectionPage() {
     })
     // Keep the quote and its catalogue lines in one currency where possible.
     if (picked.currency) setFormValues((prev) => ({ ...prev, currency: picked.currency }))
+  }
+
+  function selectQuotePlan(planId: string) {
+    setFormValues((prev) => ({ ...prev, plan_id: planId }))
+    const plan = plans.find((item) => item.id === planId)
+    if (!plan) return
+    const planLine: QuoteLine = {
+      item_type: "PLAN",
+      reference_id: plan.id,
+      description: plan.name,
+      quantity: 1,
+      unit_price: Number(plan.base_price) || 0,
+      discount: 0,
+      tax: 0,
+    }
+    setQuoteItems((prev) => {
+      const existingPlan = prev.findIndex((item) => item.item_type === "PLAN" && item.reference_id)
+      if (existingPlan >= 0) return prev.map((item, index) => index === existingPlan ? planLine : item)
+      const blank = prev.findIndex((item) => !item.description.trim())
+      if (blank >= 0) return prev.map((item, index) => index === blank ? planLine : item)
+      return [...prev, planLine]
+    })
+    if (plan.currency) setFormValues((prev) => ({ ...prev, currency: plan.currency }))
   }
 
   if (!resource) {

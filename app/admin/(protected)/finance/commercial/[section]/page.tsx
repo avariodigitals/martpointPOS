@@ -6,7 +6,7 @@ import Link from "next/link"
 import { createPortal } from "react-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, ArrowLeft, Play, Plus, X } from "lucide-react"
+import { Loader2, ArrowLeft, Plus, X } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
 import { resolveIndustryName } from "@/lib/industries"
@@ -136,7 +136,7 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "active", label: "Active", type: "boolean" },
   ],
   quotes: [
-    { name: "business_id", label: "Business ID (optional)", type: "text", help: "Leave blank when preparing a quote for a partner lead." },
+    { name: "business_id", label: "Customer business (optional)", type: "select", optionSource: "businesses", help: "Leave blank when preparing a quote for a partner lead. You can attach the customer after acceptance." },
     { name: "partner_id", label: "Partner ID", type: "text" },
     { name: "partner_lead_id", label: "Partner Lead", type: "select", optionSource: "partner_leads", help: "Select the lead. This creates a lead-backed quote without creating a customer." },
     { name: "plan_id", label: "Plan", type: "select", optionSource: "plans", help: "Select the active commercial plan for this quote." },
@@ -221,6 +221,8 @@ const ACTIONS: Record<SectionKey, { name: string; label: string }[]> = {
   quotes: [
     { name: "add_item", label: "Add Item" },
     { name: "remove_item", label: "Remove Item" },
+    { name: "attach_business", label: "Attach Customer" },
+    { name: "create_business", label: "Create Customer Business" },
     { name: "send", label: "Send" },
     { name: "accept", label: "Accept" },
     { name: "decline", label: "Decline" },
@@ -272,6 +274,27 @@ const ACTIONS: Record<SectionKey, { name: string; label: string }[]> = {
   ],
   receipts: [],
   licences_sold: [],
+}
+
+function quoteActionOptions(row: Row): { name: string; label: string }[] {
+  const status = String(row.status || "DRAFT").toUpperCase()
+  if (status === "DRAFT") return [{ name: "send", label: "Send to partner" }]
+  if (status === "SENT") return [
+    { name: "accept", label: "Mark accepted" },
+    { name: "decline", label: "Decline" },
+    { name: "expire", label: "Expire" },
+  ]
+  if (status === "ACCEPTED") {
+    if (row.business_id) return [{ name: "convert", label: "Convert to invoice" }]
+    if (row.partner_lead_id) return [
+      { name: "convert", label: "Create business & convert to invoice" },
+      { name: "create_business", label: "Create customer business" },
+      { name: "attach_business", label: "Attach existing business" },
+    ]
+    return [{ name: "attach_business", label: "Attach customer business" }]
+  }
+  if (status === "DECLINED" || status === "EXPIRED") return [{ name: "send", label: "Send again" }]
+  return []
 }
 
 type Row = Record<string, unknown>
@@ -471,8 +494,9 @@ export default function CommercialSectionPage() {
   const [quoteTemplateSelection, setQuoteTemplateSelection] = useState("")
   const [taxRates, setTaxRates] = useState<TaxRateOption[]>([])
   const [companyAccountNumber, setCompanyAccountNumber] = useState("")
-  const [quoteStatuses, setQuoteStatuses] = useState<Record<string, string>>({})
   const [quotePreview, setQuotePreview] = useState<Row | null>(null)
+  const [actionBusinessId, setActionBusinessId] = useState("")
+  const [actionDueDate, setActionDueDate] = useState("")
 
   // Licences-sold report (read-only section).
   const [report, setReport] = useState<LicencesSoldReport | null>(null)
@@ -489,7 +513,7 @@ export default function CommercialSectionPage() {
   const createAction = resource ? CREATE_ACTION[resource] : null
   const actions = resource ? ACTIONS[resource] : []
 
-  const needsBusinesses = fields.some((f) => f.optionSource === "businesses")
+  const needsBusinesses = fields.some((f) => f.optionSource === "businesses") || resource === "quotes"
   const needsPlans = fields.some((f) => f.optionSource === "plans")
   const needsPartnerLeads = fields.some((f) => f.optionSource === "partner_leads")
 
@@ -721,6 +745,23 @@ export default function CommercialSectionPage() {
         setWorking(false)
         return
       }
+      if (selectedAction === "attach_business") {
+        if (!actionBusinessId) {
+          setMessage("Select the customer business first")
+          setWorking(false)
+          return
+        }
+        payload = { id: selectedRow?.id, business_id: actionBusinessId }
+      }
+      if (selectedAction === "create_business") {
+        payload = { id: selectedRow?.id }
+      }
+      if (selectedAction === "convert" && actionDueDate) {
+        payload = { ...(payload as Record<string, unknown>), due_date: actionDueDate }
+      }
+      if (selectedAction === "convert" && !selectedRow?.business_id && selectedRow?.partner_lead_id) {
+        payload = { ...(payload as Record<string, unknown>), create_business: true }
+      }
       // For a waiver, merge the friendly reason field into the payload.
       if (selectedAction === "waive" && payload && typeof payload === "object") {
         payload = { ...(payload as Record<string, unknown>), reason: waiveReason.trim() || undefined }
@@ -763,29 +804,22 @@ export default function CommercialSectionPage() {
     }
   }
 
-  function openAction(row: Row) {
+  function openAction(row: Row, actionName?: string) {
     setSelectedRow(row)
-    setSelectedAction(actions.length ? actions[0].name : "")
+    setSelectedAction(actionName || (actions.length ? actions[0].name : ""))
     setActionData(JSON.stringify({ id: row.id }, null, 2))
+    setActionBusinessId(String(row.business_id || ""))
+    setActionDueDate("")
     setActionOpen(true)
   }
 
-  const quoteStatusActions: Record<string, string> = {
-    SENT: "send",
-    ACCEPTED: "accept",
-    DECLINED: "decline",
-    EXPIRED: "expire",
-  }
-
-  async function applyQuoteStatus(row: Row) {
-    const id = String(row.id || "")
-    const status = quoteStatuses[id] || String(row.status || "DRAFT")
-    if (!id || status === "DRAFT") {
-      setMessage("Draft is the starting status. Choose Sent, Accepted, Declined or Expired to apply a change.")
+  async function applyQuoteAction(row: Row, action: string) {
+    if (action === "attach_business" || action === "convert") {
+      openAction(row, action)
       return
     }
-    const action = quoteStatusActions[status]
-    if (!action) return
+    const id = String(row.id || "")
+    if (!id || !action) return
     setWorking(true)
     setMessage("")
     try {
@@ -795,10 +829,10 @@ export default function CommercialSectionPage() {
         body: JSON.stringify({ action, data: { id } }),
       })
       const data = (await res.json()) as ApiResponse
-      setMessage(data.success ? `Quote marked ${status.toLowerCase()}.` : data.error || "Status update failed")
+      setMessage(data.success ? `Quote action completed.` : data.error || "Quote action failed")
       if (data.success) refreshList()
     } catch {
-      setMessage("Status update failed")
+      setMessage("Quote action failed")
     } finally {
       setWorking(false)
     }
@@ -962,6 +996,11 @@ export default function CommercialSectionPage() {
     const industry = resolveIndustryName(lead?.industry || lead?.businessType || "")
     if (industry) applyQuoteTemplate(industry)
   }
+
+  const selectedPartnerLead = selectedRow?.partner_leads && typeof selectedRow.partner_leads === "object"
+    ? (Array.isArray(selectedRow.partner_leads) ? selectedRow.partner_leads[0] : selectedRow.partner_leads) as Row | null
+    : null
+  const convertingNeedsCustomerSetup = selectedAction === "convert" && Boolean(selectedRow && !selectedRow.business_id)
 
   if (!resource) {
     return (
@@ -1271,24 +1310,36 @@ export default function CommercialSectionPage() {
                           {resource === "quotes" ? (
                             <div className="flex flex-wrap items-center gap-2">
                               <select
-                                aria-label={`Status for quote ${String(row.quote_number || row.id)}`}
-                                value={quoteStatuses[String(row.id)] || String(row.status || "DRAFT")}
-                                onChange={(e) => setQuoteStatuses((prev) => ({ ...prev, [String(row.id)]: e.target.value }))}
+                                aria-label={`Action for quote ${String(row.quote_number || row.id)}`}
+                                defaultValue=""
+                                disabled={working || quoteActionOptions(row).length === 0}
+                                onChange={(e) => {
+                                  const action = e.target.value
+                                  e.currentTarget.value = ""
+                                  if (action) void applyQuoteAction(row, action)
+                                }}
                                 className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
                               >
-                                <option value="DRAFT">Draft</option>
-                                <option value="SENT">Sent — send</option>
-                                <option value="ACCEPTED">Accepted</option>
-                                <option value="DECLINED">Declined</option>
-                                <option value="EXPIRED">Expired</option>
+                                <option value="">Choose action…</option>
+                                {quoteActionOptions(row).map((option) => <option key={option.name} value={option.name}>{option.label}</option>)}
                               </select>
-                              <Button variant="outline" size="sm" disabled={working} onClick={() => applyQuoteStatus(row)}>Apply</Button>
+                              <Button variant="outline" size="sm" onClick={() => setQuotePreview(row)}>Open quote</Button>
                               <Button variant="ghost" size="sm" onClick={() => setQuotePreview(row)}>Preview</Button>
                             </div>
                           ) : (
-                            <Button variant="outline" size="sm" onClick={() => openAction(row)}>
-                              <Play className="mr-1 h-3.5 w-3.5" /> Run action
-                            </Button>
+                            <select
+                              aria-label={`Actions for ${TITLES[resource]}`}
+                              defaultValue=""
+                              onChange={(e) => {
+                                const action = e.target.value
+                                e.currentTarget.value = ""
+                                if (action) openAction(row, action)
+                              }}
+                              className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                            >
+                              <option value="">Actions…</option>
+                              {actions.map((action) => <option key={action.name} value={action.name}>{action.label}</option>)}
+                            </select>
                           )}
                         </td>
                       )}
@@ -1318,6 +1369,15 @@ export default function CommercialSectionPage() {
                   </div>
                   <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">{String(quotePreview.status || "DRAFT")}</span>
                 </div>
+                {String(quotePreview.status || "").toUpperCase() === "ACCEPTED" && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    {quotePreview.business_id
+                      ? "Next step: convert this accepted quote to an invoice from the quote actions menu."
+                      : quotePreview.partner_lead_id
+                      ? "Next step: choose Create business & convert to invoice. The end-customer business will be created from the partner lead first."
+                      : "Next step: attach the customer business from the quote actions menu before converting it to an invoice."}
+                  </div>
+                )}
                 <div className="overflow-x-auto rounded-md border border-border">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50"><tr><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Unit</th><th className="px-3 py-2 text-right">Tax</th><th className="px-3 py-2 text-right">Total</th></tr></thead>
@@ -1341,7 +1401,7 @@ export default function CommercialSectionPage() {
         </Dialog>
       )}
 
-      <Dialog open={actionOpen} onClose={() => setActionOpen(false)} title={`Run action on ${TITLES[resource]}`}>
+      <Dialog open={actionOpen} onClose={() => setActionOpen(false)} title={`Action on ${TITLES[resource]}`}>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Action</label>
@@ -1363,7 +1423,49 @@ export default function CommercialSectionPage() {
             </select>
           </div>
 
-          {selectedAction === "waive" ? (
+          {selectedAction === "attach_business" ? (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Customer business</label>
+              <select
+                value={actionBusinessId}
+                onChange={(e) => setActionBusinessId(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Select customer business…</option>
+                {businesses.map((business) => <option key={business.id} value={business.id}>{business.businessName}</option>)}
+              </select>
+              <p className="text-xs text-muted-foreground">This links the accepted partner quote to the customer record so it can be converted into an invoice.</p>
+            </div>
+          ) : selectedAction === "create_business" ? (
+            <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3">
+              <p className="text-sm font-medium text-blue-950">Create the end-customer business</p>
+              <p className="text-xs text-blue-900">This uses the partner lead details below. The partner stays attached for attribution and commission tracking; the partner organisation is not created as the customer.</p>
+              <div className="grid gap-2 text-sm sm:grid-cols-2">
+                <div><span className="text-muted-foreground">Business</span><p className="font-medium">{String(selectedPartnerLead?.business_name || "—")}</p></div>
+                <div><span className="text-muted-foreground">Contact</span><p className="font-medium">{String(selectedPartnerLead?.contact_name || "—")}</p></div>
+                <div><span className="text-muted-foreground">Email</span><p className="font-medium">{String(selectedPartnerLead?.email || "—")}</p></div>
+                <div><span className="text-muted-foreground">Phone</span><p className="font-medium">{String(selectedPartnerLead?.phone || "—")}</p></div>
+                <div><span className="text-muted-foreground">Industry</span><p className="font-medium">{String(selectedPartnerLead?.industry || selectedPartnerLead?.business_type || "—")}</p></div>
+                <div><span className="text-muted-foreground">Location</span><p className="font-medium">{[selectedPartnerLead?.city, selectedPartnerLead?.state, selectedPartnerLead?.country].filter(Boolean).join(", ") || "—"}</p></div>
+              </div>
+            </div>
+          ) : selectedAction === "convert" ? (
+            <div className="space-y-3">
+              {convertingNeedsCustomerSetup && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3 text-sm text-blue-950">
+                  <p className="font-medium">Customer setup is part of this conversion</p>
+                  {selectedPartnerLead ? (
+                    <p className="mt-1">A business will be created for <strong>{String(selectedPartnerLead.business_name || "this partner lead")}</strong> from the submitted lead details, then this quote will immediately become the next normal system invoice.</p>
+                  ) : (
+                    <p className="mt-1">This quote has no partner lead. Attach an existing customer business first.</p>
+                  )}
+                </div>
+              )}
+              <label className="text-sm font-medium">Invoice due date</label>
+              <input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              <p className="text-xs text-muted-foreground">The accepted quote will become a draft invoice using its existing lines, tax, payment terms and total. Invoice numbering uses the same system-wide counter as every other invoice.</p>
+            </div>
+          ) : selectedAction === "waive" ? (
             <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
               <p className="text-sm text-amber-800">
                 Waiving grants the licence without billing. A zero-amount <strong>WAIVED</strong> invoice is created and
@@ -1398,8 +1500,10 @@ export default function CommercialSectionPage() {
               Cancel
             </Button>
             <Button onClick={runAction} disabled={working}>
-              {working ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}
-              Run
+              {working && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+              {selectedAction === "convert" && convertingNeedsCustomerSetup
+                ? "Create business & convert"
+                : selectedAction === "create_business" ? "Create customer business" : "Confirm action"}
             </Button>
           </div>
         </div>

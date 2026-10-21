@@ -179,7 +179,7 @@ export default function BooksReviewPage() {
           </Button>
           <Button onClick={runReview} disabled={running}>
             {running && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-            {latest ? "Run new review" : "Run first review"}
+            {latest ? "Start new review" : "Start first review"}
           </Button>
         </div>
       </div>
@@ -187,7 +187,7 @@ export default function BooksReviewPage() {
       {!latest ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No reviews yet. Run the first one to check the ledger and generate the report.
+            No reviews yet. Start the first review to check the ledger and generate the report.
           </CardContent>
         </Card>
       ) : (
@@ -222,7 +222,7 @@ export default function BooksReviewPage() {
           {latest.status === "FAILED" && (
             <Card className="border-red-300 bg-red-50">
               <CardContent className="py-4 text-sm">
-                Last run failed: {latest.error_message || "unknown error"}. The checks below still ran where data allowed.
+                Last review failed: {latest.error_message || "unknown error"}. The checks below still ran where data allowed.
               </CardContent>
             </Card>
           )}
@@ -365,7 +365,7 @@ export default function BooksReviewPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground border-b">
-                  <th className="py-2 pr-4">Run at</th>
+                  <th className="py-2 pr-4">Reviewed at</th>
                   <th className="py-2 pr-4">Period</th>
                   <th className="py-2 pr-4">Status</th>
                   <th className="py-2 pr-4">Score</th>

@@ -450,12 +450,41 @@ export async function extendProtection(
 export async function convertPartnerLeadToBusiness(
   leadId: string,
   adminId: string,
-  ctx: AuditContext
+  ctx: AuditContext,
+  options?: { allowQuoteAccepted?: boolean }
 ): Promise<{ ok: boolean; error?: string; business?: Record<string, unknown> }> {
   if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
 
   const lead = await getPartnerLeadById(leadId)
   if (!lead) return { ok: false, error: "Lead not found" }
+
+  // A lead-backed quote is a controlled customer-conversion path. Once the
+  // partner has accepted that quote, the quote itself authorises customer
+  // setup even if the older partner-lead workflow has not yet reached WON.
+  // Keep this idempotent so retrying the quote action cannot create a second
+  // business for the same partner lead.
+  const { data: existingBusiness } = await supabase
+    .from("businesses")
+    .select("*")
+    .eq("partner_lead_id", leadId)
+    .maybeSingle()
+  if (existingBusiness) return { ok: true, business: existingBusiness as Record<string, unknown> }
+
+  // Older partner conversions may have only stored the reverse pointer on the
+  // lead. Reuse that business too, rather than creating a duplicate customer.
+  const { data: leadLink } = await supabase
+    .from("partner_leads")
+    .select("converted_business_id")
+    .eq("id", leadId)
+    .maybeSingle()
+  if (leadLink?.converted_business_id) {
+    const { data: linkedBusiness } = await supabase
+      .from("businesses")
+      .select("*")
+      .eq("id", leadLink.converted_business_id)
+      .maybeSingle()
+    if (linkedBusiness) return { ok: true, business: linkedBusiness as Record<string, unknown> }
+  }
 
   const { data: workflow } = await supabase
     .from("partner_leads")
@@ -467,9 +496,9 @@ export async function convertPartnerLeadToBusiness(
   // A legacy lead converts once it is WON; a referral converts at acceptance or
   // qualification and lands in CONVERTED_UNPAID — no money has cleared yet, so
   // nothing about the commission clock starts here.
-  const convertible = isReferral
+  const convertible = options?.allowQuoteAccepted === true || (isReferral
     ? ["ACCEPTED", "QUALIFIED"].includes(workflowStatus)
-    : lead.status === "WON"
+    : lead.status === "WON")
   if (!convertible) {
     return {
       ok: false,

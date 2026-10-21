@@ -36,6 +36,7 @@ import { issuePayoutStatement } from "@/lib/partner-generated-docs"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { sendInvoiceEmail } from "@/lib/invoice-emails"
 import { sendPaymentConfirmationEmail } from "@/lib/payment-emails"
+import { convertPartnerLeadToBusiness } from "@/lib/partner-leads"
 
 type Action = string
 
@@ -43,7 +44,7 @@ const resourceActionMap: Record<string, Record<string, FinanceAction | null | un
   products: { list: "finance:view", get: "finance:view", create: null, update: null, delete: null, set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   plans: { list: "finance:view", get: "finance:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: null, set_active: "finance:subscriptions:manage", set_inactive: "finance:subscriptions:manage", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   addons: { list: "finance:view", get: "finance:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: null, set_active: "finance:subscriptions:manage", set_inactive: "finance:subscriptions:manage", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
-  quotes: { list: "finance:view", get: "finance:view", create: "finance:quotes:create", update: "finance:quotes:create", delete: "finance:quotes:create", add_item: "finance:quotes:create", remove_item: "finance:quotes:create", send: "finance:quotes:create", accept: "finance:quotes:approve", decline: "finance:quotes:approve", expire: "finance:quotes:approve", convert: "finance:invoices:create", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, activate: null, suspend: null, renew: null, cancel_subscription: null, confirm: null, reverse: null, allocate: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
+  quotes: { list: "finance:view", get: "finance:view", create: "finance:quotes:create", update: "finance:quotes:create", delete: "finance:quotes:create", add_item: "finance:quotes:create", remove_item: "finance:quotes:create", attach_business: "finance:quotes:create", create_business: "finance:quotes:create", send: "finance:quotes:create", accept: "finance:quotes:approve", decline: "finance:quotes:approve", expire: "finance:quotes:approve", convert: "finance:invoices:create", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, activate: null, suspend: null, renew: null, cancel_subscription: null, confirm: null, reverse: null, allocate: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   invoices: { list: "finance:view", get: "finance:view", create: "finance:invoices:create", update: "finance:invoices:create", delete: "finance:invoices:create", add_item: "finance:invoices:create", remove_item: "finance:invoices:create", issue: "finance:invoices:issue", void: "finance:invoices:void", cancel: "finance:invoices:void", waive: "finance:invoices:void", reopen: "finance:invoices:void", set_active: null, set_inactive: null, send: "finance:invoices:issue", send_reminder: "finance:invoices:issue", pause_reminders: "finance:invoices:create", resume_reminders: "finance:invoices:create", accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   payments: { list: "finance:view", get: "finance:payments:view", create: "finance:payments:record", confirm: "finance:payments:confirm", reverse: "finance:payments:reverse", allocate: "finance:payments:record", update: "finance:payments:record", delete: "finance:payments:record", receipt: "finance:payments:record", send_receipt: "finance:payments:record", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, refresh: null },
   subscriptions: { list: "finance:view", get: "finance:subscriptions:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: "finance:subscriptions:manage", activate: "finance:subscriptions:manage", waive: "finance:subscriptions:manage", suspend: "finance:subscriptions:manage", cancel_subscription: "finance:subscriptions:manage", renew: "finance:renewals:manage", add_addon: "finance:subscriptions:manage", remove_addon: "finance:subscriptions:manage", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
@@ -80,6 +81,68 @@ async function getActor() {
 
 function now() {
   return new Date().toISOString()
+}
+
+/**
+ * Create the end-customer business from an accepted partner quote's lead and
+ * attach it to the quote. The partner remains attribution/revenue-linked on
+ * the business; the partner organisation is never used as the customer.
+ */
+async function ensureQuoteBusiness(
+  quoteId: string,
+  actor: { id: string; name: string },
+): Promise<{ ok: true; quote: any; business: any } | { ok: false; error: string }> {
+  const { data: quote, error: quoteError } = await supabase
+    .from("quotes")
+    .select("id, status, business_id, partner_lead_id")
+    .eq("id", quoteId)
+    .single()
+  if (quoteError || !quote) return { ok: false, error: "Quote not found" }
+  if (String(quote.status).toUpperCase() !== "ACCEPTED") {
+    return { ok: false, error: "The quote must be accepted before customer setup" }
+  }
+
+  if (quote.business_id) {
+    const { data: existing } = await supabase.from("businesses").select("*").eq("id", quote.business_id).maybeSingle()
+    if (!existing) return { ok: false, error: "The quote points to a missing customer business" }
+    return { ok: true, quote, business: existing }
+  }
+  if (!quote.partner_lead_id) {
+    return { ok: false, error: "This quote has no partner lead. Attach an existing customer business first." }
+  }
+
+  const result = await convertPartnerLeadToBusiness(
+    quote.partner_lead_id,
+    actor.id,
+    { actorType: "ADMIN", actorId: actor.id, actorName: actor.name },
+    { allowQuoteAccepted: true },
+  )
+  if (!result.ok || !result.business?.id) return { ok: false, error: result.error || "Customer business could not be created" }
+
+  const { data: attached, error: attachError } = await supabase
+    .from("quotes")
+    .update({ business_id: result.business.id, updated_at: now() })
+    .eq("id", quoteId)
+    .is("business_id", null)
+    .select()
+    .single()
+  if (attachError || !attached) {
+    // If another retry attached the quote while the business was being
+    // created, return the now-current quote rather than reporting a false
+    // failure or creating another invoice path.
+    const { data: current } = await supabase.from("quotes").select("*").eq("id", quoteId).single()
+    if (current?.business_id) {
+      const { data: currentBusiness } = await supabase.from("businesses").select("*").eq("id", current.business_id).single()
+      if (currentBusiness) return { ok: true, quote: current, business: currentBusiness }
+    }
+    return { ok: false, error: "Customer business was created but the quote could not be linked" }
+  }
+
+  await logFinanceAudit("ADMIN", actor.id, "QUOTE_BUSINESS_ATTACHED", "QUOTE", quoteId, {
+    business_id: result.business.id,
+    created_from_partner_lead: quote.partner_lead_id,
+  })
+  return { ok: true, quote: attached, business: result.business }
 }
 
 /**
@@ -151,7 +214,7 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
     }
 
     if (resource === "quotes") {
-      let q = supabase.from("quotes").select("*, quote_items(*), businesses:business_id (business_name, originating_partner_id), partner_leads:partner_lead_id (business_name, contact_name, email, phone)")
+      let q = supabase.from("quotes").select("*, quote_items(*), businesses:business_id (business_name, originating_partner_id), partner_leads:partner_lead_id (id, business_name, contact_name, email, phone, country, state, city, industry, business_type, estimated_branches, estimated_users)")
       if (businessId) q = q.eq("business_id", businessId)
       const { data, error } = id ? await q.eq("id", id).single() : await q.order("created_at", { ascending: false })
       if (error) return err(error.message, 500)
@@ -397,6 +460,24 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await recalculateQuote(quote_id)
         return ok({ success: true })
       }
+      if (action === "attach_business") {
+        const { id, business_id } = data
+        if (!id || !business_id) return err("Quote and customer business are required")
+        const { data: business } = await supabase.from("businesses").select("id, status").eq("id", business_id).maybeSingle()
+        if (!business) return err("Customer business not found", 404)
+        if (["CHURNED", "INACTIVE"].includes(String(business.status))) return err("This customer business is not active")
+        const { data: q, error } = await supabase.from("quotes").update({ business_id, updated_at: now() }).eq("id", id).select().single()
+        if (error) return err(error.message, 500)
+        await logFinanceAudit("ADMIN", actor.id, "QUOTE_BUSINESS_ATTACHED", "QUOTE", id, { business_id })
+        return ok(q)
+      }
+      if (action === "create_business") {
+        const { id } = data
+        if (!id) return err("Quote is required")
+        const prepared = await ensureQuoteBusiness(id, actor)
+        if (!prepared.ok) return err(prepared.error)
+        return ok(prepared.business)
+      }
       if (action === "send") {
         const { id } = data
         const { data: q, error } = await supabase.from("quotes").update({ status: "SENT", updated_at: now() }).eq("id", id).select().single()
@@ -432,10 +513,23 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       }
       if (action === "convert") {
         const { id } = data
-        const { data: quote } = await supabase.from("quotes").select("*, quote_items(*), business_id, currency").eq("id", id).single()
+        const { data: quoteRow } = await supabase.from("quotes").select("*, quote_items(*), business_id, currency").eq("id", id).single()
+        const quote = quoteRow as any
         if (!quote) return err("Quote not found", 404)
+        if (quote.status === "CONVERTED") {
+          const { data: existingInvoice } = await supabase.from("invoices").select("*").eq("quote_id", id).maybeSingle()
+          if (existingInvoice) return ok(existingInvoice)
+          return err("This quote is already converted, but its invoice could not be found", 409)
+        }
         if (quote.status !== "ACCEPTED") return err("Quote must be accepted before conversion")
-        if (!quote.business_id) return err("Complete customer setup and attach this quote to a business before converting it to an invoice")
+        let businessCreated = false
+        if (!quote.business_id && data.create_business === true) {
+          const prepared = await ensureQuoteBusiness(id, actor)
+          if (!prepared.ok) return err(prepared.error)
+          quote.business_id = prepared.business.id
+          businessCreated = true
+        }
+        if (!quote.business_id) return err("Create the customer business from this quote before converting it to an invoice")
         const invoiceNumber = await nextInvoiceNumber()
         const today = new Date().toISOString().split("T")[0]
         const dueDate = data.due_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
@@ -458,12 +552,16 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           updated_at: now(),
         }).select().single()
         if (error) return err(error.message, 500)
-        await supabase.from("invoice_items").insert(quote.quote_items.map((it: any) => ({ ...it, invoice_id: inv.id })))
+        const { error: itemError } = await supabase.from("invoice_items").insert(quote.quote_items.map((it: any) => ({ ...it, invoice_id: inv.id })))
+        if (itemError) {
+          await supabase.from("invoices").delete().eq("id", inv.id)
+          return err(`Invoice could not be completed: ${itemError.message}`, 500)
+        }
         await recalculateInvoice(inv.id)
         await supabase.from("quotes").update({ status: "CONVERTED", updated_at: now() }).eq("id", id)
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_CONVERTED", "QUOTE", id, { invoice_id: inv.id })
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_CREATED", "INVOICE", inv.id)
-        return ok(inv)
+        return ok({ ...inv, business_created: businessCreated })
       }
     }
 

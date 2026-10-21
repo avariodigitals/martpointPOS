@@ -20,6 +20,7 @@ interface Payment {
   paid_at?: string | null
   created_at?: string
   notes?: string | null
+  proof_document_path?: string | null
   payment_account_id?: string | null
   businesses?: { business_name: string } | null
   invoices?: { invoice_number: string } | null
@@ -344,6 +345,9 @@ export default function PaymentsPage() {
                         {p.payment_accounts?.name || <span className="text-xs italic text-muted-foreground">Auto-routed</span>}
                       </td>
                       <td className="px-3 py-2">
+                        {p.proof_document_path && (
+                          <a href={`/api/admin/finance/payment-proof?id=${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer" className="mr-2 text-xs text-retail hover:underline">View proof</a>
+                        )}
                         {p.status === "PENDING" && (
                           <button
                             onClick={() => openConfirm(p)}

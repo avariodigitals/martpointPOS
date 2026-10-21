@@ -64,6 +64,13 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           Open Onboarding Workspace
         </Link>
       )}
+
+      <Link
+        href={`/partner/customers/${businessId}/finance`}
+        className="inline-flex rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+      >
+        Open Finance &amp; Payment Status
+      </Link>
     </div>
   )
 }

@@ -18,8 +18,8 @@ After sign-in, use the left sidebar on desktop. On a phone, use the bottom quick
 - **Dashboard:** partner status, capability summary, compliance actions, key counts, and recent activity.
 - **Leads:** register customer opportunities and follow lead status, protection, and matching decisions.
 - **Referrals:** review accepted referral opportunities and decision history.
-- **Quotes:** submit a quote request for an eligible lead and track Sales review, issue, decline, or expiry.
-- **Customers:** view assigned customer records and permitted customer information.
+- **Quotes:** submit a quote request for a protected lead, then review, download, and accept or decline the linked Finance quote when Sales issues it.
+- **Customers:** view assigned customer records and permitted customer information. Open Finance after an invoice is issued to submit payment proof for Finance verification.
 - **Work Orders:** track approved implementation work, milestones, due dates, and evidence.
 - **Earnings:** view commissions, statements, payout details, and payout requests.
 - **Profile:** maintain organisation details, contacts, and approved logo.
@@ -52,6 +52,8 @@ If a module is not visible, ask your organisation administrator or MartPoint to 
 ## Resources
 
 - Access shared resources provided by MartPoint.
+- For a protected lead, open **Quotes** and select **Request quote**. Wait for Sales to issue the linked Finance quote, then open it to download and record acceptance or decline.
+- After an accepted quote is converted to an issued invoice, open the assigned customer **Finance** screen to submit the payment amount, bank reference, and proof document. The submission remains pending until MartPoint Finance confirms it.
 
 ## Lead Registration
 

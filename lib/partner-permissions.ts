@@ -59,6 +59,7 @@ export const PARTNER_PERMISSIONS = [
   "workorders:view_own",
   "workorders:manage_own",
   "quotes:request_own",
+  "payments:submit_proof",
 ] as const
 
 export type PartnerPermission = (typeof PARTNER_PERMISSIONS)[number]
@@ -86,6 +87,7 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "workorders:view_own",
     "workorders:manage_own",
     "quotes:request_own",
+    "payments:submit_proof",
   ],
   PARTNER_MANAGER: [
     "partner:profile:view",
@@ -97,6 +99,7 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "partner:support:create",
     "workorders:view_own",
     "quotes:request_own",
+    "payments:submit_proof",
   ],
   PARTNER_SALES: [
     "partner:profile:view",
@@ -106,6 +109,7 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "leads:create",
     "leads:update",
     "quotes:request_own",
+    "payments:submit_proof",
   ],
   PARTNER_IMPLEMENTATION: [
     "partner:profile:view",

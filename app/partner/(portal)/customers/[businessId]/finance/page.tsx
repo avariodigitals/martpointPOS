@@ -1,10 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { redirect, notFound } from "next/navigation"
+import { Fragment } from "react"
 import Link from "next/link"
 import { getPartnerSession, authorizePartner, canPartnerAccessBusiness } from "@/lib/partner-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, RefreshCw, Receipt } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
+import { PaymentProofForm } from "./payment-proof-form"
 
 function fmtMoney(amount: number, currency = "NGN") {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency }).format(amount || 0)
@@ -54,14 +58,20 @@ export default async function CustomerFinancePage({
   if (!access.allowed) notFound()
 
   let invoices: any[] = []
+  let payments: any[] = []
   let subscriptions: any[] = []
   let renewals: any[] = []
 
   if (isSupabaseConfigured()) {
-    const [invoicesRes, subscriptionsRes] = await Promise.all([
+    const [invoicesRes, paymentsRes, subscriptionsRes] = await Promise.all([
       supabase
         .from("invoices")
         .select("id, invoice_number, issue_date, due_date, total_amount, amount_paid, balance_due, status, currency")
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("payments")
+        .select("id, payment_reference, invoice_id, amount, currency, status, proof_document_path, created_at")
         .eq("business_id", businessId)
         .order("created_at", { ascending: false }),
       supabase
@@ -72,6 +82,7 @@ export default async function CustomerFinancePage({
     ])
 
     invoices = invoicesRes.data || []
+    payments = paymentsRes.data || []
     subscriptions = subscriptionsRes.data || []
 
     const subscriptionIds = subscriptions.map((s: any) => s.id as string)
@@ -91,6 +102,8 @@ export default async function CustomerFinancePage({
 
   // Only surface invoices that are not voided/cancelled, grouped into three payment buckets.
   const visibleInvoices = invoices.filter((inv: any) => inv.status !== "VOID" && inv.status !== "CANCELLED")
+  const proofAuth = await authorizePartner({ session, permission: "payments:submit_proof" })
+  const canSubmitProof = proofAuth.authorized
 
   return (
     <div className="space-y-6">
@@ -129,22 +142,34 @@ export default async function CustomerFinancePage({
                 </thead>
                 <tbody>
                   {visibleInvoices.map((inv: any) => (
-                    <tr key={inv.id} className="border-t border-border">
-                      <td className="px-4 py-2 font-medium">{inv.invoice_number}</td>
-                      <td className="px-4 py-2">{fmtMoney(inv.total_amount, inv.currency)}</td>
-                      <td className="px-4 py-2">{fmtMoney(inv.amount_paid, inv.currency)}</td>
-                      <td className="px-4 py-2">{fmtMoney(inv.balance_due, inv.currency)}</td>
-                      <td className="px-4 py-2">
-                        <span className={`text-xs uppercase px-2 py-0.5 rounded-full font-medium ${paymentStatusClass(inv.status)}`}>
-                          {paymentStatusLabel(inv.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2">{fmtDate(inv.due_date)}</td>
-                    </tr>
+                    <Fragment key={inv.id}>
+                      <tr className="border-t border-border">
+                        <td className="px-4 py-2 font-medium">{inv.invoice_number}</td>
+                        <td className="px-4 py-2">{fmtMoney(inv.total_amount, inv.currency)}</td>
+                        <td className="px-4 py-2">{fmtMoney(inv.amount_paid, inv.currency)}</td>
+                        <td className="px-4 py-2">{fmtMoney(inv.balance_due, inv.currency)}</td>
+                        <td className="px-4 py-2">
+                          <span className={`text-xs uppercase px-2 py-0.5 rounded-full font-medium ${paymentStatusClass(inv.status)}`}>
+                            {paymentStatusLabel(inv.status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">{fmtDate(inv.due_date)}</td>
+                      </tr>
+                      {canSubmitProof && inv.balance_due > 0 && ["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(inv.status) && (
+                        <tr className="border-t border-border">
+                          <td colSpan={6} className="px-4 py-2"><PaymentProofForm businessId={businessId} invoiceId={inv.id} balance={Number(inv.balance_due)} currency={inv.currency || "NGN"} /></td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
+          {payments.filter((payment: any) => payment.status === "PENDING").length > 0 && (
+            <p className="mt-3 text-xs text-amber-700 bg-amber-50 rounded-md p-3">
+              Payment proof submitted. Finance must verify the transfer before the invoice status changes.
+            </p>
           )}
         </CardContent>
       </Card>

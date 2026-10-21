@@ -42,12 +42,15 @@ export async function createQuoteRequest(
   // The request must attach to a live lead owned by this partner.
   const { data: lead } = await supabase
     .from("partner_leads")
-    .select("id, partner_id, status")
+    .select("id, partner_id, status, protection_status")
     .eq("id", input.partnerLeadId)
     .single()
   if (!lead || lead.partner_id !== partnerId) return { ok: false, error: "Opportunity not found" }
   if (["LOST", "EXPIRED"].includes(lead.status as string)) {
     return { ok: false, error: "A quote cannot be requested on a lost or expired opportunity" }
+  }
+  if (lead.protection_status !== "PROTECTED") {
+    return { ok: false, error: "MartPoint must protect this opportunity before a quote can be requested" }
   }
 
   // One open request per lead.
@@ -104,6 +107,43 @@ export async function listPartnerQuoteRequests(partnerId: string): Promise<Recor
   return (data || []) as Record<string, unknown>[]
 }
 
+/** Load one request and its issued Finance quote, if Sales has linked one. */
+export async function getPartnerQuoteRequestForPartner(
+  requestId: string,
+  partnerId: string,
+): Promise<{ request: Record<string, unknown>; lead: Record<string, unknown> | null; quote: Record<string, unknown> | null } | null> {
+  if (!isSupabaseConfigured()) return null
+  const { data: request } = await supabase
+    .from("partner_quote_requests")
+    .select("*, partner_leads(*)")
+    .eq("id", requestId)
+    .eq("partner_id", partnerId)
+    .maybeSingle()
+  if (!request) return null
+
+  const leadRaw = request.partner_leads as Record<string, unknown> | Record<string, unknown>[] | null
+  const lead = Array.isArray(leadRaw) ? leadRaw[0] || null : leadRaw
+  const ref = typeof request.issued_quote_ref === "string" ? request.issued_quote_ref.trim() : ""
+  if (!ref) return { request: request as Record<string, unknown>, lead, quote: null }
+
+  const { data: quote } = await supabase
+    .from("quotes")
+    .select("*, quote_items(*)")
+    .eq("quote_number", ref)
+    .maybeSingle()
+
+  // An admin may issue an older quote that has no partner linkage. If linkage
+  // exists, it must still point to this partner/request before it is exposed.
+  if (quote && (
+    (quote.partner_id && quote.partner_id !== partnerId) ||
+    (quote.partner_lead_id && quote.partner_lead_id !== request.partner_lead_id)
+  )) {
+    return { request: request as Record<string, unknown>, lead, quote: null }
+  }
+
+  return { request: request as Record<string, unknown>, lead, quote: (quote as Record<string, unknown> | null) || null }
+}
+
 export async function listQuoteRequestsForAdmin(partnerId?: string): Promise<Record<string, unknown>[]> {
   if (!isSupabaseConfigured()) return []
   let q = supabase
@@ -131,6 +171,23 @@ export async function decideQuoteRequest(
   if (!qr) return { ok: false, error: "Quote request not found" }
   if (!["SUBMITTED", "UNDER_REVIEW"].includes(qr.status as string)) {
     return { ok: false, error: "Quote request already decided" }
+  }
+
+  if (decision === "ISSUED") {
+    const { data: quote } = await supabase
+      .from("quotes")
+      .select("id, status, partner_id, partner_lead_id")
+      .eq("quote_number", opts.issuedQuoteRef!.trim())
+      .maybeSingle()
+    if (!quote) return { ok: false, error: "Create the Finance quote first, then enter its quote number here" }
+    if (quote.partner_id && quote.partner_id !== qr.partner_id) return { ok: false, error: "That quote belongs to another partner" }
+    if (quote.partner_lead_id && quote.partner_lead_id !== qr.partner_lead_id) return { ok: false, error: "That quote is linked to another opportunity" }
+    if (["DECLINED", "EXPIRED", "CONVERTED"].includes(quote.status as string)) {
+      return { ok: false, error: `The Finance quote is already ${String(quote.status).toLowerCase()}` }
+    }
+    if (quote.status === "DRAFT") {
+      await supabase.from("quotes").update({ status: "SENT", updated_at: now() }).eq("id", quote.id)
+    }
   }
 
   const { error } = await supabase

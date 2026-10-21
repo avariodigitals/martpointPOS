@@ -52,6 +52,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       {!editable && (
         <p className="text-sm text-muted-foreground">This lead is under review by MartPoint and cannot be edited.</p>
       )}
+
+      {lead.protectionStatus === "PROTECTED" && !["LOST", "EXPIRED"].includes(lead.status) ? (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-2">
+          <p className="font-semibold text-blue-900">Next step: request a MartPoint quote</p>
+          <p className="text-sm text-blue-800">Submit the customer requirements for Sales review. Once Finance issues the quote, you can open it here, download it, and record the customer&apos;s response.</p>
+          <Link href={`/partner/quotes?lead=${encodeURIComponent(id)}`} className="inline-flex rounded-md bg-retail px-4 py-2 text-sm font-medium text-white hover:bg-retail/90">Request quote</Link>
+        </div>
+      ) : lead.protectionStatus !== "PROTECTED" ? (
+        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">Wait for MartPoint to protect this opportunity before requesting a quote.</p>
+      ) : null}
     </div>
   )
 }

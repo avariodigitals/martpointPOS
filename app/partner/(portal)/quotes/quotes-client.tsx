@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 
-export function QuoteRequestForm({ leads }: { leads: { id: string; businessName: string }[] }) {
+export function QuoteRequestForm({ leads, initialLeadId }: { leads: { id: string; businessName: string }[]; initialLeadId?: string }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [partnerLeadId, setPartnerLeadId] = useState(leads[0]?.id || "")
+  const [partnerLeadId, setPartnerLeadId] = useState(initialLeadId && leads.some((lead) => lead.id === initialLeadId) ? initialLeadId : leads[0]?.id || "")
   const [planName, setPlanName] = useState("")
   const [locations, setLocations] = useState("")
   const [usersEstimate, setUsersEstimate] = useState("")

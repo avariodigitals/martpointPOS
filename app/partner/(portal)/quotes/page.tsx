@@ -5,6 +5,8 @@ import { listPartnerLeads } from "@/lib/partner-leads"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileQuestion } from "lucide-react"
 import { QuoteRequestForm } from "./quotes-client"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 function fmtDate(iso?: string | null) {
   if (!iso) return "—"
@@ -15,7 +17,7 @@ function fmtDate(iso?: string | null) {
   }
 }
 
-export default async function PartnerQuotesPage() {
+export default async function PartnerQuotesPage({ searchParams }: { searchParams?: Promise<{ lead?: string }> }) {
   const session = await requirePartnerSession()
 
   const auth = await authorizePartner({ session, permission: "quotes:request_own" })
@@ -26,9 +28,15 @@ export default async function PartnerQuotesPage() {
     listPartnerLeads(session.partnerId),
   ])
 
+  const openRequestLeadIds = new Set(
+    requests
+      .filter((request) => ["SUBMITTED", "UNDER_REVIEW", "ISSUED"].includes(String(request.status)))
+      .map((request) => String(request.partner_lead_id)),
+  )
   const eligibleLeads = leads
-    .filter((l) => !["LOST", "EXPIRED"].includes(l.status))
+    .filter((l) => l.protectionStatus === "PROTECTED" && !["LOST", "EXPIRED"].includes(l.status) && !openRequestLeadIds.has(l.id))
     .map((l) => ({ id: l.id, businessName: l.businessName }))
+  const initialLeadId = (await searchParams)?.lead
 
   return (
     <div className="space-y-6">
@@ -47,7 +55,7 @@ export default async function PartnerQuotesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <QuoteRequestForm leads={eligibleLeads} />
+            <QuoteRequestForm leads={eligibleLeads} initialLeadId={initialLeadId} />
           </CardContent>
         </Card>
       )}
@@ -86,6 +94,13 @@ export default async function PartnerQuotesPage() {
                         {QUOTE_REQUEST_STATUS_LABELS[status] || status}
                       </span>
                     </div>
+                    {status === "ISSUED" && typeof r.issued_quote_ref === "string" && r.issued_quote_ref && (
+                      <div className="mt-3">
+                        <Link href={`/partner/quotes/${r.id as string}`}>
+                          <Button size="sm" variant="outline">View, accept or download quote</Button>
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 )
               })}

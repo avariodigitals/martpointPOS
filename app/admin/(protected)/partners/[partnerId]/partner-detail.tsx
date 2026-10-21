@@ -1199,7 +1199,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <input
                             className="rounded-md border border-input bg-background px-3 py-1.5 text-xs w-40"
-                            placeholder="Quote ref (to issue)"
+                            placeholder="Finance quote number (e.g. MPQ-2026-00001)"
                             value={decision.ref}
                             onChange={(e) => setQuoteDecisions({ ...quoteDecisions, [qr.id as string]: { ...decision, ref: e.target.value } })}
                           />
@@ -1210,7 +1210,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                             onChange={(e) => setQuoteDecisions({ ...quoteDecisions, [qr.id as string]: { ...decision, reason: e.target.value } })}
                           />
                           <Button size="sm" variant="outline" onClick={() => decideQuoteRequest(qr.id as string, "UNDER_REVIEW")}>Reviewing</Button>
-                          <Button size="sm" variant="outline" onClick={() => decideQuoteRequest(qr.id as string, "ISSUED")}>Issue quote</Button>
+                          <Button size="sm" variant="outline" onClick={() => decideQuoteRequest(qr.id as string, "ISSUED")}>Issue linked quote</Button>
                           <Button size="sm" variant="outline" onClick={() => decideQuoteRequest(qr.id as string, "DECLINED")}>Decline</Button>
                         </div>
                       )}

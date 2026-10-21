@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Check, Download, FileText, Loader2, X } from "lucide-react"
 import { generateQuotationPdf } from "@/lib/quotation-pdf"
 import type { LeadSummary, Quotation } from "@/lib/quotations"
+import { formatMoney } from "@/lib/money-format"
 
 type Row = Record<string, any>
 
-function money(value: unknown) {
-  return `NGN ${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+function money(value: unknown, currency = "NGN") {
+  return formatMoney(Number(value || 0), currency)
 }
 
 export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: string; lead: Row; quote: Row | null }) {
@@ -52,7 +53,7 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
     valid_until: (quote.valid_until as string | null) || null,
     notes_public: (quote.notes_public as string | null) || null,
     notes_internal: null,
-    payment_terms: null,
+    payment_terms: (quote.payment_terms as string | null) || null,
     converted_business_id: null,
     converted_invoice_id: null,
     public_token: "",
@@ -108,10 +109,11 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">{quote.status as string}</span>
       </div>
       <div className="space-y-2">
-        {quotation.items?.map((item) => <div key={item.id} className="flex justify-between gap-4 border-b border-border py-2 text-sm"><span>{item.description} × {item.quantity}</span><span className="font-medium">{money(item.line_total)}</span></div>)}
-        <div className="flex justify-between text-lg font-semibold pt-2"><span>Total</span><span className="text-retail">{money(quotation.total_amount)}</span></div>
+        {quotation.items?.map((item) => <div key={item.id} className="flex justify-between gap-4 border-b border-border py-2 text-sm"><span>{item.description} × {item.quantity}</span><span className="font-medium">{money(item.line_total, quotation.currency)}</span></div>)}
+        <div className="flex justify-between text-lg font-semibold pt-2"><span>Total</span><span className="text-retail">{money(quotation.total_amount, quotation.currency)}</span></div>
       </div>
       {quotation.valid_until && <p className="text-sm text-muted-foreground">Valid until {new Date(quotation.valid_until).toLocaleDateString("en-NG")}</p>}
+      {quotation.payment_terms && <div className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-line"><p className="font-medium mb-1">Payment terms</p>{quotation.payment_terms}</div>}
       {quotation.notes_public && <p className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-line">{quotation.notes_public}</p>}
       <div className="flex flex-wrap gap-2 border-t border-border pt-4">
         <Button variant="outline" onClick={() => generateQuotationPdf(quotation, leadSummary)}><Download className="w-4 h-4 mr-2" /> Download quote PDF</Button>

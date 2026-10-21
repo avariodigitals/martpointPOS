@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Play, Plus, X } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
+import { resolveIndustryName } from "@/lib/industries"
+import { quoteTemplateOptions, resolveQuoteTemplate } from "@/lib/quote-templates"
 
 const CURRENCY_OPTIONS = ["NGN", "USD", "GBP", "EUR"]
 
@@ -138,6 +140,7 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "partner_lead_id", label: "Partner Lead", type: "select", optionSource: "partner_leads", help: "Select the lead. This creates a lead-backed quote without creating a customer." },
     { name: "plan_id", label: "Plan", type: "select", optionSource: "plans", help: "Select the active commercial plan for this quote." },
     { name: "currency", label: "Currency", type: "select", options: CURRENCY_OPTIONS },
+    { name: "payment_terms", label: "Payment Terms", type: "textarea", help: "Shown on the partner quote and PDF." },
     { name: "notes_public", label: "Public Notes", type: "textarea" },
     { name: "valid_until", label: "Valid Until", type: "date" },
   ],
@@ -304,6 +307,8 @@ interface PartnerLeadOption {
   partnerCode?: string | null
   status?: string
   protectionStatus?: string
+  industry?: string
+  businessType?: string
 }
 
 type QuoteLineType = "PRODUCT" | "PLAN" | "SERVICE" | "ADDON" | "CUSTOM"
@@ -455,6 +460,7 @@ export default function CommercialSectionPage() {
   const [partnerLeads, setPartnerLeads] = useState<PartnerLeadOption[]>([])
   const [quoteCatalog, setQuoteCatalog] = useState<QuoteCatalogItem[]>([])
   const [quoteItems, setQuoteItems] = useState<QuoteLine[]>([])
+  const [quoteTemplateSelection, setQuoteTemplateSelection] = useState("")
 
   // Licences-sold report (read-only section).
   const [report, setReport] = useState<LicencesSoldReport | null>(null)
@@ -485,6 +491,7 @@ export default function CommercialSectionPage() {
     setFormValues(defaultFormValues(fields))
     if (resource === "quotes") {
       setQuoteItems([{ item_type: "CUSTOM", reference_id: null, description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0 }])
+      setQuoteTemplateSelection("")
     }
   }, [resource, fields])
 
@@ -791,6 +798,8 @@ export default function CommercialSectionPage() {
           value={value}
           onChange={(e) => f.name === "plan_id" && resource === "quotes"
             ? selectQuotePlan(e.target.value)
+            : f.name === "partner_lead_id" && resource === "quotes"
+            ? selectPartnerLead(e.target.value)
             : setFormValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
           className={base}
         >
@@ -866,6 +875,19 @@ export default function CommercialSectionPage() {
       return [...prev, planLine]
     })
     if (plan.currency) setFormValues((prev) => ({ ...prev, currency: plan.currency }))
+  }
+
+  function applyQuoteTemplate(industry: string) {
+    const template = resolveQuoteTemplate(industry || null)
+    setQuoteTemplateSelection(industry)
+    setFormValues((prev) => ({ ...prev, payment_terms: template.paymentTerms, notes_public: template.publicNotes }))
+  }
+
+  function selectPartnerLead(leadId: string) {
+    setFormValues((prev) => ({ ...prev, partner_lead_id: leadId }))
+    const lead = partnerLeads.find((item) => item.id === leadId)
+    const industry = resolveIndustryName(lead?.industry || lead?.businessType || "")
+    if (industry) applyQuoteTemplate(industry)
   }
 
   if (!resource) {
@@ -1025,6 +1047,23 @@ export default function CommercialSectionPage() {
                   {f.help && <p className="text-xs text-muted-foreground">{f.help}</p>}
                 </div>
               ))}
+              {resource === "quotes" && (
+                <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+                  <label htmlFor="quote-industry-template" className="text-sm font-medium">Apply industry template</label>
+                  <select
+                    id="quote-industry-template"
+                    value={quoteTemplateSelection}
+                    onChange={(e) => applyQuoteTemplate(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Choose a template for public notes and payment terms…</option>
+                    {quoteTemplateOptions().map((option) => option.value ? (
+                      <option key={`${option.group}:${option.value}`} value={option.value}>{option.group} — {option.label}</option>
+                    ) : null)}
+                  </select>
+                  <p className="text-xs text-muted-foreground">Selecting a partner lead applies its detected industry template automatically. You can change it here.</p>
+                </div>
+              )}
               {resource === "quotes" && (
                 <div className="space-y-3 sm:col-span-2 lg:col-span-3 rounded-lg border border-border bg-muted/20 p-4">
                   <div className="flex items-center justify-between gap-3">

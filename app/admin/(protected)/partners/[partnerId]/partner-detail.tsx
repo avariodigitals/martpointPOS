@@ -82,6 +82,8 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
   const [certForm, setCertForm] = useState({ status: "CERTIFIED", score: "", assessor: "", restrictions: "", expiresAt: "" })
   const [quoteRequests, setQuoteRequests] = useState<Record<string, unknown>[]>([])
   const [quoteDecisions, setQuoteDecisions] = useState<Record<string, { ref: string; reason: string }>>({})
+  const [quotePlans, setQuotePlans] = useState<{ id: string; name: string; code?: string }[]>([])
+  const [quoteRepairs, setQuoteRepairs] = useState<Record<string, { planId: string; quoteRef: string }>>({})
   const [editingDetails, setEditingDetails] = useState(false)
 
   // Forms
@@ -183,9 +185,14 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
   }
 
   async function fetchQuoteRequests() {
-    const res = await fetch(`/api/admin/partner-quote-requests?partnerId=${partnerId}`)
+    const [res, plansRes] = await Promise.all([
+      fetch(`/api/admin/partner-quote-requests?partnerId=${partnerId}`),
+      fetch("/api/admin/finance/catalog?type=plans&activeOnly=true"),
+    ])
     const data = await res.json()
+    const plansData = await plansRes.json()
     setQuoteRequests(data.requests || [])
+    setQuotePlans((plansData.data?.plans || []).map((p: Record<string, unknown>) => ({ id: String(p.id), name: String(p.name), code: p.code ? String(p.code) : undefined })))
   }
 
   async function workOrderAction(body: Record<string, unknown>) {
@@ -238,6 +245,22 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
     })
     const data = await res.json()
     setMessage(data.success ? "Quote request updated." : data.error || "Failed.")
+    if (data.success) fetchQuoteRequests()
+  }
+
+  async function repairQuoteRequest(id: string) {
+    const repair = quoteRepairs[id]
+    if (!repair?.planId) {
+      setMessage("Select the plan used for this quote first.")
+      return
+    }
+    const res = await fetch("/api/admin/partner-quote-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "repair", quoteRequestId: id, planId: repair.planId, quoteRef: repair.quoteRef || null }),
+    })
+    const data = await res.json()
+    setMessage(data.success ? "Legacy quote repaired and linked." : data.error || "Could not repair quote.")
     if (data.success) fetchQuoteRequests()
   }
 
@@ -1180,9 +1203,13 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                 {quoteRequests.map((qr) => {
                   const lead = qr.partner_leads as Record<string, unknown> | null
                   const open = ["SUBMITTED", "UNDER_REVIEW"].includes(qr.status as string)
-                  const decision = quoteDecisions[qr.id as string] || { ref: (qr.issued_quote_ref as string) || "", reason: "" }
+                  const requestId = qr.id as string
+                  const decision = quoteDecisions[requestId] || { ref: (qr.issued_quote_ref as string) || "", reason: "" }
+                  const matchingPlan = quotePlans.find((p) => p.name === qr.plan_name)
+                  const repair = quoteRepairs[requestId] || { planId: (qr.plan_id as string) || matchingPlan?.id || "", quoteRef: (qr.issued_quote_ref as string) || "" }
+                  const needsRepair = !qr.plan_id || !qr.issued_quote_ref
                   return (
-                    <div key={qr.id as string} className="p-3 rounded-lg border border-border">
+                    <div key={requestId} className="p-3 rounded-lg border border-border">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-medium">{(lead?.business_name as string) || "Opportunity"}</p>
@@ -1195,6 +1222,28 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                         </div>
                         <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${qr.status === "ISSUED" ? "bg-green-100 text-green-800" : qr.status === "DECLINED" || qr.status === "EXPIRED" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{enumLabel(qr.status as string)}</span>
                       </div>
+                      {needsRepair && (
+                        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+                          <p className="text-xs text-amber-900">This request predates the plan/quote link. Repair it here — no customer or business record is created.</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <select
+                              className="rounded-md border border-input bg-background px-3 py-1.5 text-xs min-w-52"
+                              value={repair.planId}
+                              onChange={(e) => setQuoteRepairs({ ...quoteRepairs, [requestId]: { ...repair, planId: e.target.value } })}
+                            >
+                              <option value="">Select active plan…</option>
+                              {quotePlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}{plan.code ? ` (${plan.code})` : ""}</option>)}
+                            </select>
+                            <input
+                              className="rounded-md border border-input bg-background px-3 py-1.5 text-xs w-52"
+                              placeholder="Existing Finance quote number"
+                              value={repair.quoteRef}
+                              onChange={(e) => setQuoteRepairs({ ...quoteRepairs, [requestId]: { ...repair, quoteRef: e.target.value } })}
+                            />
+                            <Button size="sm" variant="outline" onClick={() => repairQuoteRequest(requestId)}>Repair quote record</Button>
+                          </div>
+                        </div>
+                      )}
                       {open && (
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <input

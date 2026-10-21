@@ -10,11 +10,7 @@ import { Loader2, ArrowLeft, Play, Plus, X } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
 
-function formatNgn(n: number | string | undefined | null) {
-  const v = typeof n === "string" ? Number.parseFloat(n) : Number(n)
-  if (Number.isNaN(v)) return "—"
-  return formatMoney(v)
-}
+const CURRENCY_OPTIONS = ["NGN", "USD", "GBP", "EUR"]
 
 function formatMoneyIn(n: number | string | undefined | null, currency?: string) {
   const v = typeof n === "string" ? Number.parseFloat(n) : Number(n)
@@ -118,7 +114,7 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "billing_type", label: "Billing Type", type: "select", options: ["RECURRING", "ONE_TIME"] },
     { name: "billing_interval", label: "Billing Interval", type: "select", options: ["MONTHLY", "QUARTERLY", "ANNUAL", "NONE"] },
     { name: "base_price", label: "Base Price", type: "number" },
-    { name: "currency", label: "Currency", type: "text" },
+    { name: "currency", label: "Currency", type: "select", options: CURRENCY_OPTIONS },
     { name: "included_branches", label: "Included Branches", type: "number" },
     { name: "included_users", label: "Included Users", type: "number" },
     { name: "online_store_included", label: "Online Store Included", type: "boolean" },
@@ -131,7 +127,7 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "pricing_type", label: "Pricing Type", type: "select", options: ["FIXED", "PER_UNIT", "CUSTOM"] },
     { name: "unit_name", label: "Unit Name", type: "text" },
     { name: "default_price", label: "Default Price", type: "number" },
-    { name: "currency", label: "Currency", type: "text" },
+    { name: "currency", label: "Currency", type: "select", options: CURRENCY_OPTIONS },
     { name: "recurring", label: "Recurring", type: "boolean" },
     { name: "billing_interval", label: "Billing Interval", type: "select", options: ["MONTHLY", "QUARTERLY", "ANNUAL", "NONE"] },
     { name: "active", label: "Active", type: "boolean" },
@@ -140,7 +136,8 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "business_id", label: "Business ID (optional)", type: "text", help: "Leave blank when preparing a quote for a partner lead." },
     { name: "partner_id", label: "Partner ID", type: "text" },
     { name: "partner_lead_id", label: "Partner Lead", type: "select", optionSource: "partner_leads", help: "Select the lead. This creates a lead-backed quote without creating a customer." },
-    { name: "currency", label: "Currency", type: "text" },
+    { name: "plan_id", label: "Plan", type: "select", optionSource: "plans", help: "Select the active commercial plan for this quote." },
+    { name: "currency", label: "Currency", type: "select", options: CURRENCY_OPTIONS },
     { name: "notes_public", label: "Public Notes", type: "textarea" },
     { name: "valid_until", label: "Valid Until", type: "date" },
   ],
@@ -388,6 +385,10 @@ function defaultFormValues(fields: FieldConfig[]): Record<string, string> {
   for (const f of fields) {
     if (f.type === "boolean") {
       out[f.name] = f.name === "recurring" ? "false" : "true"
+    } else if (f.name === "currency") {
+      // MartPoint's commercial catalogue is NGN-first. Never present a blank
+      // currency in a quote/invoice-facing form.
+      out[f.name] = "NGN"
     } else if (f.type === "select" && f.options?.length) {
       out[f.name] = f.options[0]
     } else {
@@ -486,9 +487,10 @@ export default function CommercialSectionPage() {
     let cancelled = false
     fetch("/api/admin/finance/catalog?type=plans&activeOnly=true")
       .then((res) => res.json())
-      .then((raw: { success?: boolean; data?: PlanOption[] }) => {
+      .then((raw: { success?: boolean; data?: PlanOption[] | { plans?: PlanOption[] } }) => {
         if (cancelled) return
-        setPlans((raw.data || []).filter((p) => p.active !== false))
+        const catalogPlans = Array.isArray(raw.data) ? raw.data : raw.data?.plans || []
+        setPlans(catalogPlans.filter((p) => p.active !== false))
       })
       .catch(() => setMessage("Failed to load plans"))
     return () => {
@@ -660,7 +662,7 @@ export default function CommercialSectionPage() {
     if (key === "id") return <span className="font-mono text-xs">{String(v)}</span>
     if (typeof v === "boolean") return v ? "Yes" : "No"
     if (["amount", "total_amount", "subtotal", "discount_amount", "tax_amount", "balance_due", "base_price", "default_price", "commission_amount", "basis_amount"].includes(key)) {
-      return formatNgn(Number(v))
+      return formatMoneyIn(Number(v), typeof row.currency === "string" ? row.currency : "NGN")
     }
     return String(v)
   }

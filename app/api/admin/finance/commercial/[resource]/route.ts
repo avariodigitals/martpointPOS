@@ -316,7 +316,14 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { items, ...fields } = data
         const partnerLeadId = typeof fields.partner_lead_id === "string" && fields.partner_lead_id.trim() ? fields.partner_lead_id.trim() : null
         const businessId = typeof fields.business_id === "string" && fields.business_id.trim() ? fields.business_id.trim() : null
+        const planId = typeof fields.plan_id === "string" && fields.plan_id.trim() ? fields.plan_id.trim() : null
         if (!businessId && !partnerLeadId) return err("Select a business or a partner lead for this quote")
+        if (partnerLeadId && !planId) return err("Select an active plan for this partner quote")
+
+        if (planId) {
+          const { data: plan } = await supabase.from("plans").select("id, active").eq("id", planId).maybeSingle()
+          if (!plan || plan.active !== true) return err("Select a current active plan")
+        }
 
         if (partnerLeadId) {
           const { data: lead } = await supabase
@@ -331,6 +338,13 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         }
         fields.business_id = businessId
         fields.partner_lead_id = partnerLeadId
+        fields.plan_id = planId
+        // Legacy callers and the pre-catalog form could omit currency. Keep
+        // every quote usable and consistently NGN unless an explicit catalog
+        // currency was selected.
+        fields.currency = typeof fields.currency === "string" && fields.currency.trim()
+          ? fields.currency.trim().toUpperCase()
+          : "NGN"
 
         const { data: q, error } = await supabase.from("quotes").insert({ ...fields, quote_number: quoteNumber, status: "DRAFT", created_by: actor.id, created_at: now(), updated_at: now() }).select().single()
         if (error) return err(error.message, 500)

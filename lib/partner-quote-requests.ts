@@ -208,6 +208,79 @@ export async function listQuoteRequestsForAdmin(partnerId?: string): Promise<Rec
   return (data || []) as Record<string, unknown>[]
 }
 
+/**
+ * Repair a quote request created before plan selection was introduced. The
+ * request can be repaired with only a plan, or with the old Finance quote
+ * number as well. A business/customer is never created by this operation.
+ */
+export async function repairPartnerQuoteRequest(
+  quoteRequestId: string,
+  planId: string,
+  quoteRef: string | null,
+  repairedBy: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
+  const { data: plan } = await supabase.from("plans").select("id, name, active").eq("id", planId).maybeSingle()
+  if (!plan || plan.active !== true) return { ok: false, error: "Select a current active plan" }
+
+  const { data: qr } = await supabase.from("partner_quote_requests").select("*").eq("id", quoteRequestId).maybeSingle()
+  if (!qr) return { ok: false, error: "Quote request not found" }
+
+  type RepairQuote = { id: string; quote_number: string; status: string; partner_id: string | null; partner_lead_id: string | null }
+  let quote: RepairQuote | null = null
+  const ref = (quoteRef || (qr.issued_quote_ref as string) || "").trim()
+  if (ref) {
+    const result = await supabase
+      .from("quotes")
+      .select("id, quote_number, status, partner_id, partner_lead_id")
+      .eq("quote_number", ref)
+      .maybeSingle()
+    if (result.error || !result.data) return { ok: false, error: "Finance quote not found. Check the quote number and try again." }
+    quote = result.data as RepairQuote
+    if (quote.partner_id && quote.partner_id !== qr.partner_id) return { ok: false, error: "That quote belongs to another partner" }
+    if (quote.partner_lead_id && quote.partner_lead_id !== qr.partner_lead_id) return { ok: false, error: "That quote is linked to another opportunity" }
+
+    const quoteUpdate: Record<string, unknown> = {
+      plan_id: plan.id,
+      updated_at: now(),
+    }
+    if (!quote.partner_id) quoteUpdate.partner_id = qr.partner_id
+    if (!quote.partner_lead_id) quoteUpdate.partner_lead_id = qr.partner_lead_id
+    const { error } = await supabase.from("quotes").update(quoteUpdate).eq("id", quote.id)
+    if (error) return { ok: false, error: "The legacy quote could not be repaired. Apply migration 115 and try again." }
+  }
+
+  const requestUpdate: Record<string, unknown> = {
+    plan_id: plan.id,
+    plan_name: plan.name,
+    updated_at: now(),
+  }
+  if (quote) {
+    requestUpdate.issued_quote_ref = quote.quote_number
+    // A quote already sent/accepted is ready for the partner. A draft remains
+    // draft so Sales can still use the normal Issue linked quote action.
+    if (["SENT", "ACCEPTED"].includes(quote.status) && ["SUBMITTED", "UNDER_REVIEW"].includes(qr.status as string)) {
+      requestUpdate.status = "ISSUED"
+      requestUpdate.decided_by = repairedBy
+      requestUpdate.decided_at = now()
+      requestUpdate.decision_reason = "Legacy quote repaired and linked"
+    }
+  }
+  const { error } = await supabase.from("partner_quote_requests").update(requestUpdate).eq("id", quoteRequestId)
+  if (error) return { ok: false, error: "The quote request could not be repaired" }
+
+  await recordAudit(
+    { actorType: "ADMIN", actorId: repairedBy },
+    {
+      action: AUDIT_ACTIONS.PARTNER_QUOTE_REQUEST_DECIDED,
+      entityType: AUDIT_ENTITIES.PARTNER_QUOTE_REQUEST,
+      entityId: quoteRequestId,
+      metadata: { planId: plan.id, quoteRef: quote?.quote_number || null, legacyRepair: true },
+    }
+  )
+  return { ok: true }
+}
+
 /** MartPoint Sales decision: UNDER_REVIEW → ISSUED (with quote ref) or DECLINED. */
 export async function decideQuoteRequest(
   quoteRequestId: string,

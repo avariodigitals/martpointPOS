@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
-import { listQuoteRequestsForAdmin, decideQuoteRequest } from "@/lib/partner-quote-requests"
+import { listQuoteRequestsForAdmin, decideQuoteRequest, repairPartnerQuoteRequest } from "@/lib/partner-quote-requests"
 
 /* ─── GET: quotation request queue (optionally ?partnerId=) ─── */
 export async function GET(request: Request) {
@@ -21,6 +21,19 @@ export async function POST(request: Request) {
   if (denied) return denied
 
   const body = await request.json().catch(() => ({}))
+  if (body?.action === "repair") {
+    if (!body.quoteRequestId || !body.planId) {
+      return NextResponse.json({ error: "Quote request and plan are required" }, { status: 400 })
+    }
+    const result = await repairPartnerQuoteRequest(
+      String(body.quoteRequestId),
+      String(body.planId),
+      body.quoteRef ? String(body.quoteRef) : null,
+      session.userId,
+    )
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+    return NextResponse.json({ success: true })
+  }
   if (!body?.quoteRequestId || !body?.decision) {
     return NextResponse.json({ error: "Quote request and decision are required" }, { status: 400 })
   }

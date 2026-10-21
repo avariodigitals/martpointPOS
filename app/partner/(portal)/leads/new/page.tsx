@@ -56,6 +56,11 @@ export default function NewLeadPage() {
       body: JSON.stringify(payload),
     })
     const json = await res.json()
+    if (res.status === 401) {
+      router.push("/partner/login?expired=1")
+      router.refresh()
+      return
+    }
     if (!res.ok) {
       setError(json.error || "Failed to register lead")
       setSaving(false)

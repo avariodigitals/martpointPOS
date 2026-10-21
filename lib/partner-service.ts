@@ -925,8 +925,10 @@ export async function listPartnerResourcesForPartner(
     .from("partner_resources")
     .select("*")
     .eq("active", true)
-    .lte("published_at", now())
-    .or("published_at.is.null")
+    // A null publication date means "available immediately". Keep the
+    // null-or-past condition inside one OR expression; chaining `.lte()` and
+    // `.or("published_at.is.null")` creates an impossible AND in PostgREST.
+    .or(`published_at.is.null,published_at.lte.${now()}`)
     .order("created_at", { ascending: false })
 
   if (error || !data) return []

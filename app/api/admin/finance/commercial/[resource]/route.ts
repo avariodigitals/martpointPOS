@@ -151,7 +151,7 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
     }
 
     if (resource === "quotes") {
-      let q = supabase.from("quotes").select("*, quote_items(*), businesses:business_id (business_name, originating_partner_id)")
+      let q = supabase.from("quotes").select("*, quote_items(*), businesses:business_id (business_name, originating_partner_id), partner_leads:partner_lead_id (business_name, contact_name, email, phone)")
       if (businessId) q = q.eq("business_id", businessId)
       const { data, error } = id ? await q.eq("id", id).single() : await q.order("created_at", { ascending: false })
       if (error) return err(error.message, 500)
@@ -357,6 +357,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
             unit_price: Number(it.unit_price) || 0,
             discount: Number(it.discount) || 0,
             tax: Number(it.tax) || 0,
+            tax_rate: it.tax_rate == null || it.tax_rate === "" ? null : Number(it.tax_rate),
             quote_id: q.id,
             line_total: money((it.quantity || 0) * (it.unit_price || 0) - (it.discount || 0) + (it.tax || 0)),
           })))
@@ -381,7 +382,12 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       }
       if (action === "add_item") {
         const { quote_id, ...it } = data
-        await supabase.from("quote_items").insert({ ...it, quote_id, line_total: money((it.quantity || 0) * (it.unit_price || 0) - (it.discount || 0) + (it.tax || 0)) })
+        await supabase.from("quote_items").insert({
+          ...it,
+          tax_rate: it.tax_rate == null || it.tax_rate === "" ? null : Number(it.tax_rate),
+          quote_id,
+          line_total: money((it.quantity || 0) * (it.unit_price || 0) - (it.discount || 0) + (it.tax || 0)),
+        })
         await recalculateQuote(quote_id)
         return ok({ success: true })
       }

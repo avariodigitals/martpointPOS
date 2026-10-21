@@ -119,6 +119,8 @@ export type QuoteItem = {
   unit_price: number
   discount: number
   tax: number
+  /** Percentage rate; null means tax is a fixed amount. */
+  tax_rate?: number | null
   line_total: number
 }
 
@@ -448,14 +450,18 @@ export async function recalculateQuote(quoteId: string) {
 
   for (const item of rows) {
     const unitKobo = toKobo(item.unit_price)
-    const discKobo = toKobo(item.discount)
-    const tKobo = toKobo(item.tax)
-    const qty = item.quantity || 0
-    const totalKobo = lineTotalKobo(qty, unitKobo, discKobo, tKobo)
-    if (toKobo(item.line_total) !== totalKobo) {
-      await supabase.from("quote_items").update({ line_total: fromKobo(totalKobo) }).eq("id", item.id)
+    const discKobo = Math.min(unitKobo * Math.max(0, Number(item.quantity) || 0), toKobo(item.discount))
+    const qty = Math.max(0, Number(item.quantity) || 0)
+    const taxableKobo = Math.max(0, Math.round(qty * unitKobo) - discKobo)
+    const rate = item.tax_rate == null ? null : Math.max(0, Number(item.tax_rate) || 0)
+    const tKobo = rate == null
+      ? Math.max(0, toKobo(item.tax))
+      : Math.max(0, Math.round(taxableKobo * rate / 100))
+    const totalKobo = taxableKobo + tKobo
+    if (toKobo(item.line_total) !== totalKobo || toKobo(item.tax) !== tKobo) {
+      await supabase.from("quote_items").update({ tax: fromKobo(tKobo), line_total: fromKobo(totalKobo) }).eq("id", item.id)
     }
-    subtotalKobo += lineTotalKobo(qty, unitKobo, 0, 0)
+    subtotalKobo += Math.round(qty * unitKobo)
     discountKobo += discKobo
     taxKobo += tKobo
   }

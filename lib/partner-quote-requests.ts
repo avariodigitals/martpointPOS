@@ -194,7 +194,19 @@ export async function getPartnerQuoteRequestForPartner(
     return { request: request as Record<string, unknown>, lead, quote: null }
   }
 
-  return { request: request as Record<string, unknown>, lead, quote: (quote as Record<string, unknown> | null) || null }
+  let accountNumber = ""
+  if (quote) {
+    const { data: settings } = await supabase.from("settings").select("data").eq("id", 1).maybeSingle()
+    const settingsData = (settings?.data as Record<string, unknown> | null) || null
+    const general = (settingsData?.general as Record<string, unknown> | null) || null
+    accountNumber = typeof general?.accountNumber === "string" ? general.accountNumber : ""
+  }
+
+  return {
+    request: request as Record<string, unknown>,
+    lead,
+    quote: quote ? { ...(quote as Record<string, unknown>), account_number: accountNumber } : null,
+  }
 }
 
 export async function listQuoteRequestsForAdmin(partnerId?: string): Promise<Record<string, unknown>[]> {

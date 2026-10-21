@@ -11,6 +11,7 @@ import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
 import { resolveIndustryName } from "@/lib/industries"
 import { quoteTemplateOptions, resolveQuoteTemplate } from "@/lib/quote-templates"
+import { recalculateQuote } from "@/lib/quotations"
 
 const CURRENCY_OPTIONS = ["NGN", "USD", "GBP", "EUR"]
 
@@ -311,6 +312,12 @@ interface PartnerLeadOption {
   businessType?: string
 }
 
+interface TaxRateOption {
+  id: string
+  name: string
+  rate: number
+}
+
 type QuoteLineType = "PRODUCT" | "PLAN" | "SERVICE" | "ADDON" | "CUSTOM"
 
 interface QuoteLine {
@@ -321,6 +328,7 @@ interface QuoteLine {
   unit_price: number
   discount: number
   tax: number
+  tax_rate: number | null
 }
 
 interface QuoteCatalogItem {
@@ -461,6 +469,10 @@ export default function CommercialSectionPage() {
   const [quoteCatalog, setQuoteCatalog] = useState<QuoteCatalogItem[]>([])
   const [quoteItems, setQuoteItems] = useState<QuoteLine[]>([])
   const [quoteTemplateSelection, setQuoteTemplateSelection] = useState("")
+  const [taxRates, setTaxRates] = useState<TaxRateOption[]>([])
+  const [companyAccountNumber, setCompanyAccountNumber] = useState("")
+  const [quoteStatuses, setQuoteStatuses] = useState<Record<string, string>>({})
+  const [quotePreview, setQuotePreview] = useState<Row | null>(null)
 
   // Licences-sold report (read-only section).
   const [report, setReport] = useState<LicencesSoldReport | null>(null)
@@ -490,7 +502,7 @@ export default function CommercialSectionPage() {
     if (!resource) return
     setFormValues(defaultFormValues(fields))
     if (resource === "quotes") {
-      setQuoteItems([{ item_type: "CUSTOM", reference_id: null, description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0 }])
+      setQuoteItems([{ item_type: "CUSTOM", reference_id: null, description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0, tax_rate: 0 }])
       setQuoteTemplateSelection("")
     }
   }, [resource, fields])
@@ -552,6 +564,20 @@ export default function CommercialSectionPage() {
   useEffect(() => {
     if (resource !== "quotes") return
     let cancelled = false
+    Promise.all([
+      fetch("/api/admin/quotations").then((res) => res.json()),
+      fetch("/api/admin/settings").then((res) => res.json()),
+    ])
+      .then(([quotationData, settingsData]) => {
+        if (cancelled) return
+        setTaxRates(((quotationData.taxRates || []) as Record<string, unknown>[]).map((t) => ({
+          id: String(t.id), name: String(t.name), rate: Number(t.rate) || 0,
+        })))
+        setCompanyAccountNumber(String(settingsData.general?.accountNumber || ""))
+      })
+      .catch(() => {
+        if (!cancelled) setMessage("Failed to load quote settings")
+      })
     fetch("/api/admin/finance/catalog?type=all&activeOnly=true")
       .then((res) => res.json())
       .then((raw: { data?: { products?: Row[]; plans?: Row[]; services?: Row[]; addons?: Row[] } }) => {
@@ -578,6 +604,18 @@ export default function CommercialSectionPage() {
       .catch(() => setMessage("Failed to load quote catalogue"))
     return () => { cancelled = true }
   }, [resource])
+
+  const quoteTotals = useMemo(
+    () => recalculateQuote(quoteItems.map((item) => ({
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unit_price,
+      discount: item.discount,
+      tax: item.tax,
+      taxRate: item.tax_rate,
+    }))),
+    [quoteItems],
+  )
 
   useEffect(() => {
     if (!resource) return
@@ -658,7 +696,7 @@ export default function CommercialSectionPage() {
       if (data.success) {
         setMessage("Created successfully")
         setFormValues(defaultFormValues(fields))
-        if (resource === "quotes") setQuoteItems([{ item_type: "CUSTOM", reference_id: null, description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0 }])
+        if (resource === "quotes") setQuoteItems([{ item_type: "CUSTOM", reference_id: null, description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0, tax_rate: 0 }])
         refreshList()
       } else {
         setMessage(data.error || "Create failed")
@@ -730,6 +768,40 @@ export default function CommercialSectionPage() {
     setSelectedAction(actions.length ? actions[0].name : "")
     setActionData(JSON.stringify({ id: row.id }, null, 2))
     setActionOpen(true)
+  }
+
+  const quoteStatusActions: Record<string, string> = {
+    SENT: "send",
+    ACCEPTED: "accept",
+    DECLINED: "decline",
+    EXPIRED: "expire",
+  }
+
+  async function applyQuoteStatus(row: Row) {
+    const id = String(row.id || "")
+    const status = quoteStatuses[id] || String(row.status || "DRAFT")
+    if (!id || status === "DRAFT") {
+      setMessage("Draft is the starting status. Choose Sent, Accepted, Declined or Expired to apply a change.")
+      return
+    }
+    const action = quoteStatusActions[status]
+    if (!action) return
+    setWorking(true)
+    setMessage("")
+    try {
+      const res = await fetch(`/api/admin/finance/commercial/${resource}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, data: { id } }),
+      })
+      const data = (await res.json()) as ApiResponse
+      setMessage(data.success ? `Quote marked ${status.toLowerCase()}.` : data.error || "Status update failed")
+      if (data.success) refreshList()
+    } catch {
+      setMessage("Status update failed")
+    } finally {
+      setWorking(false)
+    }
   }
 
   function renderCell(row: Row, key: string) {
@@ -866,6 +938,7 @@ export default function CommercialSectionPage() {
       unit_price: Number(plan.base_price) || 0,
       discount: 0,
       tax: 0,
+      tax_rate: 0,
     }
     setQuoteItems((prev) => {
       const existingPlan = prev.findIndex((item) => item.item_type === "PLAN" && item.reference_id)
@@ -1075,7 +1148,7 @@ export default function CommercialSectionPage() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setQuoteItems((prev) => [...prev, { item_type: "CUSTOM", reference_id: null, description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0 }])}
+                      onClick={() => setQuoteItems((prev) => [...prev, { item_type: "CUSTOM", reference_id: null, description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0, tax_rate: 0 }])}
                     >
                       <Plus className="mr-1 h-3.5 w-3.5" /> Add line
                     </Button>
@@ -1114,9 +1187,29 @@ export default function CommercialSectionPage() {
                           <input type="number" min="0" step="any" value={item.unit_price} onChange={(e) => updateQuoteItem(index, { unit_price: Number(e.target.value) || 0 })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
                         </div>
                         <div className="md:col-span-2 space-y-1">
-                          <label className="text-xs font-medium">Discount / tax</label>
+                          <label className="text-xs font-medium">Discount</label>
                           <input type="number" min="0" step="any" value={item.discount} onChange={(e) => updateQuoteItem(index, { discount: Number(e.target.value) || 0 })} placeholder="Discount" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-                          <input type="number" min="0" step="any" value={item.tax} onChange={(e) => updateQuoteItem(index, { tax: Number(e.target.value) || 0 })} placeholder="Tax" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                          <label className="text-xs font-medium">Tax</label>
+                          <select
+                            value={item.tax_rate == null ? "fixed" : String(item.tax_rate)}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              updateQuoteItem(index, value === "fixed" ? { tax_rate: null } : { tax_rate: Number(value), tax: 0 })
+                            }}
+                            className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm"
+                          >
+                            <option value={0}>No tax</option>
+                            {taxRates.map((taxRate) => <option key={taxRate.id} value={taxRate.rate}>{taxRate.name} ({taxRate.rate}%)</option>)}
+                            {item.tax_rate != null && item.tax_rate !== 0 && !taxRates.some((taxRate) => taxRate.rate === item.tax_rate) && (
+                              <option value={item.tax_rate}>{item.tax_rate}% (saved)</option>
+                            )}
+                            <option value="fixed">Fixed amount</option>
+                          </select>
+                          {item.tax_rate == null ? (
+                            <input type="number" min="0" step="any" value={item.tax} onChange={(e) => updateQuoteItem(index, { tax: Number(e.target.value) || 0 })} placeholder="Tax amount" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground text-right">Tax: {formatMoneyIn(quoteTotals.items[index]?.tax || 0, formValues.currency || "NGN")}</p>
+                          )}
                         </div>
                         <div className="md:col-span-1 flex justify-end">
                           <Button type="button" variant="ghost" size="sm" disabled={quoteItems.length === 1} onClick={() => setQuoteItems((prev) => prev.filter((_, i) => i !== index))}>
@@ -1125,6 +1218,12 @@ export default function CommercialSectionPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  <div className="ml-auto max-w-xs space-y-1 border-t border-border pt-3 text-sm">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{formatMoneyIn(quoteTotals.subtotal, formValues.currency || "NGN")}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span>{formatMoneyIn(quoteTotals.discountAmount, formValues.currency || "NGN")}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Tax</span><span>{formatMoneyIn(quoteTotals.taxAmount, formValues.currency || "NGN")}</span></div>
+                    <div className="flex justify-between border-t border-border pt-2 font-semibold"><span>Total</span><span>{formatMoneyIn(quoteTotals.total, formValues.currency || "NGN")}</span></div>
                   </div>
                 </div>
               )}
@@ -1169,9 +1268,28 @@ export default function CommercialSectionPage() {
                       ))}
                       {actions.length > 0 && (
                         <td className="px-3 py-2">
-                          <Button variant="outline" size="sm" onClick={() => openAction(row)}>
-                            <Play className="mr-1 h-3.5 w-3.5" /> Run action
-                          </Button>
+                          {resource === "quotes" ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <select
+                                aria-label={`Status for quote ${String(row.quote_number || row.id)}`}
+                                value={quoteStatuses[String(row.id)] || String(row.status || "DRAFT")}
+                                onChange={(e) => setQuoteStatuses((prev) => ({ ...prev, [String(row.id)]: e.target.value }))}
+                                className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                              >
+                                <option value="DRAFT">Draft</option>
+                                <option value="SENT">Sent — send</option>
+                                <option value="ACCEPTED">Accepted</option>
+                                <option value="DECLINED">Declined</option>
+                                <option value="EXPIRED">Expired</option>
+                              </select>
+                              <Button variant="outline" size="sm" disabled={working} onClick={() => applyQuoteStatus(row)}>Apply</Button>
+                              <Button variant="ghost" size="sm" onClick={() => setQuotePreview(row)}>Preview</Button>
+                            </div>
+                          ) : (
+                            <Button variant="outline" size="sm" onClick={() => openAction(row)}>
+                              <Play className="mr-1 h-3.5 w-3.5" /> Run action
+                            </Button>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -1183,6 +1301,44 @@ export default function CommercialSectionPage() {
         </CardContent>
       </Card>
         </>
+      )}
+
+      {resource === "quotes" && (
+        <Dialog open={Boolean(quotePreview)} onClose={() => setQuotePreview(null)} title={quotePreview ? `Preview ${String(quotePreview.quote_number || "quote")}` : "Quote preview"}>
+          {quotePreview && (() => {
+            const currency = String(quotePreview.currency || "NGN")
+            const items = Array.isArray(quotePreview.quote_items) ? quotePreview.quote_items as Row[] : []
+            const partnerLead = quotePreview.partner_leads as Row | null
+            return (
+              <div className="space-y-4 text-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-semibold">{String(quotePreview.quote_number || "Quote")}</p>
+                    <p className="text-muted-foreground">{String(quotePreview.title || partnerLead?.business_name || quotePreview.business_id || "Commercial quote")}</p>
+                  </div>
+                  <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">{String(quotePreview.status || "DRAFT")}</span>
+                </div>
+                <div className="overflow-x-auto rounded-md border border-border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50"><tr><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Unit</th><th className="px-3 py-2 text-right">Tax</th><th className="px-3 py-2 text-right">Total</th></tr></thead>
+                    <tbody className="divide-y">
+                      {items.map((item) => <tr key={String(item.id)}><td className="whitespace-pre-line px-3 py-2">{String(item.description || "—")}</td><td className="px-3 py-2 text-right">{String(item.quantity ?? 0)}</td><td className="px-3 py-2 text-right">{formatMoneyIn(Number(item.unit_price), currency)}</td><td className="px-3 py-2 text-right">{formatMoneyIn(Number(item.tax), currency)}</td><td className="px-3 py-2 text-right font-medium">{formatMoneyIn(Number(item.line_total), currency)}</td></tr>)}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="ml-auto max-w-xs space-y-1">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{formatMoneyIn(Number(quotePreview.subtotal), currency)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span>{formatMoneyIn(Number(quotePreview.discount_amount), currency)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Tax</span><span>{formatMoneyIn(Number(quotePreview.tax_amount), currency)}</span></div>
+                  <div className="flex justify-between border-t border-border pt-2 text-base font-semibold"><span>Total</span><span>{formatMoneyIn(Number(quotePreview.total_amount), currency)}</span></div>
+                </div>
+                {companyAccountNumber && <div className="rounded-md bg-muted/40 p-3"><p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">Bank details</p><p className="whitespace-pre-line font-medium">{companyAccountNumber}</p></div>}
+                {!!quotePreview.payment_terms && <div className="rounded-md bg-muted/40 p-3 whitespace-pre-line"><p className="mb-1 font-medium">Payment terms</p>{String(quotePreview.payment_terms)}</div>}
+                {!!quotePreview.notes_public && <div className="rounded-md bg-muted/40 p-3 whitespace-pre-line"><p className="mb-1 font-medium">Notes</p>{String(quotePreview.notes_public)}</div>}
+              </div>
+            )
+          })()}
+        </Dialog>
       )}
 
       <Dialog open={actionOpen} onClose={() => setActionOpen(false)} title={`Run action on ${TITLES[resource]}`}>

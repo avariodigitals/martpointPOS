@@ -29,6 +29,8 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
     )
   }
 
+  const accountNumber = String(quote.account_number || "")
+
   const leadSummary: LeadSummary = {
     id: lead.id as string,
     fullName: (lead.contact_name as string) || "",
@@ -73,7 +75,7 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
       unit_price: Number(item.unit_price) || 0,
       discount: Number(item.discount) || 0,
       tax: Number(item.tax) || 0,
-      tax_rate: null,
+      tax_rate: item.tax_rate == null ? null : Number(item.tax_rate),
       line_total: Number(item.line_total) || 0,
     })),
   } satisfies Quotation
@@ -109,14 +111,27 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">{quote.status as string}</span>
       </div>
       <div className="space-y-2">
-        {quotation.items?.map((item) => <div key={item.id} className="flex justify-between gap-4 border-b border-border py-2 text-sm"><span>{item.description} × {item.quantity}</span><span className="font-medium">{money(item.line_total, quotation.currency)}</span></div>)}
-        <div className="flex justify-between text-lg font-semibold pt-2"><span>Total</span><span className="text-retail">{money(quotation.total_amount, quotation.currency)}</span></div>
+        <div className="overflow-x-auto rounded-md border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50"><tr><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Tax</th><th className="px-3 py-2 text-right">Total</th></tr></thead>
+            <tbody className="divide-y">
+              {quotation.items?.map((item) => <tr key={item.id}><td className="whitespace-pre-line px-3 py-2">{item.description}</td><td className="px-3 py-2 text-right">{item.quantity}</td><td className="px-3 py-2 text-right">{item.tax > 0 ? `${item.tax_rate != null ? `${item.tax_rate}% · ` : ""}${money(item.tax, quotation.currency)}` : "—"}</td><td className="px-3 py-2 text-right font-medium">{money(item.line_total, quotation.currency)}</td></tr>)}
+            </tbody>
+          </table>
+        </div>
+        <div className="ml-auto max-w-xs space-y-1 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(quotation.subtotal, quotation.currency)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Discount</span><span>{money(quotation.discount_amount, quotation.currency)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Tax</span><span>{money(quotation.tax_amount, quotation.currency)}</span></div>
+          <div className="flex justify-between border-t border-border pt-2 text-lg font-semibold"><span>Total</span><span className="text-retail">{money(quotation.total_amount, quotation.currency)}</span></div>
+        </div>
       </div>
       {quotation.valid_until && <p className="text-sm text-muted-foreground">Valid until {new Date(quotation.valid_until).toLocaleDateString("en-NG")}</p>}
       {quotation.payment_terms && <div className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-line"><p className="font-medium mb-1">Payment terms</p>{quotation.payment_terms}</div>}
+      {!!accountNumber && <div className="rounded-md bg-retail-soft/30 p-3 text-sm whitespace-pre-line"><p className="font-medium mb-1">Bank details</p>{accountNumber}</div>}
       {quotation.notes_public && <p className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-line">{quotation.notes_public}</p>}
       <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-        <Button variant="outline" onClick={() => generateQuotationPdf(quotation, leadSummary)}><Download className="w-4 h-4 mr-2" /> Download quote PDF</Button>
+        <Button variant="outline" onClick={() => generateQuotationPdf(quotation, leadSummary, accountNumber)}><Download className="w-4 h-4 mr-2" /> Download quote PDF</Button>
         {canRespond && <>
           <Button onClick={() => respond("accept")} disabled={busy}><Check className="w-4 h-4 mr-2" /> Accept quote</Button>
           <Button variant="outline" onClick={() => respond("decline")} disabled={busy}>{busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />} Decline</Button>

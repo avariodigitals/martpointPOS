@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { requirePartnerSession, authorizePartner } from "@/lib/partner-auth"
-import { listPartnerQuoteRequests, QUOTE_REQUEST_STATUS_LABELS, type QuoteRequestStatus } from "@/lib/partner-quote-requests"
+import { listPartnerQuotePlans, listPartnerQuoteRequests, QUOTE_REQUEST_STATUS_LABELS, type QuoteRequestStatus } from "@/lib/partner-quote-requests"
 import { listPartnerLeads } from "@/lib/partner-leads"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileQuestion } from "lucide-react"
@@ -23,9 +23,10 @@ export default async function PartnerQuotesPage({ searchParams }: { searchParams
   const auth = await authorizePartner({ session, permission: "quotes:request_own" })
   if (!auth.authorized) redirect("/partner")
 
-  const [requests, leads] = await Promise.all([
+  const [requests, leads, plans] = await Promise.all([
     listPartnerQuoteRequests(session.partnerId),
     listPartnerLeads(session.partnerId),
+    listPartnerQuotePlans(),
   ])
 
   const openRequestLeadIds = new Set(
@@ -35,7 +36,22 @@ export default async function PartnerQuotesPage({ searchParams }: { searchParams
   )
   const eligibleLeads = leads
     .filter((l) => l.protectionStatus === "PROTECTED" && !["LOST", "EXPIRED"].includes(l.status) && !openRequestLeadIds.has(l.id))
-    .map((l) => ({ id: l.id, businessName: l.businessName }))
+    .map((l) => ({
+      id: l.id,
+      businessName: l.businessName,
+      contactName: l.contactName,
+      email: l.email,
+      phone: l.phone,
+      industry: l.industry,
+      businessType: l.businessType,
+      country: l.country,
+      state: l.state,
+      city: l.city,
+      estimatedBranches: l.estimatedBranches,
+      estimatedUsers: l.estimatedUsers,
+      interestedProduct: l.interestedProduct,
+      notes: l.notes,
+    }))
   const initialLeadId = (await searchParams)?.lead
 
   return (
@@ -55,7 +71,7 @@ export default async function PartnerQuotesPage({ searchParams }: { searchParams
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <QuoteRequestForm leads={eligibleLeads} initialLeadId={initialLeadId} />
+            <QuoteRequestForm leads={eligibleLeads} plans={plans} initialLeadId={initialLeadId} />
           </CardContent>
         </Card>
       )}

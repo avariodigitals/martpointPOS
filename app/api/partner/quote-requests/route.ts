@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
-import { createQuoteRequest, listPartnerQuoteRequests } from "@/lib/partner-quote-requests"
+import { createQuoteRequest, listPartnerQuotePlans, listPartnerQuoteRequests } from "@/lib/partner-quote-requests"
 
 /* ─── GET: partner's quotation requests ─── */
 export async function GET() {
@@ -8,8 +8,11 @@ export async function GET() {
   const auth = await authorizePartner({ session, permission: "quotes:request_own" })
   if (!auth.authorized) return auth.response!
 
-  const requests = await listPartnerQuoteRequests(auth.partner!.id)
-  return NextResponse.json({ requests })
+  const [requests, plans] = await Promise.all([
+    listPartnerQuoteRequests(auth.partner!.id),
+    listPartnerQuotePlans(),
+  ])
+  return NextResponse.json({ requests, plans })
 }
 
 /* ─── POST: request a MartPoint-issued quote on a registered lead ─── */
@@ -28,6 +31,7 @@ export async function POST(request: Request) {
     { id: auth.user!.id, name: auth.user!.fullName },
     {
       partnerLeadId: String(body.partnerLeadId),
+      planId: body?.planId ? String(body.planId) : undefined,
       planName: body?.planName ? String(body.planName) : undefined,
       locations: body?.locations ? String(body.locations) : undefined,
       usersEstimate: body?.usersEstimate ? String(body.usersEstimate) : undefined,

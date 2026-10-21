@@ -23,6 +23,7 @@ function now() {
 
 export interface QuoteRequestInput {
   partnerLeadId: string
+  planId?: string
   planName?: string
   locations?: string
   usersEstimate?: string
@@ -30,6 +31,43 @@ export interface QuoteRequestInput {
   assumptions?: string
   notes?: string
   dueDate?: string | null
+}
+
+export interface PartnerQuotePlan {
+  id: string
+  name: string
+  code: string
+  description: string | null
+  billingType: string
+  billingInterval: string
+  currency: string
+  basePrice: number
+  includedBranches: number
+  includedUsers: number
+  onlineStoreIncluded: boolean
+}
+
+export async function listPartnerQuotePlans(): Promise<PartnerQuotePlan[]> {
+  if (!isSupabaseConfigured()) return []
+  const { data, error } = await supabase
+    .from("plans")
+    .select("id, name, code, description, billing_type, billing_interval, currency, base_price, included_branches, included_users, online_store_included")
+    .eq("active", true)
+    .order("name")
+  if (error || !data) return []
+  return (data as Record<string, unknown>[]).map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    code: row.code as string,
+    description: (row.description as string | null) ?? null,
+    billingType: row.billing_type as string,
+    billingInterval: row.billing_interval as string,
+    currency: (row.currency as string) || "NGN",
+    basePrice: Number(row.base_price) || 0,
+    includedBranches: Number(row.included_branches) || 0,
+    includedUsers: Number(row.included_users) || 0,
+    onlineStoreIncluded: Boolean(row.online_store_included),
+  }))
 }
 
 export async function createQuoteRequest(
@@ -53,6 +91,20 @@ export async function createQuoteRequest(
     return { ok: false, error: "MartPoint must protect this opportunity before a quote can be requested" }
   }
 
+  let selectedPlanId: string | null = null
+  let selectedPlanName = input.planName?.trim() || null
+  if (!input.planId && !selectedPlanName) return { ok: false, error: "Select a plan before requesting a quote" }
+  if (input.planId) {
+    const { data: plan } = await supabase
+      .from("plans")
+      .select("id, name, active")
+      .eq("id", input.planId)
+      .maybeSingle()
+    if (!plan || plan.active !== true) return { ok: false, error: "Select a current active plan" }
+    selectedPlanId = plan.id as string
+    selectedPlanName = plan.name as string
+  }
+
   // One open request per lead.
   const { data: existing } = await supabase
     .from("partner_quote_requests")
@@ -70,7 +122,8 @@ export async function createQuoteRequest(
       partner_id: partnerId,
       partner_lead_id: input.partnerLeadId,
       requested_by: user.id,
-      plan_name: input.planName ?? null,
+      plan_id: selectedPlanId,
+      plan_name: selectedPlanName,
       locations: input.locations ?? null,
       users_estimate: input.usersEstimate ?? null,
       services_requested: input.servicesRequested ?? null,

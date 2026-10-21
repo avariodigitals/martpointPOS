@@ -1,5 +1,4 @@
 import { supabase } from "./supabase"
-import { ReferralGrade } from "./partner-grades"
 
 export interface CalculatedMetrics {
   acceptedReferrals6m: number
@@ -9,6 +8,8 @@ export interface CalculatedMetrics {
   validSubmissionRate: number
   refundRate: number
   consecutivePassingReviews: number
+  activeAgreement: boolean
+  orientationCompleted: boolean
   daysSinceActivation: number
   misleadingClaim: boolean
   consentFailure: boolean
@@ -57,7 +58,8 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
     .select("*", { count: 'exact', head: true })
     .eq("partner_id", partnerId)
 
-  const validRate = totalSubs > 0 ? (acc12m || 0) / totalSubs * 100 : 0
+  const totalSubmissionCount = totalSubs || 0
+  const validRate = totalSubmissionCount > 0 ? (acc12m || 0) / totalSubmissionCount * 100 : 0
 
   const { count: refunds } = await supabase
     .from("db_sales")
@@ -65,12 +67,13 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
     .eq("referral_partner_id", partnerId)
     .eq("status", "REFUNDED")
 
-  const refundRate = paid12m > 0 ? (refunds || 0) / paid12m * 100 : 0
+  const paidConversionCount12m = paid12m || 0
+  const refundRate = paidConversionCount12m > 0 ? (refunds || 0) / paidConversionCount12m * 100 : 0
 
   // 4. Profile & History
   const { data: profile } = await supabase
     .from("partners")
-    .select("partner_since, current_grade, status")
+    .select("partner_since, current_grade, status, application_id")
     .eq("id", partnerId)
     .maybeSingle()
 
@@ -83,6 +86,23 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
   // Simple consecutive pass count (simplified for demo)
   const passing = history?.filter(h => h.new_grade !== "SILVER").length || 0
 
+  const [{ data: agreement }, { data: application }] = await Promise.all([
+    supabase
+      .from("partner_agreements")
+      .select("id")
+      .eq("partner_id", partnerId)
+      .eq("agreement_kind", "REFERRAL_PARTNER_AGREEMENT")
+      .in("status", ["EXECUTED", "ACTIVE"])
+      .limit(1),
+    profile?.application_id
+      ? supabase
+          .from("partner_applications")
+          .select("orientation_completed_at")
+          .eq("id", profile.application_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+
   const activationDate = profile?.partner_since ? new Date(profile.partner_since) : new Date()
   const daysSince = Math.floor((now.getTime() - activationDate.getTime()) / (1000 * 60 * 60 * 24))
 
@@ -94,6 +114,8 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
     validSubmissionRate: Math.round(validRate),
     refundRate: Math.round(refundRate),
     consecutivePassingReviews: passing,
+    activeAgreement: Array.isArray(agreement) ? agreement.length > 0 : Boolean(agreement),
+    orientationCompleted: Boolean(application?.orientation_completed_at),
     daysSinceActivation: daysSince,
     misleadingClaim: false, // Default to false, would check compliance table
     consentFailure: false,

@@ -503,6 +503,7 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
   state: string
   city: string
   website: string | null
+  logoUrl: string | null
   publicEmail: string | null
   publicPhone: string | null
   publicAddress: string | null
@@ -516,7 +517,7 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
   // the "not currently listed" message, so we rely on service role (server-side).
   const { data } = await supabase
     .from("partners")
-    .select("id, partner_id, business_name, display_name, partner_type, status, country, state, city, website, public_email, public_phone, public_address, service_areas, partner_since, public_profile_enabled")
+    .select("id, partner_id, business_name, display_name, partner_type, status, country, state, city, website, logo_url, public_email, public_phone, public_address, service_areas, partner_since, public_profile_enabled")
     .eq("partner_id", partnerId)
     .maybeSingle()
   if (!data) return null
@@ -532,6 +533,7 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
     state: data.state || "",
     city: data.city || "",
     website: data.website ?? null,
+    logoUrl: data.logo_url ?? null,
     publicEmail: data.public_email ?? null,
     publicPhone: data.public_phone ?? null,
     publicAddress: data.public_address ?? null,

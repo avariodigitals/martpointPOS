@@ -23,7 +23,12 @@ export async function resolveChatBusinessId(
   identity?: { email?: unknown; phone?: unknown; name?: unknown },
 ): Promise<{ id?: string; error?: string; status?: number }> {
   if (source === "public_site") {
-    const configured = process.env.AZERA_PUBLIC_BUSINESS_ID?.trim()
+    // Keep the server authoritative, but accept the public-site variable as a
+    // compatibility fallback so a deployment does not render a working widget
+    // that then fails every message with “not configured”.
+    const configured = (
+      process.env.AZERA_PUBLIC_BUSINESS_ID || process.env.NEXT_PUBLIC_AZERA_BUSINESS_ID
+    )?.trim()
     if (!configured) return { error: "Azera public support business is not configured", status: 503 }
     return { id: configured }
   }

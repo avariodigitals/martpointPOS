@@ -5,6 +5,7 @@ import { Loader2, ShieldCheck, FileSignature, ListChecks, Landmark, BadgeCheck }
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/admin/admin-toast"
+import { InstrumentsPreviewModal } from "@/components/admin/instruments-preview-modal"
 
 /* ───────────────────────────  Signed instruments panel  ───────────────────────────
  * Drives the Agreement and Commission Schedule lifecycle. The rates, protection
@@ -127,6 +128,7 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
   const [detail, setDetail] = useState<Detail | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState("")
+  const [preview, setPreview] = useState<{ url: string; type: "agreement" | "schedule" } | null>(null)
 
   const [terms, setTerms] = useState({ firstYear: "10", renewal: "5", protection: "90", holding: "30", payout: "14", split: "", justification: "" })
   const [profile, setProfile] = useState({ bankName: "", accountNumber: "", accountName: "", contactName: "", contactEmail: "", contactPhone: "", taxReference: "" })
@@ -158,10 +160,16 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
   }, [applicationId])
 
   useEffect(() => {
+    // This effect intentionally starts the request; load owns its loading state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
   }, [load])
 
-  async function act(key: string, body: Record<string, unknown>) {
+  async function act(
+    key: string,
+    body: Record<string, unknown>,
+    previewRequest?: { type: "agreement" | "schedule"; recordId: string },
+  ) {
     setBusy(key)
     try {
       const res = await fetch(`/api/admin/partners/applications/${applicationId}/instruments`, {
@@ -174,7 +182,14 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
         toast({ title: json.error || "That action was refused", variant: "warning" })
         return
       }
-      if (json.detail) setDetail(json.detail)
+      if (json.detail) {
+        setDetail(json.detail)
+        if (previewRequest) {
+          const rows = previewRequest.type === "agreement" ? json.detail.agreements : json.detail.schedules
+          const generated = rows.find((row) => row.id === previewRequest.recordId)
+          if (generated?.previewUrl) setPreview({ url: generated.previewUrl, type: previewRequest.type })
+        }
+      }
       toast({ title: "Recorded", variant: "success" })
     } catch {
       toast({ title: "Could not reach the server", variant: "error" })
@@ -266,15 +281,13 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
                 {a.title && <p className="text-xs text-muted-foreground">{a.title}</p>}
                 <div className="flex flex-wrap gap-2">
                   {a.previewUrl ? (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={a.previewUrl} target="_blank" rel="noopener noreferrer">Preview document</a>
-                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setPreview({ url: a.previewUrl!, type: "agreement" })}>Preview document</Button>
                   ) : detail.can.agreementReview && detail.partner && (
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={busy === a.id + "document"}
-                      onClick={() => act(a.id + "document", { action: "issue_agreement_document", agreementId: a.id })}
+                      onClick={() => act(a.id + "document", { action: "issue_agreement_document", agreementId: a.id }, { type: "agreement", recordId: a.id })}
                     >
                       {busy === a.id + "document" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Generate preview
                     </Button>
@@ -338,15 +351,13 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
                 {s.notes && <p className="text-xs text-amber-800">{s.notes}</p>}
                 <div className="flex flex-wrap gap-2">
                   {s.previewUrl ? (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={s.previewUrl} target="_blank" rel="noopener noreferrer">Preview document</a>
-                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setPreview({ url: s.previewUrl!, type: "schedule" })}>Preview document</Button>
                   ) : detail.can.scheduleApprove && detail.partner && (
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={busy === s.id + "document"}
-                      onClick={() => act(s.id + "document", { action: "issue_schedule_document", scheduleId: s.id })}
+                      onClick={() => act(s.id + "document", { action: "issue_schedule_document", scheduleId: s.id }, { type: "schedule", recordId: s.id })}
                     >
                       {busy === s.id + "document" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Generate preview
                     </Button>
@@ -471,6 +482,12 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
           )}
         </CardContent>
       </Card>
+      <InstrumentsPreviewModal
+        open={Boolean(preview)}
+        onClose={() => setPreview(null)}
+        previewUrl={preview?.url || null}
+        type={preview?.type || "agreement"}
+      />
     </div>
   )
 }

@@ -94,6 +94,8 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
   const [agentOnline, setAgentOnline] = useState(false)
   const [agentQueues, setAgentQueues] = useState<string[]>(["customer_support"])
   const [soundReady, setSoundReady] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(false)
+  const storedPreferences = useRef<Record<string, unknown>>({})
   const [incomingCall, setIncomingCall] = useState<{ id: string; customer_name?: string | null } | null>(null)
   const optimisticId = useRef(0)
   const knownActivity = useRef(new Map<string, string>())
@@ -114,6 +116,7 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
   }, [])
 
   const playAgentAlert = useCallback(() => {
+    if (!soundEnabled) return
     primeAlertAudio()
     const context = alertAudio.current
     if (!context || context.state === "suspended") return
@@ -133,7 +136,55 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
     } catch {
       // Waiting count and unread state remain the fallback if audio is blocked.
     }
-  }, [primeAlertAudio])
+  }, [primeAlertAudio, soundEnabled])
+
+  useEffect(() => {
+    let active = true
+    async function loadSoundPreference() {
+      try {
+        const response = await fetch("/api/admin/user-preferences", { cache: "no-store" })
+        if (!response.ok || !active) return
+        const json = await response.json()
+        const preferences = (json.preferences && typeof json.preferences === "object" ? json.preferences : {}) as Record<string, unknown>
+        storedPreferences.current = preferences
+        setSoundEnabled(Boolean(preferences.omnichannelSound))
+      } catch {
+        // Audio remains opt-in for this session when preferences cannot load.
+      }
+    }
+    void loadSoundPreference()
+    return () => { active = false }
+  }, [])
+
+  async function toggleSound() {
+    // Browsers still require one user gesture to resume an AudioContext after login.
+    if (soundEnabled && !soundReady) {
+      primeAlertAudio()
+      return
+    }
+
+    const next = !soundEnabled
+    setSoundEnabled(next)
+    if (!next) {
+      alertAudio.current?.close()
+      alertAudio.current = null
+      setSoundReady(false)
+    } else {
+      primeAlertAudio()
+    }
+
+    const preferences = { ...storedPreferences.current, omnichannelSound: next }
+    storedPreferences.current = preferences
+    try {
+      await fetch("/api/admin/user-preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences }),
+      })
+    } catch {
+      // Keep the session setting even if persistence is temporarily unavailable.
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -173,7 +224,7 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
   }, [agentOnline, incomingCall])
 
   async function setPresence(online: boolean) {
-    if (online) primeAlertAudio()
+    if (online && soundEnabled) primeAlertAudio()
     const response = await fetch("/api/azera/presence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ online, queues: agentQueues }) })
     const json = await response.json()
     if (!response.ok) throw new Error(json.error || "Could not update agent status")
@@ -350,7 +401,7 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
 
   return <div className="space-y-6">
     <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div><div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-retail-soft text-retail"><Inbox className="h-4 w-4" /></span> Support workspace</div><h1 className="text-2xl font-bold tracking-tight text-slate-950">Omnichannel inbox</h1><p className="mt-1 max-w-2xl text-sm text-muted-foreground">AI triages each chat into Sales, Support, or Customer Support. Only explicitly enabled online agents receive waiting-chat alerts.</p></div><div className="flex flex-wrap items-center gap-2"><button onClick={primeAlertAudio} className={cn("inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold shadow-sm", soundReady ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-800")}><Volume2 className="h-4 w-4" />{soundReady ? "Sound on" : "Enable sound"}</button><button onClick={() => void setPresence(!agentOnline)} className={cn("inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold shadow-sm", agentOnline ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border border-border bg-white text-slate-700 hover:bg-slate-50")}>{agentOnline ? "Agent online" : "Go online for chats"}</button><button onClick={() => void loadConversations()} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"><RefreshCw className="h-4 w-4" /> Refresh</button></div></header>
+      <div><div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-retail-soft text-retail"><Inbox className="h-4 w-4" /></span> Support workspace</div><h1 className="text-2xl font-bold tracking-tight text-slate-950">Omnichannel inbox</h1><p className="mt-1 max-w-2xl text-sm text-muted-foreground">AI triages each chat into Sales, Support, or Customer Support. Only explicitly enabled online agents receive waiting-chat alerts.</p></div><div className="flex flex-wrap items-center gap-2"><button onClick={() => void toggleSound()} className={cn("inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold shadow-sm", soundReady ? "border-emerald-200 bg-emerald-50 text-emerald-700" : soundEnabled ? "border-blue-200 bg-blue-50 text-blue-700" : "border-amber-200 bg-amber-50 text-amber-800")}><Volume2 className="h-4 w-4" />{soundReady ? "Sound on" : soundEnabled ? "Sound saved — enable" : "Enable sound"}</button><button onClick={() => void setPresence(!agentOnline)} className={cn("inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold shadow-sm", agentOnline ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border border-border bg-white text-slate-700 hover:bg-slate-50")}>{agentOnline ? "Agent online" : "Go online for chats"}</button><button onClick={() => void loadConversations()} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"><RefreshCw className="h-4 w-4" /> Refresh</button></div></header>
 
     <div className="grid grid-cols-3 gap-3 md:grid-cols-7"><div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Open</p><p className="mt-1 text-2xl font-bold text-slate-900">{stats.open}</p></div><div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Waiting</p><p className="mt-1 text-2xl font-bold text-amber-600">{stats.waiting}</p></div><div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Assigned</p><p className="mt-1 text-2xl font-bold text-indigo-600">{stats.mine}</p></div><div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Unread</p><p className="mt-1 text-2xl font-bold text-red-600">{stats.unread}</p></div><div className="hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:block"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">AI enabled</p><p className="mt-1 text-2xl font-bold text-violet-600">{conversations.filter((item) => item.ai_enabled).length}</p></div><div className="hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:block"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tickets</p><p className="mt-1 text-2xl font-bold text-emerald-600">{conversations.filter((item) => item.ticket_id).length}</p></div><div className="hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:block"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Channels</p><p className="mt-1 text-2xl font-bold text-slate-900">{new Set(conversations.map((item) => item.channel)).size}</p></div></div>
 

@@ -91,8 +91,13 @@ export default async function PartnerProfilePage({
 
               <div className="p-6 md:p-8">
                 <div className="flex flex-col sm:flex-row gap-6">
-                  <div className="w-16 h-16 rounded-xl bg-[#0A0F1C] flex items-center justify-center text-white font-bold text-2xl shrink-0">
-                    {partner.displayName.charAt(0).toUpperCase()}
+                  <div className="w-16 h-16 overflow-hidden rounded-xl bg-[#0A0F1C] flex items-center justify-center text-white font-bold text-2xl shrink-0">
+                    {partner.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={partner.logoUrl} alt={`${partner.displayName} logo`} className="h-full w-full object-contain bg-white" />
+                    ) : (
+                      partner.displayName.charAt(0).toUpperCase()
+                    )}
                   </div>
                   <div className="flex-1">
                     <h1 className="text-2xl font-bold tracking-tight">{partner.displayName}</h1>

@@ -255,7 +255,7 @@ export function AdminSidebarNav({
         title="MartPoint Control Centre"
         subtitle="Operational source of truth"
         sections={sections}
-        userName={userMeta}
+        userName={userName}
         onLogout={handleLogout}
         logoutLabel="Logout"
         storageKey="admin-nav"

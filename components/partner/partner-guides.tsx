@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleHelp, FileCheck2, ShieldCheck, Wallet, ArrowRight, AlertTriangle } from "lucide-react"
+import { CheckCircle2, CircleHelp, FileCheck2, ShieldCheck, Wallet, ArrowRight, AlertTriangle, Award, BadgeCheck, Briefcase, Building2, ClipboardList, FileQuestion, FileText, FolderOpen, GraduationCap, LifeBuoy, Palette, Share2, Target, Users, type LucideIcon } from "lucide-react"
 
 function GuideSection({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
   return (
@@ -35,6 +35,20 @@ function FlowStep({ children }: { children: React.ReactNode }) {
   return <><span className="rounded-lg border border-border bg-card px-3 py-2 shadow-sm">{children}</span><ArrowRight className="h-4 w-4 text-muted-foreground" /></>
 }
 
+function ModuleCard({ href, label, description, icon: Icon }: { href: string; label: string; description: string; icon: LucideIcon }) {
+  return (
+    <a href={href} className="group rounded-xl border border-border bg-card p-4 transition-colors hover:border-retail/50 hover:bg-retail-soft/30">
+      <div className="flex items-start gap-3">
+        <Icon className="mt-0.5 h-5 w-5 shrink-0 text-retail" />
+        <div>
+          <p className="font-semibold text-foreground group-hover:text-retail">{label}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+        </div>
+      </div>
+    </a>
+  )
+}
+
 export function PartnerPortalGuide() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -52,6 +66,37 @@ export function PartnerPortalGuide() {
         <div className="rounded-2xl border border-border bg-card p-4"><CircleHelp className="h-5 w-5 text-retail" /><p className="mt-3 font-semibold">Your support route</p><p className="mt-1 text-xs text-muted-foreground">Use Support Tickets for questions that need a written, traceable answer.</p></div>
       </div>
 
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-retail">Navigation at a glance</p>
+            <h2 className="mt-1 text-xl font-semibold text-foreground">What each portal module is for</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Use the left sidebar on desktop or the bottom menu and <strong>More</strong> menu on mobile. The portal only shows modules allowed by your user role and your organisation&apos;s capabilities, so two partner users may see different menus.</p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ModuleCard href="/partner" label="Dashboard" description="See your partner status, capability summary, compliance actions, key counts, and recent activity." icon={Building2} />
+          <ModuleCard href="/partner/leads" label="Leads" description="Register customer opportunities, view lead status, and follow protection or matching decisions." icon={Target} />
+          <ModuleCard href="/partner/referrals" label="Referrals" description="Review accepted referral opportunities and any action or decision history." icon={Share2} />
+          <ModuleCard href="/partner/quotes" label="Quotes" description="Submit quote requests for eligible leads and track Sales review, issue, decline, or expiry." icon={FileQuestion} />
+          <ModuleCard href="/partner/customers" label="Customers" description="Open assigned customer records and view the customer information your access level permits." icon={Briefcase} />
+          <ModuleCard href="/partner/work-orders" label="Work Orders" description="Track approved implementation work, milestones, due dates, and evidence." icon={ClipboardList} />
+          <ModuleCard href="/partner/commissions" label="Earnings" description="View commission status, statements, payout details, and eligible payout requests." icon={Wallet} />
+          <ModuleCard href="/partner/profile" label="Profile" description="Maintain your organisation details, contact information, and approved logo." icon={Building2} />
+          <ModuleCard href="/partner/team" label="Team" description="Invite and manage partner users when your role has team-management permission." icon={Users} />
+          <ModuleCard href="/partner/compliance" label="Compliance" description="Submit requested compliance information and track review status; MartPoint performs verification." icon={FileCheck2} />
+          <ModuleCard href="/partner/documents" label="Documents" description="Preview or download agreements, schedules, activation records, assignments, statements, and notices issued to you." icon={FileText} />
+          <ModuleCard href="/partner/training" label="Training" description="Open MartPoint training videos, learning materials, demonstrations, and downloadable guides." icon={GraduationCap} />
+          <ModuleCard href="/partner/certification" label="Certification" description="View certification requirements and certificates uploaded or issued by MartPoint." icon={Award} />
+          <ModuleCard href="/partner/assessments" label="Assessments" description="Open assigned assessments, complete papers, and review your available assessment status." icon={ClipboardList} />
+          <ModuleCard href="/partner/branded-materials" label="Branded Materials" description="Download approved co-branded materials and submit a branding request where available." icon={Palette} />
+          <ModuleCard href="/partner/badge-kit" label="Badge Kit" description="Download the partner badge assets that MartPoint has issued for your organisation." icon={BadgeCheck} />
+          <ModuleCard href="/partner/resources" label="Resources" description="Access shared MartPoint guides and documents that have been made available to your partner organisation." icon={FolderOpen} />
+          <ModuleCard href="/partner/support" label="Support Tickets" description="Raise and track a written support request, then reply from the ticket thread." icon={LifeBuoy} />
+        </div>
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>Why a module may be missing:</strong> navigation is permission- and capability-filtered. Ask your organisation administrator or MartPoint if you need a module that is not visible; do not use another person&apos;s account.</div>
+      </section>
+
       <div className="space-y-4">
         <GuideSection number="1" title="Log in and change your password">
           <ol className="list-decimal space-y-2 pl-5"><li>Open <Screen href="/partner/login">Partner Login</Screen> and enter the email address used for your partner user account and your password.</li><li>Select <strong>Sign In</strong>. You will arrive at the Partner Dashboard.</li><li>If you cannot remember the password, select <strong>Forgot password?</strong>, enter your email, and select <strong>Send Reset Link</strong>.</li><li>Open the reset link from email, enter a new password of at least 10 characters, confirm it, and select <strong>Reset Password</strong>. Return to Partner Login.</li></ol>
@@ -60,7 +105,7 @@ export function PartnerPortalGuide() {
 
         <GuideSection number="2" title="Start at the Dashboard, then complete your profile and team">
           <p>The Dashboard is the first screen after login. Use the sidebar to move between Leads, Quotes, Customers, Work Orders, Earnings, Documents, Training, Compliance, and Support.</p>
-          <ul className="space-y-2"><Bullet>Open <Screen href="/partner/profile">Profile</Screen> to keep your organisation and contact information current.</Bullet><Bullet>Open <Screen href="/partner/team">Team</Screen> to invite approved colleagues and assign the correct partner role. Only users with the relevant permission can invite or manage team members.</Bullet><Bullet>Read notifications promptly; they can relate to a referral decision, a document, a customer assignment, a payout, or an account-status change.</Bullet></ul>
+          <ul className="space-y-2"><Bullet>Open <Screen href="/partner/profile">Profile</Screen> to keep your organisation and contact information current.</Bullet><Bullet>Open <Screen href="/partner/team">Team</Screen> to invite approved colleagues and assign the correct partner role. Only users with the relevant permission can invite or manage team members.</Bullet><Bullet>Check the Dashboard&apos;s Recent Activity and the email address on your profile for referral, document, customer, payout, or account-status updates.</Bullet></ul>
         </GuideSection>
 
         <GuideSection number="3" title="Create a lead: Partner Portal → Leads → Register Lead">

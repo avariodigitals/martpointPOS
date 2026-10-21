@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/admin-auth"
-import { evaluateReferralGrade, REFERRAL_GRADE_LABELS, REFERRAL_GRADES } from "@/lib/partner-grades"
+import { evaluateReferralGrade, REFERRAL_GRADE_LABELS, REFERRAL_GRADES, type ReferralGrade } from "@/lib/partner-grades"
 import { calculatePartnerMetrics } from "@/lib/partner-metrics"
 import { supabase } from "@/lib/supabase"
 import { z } from "zod"
@@ -10,11 +10,13 @@ const GradeSchema = z.object({
   reason: z.string().min(5),
 })
 
-export async function GET(request: Request, { params }: { params: { partnerId: string } }) {
+type PartnerRouteContext = { params: Promise<{ partnerId: string }> }
+
+export async function GET(request: Request, { params }: PartnerRouteContext) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { partnerId } = params
+  const { partnerId } = await params
   
   try {
     const metrics = await calculatePartnerMetrics(partnerId)
@@ -28,10 +30,15 @@ export async function GET(request: Request, { params }: { params: { partnerId: s
 
     if (!row) return NextResponse.json({ error: "Partner not found" }, { status: 404 })
 
+    const currentGrade = typeof row.current_grade === "string" &&
+      (REFERRAL_GRADES as readonly string[]).includes(row.current_grade)
+      ? REFERRAL_GRADE_LABELS[row.current_grade as ReferralGrade]
+      : "Not graded"
+
     return NextResponse.json({
       partner: {
         name: row.business_name,
-        currentGrade: row.current_grade ? REFERRAL_GRADE_LABELS[row.current_grade as any] : "Not graded",
+        currentGrade,
         lastReview: row.grade_review_date,
       },
       metrics,
@@ -41,16 +48,16 @@ export async function GET(request: Request, { params }: { params: { partnerId: s
         reasons: computedReasons,
       }
     })
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Failed to load grade data" }, { status: 500 })
   }
 }
 
-export async function POST(request: Request, { params }: { params: { partnerId: string } }) {
+export async function POST(request: Request, { params }: PartnerRouteContext) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { partnerId } = params
+  const { partnerId } = await params
   const body = await request.json()
   const parsed = GradeSchema.safeParse(body)
 
@@ -65,7 +72,7 @@ export async function POST(request: Request, { params }: { params: { partnerId: 
       .eq("id", partnerId)
       .maybeSingle()
 
-    const previous = row?.current_grade as any
+    const previous = typeof row?.current_grade === "string" ? row.current_grade : null
 
     // Record the decision
     await supabase.from("partners").update({
@@ -83,7 +90,7 @@ export async function POST(request: Request, { params }: { params: { partnerId: 
     })
 
     return NextResponse.json({ ok: true, grade })
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Failed to save grade" }, { status: 500 })
   }
 }

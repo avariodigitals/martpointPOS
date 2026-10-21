@@ -422,15 +422,20 @@ function Dialog({
 }) {
   if (!open) return null
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-20">
-      <div className="w-full max-w-2xl rounded-xl border border-border bg-background p-6 shadow-lg">
-        <div className="mb-4 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-background p-6 shadow-lg"
+      >
+        <div className="mb-4 flex shrink-0 items-center justify-between">
           <h3 className="text-lg font-semibold">{title}</h3>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
-        {children}
+        <div className="min-h-0 overflow-y-auto pr-1">{children}</div>
       </div>
     </div>,
     document.body,

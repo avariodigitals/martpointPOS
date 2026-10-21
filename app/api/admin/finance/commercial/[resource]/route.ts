@@ -552,7 +552,21 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           updated_at: now(),
         }).select().single()
         if (error) return err(error.message, 500)
-        const { error: itemError } = await supabase.from("invoice_items").insert(quote.quote_items.map((it: any) => ({ ...it, invoice_id: inv.id })))
+        // Quote items and invoice items intentionally have different foreign-key
+        // columns. Do not spread the quote row here: `quote_id` belongs to
+        // quote_items, not invoice_items (and tax_rate is also quote-only).
+        const invoiceItems = quote.quote_items.map((it: any) => ({
+          invoice_id: inv.id,
+          item_type: it.item_type || "CUSTOM",
+          reference_id: it.reference_id ?? null,
+          description: it.description,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          discount: it.discount,
+          tax: it.tax,
+          line_total: it.line_total,
+        }))
+        const { error: itemError } = await supabase.from("invoice_items").insert(invoiceItems)
         if (itemError) {
           await supabase.from("invoices").delete().eq("id", inv.id)
           return err(`Invoice could not be completed: ${itemError.message}`, 500)

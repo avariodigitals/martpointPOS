@@ -91,7 +91,7 @@ export type PayoutStatus = "DRAFT" | "APPROVED" | "PAID" | "FAILED" | "CANCELLED
 export type Quote = {
   id: string
   quote_number: string
-  business_id: string
+  business_id: string | null
   partner_id?: string | null
   partner_lead_id?: string | null
   status: QuoteStatus

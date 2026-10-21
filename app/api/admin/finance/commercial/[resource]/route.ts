@@ -314,12 +314,43 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       if (action === "create") {
         const quoteNumber = await nextQuoteNumber()
         const { items, ...fields } = data
+        const partnerLeadId = typeof fields.partner_lead_id === "string" && fields.partner_lead_id.trim() ? fields.partner_lead_id.trim() : null
+        const businessId = typeof fields.business_id === "string" && fields.business_id.trim() ? fields.business_id.trim() : null
+        if (!businessId && !partnerLeadId) return err("Select a business or a partner lead for this quote")
+
+        if (partnerLeadId) {
+          const { data: lead } = await supabase
+            .from("partner_leads")
+            .select("id, partner_id, status, protection_status")
+            .eq("id", partnerLeadId)
+            .maybeSingle()
+          if (!lead) return err("Partner lead not found")
+          if (["LOST", "EXPIRED"].includes(String(lead.status))) return err("A quote cannot be created for a lost or expired lead")
+          if (lead.protection_status !== "PROTECTED") return err("Protect the partner lead before creating its quote")
+          fields.partner_id = fields.partner_id || lead.partner_id
+        }
+        fields.business_id = businessId
+        fields.partner_lead_id = partnerLeadId
+
         const { data: q, error } = await supabase.from("quotes").insert({ ...fields, quote_number: quoteNumber, status: "DRAFT", created_by: actor.id, created_at: now(), updated_at: now() }).select().single()
         if (error) return err(error.message, 500)
         if (items?.length) {
           await supabase.from("quote_items").insert(items.map((it: any) => ({ ...it, quote_id: q.id, line_total: money((it.quantity || 0) * (it.unit_price || 0) - (it.discount || 0) + (it.tax || 0)) })))
         }
         await recalculateQuote(q.id)
+        if (partnerLeadId) {
+          const { data: requestRow } = await supabase
+            .from("partner_quote_requests")
+            .select("id")
+            .eq("partner_lead_id", partnerLeadId)
+            .in("status", ["SUBMITTED", "UNDER_REVIEW"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (requestRow) {
+            await supabase.from("partner_quote_requests").update({ issued_quote_ref: q.quote_number, updated_at: now() }).eq("id", requestRow.id)
+          }
+        }
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_CREATED", "QUOTE", q.id)
         return ok(q)
       }
@@ -339,6 +370,13 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { id } = data
         const { data: q, error } = await supabase.from("quotes").update({ status: "SENT", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
+        if (q?.partner_lead_id) {
+          await supabase
+            .from("partner_quote_requests")
+            .update({ status: "ISSUED", issued_quote_ref: q.quote_number, decided_by: actor.id, decided_at: now(), decision_reason: "Finance quote sent", updated_at: now() })
+            .eq("partner_lead_id", q.partner_lead_id)
+            .in("status", ["SUBMITTED", "UNDER_REVIEW"])
+        }
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_SENT", "QUOTE", id)
         return ok(q)
       }
@@ -366,6 +404,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: quote } = await supabase.from("quotes").select("*, quote_items(*), business_id, currency").eq("id", id).single()
         if (!quote) return err("Quote not found", 404)
         if (quote.status !== "ACCEPTED") return err("Quote must be accepted before conversion")
+        if (!quote.business_id) return err("Complete customer setup and attach this quote to a business before converting it to an invoice")
         const invoiceNumber = await nextInvoiceNumber()
         const today = new Date().toISOString().split("T")[0]
         const dueDate = data.due_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]

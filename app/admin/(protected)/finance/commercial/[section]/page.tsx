@@ -73,7 +73,7 @@ type FieldType = "text" | "number" | "select" | "textarea" | "date" | "boolean" 
 
 // Which dynamic option list a select should be populated from. Static
 // `options` remain supported for simple enums.
-type OptionSource = "businesses" | "plans"
+type OptionSource = "businesses" | "plans" | "partner_leads"
 
 interface FieldConfig {
   name: string
@@ -137,9 +137,9 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "active", label: "Active", type: "boolean" },
   ],
   quotes: [
-    { name: "business_id", label: "Business ID", type: "text" },
+    { name: "business_id", label: "Business ID (optional)", type: "text", help: "Leave blank when preparing a quote for a partner lead." },
     { name: "partner_id", label: "Partner ID", type: "text" },
-    { name: "partner_lead_id", label: "Partner Lead ID", type: "text" },
+    { name: "partner_lead_id", label: "Partner Lead", type: "select", optionSource: "partner_leads", help: "Select the lead. This creates a lead-backed quote without creating a customer." },
     { name: "currency", label: "Currency", type: "text" },
     { name: "notes_public", label: "Public Notes", type: "textarea" },
     { name: "valid_until", label: "Valid Until", type: "date" },
@@ -299,6 +299,16 @@ interface PlanOption {
   active: boolean
 }
 
+interface PartnerLeadOption {
+  id: string
+  businessName: string
+  contactName: string
+  partnerName?: string | null
+  partnerCode?: string | null
+  status?: string
+  protectionStatus?: string
+}
+
 interface LicenceSoldRow {
   licence_id: string
   business_id: string
@@ -420,6 +430,7 @@ export default function CommercialSectionPage() {
   // Dynamic pickers for the subscription form.
   const [businesses, setBusinesses] = useState<BusinessOption[]>([])
   const [plans, setPlans] = useState<PlanOption[]>([])
+  const [partnerLeads, setPartnerLeads] = useState<PartnerLeadOption[]>([])
 
   // Licences-sold report (read-only section).
   const [report, setReport] = useState<LicencesSoldReport | null>(null)
@@ -438,6 +449,7 @@ export default function CommercialSectionPage() {
 
   const needsBusinesses = fields.some((f) => f.optionSource === "businesses")
   const needsPlans = fields.some((f) => f.optionSource === "plans")
+  const needsPartnerLeads = fields.some((f) => f.optionSource === "partner_leads")
 
   const selectedPlan = useMemo(
     () => plans.find((p) => p.id === formValues.plan_id),
@@ -483,6 +495,22 @@ export default function CommercialSectionPage() {
       cancelled = true
     }
   }, [needsPlans])
+
+  useEffect(() => {
+    if (!needsPartnerLeads) return
+    let cancelled = false
+    fetch("/api/admin/partner-leads")
+      .then((res) => res.json())
+      .then((data: { leads?: PartnerLeadOption[] }) => {
+        if (cancelled) return
+        const list = (data.leads || []).filter((lead) => !["LOST", "EXPIRED"].includes(String(lead.status || "").toUpperCase()))
+        setPartnerLeads(list.sort((a, b) => a.businessName.localeCompare(b.businessName)))
+      })
+      .catch(() => setMessage("Failed to load partner leads"))
+    return () => {
+      cancelled = true
+    }
+  }, [needsPartnerLeads])
 
   useEffect(() => {
     if (!resource) return
@@ -646,6 +674,12 @@ export default function CommercialSectionPage() {
       return plans.map((p) => ({
         value: p.id,
         label: `${p.name}${p.code ? ` (${p.code})` : ""} · ${formatMoneyIn(p.base_price, p.currency)}`,
+      }))
+    }
+    if (f.optionSource === "partner_leads") {
+      return partnerLeads.map((lead) => ({
+        value: lead.id,
+        label: `${lead.businessName} · ${lead.contactName}${lead.partnerName ? ` · ${lead.partnerName}` : lead.partnerCode ? ` · ${lead.partnerCode}` : ""}`,
       }))
     }
     return (f.options || []).map((o) => ({ value: o, label: o }))

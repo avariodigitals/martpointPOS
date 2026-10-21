@@ -1180,7 +1180,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                 {quoteRequests.map((qr) => {
                   const lead = qr.partner_leads as Record<string, unknown> | null
                   const open = ["SUBMITTED", "UNDER_REVIEW"].includes(qr.status as string)
-                  const decision = quoteDecisions[qr.id as string] || { ref: "", reason: "" }
+                  const decision = quoteDecisions[qr.id as string] || { ref: (qr.issued_quote_ref as string) || "", reason: "" }
                   return (
                     <div key={qr.id as string} className="p-3 rounded-lg border border-border">
                       <div className="flex items-start justify-between gap-3">

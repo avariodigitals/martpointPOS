@@ -349,7 +349,18 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: q, error } = await supabase.from("quotes").insert({ ...fields, quote_number: quoteNumber, status: "DRAFT", created_by: actor.id, created_at: now(), updated_at: now() }).select().single()
         if (error) return err(error.message, 500)
         if (items?.length) {
-          await supabase.from("quote_items").insert(items.map((it: any) => ({ ...it, quote_id: q.id, line_total: money((it.quantity || 0) * (it.unit_price || 0) - (it.discount || 0) + (it.tax || 0)) })))
+          const { error: itemError } = await supabase.from("quote_items").insert(items.map((it: any) => ({
+            item_type: it.item_type || "CUSTOM",
+            reference_id: it.reference_id || null,
+            description: String(it.description || "").trim(),
+            quantity: Number(it.quantity) || 0,
+            unit_price: Number(it.unit_price) || 0,
+            discount: Number(it.discount) || 0,
+            tax: Number(it.tax) || 0,
+            quote_id: q.id,
+            line_total: money((it.quantity || 0) * (it.unit_price || 0) - (it.discount || 0) + (it.tax || 0)),
+          })))
+          if (itemError) return err(`Quote created but its lines could not be saved: ${itemError.message}`, 500)
         }
         await recalculateQuote(q.id)
         if (partnerLeadId) {

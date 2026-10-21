@@ -306,6 +306,27 @@ interface PartnerLeadOption {
   protectionStatus?: string
 }
 
+type QuoteLineType = "PRODUCT" | "PLAN" | "SERVICE" | "ADDON" | "CUSTOM"
+
+interface QuoteLine {
+  item_type: QuoteLineType
+  reference_id: string | null
+  description: string
+  quantity: number
+  unit_price: number
+  discount: number
+  tax: number
+}
+
+interface QuoteCatalogItem {
+  id: string
+  name: string
+  description: string | null
+  item_type: Exclude<QuoteLineType, "CUSTOM">
+  price: number
+  currency: string
+}
+
 interface LicenceSoldRow {
   licence_id: string
   business_id: string
@@ -432,6 +453,8 @@ export default function CommercialSectionPage() {
   const [businesses, setBusinesses] = useState<BusinessOption[]>([])
   const [plans, setPlans] = useState<PlanOption[]>([])
   const [partnerLeads, setPartnerLeads] = useState<PartnerLeadOption[]>([])
+  const [quoteCatalog, setQuoteCatalog] = useState<QuoteCatalogItem[]>([])
+  const [quoteItems, setQuoteItems] = useState<QuoteLine[]>([])
 
   // Licences-sold report (read-only section).
   const [report, setReport] = useState<LicencesSoldReport | null>(null)
@@ -460,6 +483,9 @@ export default function CommercialSectionPage() {
   useEffect(() => {
     if (!resource) return
     setFormValues(defaultFormValues(fields))
+    if (resource === "quotes") {
+      setQuoteItems([{ item_type: "CUSTOM", reference_id: null, description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0 }])
+    }
   }, [resource, fields])
 
   // Load businesses for pickers (only businesses that can hold a licence).
@@ -513,6 +539,38 @@ export default function CommercialSectionPage() {
       cancelled = true
     }
   }, [needsPartnerLeads])
+
+  // Quotes use the same live commercial catalogue as the normal quotation
+  // screen, so plans, products, services and add-ons can all become lines.
+  useEffect(() => {
+    if (resource !== "quotes") return
+    let cancelled = false
+    fetch("/api/admin/finance/catalog?type=all&activeOnly=true")
+      .then((res) => res.json())
+      .then((raw: { data?: { products?: Row[]; plans?: Row[]; services?: Row[]; addons?: Row[] } }) => {
+        if (cancelled) return
+        const data = raw.data || {}
+        const products: QuoteCatalogItem[] = (data.products || []).map((p) => ({
+          id: String(p.id), name: String(p.name), description: (p.description as string | null) || null,
+          item_type: "PRODUCT", price: Number(p.default_price) || 0, currency: String(p.currency || "NGN"),
+        }))
+        const plansInCatalog: QuoteCatalogItem[] = (data.plans || []).map((p) => ({
+          id: String(p.id), name: String(p.name), description: (p.description as string | null) || null,
+          item_type: "PLAN", price: Number(p.base_price) || 0, currency: String(p.currency || "NGN"),
+        }))
+        const services: QuoteCatalogItem[] = (data.services || []).map((s) => ({
+          id: String(s.id), name: String(s.name), description: (s.description as string | null) || null,
+          item_type: "SERVICE", price: Number(s.default_price) || 0, currency: String(s.currency || "NGN"),
+        }))
+        const addons: QuoteCatalogItem[] = (data.addons || []).map((a) => ({
+          id: String(a.id), name: String(a.name), description: (a.description as string | null) || null,
+          item_type: "ADDON", price: Number(a.default_price) || 0, currency: String(a.currency || "NGN"),
+        }))
+        setQuoteCatalog([...products, ...plansInCatalog, ...services, ...addons].sort((a, b) => a.name.localeCompare(b.name)))
+      })
+      .catch(() => setMessage("Failed to load quote catalogue"))
+    return () => { cancelled = true }
+  }, [resource])
 
   useEffect(() => {
     if (!resource) return
@@ -574,15 +632,26 @@ export default function CommercialSectionPage() {
     setWorking(true)
     setMessage("")
     try {
+      const createData = buildCreatePayload(resource, formValues) as Record<string, unknown>
+      if (resource === "quotes") {
+        const validItems = quoteItems.filter((item) => item.description.trim())
+        if (validItems.length === 0) {
+          setMessage("Add at least one quote line from the catalogue")
+          setWorking(false)
+          return
+        }
+        createData.items = validItems
+      }
       const res = await fetch(`/api/admin/finance/commercial/${resource}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: createAction, data: buildCreatePayload(resource, formValues) }),
+        body: JSON.stringify({ action: createAction, data: createData }),
       })
       const data = (await res.json()) as ApiResponse
       if (data.success) {
         setMessage("Created successfully")
         setFormValues(defaultFormValues(fields))
+        if (resource === "quotes") setQuoteItems([{ item_type: "CUSTOM", reference_id: null, description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0 }])
         refreshList()
       } else {
         setMessage(data.error || "Create failed")
@@ -754,6 +823,26 @@ export default function CommercialSectionPage() {
     )
   }
 
+  function updateQuoteItem(index: number, patch: Partial<QuoteLine>) {
+    setQuoteItems((prev) => prev.map((item, i) => i === index ? { ...item, ...patch } : item))
+  }
+
+  function pickQuoteCatalogItem(index: number, id: string) {
+    const picked = quoteCatalog.find((item) => item.id === id)
+    if (!picked) {
+      updateQuoteItem(index, { reference_id: null, item_type: "CUSTOM" })
+      return
+    }
+    updateQuoteItem(index, {
+      reference_id: picked.id,
+      item_type: picked.item_type,
+      description: picked.description ? `${picked.name}\n${picked.description}` : picked.name,
+      unit_price: picked.price,
+    })
+    // Keep the quote and its catalogue lines in one currency where possible.
+    if (picked.currency) setFormValues((prev) => ({ ...prev, currency: picked.currency }))
+  }
+
   if (!resource) {
     return (
       <div className="space-y-4">
@@ -911,6 +1000,70 @@ export default function CommercialSectionPage() {
                   {f.help && <p className="text-xs text-muted-foreground">{f.help}</p>}
                 </div>
               ))}
+              {resource === "quotes" && (
+                <div className="space-y-3 sm:col-span-2 lg:col-span-3 rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Quote lines</p>
+                      <p className="text-xs text-muted-foreground">Pick the plan, then add products, services and add-ons from the live catalogue.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setQuoteItems((prev) => [...prev, { item_type: "CUSTOM", reference_id: null, description: "", quantity: 1, unit_price: 0, discount: 0, tax: 0 }])}
+                    >
+                      <Plus className="mr-1 h-3.5 w-3.5" /> Add line
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {quoteItems.map((item, index) => (
+                      <div key={index} className="grid grid-cols-1 gap-2 rounded-md border border-border bg-background p-3 md:grid-cols-12 md:items-start">
+                        <div className="md:col-span-5 space-y-1">
+                          <label className="text-xs font-medium">Catalogue item</label>
+                          <select
+                            value={item.reference_id || ""}
+                            onChange={(e) => pickQuoteCatalogItem(index, e.target.value)}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          >
+                            <option value="">Custom line / choose item…</option>
+                            {quoteCatalog.map((catalogItem) => (
+                              <option key={`${catalogItem.item_type}-${catalogItem.id}`} value={catalogItem.id}>
+                                {catalogItem.name} · {enumLabel(catalogItem.item_type)} · {formatMoneyIn(catalogItem.price, catalogItem.currency)}
+                              </option>
+                            ))}
+                          </select>
+                          <textarea
+                            rows={2}
+                            value={item.description}
+                            placeholder="Line description"
+                            onChange={(e) => updateQuoteItem(index, { description: e.target.value })}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div className="md:col-span-2 space-y-1">
+                          <label className="text-xs font-medium">Quantity</label>
+                          <input type="number" min="0.01" step="any" value={item.quantity} onChange={(e) => updateQuoteItem(index, { quantity: Number(e.target.value) || 0 })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                        </div>
+                        <div className="md:col-span-2 space-y-1">
+                          <label className="text-xs font-medium">Unit price</label>
+                          <input type="number" min="0" step="any" value={item.unit_price} onChange={(e) => updateQuoteItem(index, { unit_price: Number(e.target.value) || 0 })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                        </div>
+                        <div className="md:col-span-2 space-y-1">
+                          <label className="text-xs font-medium">Discount / tax</label>
+                          <input type="number" min="0" step="any" value={item.discount} onChange={(e) => updateQuoteItem(index, { discount: Number(e.target.value) || 0 })} placeholder="Discount" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                          <input type="number" min="0" step="any" value={item.tax} onChange={(e) => updateQuoteItem(index, { tax: Number(e.target.value) || 0 })} placeholder="Tax" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                        </div>
+                        <div className="md:col-span-1 flex justify-end">
+                          <Button type="button" variant="ghost" size="sm" disabled={quoteItems.length === 1} onClick={() => setQuoteItems((prev) => prev.filter((_, i) => i !== index))}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex items-end sm:col-span-2 lg:col-span-3">
                 <Button type="submit" disabled={working}>
                   {working ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}

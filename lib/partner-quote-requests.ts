@@ -213,7 +213,7 @@ export async function listQuoteRequestsForAdmin(partnerId?: string): Promise<Rec
   if (!isSupabaseConfigured()) return []
   let q = supabase
     .from("partner_quote_requests")
-    .select("*, partners(business_name, partner_id), partner_leads(business_name, contact_name)")
+    .select("*, partners(business_name, partner_id), partner_leads(business_name, contact_name, email, phone, industry, business_type, city, state, status)")
     .order("created_at", { ascending: false })
   if (partnerId) q = q.eq("partner_id", partnerId)
   const { data } = await q

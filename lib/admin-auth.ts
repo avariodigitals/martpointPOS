@@ -20,7 +20,9 @@ const ADMIN_COOKIE_NAME = "admin-session"
  * Defaults to 30 minutes when unset. Set 0 to disable the timeout entirely.
  */
 export function getAdminSessionTimeoutMs(): number {
-  const raw = process.env.ADMIN_SESSION_TIMEOUT_MINUTES
+  // Keep admin aligned with the shared portal setting unless an installation
+  // explicitly provides an admin-specific override.
+  const raw = process.env.ADMIN_SESSION_TIMEOUT_MINUTES || process.env.PORTAL_SESSION_TIMEOUT_MINUTES
   if (!raw) return 30 * 60 * 1000
   const minutes = Number(raw)
   if (!Number.isFinite(minutes) || minutes <= 0) return 0
@@ -362,7 +364,10 @@ export async function authorizeAdmin(
   page: string,
   action?: AdminAction
 ): Promise<{ session: SessionPayload; denied: null } | { session: null; denied: Response }> {
-  const session = await getSession()
+  // API activity is proof that the admin is actively using the portal. Refresh
+  // here as well as in the client heartbeat so long-running pages, uploads and
+  // actions cannot expire while the user is working.
+  const session = await refreshSessionActivity()
   if (!session) {
     return {
       session: null,

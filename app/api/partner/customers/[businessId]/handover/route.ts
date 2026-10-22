@@ -7,6 +7,7 @@ import { sendEmail, REPLY_TO } from "@/lib/email"
 import type { EmailAttachment } from "@/lib/email"
 import { renderEmailTemplate, escapeHtml } from "@/lib/email-templates"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { notifyPartnerCustomerEvent } from "@/lib/partner-notifications"
 
 const MAX_ATTACHMENTS = 10
 const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024
@@ -59,7 +60,7 @@ async function loadContext(businessId: string) {
   const [{ data: business }, { data: deployment }] = await Promise.all([
     supabase
       .from("businesses")
-      .select("id, business_name, primary_contact_name, primary_email")
+      .select("id, business_name, primary_contact_name, primary_email, originating_partner_id")
       .eq("id", businessId)
       .maybeSingle(),
     supabase
@@ -201,6 +202,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         attachmentCount: emailAttachments.length,
       },
     })
+
+    if (business.originating_partner_id) {
+      await notifyPartnerCustomerEvent(business.originating_partner_id as string, {
+        subject: `Customer access email sent — ${businessName}`,
+        title: "Customer access email sent",
+        businessName,
+        body: `The installation access email was sent to ${to}. Your partner team can follow up with the customer and continue implementation from the portal.`,
+        link: `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/partner/customers/${businessId}`,
+      })
+    }
 
     return NextResponse.json({ success: true, sent })
   } catch {

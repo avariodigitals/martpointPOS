@@ -29,6 +29,20 @@ export function PortalSessionTimeoutWatcher({ endpoint, loginPath, storageKey }:
     let redirecting = false
 
     const expiredKey = `martpoint:${storageKey}:session-expired-at`
+    const activityKey = `martpoint:${storageKey}:last-activity-at`
+
+    function readSharedActivityAt(): number {
+      try {
+        const shared = Number(localStorage.getItem(activityKey) || 0)
+        return Number.isFinite(shared) ? shared : 0
+      } catch {
+        return 0
+      }
+    }
+
+    function effectiveLastActivityAt(): number {
+      return Math.max(lastActivityAt, readSharedActivityAt())
+    }
 
     function redirectToLogin() {
       if (redirecting) return
@@ -44,7 +58,7 @@ export function PortalSessionTimeoutWatcher({ endpoint, loginPath, storageKey }:
 
     async function heartbeat(force = false) {
       const now = Date.now()
-      if (now - lastActivityAt >= timeoutMs) {
+      if (now - effectiveLastActivityAt() >= timeoutMs) {
         redirectToLogin()
         return
       }
@@ -74,14 +88,20 @@ export function PortalSessionTimeoutWatcher({ endpoint, loginPath, storageKey }:
     }
 
     function markActivity() {
-      lastActivityAt = Date.now()
+      const now = Date.now()
+      lastActivityAt = now
+      try {
+        localStorage.setItem(activityKey, String(now))
+      } catch {
+        // The local tab remains protected when storage is unavailable.
+      }
       activitySinceHeartbeat = true
       void heartbeat()
     }
 
     function checkIdleState() {
       if (document.visibilityState !== "visible") return
-      if (Date.now() - lastActivityAt >= timeoutMs) {
+      if (Date.now() - effectiveLastActivityAt() >= timeoutMs) {
         redirectToLogin()
         return
       }
@@ -91,11 +111,26 @@ export function PortalSessionTimeoutWatcher({ endpoint, loginPath, storageKey }:
     }
 
     function onStorage(event: StorageEvent) {
-      if (event.key === expiredKey && event.newValue) redirectToLogin()
+      if (event.key !== expiredKey || !event.newValue) return
+      // An idle tab must not sign out another tab that is actively being used.
+      // The active tab will still redirect itself if the server rejects its
+      // next heartbeat or API request.
+      if (Date.now() - effectiveLastActivityAt() < timeoutMs) return
+      redirectToLogin()
     }
 
     void heartbeat(true)
-    const activityEvents: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart", "scroll"]
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "pointerdown",
+      "keydown",
+      "touchstart",
+      "scroll",
+      "mousemove",
+      "wheel",
+      "input",
+      "change",
+      "focus",
+    ]
     activityEvents.forEach((event) => window.addEventListener(event, markActivity, { passive: true }))
     const timer = window.setInterval(checkIdleState, CHECK_INTERVAL_MS)
     document.addEventListener("visibilitychange", checkIdleState)

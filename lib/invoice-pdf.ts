@@ -39,6 +39,9 @@ export interface InvoicePdfData {
   amount_paid: number
   balance_due: number
   notes_public?: string | null
+  payment_terms?: string | null
+  bank_details?: string | null
+  template_industry?: string | null
   items: InvoicePdfItem[]
   business: InvoicePdfBusiness
 }
@@ -46,6 +49,10 @@ export interface InvoicePdfData {
 function fmt(n: number, currency: string): string {
   const v = Number(n) || 0
   return `${currency} ${v.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function splitLines(value: string | null | undefined): string[] {
+  return String(value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
 }
 
 export function generateInvoicePdf(inv: InvoicePdfData): Buffer {
@@ -192,6 +199,14 @@ export function generateInvoicePdf(inv: InvoicePdfData): Buffer {
 
   writeBand("Payment", 10, true)
   writeBand(`Please pay by bank transfer quoting invoice ${inv.invoice_number} as the payment reference, and send proof of payment in reply to the invoice email.`)
+  if (inv.payment_terms) {
+    writeBand("Payment terms", 10, true)
+    for (const line of splitLines(inv.payment_terms)) writeBand(line)
+  }
+  if (inv.bank_details) {
+    writeBand("Bank account", 10, true)
+    for (const line of splitLines(inv.bank_details)) writeBand(line)
+  }
   if (inv.notes_public) {
     writeBand("Notes", 10, true)
     writeBand(inv.notes_public)

@@ -3146,7 +3146,7 @@ MartPoint Billing`,
     key: "invoice_sent",
     label: "Invoice",
     description: "Invoice email sent to a business when an invoice is issued or resent.",
-    variables: ["contactName", "businessName", "invoiceNumber", "issueDate", "dueDate", "itemsSummary", "itemsHtml", "total", "balance", "notes"],
+    variables: ["contactName", "businessName", "invoiceNumber", "issueDate", "dueDate", "itemsSummary", "itemsHtml", "total", "balance", "notes", "paymentTerms", "bankDetails"],
     subject: "Invoice {{invoiceNumber}} from MartPoint — {{businessName}}",
     text: `Hi {{contactName}},
 
@@ -3162,6 +3162,12 @@ Total: {{total}}
 Balance due: {{balance}}
 
 {{notes}}
+
+Payment terms:
+{{paymentTerms}}
+
+Bank account:
+{{bankDetails}}
 
 A PDF copy of this invoice is attached.
 
@@ -3206,6 +3212,8 @@ MartPoint Billing`,
                 </tr>
               </table>
               <p style="font-size:14px; line-height:1.6; margin:0 0 16px; color:#374151;">{{notes}}</p>
+              <div style="font-size:14px; line-height:1.6; margin:0 0 16px; color:#374151;"><strong>Payment terms</strong><br/>{{paymentTerms}}</div>
+              <div style="font-size:14px; line-height:1.6; margin:0 0 16px; color:#374151;"><strong>Bank account</strong><br/>{{bankDetails}}</div>
               <p style="font-size:14px; line-height:1.6; margin:0; color:#6b7280;">
                 To pay by bank transfer, quote the invoice number as the payment reference and send proof of payment in reply to this email.
               </p>`,
@@ -3217,7 +3225,7 @@ MartPoint Billing`,
     key: "invoice_payment_reminder",
     label: "Invoice Payment Reminder",
     description: "Payment reminder sent for an unpaid invoice (manual or automated).",
-    variables: ["contactName", "businessName", "invoiceNumber", "dueDate", "balance", "dueText"],
+    variables: ["contactName", "businessName", "invoiceNumber", "dueDate", "balance", "dueText", "paymentTerms", "bankDetails"],
     subject: "Payment reminder — Invoice {{invoiceNumber}} ({{balance}})",
     text: `Hi {{contactName}},
 
@@ -3225,6 +3233,12 @@ This is a friendly reminder that invoice {{invoiceNumber}} for {{businessName}} 
 
 Balance due: {{balance}}
 Due date: {{dueDate}}
+
+Payment terms:
+{{paymentTerms}}
+
+Bank account:
+{{bankDetails}}
 
 A PDF copy of the invoice is attached for reference.
 
@@ -3248,6 +3262,7 @@ MartPoint Billing`,
                 </tr>
               </table>
               <p style="font-size:14px; line-height:1.6; margin:0; color:#6b7280;">
+                <strong>Payment terms:</strong> {{paymentTerms}}<br/><strong>Bank account:</strong> {{bankDetails}}<br/><br/>
                 To pay by bank transfer, quote the invoice number as the payment reference and send proof of payment in reply to this email. If you have already paid, please disregard this message.
               </p>`,
       { eyebrow: "Billing", title: "Payment reminder", signoff: "MartPoint Billing" }

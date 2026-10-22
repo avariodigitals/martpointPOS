@@ -1,4 +1,5 @@
 import { CheckCircle2, CircleHelp, FileCheck2, ShieldCheck, Wallet, ArrowRight, AlertTriangle, Award, BadgeCheck, Briefcase, Building2, ClipboardList, FileQuestion, FileText, FolderOpen, GraduationCap, LifeBuoy, Palette, Share2, Target, Users, type LucideIcon } from "lucide-react"
+import Link from "next/link"
 
 function GuideSection({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
   return (
@@ -52,6 +53,9 @@ function ModuleCard({ href, label, description, icon: Icon }: { href: string; la
 export function PartnerPortalGuide() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
+      <Link href="/partner/guide" className="inline-flex items-center gap-2 text-sm font-medium text-retail hover:underline">
+        <ArrowRight className="h-4 w-4 rotate-180" /> Back to Guide Library
+      </Link>
       <header className="rounded-3xl bg-gradient-to-br from-retail to-retail/75 p-7 text-white shadow-lg">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/75">MartPoint Partner Portal</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight">Partner Portal: screen-by-screen guide</h1>

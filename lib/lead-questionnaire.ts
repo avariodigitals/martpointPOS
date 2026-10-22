@@ -7,6 +7,7 @@ import { sendEmail, REPLY_TO } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { ADVANCED_QUESTIONNAIRE_FIELDS } from "./questionnaire-catalog"
 import { enqueueAutomation, cancelAutomationRuns } from "./automations"
+import { notifyPartnerCustomerEvent } from "./partner-notifications"
 
 export interface QuestionnaireField {
   name: string
@@ -77,6 +78,7 @@ export interface QuestionnaireLead {
   questionnaireResponses: Record<string, unknown>
   questionnaireSentAt: string | null
   questionnaireSubmittedAt: string | null
+  referringPartnerCode?: string | null
 }
 
 function mapQuestionnaireLead(row: Record<string, unknown>): QuestionnaireLead {
@@ -94,6 +96,7 @@ function mapQuestionnaireLead(row: Record<string, unknown>): QuestionnaireLead {
     questionnaireResponses: (row.questionnaire_responses as Record<string, unknown>) ?? {},
     questionnaireSentAt: (row.questionnaire_sent_at as string) ?? null,
     questionnaireSubmittedAt: (row.questionnaire_submitted_at as string) ?? null,
+    referringPartnerCode: (row.referring_partner_code as string | null) ?? null,
   }
 }
 
@@ -148,6 +151,18 @@ export async function generateQuestionnaire(
       html,
       replyTo: REPLY_TO.noreply,
     })
+    if (sent && mapped.referringPartnerCode) {
+      const { data: partner } = await supabase.from("partners").select("id").eq("partner_id", mapped.referringPartnerCode).maybeSingle()
+      if (partner?.id) {
+        await notifyPartnerCustomerEvent(partner.id as string, {
+          subject: `Questionnaire sent — ${mapped.businessName}`,
+          title: "Customer questionnaire sent",
+          businessName: mapped.businessName,
+          body: `The requirements questionnaire was sent to ${email}. You will be able to follow up and prepare the customer's implementation once it is completed.`,
+          link: `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/partner/leads`,
+        })
+      }
+    }
     // Schedule the 48h follow-up sequence as soon as the questionnaire goes out.
     // Best-effort: a failure here must not block the send response.
     await enqueueAutomation({

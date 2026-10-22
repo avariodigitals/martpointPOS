@@ -99,6 +99,7 @@ const navItems: NavItem[] = [
 
   // PARTNERS
   { href: "/admin/partners", label: "Partners", icon: Handshake, page: "partners", section: "Partners" },
+  { href: "/admin/partners/quotes", label: "Partner Quotes", icon: FileText, page: "partners", section: "Partners" },
   { href: "/admin/partners/applications", label: "Applications", icon: FileText, page: "partners", section: "Partners" },
   { href: "/admin/partners/leads", label: "Partner Leads", icon: Funnel, page: "partners", section: "Partners" },
   { href: "/admin/partners/referrals", label: "Referral Decisions", icon: Share2, page: "partners", section: "Partners" },

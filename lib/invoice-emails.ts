@@ -13,6 +13,8 @@ import { renderEmailTemplate, escapeHtml } from "./email-templates"
 import { formatMoney } from "./money-format"
 import { generateInvoicePdf } from "./invoice-pdf"
 import { logFinanceAudit } from "./finance-commercial"
+import { resolveQuoteTemplate } from "./quote-templates"
+import { getPublicSiteSettings } from "./settings"
 
 const EMAILABLE_STATUSES = ["ISSUED", "PARTIALLY_PAID", "OVERDUE", "PAID"]
 
@@ -45,7 +47,7 @@ export async function sendInvoiceEmail(
 
   const { data: inv, error } = await supabase
     .from("invoices")
-    .select("*, invoice_items(*), businesses:business_id (business_name, primary_contact_name, primary_email)")
+    .select("*, invoice_items(*), businesses:business_id (business_name, primary_contact_name, primary_email, industry)")
     .eq("id", invoiceId)
     .single()
 
@@ -54,7 +56,7 @@ export async function sendInvoiceEmail(
     return { ok: false, error: `Cannot email a ${String(inv.status).toLowerCase()} invoice` }
   }
 
-  const biz = inv.businesses as { business_name?: string; primary_contact_name?: string; primary_email?: string } | null
+  const biz = inv.businesses as { business_name?: string; primary_contact_name?: string; primary_email?: string; industry?: string | null } | null
   const to = biz?.primary_email?.trim()
   if (!to) return { ok: false, error: `${biz?.business_name || "Business"} has no email address` }
 
@@ -73,6 +75,11 @@ export async function sendInvoiceEmail(
     ? `${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue`
     : daysOverdue === 0 ? "due today" : `due on ${inv.due_date}`
 
+  const template = resolveQuoteTemplate((inv.template_industry as string | null) || biz?.industry || null)
+  const paymentTerms = (inv.payment_terms as string | null) || template.paymentTerms
+  const siteSettings = await getPublicSiteSettings()
+  const bankDetails = (inv.bank_details as string | null) || siteSettings.accountNumber || ""
+
   const vars = {
     contactName: biz?.primary_contact_name || biz?.business_name || "there",
     businessName: biz?.business_name || "",
@@ -84,6 +91,8 @@ export async function sendInvoiceEmail(
     total: formatMoney(inv.total_amount, currency),
     balance: formatMoney(inv.balance_due, currency),
     notes: inv.notes_public || "",
+    paymentTerms,
+    bankDetails,
     dueText,
   }
 
@@ -104,6 +113,9 @@ export async function sendInvoiceEmail(
       amount_paid: inv.amount_paid,
       balance_due: inv.balance_due,
       notes_public: inv.notes_public,
+      payment_terms: paymentTerms,
+      bank_details: bankDetails,
+      template_industry: inv.template_industry,
       items,
       business: biz || {},
     })

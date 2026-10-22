@@ -1222,6 +1222,101 @@ export async function revokePartnerCustomerAssignment(
   return { ok: true }
 }
 
+export async function setPartnerCustomerAssignmentStatus(
+  assignmentId: string,
+  status: "ACTIVE" | "SUSPENDED",
+  changedBy: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
+
+  const { data: current, error } = await supabase
+    .from("partner_customer_assignments")
+    .select("*")
+    .eq("id", assignmentId)
+    .single()
+  if (error || !current) return { ok: false, error: "Assignment not found" }
+
+  const { error: updateError } = await supabase
+    .from("partner_customer_assignments")
+    .update({
+      status,
+      revoked_at: status === "SUSPENDED" ? null : current.revoked_at ?? null,
+      revoked_by: status === "SUSPENDED" ? null : current.revoked_by ?? null,
+      updated_at: now(),
+    })
+    .eq("id", assignmentId)
+  if (updateError) return { ok: false, error: "Failed to update assignment status" }
+
+  await recordAudit({ actorType: "ADMIN", actorId: changedBy }, {
+    action: AUDIT_ACTIONS.PARTNER_CUSTOMER_ASSIGNMENT_UPDATED,
+    entityType: AUDIT_ENTITIES.PARTNER_CUSTOMER_ASSIGNMENT,
+    entityId: assignmentId,
+    metadata: { partnerId: current.partner_id, businessId: current.business_id, status },
+  })
+  return { ok: true }
+}
+
+export async function movePartnerCustomerAssignment(
+  assignmentId: string,
+  targetPartnerId: string | null,
+  movedBy: string,
+  notes?: string
+): Promise<{ ok: boolean; error?: string; assignment?: Record<string, unknown> | null }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
+
+  const { data: current, error } = await supabase
+    .from("partner_customer_assignments")
+    .select("*")
+    .eq("id", assignmentId)
+    .single()
+  if (error || !current) return { ok: false, error: "Assignment not found" }
+  if (current.status !== "ACTIVE") return { ok: false, error: "Only an active assignment can be moved" }
+  if (targetPartnerId && targetPartnerId === current.partner_id) return { ok: false, error: "Choose a different partner" }
+
+  if (targetPartnerId) {
+    const { data: partner } = await supabase.from("partners").select("id, status").eq("id", targetPartnerId).maybeSingle()
+    if (!partner || partner.status !== "ACTIVE") return { ok: false, error: "The target partner is not active" }
+  }
+
+  const { error: revokeError } = await supabase
+    .from("partner_customer_assignments")
+    .update({ status: "REVOKED", revoked_at: now(), revoked_by: movedBy, updated_at: now() })
+    .eq("id", assignmentId)
+  if (revokeError) return { ok: false, error: "The current assignment could not be closed" }
+
+  let replacement: Record<string, unknown> | null = null
+  if (targetPartnerId) {
+    const { data, error: insertError } = await supabase
+      .from("partner_customer_assignments")
+      .insert({
+        partner_id: targetPartnerId,
+        business_id: current.business_id,
+        relationship_type: current.relationship_type,
+        access_level: current.access_level,
+        status: "ACTIVE",
+        assigned_by: movedBy,
+        assigned_at: now(),
+        starts_at: null,
+        expires_at: null,
+        notes: notes || `Moved from partner assignment ${assignmentId}`,
+        created_at: now(),
+        updated_at: now(),
+      })
+      .select()
+      .single()
+    if (insertError || !data) return { ok: false, error: "The replacement assignment could not be created" }
+    replacement = data as Record<string, unknown>
+  }
+
+  await recordAudit({ actorType: "ADMIN", actorId: movedBy }, {
+    action: AUDIT_ACTIONS.PARTNER_CUSTOMER_ASSIGNMENT_MOVED,
+    entityType: AUDIT_ENTITIES.PARTNER_CUSTOMER_ASSIGNMENT,
+    entityId: assignmentId,
+    metadata: { fromPartnerId: current.partner_id, toPartnerId: targetPartnerId, businessId: current.business_id, notes: notes || null },
+  })
+  return { ok: true, assignment: replacement }
+}
+
 export async function listPartnerCustomerAssignments(
   partnerId: string
 ): Promise<Record<string, unknown>[]> {

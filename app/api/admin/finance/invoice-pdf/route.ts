@@ -3,6 +3,8 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { hasFinanceAction } from "@/lib/finance-permissions"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { generateInvoicePdf } from "@/lib/invoice-pdf"
+import { resolveQuoteTemplate } from "@/lib/quote-templates"
+import { getPublicSiteSettings } from "@/lib/settings"
 
 /* GET /api/admin/finance/invoice-pdf?id= — downloads the invoice as a PDF. */
 export async function GET(request: Request) {
@@ -20,13 +22,16 @@ export async function GET(request: Request) {
 
   const { data: inv, error } = await supabase
     .from("invoices")
-    .select("*, invoice_items(*), businesses:business_id (business_name, primary_contact_name, primary_email, primary_phone)")
+    .select("*, invoice_items(*), businesses:business_id (business_name, primary_contact_name, primary_email, primary_phone, industry)")
     .eq("id", id)
     .single()
   if (error || !inv) {
     return NextResponse.json({ error: error?.message || "Invoice not found" }, { status: 404 })
   }
 
+  const business = inv.businesses || {}
+  const template = resolveQuoteTemplate(inv.template_industry || business.industry || null)
+  const siteSettings = await getPublicSiteSettings()
   const pdf = generateInvoicePdf({
     invoice_number: inv.invoice_number,
     currency: inv.currency || "NGN",
@@ -40,8 +45,11 @@ export async function GET(request: Request) {
     amount_paid: inv.amount_paid,
     balance_due: inv.balance_due,
     notes_public: inv.notes_public,
+    payment_terms: inv.payment_terms || template.paymentTerms,
+    bank_details: inv.bank_details || siteSettings.accountNumber,
+    template_industry: inv.template_industry,
     items: inv.invoice_items || [],
-    business: inv.businesses || {},
+    business,
   })
 
   return new NextResponse(new Uint8Array(pdf), {

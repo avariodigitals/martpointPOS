@@ -95,6 +95,8 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
   const [selectedBusiness, setSelectedBusiness] = useState<Record<string, unknown> | null>(null)
   const [relationshipType, setRelationshipType] = useState("REFERRED")
   const [accessLevel, setAccessLevel] = useState("VIEW_ONLY")
+  const [movePartners, setMovePartners] = useState<Record<string, unknown>[]>([])
+  const [moveTarget, setMoveTarget] = useState<Record<string, string>>({})
 
   useEffect(() => {
     fetchOverview()
@@ -151,6 +153,18 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
     const res = await fetch(`/api/admin/partners/${partnerId}/assignments`)
     const data = await res.json()
     setAssignments(data.assignments || [])
+  }
+
+  async function fetchBusinessOptions(query = "") {
+    const res = await fetch(`/api/admin/businesses${query ? `?search=${encodeURIComponent(query)}` : ""}`)
+    const data = await res.json()
+    setBusinessResults(data.businesses || [])
+  }
+
+  async function fetchMovePartners() {
+    const res = await fetch("/api/admin/partners")
+    const data = await res.json()
+    setMovePartners((data.partners || []).filter((p: Record<string, unknown>) => p.id !== partnerId && p.status === "ACTIVE"))
   }
 
   async function fetchActivity() {
@@ -302,7 +316,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
     if (tab === "users") fetchUsers()
     if (tab === "capabilities") fetchCapabilities()
     if (tab === "compliance") fetchCompliance()
-    if (tab === "customers") fetchAssignments()
+    if (tab === "customers") { fetchAssignments(); fetchBusinessOptions(); fetchMovePartners() }
     if (tab === "activity") fetchActivity()
     if (tab === "guides" || tab === "docs") fetchResources()
     if (tab === "docs") fetchBadgeKit()
@@ -402,10 +416,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
   }
 
   async function searchBusinesses() {
-    if (!businessQuery.trim()) return
-    const res = await fetch(`/api/admin/businesses?search=${encodeURIComponent(businessQuery)}`)
-    const data = await res.json()
-    setBusinessResults(data.businesses || [])
+    await fetchBusinessOptions(businessQuery.trim())
   }
 
   async function assignBusiness(e: React.FormEvent) {
@@ -430,6 +441,29 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
     const data = await res.json()
     if (data.success) { setMessage("Assignment revoked."); fetchAssignments() }
     else setMessage(data.error || "Failed.")
+  }
+
+  async function changeAssignmentStatus(assignmentId: string, action: "suspend" | "restore") {
+    const res = await fetch(`/api/admin/partners/${partnerId}/assignments`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignmentId, action }),
+    })
+    const data = await res.json()
+    setMessage(data.success ? (action === "suspend" ? "Customer access suspended." : "Customer access restored.") : data.error || "Failed.")
+    if (data.success) fetchAssignments()
+  }
+
+  async function moveAssignment(assignmentId: string) {
+    const targetPartnerId = moveTarget[assignmentId]
+    const res = await fetch(`/api/admin/partners/${partnerId}/assignments`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignmentId, action: "move", targetPartnerId: targetPartnerId || null }),
+    })
+    const data = await res.json()
+    setMessage(data.success ? (targetPartnerId ? "Customer moved to the selected partner." : "Customer moved back to MartPoint.") : data.error || "Failed.")
+    if (data.success) { setMoveTarget({ ...moveTarget, [assignmentId]: "" }); fetchAssignments() }
   }
 
   async function approveRequest(requestId: string, action: "approve" | "reject") {
@@ -1506,10 +1540,16 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                 <div className="rounded-md border border-border p-2 space-y-1 max-h-40 overflow-auto">
                   {businessResults.map((b: Record<string, unknown>) => (
                     <button key={b.id as string} type="button" onClick={() => setSelectedBusiness(b)} className={`w-full text-left text-sm p-2 rounded ${(selectedBusiness?.id as string) === (b.id as string) ? "bg-retail-soft" : "hover:bg-muted"}`}>
-                      {b.business_name as string} · {b.primary_email as string}
+                      <span className="font-medium">{(b.businessName || b.business_name || "Business") as string}</span>
+                      <span className="text-muted-foreground"> · {(b.primaryEmail || b.primary_email || "No email") as string}</span>
                     </button>
                   ))}
                 </div>
+              )}
+              {selectedBusiness && (
+                <p className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                  Selected: <strong>{(selectedBusiness.businessName || selectedBusiness.business_name || "Business") as string}</strong>
+                </p>
               )}
               <div className="flex gap-2">
                 <select value={relationshipType} onChange={(e) => setRelationshipType(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-sm">
@@ -1522,12 +1562,36 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
               <Button type="submit" disabled={!selectedBusiness}>Create Assignment</Button>
             </form>
             <div className="space-y-2">
-              {assignments.length === 0 ? <p className="text-sm text-muted-foreground">No assignments.</p> : assignments.map((a: Record<string, unknown>) => (
-                <div key={a.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
-                  <span>{(a.businesses as Record<string, unknown> | undefined)?.business_name as string} · {a.relationship_type as string} · {a.access_level as string} · {a.status as string}</span>
-                  {a.status === "ACTIVE" && <Button size="sm" variant="outline" onClick={() => revokeAssignment(a.id as string)}>Revoke</Button>}
+              {assignments.length === 0 ? <p className="text-sm text-muted-foreground">No assignments.</p> : assignments.map((a: Record<string, unknown>) => {
+                const business = a.businesses as Record<string, unknown> | undefined
+                const businessName = (business?.business_name || business?.businessName || "Customer") as string
+                return (
+                <div key={a.id as string} className="space-y-2 rounded-md border border-border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span><strong>{businessName}</strong> · {a.relationship_type as string} · {a.access_level as string} · <span className={a.status === "ACTIVE" ? "text-emerald-600" : "text-amber-600"}>{a.status as string}</span></span>
+                    <div className="flex flex-wrap gap-2">
+                      {a.status === "ACTIVE" && <Button size="sm" variant="outline" onClick={() => changeAssignmentStatus(a.id as string, "suspend")}>Suspend</Button>}
+                      {a.status === "SUSPENDED" && <Button size="sm" variant="outline" onClick={() => changeAssignmentStatus(a.id as string, "restore")}>Restore</Button>}
+                      {a.status === "ACTIVE" && <Button size="sm" variant="outline" onClick={() => revokeAssignment(a.id as string)}>Revoke</Button>}
+                    </div>
+                  </div>
+                  {a.status === "ACTIVE" && (
+                    <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
+                      <span className="text-xs text-muted-foreground">Move customer:</span>
+                      <select
+                        value={moveTarget[a.id as string] || ""}
+                        onChange={(e) => setMoveTarget({ ...moveTarget, [a.id as string]: e.target.value })}
+                        className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                      >
+                        <option value="">Back to MartPoint / no partner</option>
+                        {movePartners.map((p) => <option key={p.id as string} value={p.id as string}>{(p.display_name || p.business_name || p.partner_id) as string}</option>)}
+                      </select>
+                      <Button size="sm" variant="outline" onClick={() => moveAssignment(a.id as string)}>Move</Button>
+                    </div>
+                  )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           </CardContent>
         </Card>

@@ -546,6 +546,11 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           total_amount: quote.total_amount,
           amount_paid: 0,
           balance_due: quote.total_amount,
+          payment_terms: quote.payment_terms ?? null,
+          bank_details: quote.bank_details ?? null,
+          template_industry: quote.template_industry ?? null,
+          notes_public: quote.notes_public ?? null,
+          notes_internal: quote.notes_internal ?? null,
           status: "DRAFT",
           created_by: actor.id,
           created_at: now(),
@@ -692,7 +697,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { id, items, ...updates } = data
         if (!id) return err("Invoice ID required")
         const meta: Record<string, unknown> = {}
-        for (const k of ["issue_date", "due_date", "currency", "notes_public", "notes_internal"]) {
+        for (const k of ["issue_date", "due_date", "currency", "notes_public", "notes_internal", "payment_terms", "bank_details", "template_industry"]) {
           if (k in updates) meta[k] = updates[k]
         }
         const { data: inv, error } = await supabase.from("invoices").update({ ...meta, updated_at: now() }).eq("id", id).select().single()

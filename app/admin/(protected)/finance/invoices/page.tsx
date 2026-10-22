@@ -8,12 +8,14 @@ import { Loader2, Plus, Search, X, Receipt, ArrowLeft, Trash2, Pencil, CheckCirc
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
 import { resolveInvoiceStatus } from "@/lib/invoice-status"
+import { quoteTemplateOptions, resolveQuoteTemplate } from "@/lib/quote-templates"
 
 interface BusinessMini {
   id: string
   businessName: string
   primaryEmail: string
   primaryPhone: string
+  industry?: string
 }
 
 interface InvoiceItem {
@@ -32,7 +34,7 @@ interface Invoice {
   id: string
   invoice_number: string
   business_id: string
-  businesses?: { business_name: string } | null
+  businesses?: { business_name: string; industry?: string | null } | null
   quote_id?: string | null
   currency: string
   issue_date: string
@@ -46,6 +48,9 @@ interface Invoice {
   status: string
   notes_public?: string | null
   notes_internal?: string | null
+  payment_terms?: string | null
+  bank_details?: string | null
+  template_industry?: string | null
   invoice_items?: InvoiceItem[]
   reminders_paused?: boolean
   reminder_count?: number
@@ -461,6 +466,7 @@ export default function InvoicesPage() {
   const [catalog, setCatalog] = useState<Catalog>({ products: [], plans: [], services: [], addons: [] })
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
+  const [defaultBankDetails, setDefaultBankDetails] = useState("")
 
   const [filterBusiness, setFilterBusiness] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -475,6 +481,9 @@ export default function InvoicesPage() {
     businessId: "",
     dueDate: defaultDueDate(),
     currency: "NGN",
+    templateIndustry: "",
+    paymentTerms: "",
+    bankDetails: "",
     notesPublic: "",
     notesInternal: "",
     items: [] as InvoiceItem[],
@@ -503,7 +512,20 @@ export default function InvoicesPage() {
     fetchCatalog()
     fetchInvoices()
     fetchPaymentAccounts()
+    fetchInvoiceDefaults()
   }, [])
+
+  async function fetchInvoiceDefaults() {
+    try {
+      const res = await fetch("/api/settings")
+      const data = await res.json()
+      const accountNumber = String(data?.accountNumber || "")
+      setDefaultBankDetails(accountNumber)
+      setCreateForm((prev) => ({ ...prev, bankDetails: prev.bankDetails || accountNumber }))
+    } catch {
+      // Invoice creation remains available without configured bank details.
+    }
+  }
 
   async function fetchPaymentAccounts() {
     try {
@@ -621,6 +643,9 @@ export default function InvoicesPage() {
             business_id: createForm.businessId,
             due_date: createForm.dueDate,
             currency: createForm.currency,
+            template_industry: createForm.templateIndustry || null,
+            payment_terms: createForm.paymentTerms,
+            bank_details: createForm.bankDetails,
             notes_public: createForm.notesPublic,
             notes_internal: createForm.notesInternal,
             items: createForm.items.map((it) => ({
@@ -639,6 +664,9 @@ export default function InvoicesPage() {
           businessId: "",
           dueDate: defaultDueDate(),
           currency: "NGN",
+          templateIndustry: "",
+          paymentTerms: "",
+          bankDetails: defaultBankDetails,
           notesPublic: "",
           notesInternal: "",
           items: [],
@@ -726,6 +754,9 @@ export default function InvoicesPage() {
             id: editing.id,
             issue_date: editing.issue_date,
             due_date: editing.due_date,
+            template_industry: editing.template_industry,
+            payment_terms: editing.payment_terms,
+            bank_details: editing.bank_details,
             notes_public: editing.notes_public,
             notes_internal: editing.notes_internal,
             items: (editing.invoice_items || []).map((it) => ({
@@ -1115,7 +1146,18 @@ export default function InvoicesPage() {
                 <label className="text-sm font-medium">Business *</label>
                 <select
                   value={createForm.businessId}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, businessId: e.target.value }))}
+                  onChange={(e) => setCreateForm((prev) => {
+                    const business = businesses.find((candidate) => candidate.id === e.target.value)
+                    const template = resolveQuoteTemplate(business?.industry || null)
+                    return {
+                      ...prev,
+                      businessId: e.target.value,
+                      templateIndustry: business?.industry || "",
+                      paymentTerms: template.paymentTerms,
+                      notesPublic: template.publicNotes,
+                      bankDetails: prev.bankDetails || defaultBankDetails,
+                    }
+                  })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="">Select a business</option>
@@ -1144,14 +1186,18 @@ export default function InvoicesPage() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Notes</label>
-                <input
-                  type="text"
-                  value={createForm.notesPublic}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, notesPublic: e.target.value }))}
-                  placeholder="Public notes"
+                <label className="text-sm font-medium">Industry template</label>
+                <select
+                  value={createForm.templateIndustry}
+                  onChange={(e) => {
+                    const template = resolveQuoteTemplate(e.target.value || null)
+                    setCreateForm((prev) => ({ ...prev, templateIndustry: e.target.value, paymentTerms: template.paymentTerms, notesPublic: template.publicNotes }))
+                  }}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
+                >
+                  <option value="">Default</option>
+                  {quoteTemplateOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
               </div>
             </div>
 
@@ -1172,6 +1218,21 @@ export default function InvoicesPage() {
               catalog={catalog}
               currency={createForm.currency}
             />
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Payment terms</label>
+                <textarea value={createForm.paymentTerms} onChange={(e) => setCreateForm((prev) => ({ ...prev, paymentTerms: e.target.value }))} rows={5} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Public notes</label>
+                <textarea value={createForm.notesPublic} onChange={(e) => setCreateForm((prev) => ({ ...prev, notesPublic: e.target.value }))} rows={5} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Bank account / payment details</label>
+                <textarea value={createForm.bankDetails} onChange={(e) => setCreateForm((prev) => ({ ...prev, bankDetails: e.target.value }))} rows={5} placeholder="Bank name, account name and account number" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+            </div>
 
             <div className="flex items-center justify-between">
               <div className="text-sm space-y-1">
@@ -1270,12 +1331,48 @@ export default function InvoicesPage() {
                 />
               </div>
               <div className="space-y-1.5 lg:col-span-2">
+                <label className="text-sm font-medium">Industry template</label>
+                <select
+                  value={editing.template_industry || ""}
+                  disabled={modalMode === "view"}
+                  onChange={(e) => setEditing((prev) => {
+                    if (!prev) return prev
+                    const template = resolveQuoteTemplate(e.target.value || null)
+                    return { ...prev, template_industry: e.target.value, payment_terms: template.paymentTerms, notes_public: template.publicNotes }
+                  })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:bg-muted disabled:text-muted-foreground"
+                >
+                  <option value="">Default</option>
+                  {quoteTemplateOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5 lg:col-span-2">
+                <label className="text-sm font-medium">Payment terms</label>
+                <textarea
+                  value={editing.payment_terms || ""}
+                  disabled={modalMode === "view"}
+                  onChange={(e) => setEditing((prev) => (prev ? { ...prev, payment_terms: e.target.value } : prev))}
+                  rows={3}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:bg-muted disabled:text-muted-foreground"
+                />
+              </div>
+              <div className="space-y-1.5 lg:col-span-2">
                 <label className="text-sm font-medium">Notes (public)</label>
-                <input
-                  type="text"
+                <textarea
                   value={editing.notes_public || ""}
                   disabled={modalMode === "view"}
                   onChange={(e) => setEditing((prev) => (prev ? { ...prev, notes_public: e.target.value } : prev))}
+                  rows={3}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:bg-muted disabled:text-muted-foreground"
+                />
+              </div>
+              <div className="space-y-1.5 lg:col-span-2">
+                <label className="text-sm font-medium">Bank account / payment details</label>
+                <textarea
+                  value={editing.bank_details || ""}
+                  disabled={modalMode === "view"}
+                  onChange={(e) => setEditing((prev) => (prev ? { ...prev, bank_details: e.target.value } : prev))}
+                  rows={3}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:bg-muted disabled:text-muted-foreground"
                 />
               </div>

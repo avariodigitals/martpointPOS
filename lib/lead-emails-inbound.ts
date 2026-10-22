@@ -15,6 +15,8 @@ export interface InboundLeadEmail {
   html: string
   messageId: string | null
   inReplyTo?: string | null
+  cc?: string | null
+  references?: string | null
   sentAt?: string | null
   provider?: string | null
 }
@@ -80,7 +82,12 @@ export async function fileInboundLeadEmail(email: InboundLeadEmail): Promise<boo
     status: "received",
     provider: email.provider || null,
     provider_message_id: messageKey,
-    metadata: email.inReplyTo ? { in_reply_to: email.inReplyTo, sent_at: email.sentAt || null } : { sent_at: email.sentAt || null },
+    metadata: {
+      in_reply_to: email.inReplyTo || null,
+      references: email.references || null,
+      cc: email.cc || null,
+      sent_at: email.sentAt || null,
+    },
   })
 
   if (error) {

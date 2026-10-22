@@ -137,6 +137,8 @@ export async function syncLeadInbox(preloadedSettings?: EmailSettings): Promise<
             html: typeof parsed.html === "string" ? parsed.html : "",
             messageId: parsed.messageId || null,
             inReplyTo: Array.isArray(parsed.inReplyTo) ? parsed.inReplyTo[0] || null : parsed.inReplyTo || null,
+            cc: addressList(parsed.cc),
+            references: Array.isArray(parsed.references) ? parsed.references.join(" ") : parsed.references || null,
             sentAt: parsed.date ? parsed.date.toISOString() : null,
             provider: "imap",
           })

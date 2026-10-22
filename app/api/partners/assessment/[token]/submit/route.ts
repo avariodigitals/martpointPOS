@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { getAssignmentByToken, submitAttempt, OUTCOME_LABELS } from "@/lib/partner-assessments"
+import { notifyPartnerAssessmentReview } from "@/lib/partner-admin-notifications"
 
 const schema = z.object({
   answers: z.record(z.string(), z.union([z.array(z.string().max(200)), z.string().max(20000)])),
@@ -25,6 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 })
   }
+  if (result.needsReview) await notifyPartnerAssessmentReview(assignment)
 
   const fresh = await getAssignmentByToken(token)
   const reveal = assignment.template.showResultImmediately && !result.needsReview

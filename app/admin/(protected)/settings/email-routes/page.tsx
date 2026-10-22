@@ -29,6 +29,31 @@ const ROUTES: RouteDef[] = [
     description: "Admin copy of partner applications",
   },
   {
+    key: "partner_quote_request",
+    label: "Partner Quote Request",
+    description: "Internal alert when a partner submits a quote request",
+  },
+  {
+    key: "partner_lead_registration",
+    label: "Partner Lead Registration",
+    description: "Internal alert when a partner registers a new opportunity",
+  },
+  {
+    key: "partner_payout_request",
+    label: "Partner Payout Request",
+    description: "Internal alert when a partner requests a commission payout",
+  },
+  {
+    key: "partner_compliance_document",
+    label: "Partner Compliance Document",
+    description: "Internal alert when a partner uploads requested compliance evidence",
+  },
+  {
+    key: "partner_assessment_review",
+    label: "Partner Assessment Review",
+    description: "Internal alert when an assessment needs manual review",
+  },
+  {
     key: "support_ticket",
     label: "Support Ticket",
     description: "New customer support ticket notifications",

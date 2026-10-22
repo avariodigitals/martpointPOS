@@ -199,6 +199,20 @@ export async function markCreatorNotificationsRead(creatorId: string): Promise<v
   }
 }
 
+export async function markCreatorNotificationRead(creatorId: string, id: string): Promise<void> {
+  if (!isSupabaseConfigured()) return
+  try {
+    await supabase
+      .from("creator_notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("creator_id", creatorId)
+      .eq("id", id)
+      .is("read_at", null)
+  } catch (err) {
+    console.error("[creator-notify] mark one read failed:", err)
+  }
+}
+
 /* ─── Interview calendar invite (.ics attachment) ───
  * Same pattern as lib/careers-notifications.ts. */
 

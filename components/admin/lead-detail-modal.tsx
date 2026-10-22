@@ -9,6 +9,8 @@ import type { StoredEstimate } from "@/lib/estimate-calculator"
 import {
   X,
   Mail,
+  Reply,
+  ReplyAll,
   Phone,
   Building2,
   Calendar,
@@ -112,6 +114,8 @@ interface LeadEmailMessage {
   bodyText: string | null
   bodyHtml: string | null
   status: string
+  providerMessageId?: string | null
+  metadata?: Record<string, unknown> | null
   createdAt: string
 }
 
@@ -256,6 +260,7 @@ export function LeadDetailModal({
   const [emailsError, setEmailsError] = useState("")
   const [emailsReloadKey, setEmailsReloadKey] = useState(0)
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null)
+  const [replyContext, setReplyContext] = useState<{ emailId: string; replyAll: boolean } | null>(null)
   // True once the admin types their own subject; auto-fill then stands down.
   const [emailSubjectEdited, setEmailSubjectEdited] = useState(false)
   const [inboxMailbox, setInboxMailbox] = useState<{ configured: boolean; mailbox: string } | null>(null)
@@ -963,6 +968,8 @@ export function LeadDetailModal({
           attachments: emailAttachments.length
             ? emailAttachments.map((a) => ({ filename: a.filename, content: a.content }))
             : undefined,
+          replyToEmailId: replyContext?.emailId,
+          replyAll: replyContext?.replyAll || undefined,
         }),
       })
       const data = await res.json()
@@ -973,6 +980,7 @@ export function LeadDetailModal({
         setEmailTemplateKey(null)
         setEmailAttachments([])
         setEmailPreview(null)
+        setReplyContext(null)
         if (!data.sent) setEmailsError("Email saved to thread but delivery failed — check email settings.")
       } else {
         setEmailsError(data.error || "Failed to send email")
@@ -1027,6 +1035,18 @@ export function LeadDetailModal({
       setCopiedEmailId(msg.id)
       setTimeout(() => setCopiedEmailId(null), 2000)
     })
+  }
+
+  const startEmailReply = (msg: LeadEmailMessage, replyAll: boolean) => {
+    const originalSubject = (msg.subject || "").trim()
+    const subject = originalSubject && /^re:/i.test(originalSubject) ? originalSubject : `Re: ${originalSubject || "(no subject)"}`
+    setReplyContext({ emailId: msg.id, replyAll })
+    setEmailTemplateKey(null)
+    setEmailAttachments([])
+    setEmailPreview(null)
+    setEmailSubjectEdited(true)
+    setEmailForm({ subject, body: "" })
+    setExpandedEmailId(msg.id)
   }
 
   const productLabel =
@@ -1607,17 +1627,41 @@ export function LeadDetailModal({
                               <span className="min-w-0 truncate">
                                 {msg.direction === "outbound" ? "You" : msg.fromEmail || "Lead"} → {msg.direction === "outbound" ? msg.toEmail : "you"}
                               </span>
-                              {(msg.bodyText || msg.subject) && (
-                                <button
-                                  type="button"
-                                  onClick={() => copyEmailBody(msg)}
-                                  className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
-                                  title="Copy message body"
-                                >
-                                  {copiedEmailId === msg.id ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
-                                  {copiedEmailId === msg.id ? "Copied" : "Copy"}
-                                </button>
-                              )}
+                              <div className="flex items-center gap-3 shrink-0">
+                                {msg.direction === "inbound" && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => startEmailReply(msg, false)}
+                                      className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+                                      title="Reply to the sender"
+                                    >
+                                      <Reply className="w-3.5 h-3.5" />
+                                      Reply
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => startEmailReply(msg, true)}
+                                      className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+                                      title="Reply to the sender and other participants"
+                                    >
+                                      <ReplyAll className="w-3.5 h-3.5" />
+                                      Reply all
+                                    </button>
+                                  </>
+                                )}
+                                {(msg.bodyText || msg.subject) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => copyEmailBody(msg)}
+                                    className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+                                    title="Copy message body"
+                                  >
+                                    {copiedEmailId === msg.id ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                                    {copiedEmailId === msg.id ? "Copied" : "Copy"}
+                                  </button>
+                                )}
+                              </div>
                             </div>
                             {msg.bodyText ? (
                               <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{msg.bodyText}</p>
@@ -1636,8 +1680,23 @@ export function LeadDetailModal({
                 <p className="text-sm text-destructive">{emailsError}</p>
               )}
 
-              <div className="rounded-lg border border-border p-4 space-y-3">
-                <p className={labelClass}>New message</p>
+                <div className="rounded-lg border border-border p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className={labelClass}>{replyContext ? (replyContext.replyAll ? "Reply all" : "Reply") : "New message"}</p>
+                  {replyContext && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplyContext(null)
+                        setEmailSubjectEdited(false)
+                        setEmailForm({ subject: buildLeadEmailSubject(null, lead.businessName), body: "" })
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Cancel reply
+                    </button>
+                  )}
+                </div>
 
                 {/* Packaged, industry-specific email templates */}
                 <div className="space-y-2">
@@ -1761,7 +1820,11 @@ export function LeadDetailModal({
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[11px] text-muted-foreground">Sent to {lead.email}{lead.additionalEmail ? ` and copied to ${lead.additionalEmail}` : ""}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {replyContext
+                      ? `Replying ${replyContext.replyAll ? "to all participants" : "to the sender"} in this thread.`
+                      : `Sent to ${lead.email}${lead.additionalEmail ? ` and copied to ${lead.additionalEmail}` : ""}`}
+                  </p>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"

@@ -306,6 +306,12 @@ export async function createTicket(input: {
       deep_link: `/admin/support/${data.id}`,
       source_type: "support_ticket",
       source_id: data.id as string,
+      roles: ["Admin", "Customer Care", "Tech"],
+      email: {
+        route: "support_ticket",
+        subject: `New Support Ticket — ${ticketNumber}`,
+        text: `A new support ticket needs attention.\n\nTicket: ${ticketNumber}\nSubject: ${input.subject}\n\nOpen Support in the Admin Portal:\n/admin/support/${data.id}`,
+      },
     })
   }
 
@@ -355,6 +361,12 @@ export async function addMessage(
       deep_link: `/admin/support/${ticketId}`,
       source_type: "support_ticket",
       source_id: ticketId,
+      roles: ["Admin", "Customer Care", "Tech"],
+      email: {
+        route: "support_ticket",
+        subject: `New Support Ticket Reply — ${ticket?.ticket_number || "Ticket"}`,
+        text: `A customer or partner replied to a support ticket.\n\nTicket: ${ticket?.ticket_number || ticketId}\nSubject: ${ticket?.subject || "New customer message"}\n\nOpen Support in the Admin Portal:\n/admin/support/${ticketId}`,
+      },
     })
   }
 

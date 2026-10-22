@@ -123,6 +123,7 @@ export const ROLE_PERMISSIONS: Record<PartnerUserRole, PartnerPermission[]> = {
     "onboarding:manage_assigned",
     "workorders:view_own",
     "workorders:manage_own",
+    "payments:submit_proof",
   ],
   PARTNER_SUPPORT: [
     "partner:profile:view",

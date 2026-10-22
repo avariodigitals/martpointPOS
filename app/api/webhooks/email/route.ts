@@ -19,6 +19,9 @@ interface NormalizedEmail {
   text: string
   html: string
   messageId: string | null
+  inReplyTo: string | null
+  cc: string
+  references: string | null
   sentAt: string | null
 }
 
@@ -68,6 +71,9 @@ function normalizeOne(raw: Record<string, unknown>): NormalizedEmail {
     text: String(pick(data, "text", "text_body", "textBody", "RawTextBody", "plain", "body") ?? ""),
     html: String(pick(data, "html", "html_body", "htmlBody", "RawHtmlBody") ?? ""),
     messageId: (pick(data, "message_id", "messageId", "MessageId", "email_id", "id") as string) ?? (headers["message-id"] as string) ?? null,
+    inReplyTo: (pick(data, "in_reply_to", "inReplyTo", "In-Reply-To") as string) ?? (headers["in-reply-to"] as string) ?? null,
+    cc: extractAllAddresses(pick(data, "cc", "Cc", "carbon_copy") ?? headers.cc),
+    references: (pick(data, "references", "References") as string) ?? (headers.references as string) ?? null,
     sentAt,
   }
 }

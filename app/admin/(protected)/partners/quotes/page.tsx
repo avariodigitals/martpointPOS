@@ -37,6 +37,8 @@ type QuoteRequest = {
   notes?: string | null
   due_date?: string | null
   status: string
+  quote_id?: string | null
+  quote_number?: string | null
   issued_quote_ref?: string | null
   created_at: string
   partners?: { business_name?: string; partner_id?: string } | null
@@ -229,8 +231,9 @@ export default function PartnerQuotesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "create",
+          action: selectedRequest.quote_id ? "update" : "create",
           data: {
+            ...(selectedRequest.quote_id ? { id: selectedRequest.quote_id } : {}),
             business_id: null,
             partner_id: selectedRequest.partner_id,
             partner_lead_id: selectedRequest.partner_lead_id,
@@ -248,7 +251,7 @@ export default function PartnerQuotesPage() {
       })
       const data = await res.json()
       if (!data.success) return setMessage(data.error || "Quote could not be created.")
-      const quoteNumber = data.data?.quote_number
+      const quoteNumber = data.data?.quote_number || selectedRequest.quote_number
       if (issueNow && quoteNumber) {
         const issued = await fetch("/api/admin/partner-quote-requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ quoteRequestId: selectedRequest.id, decision: "ISSUED", issuedQuoteRef: quoteNumber, decisionReason: decisionNotes[selectedRequest.id] || "Created and issued from Partner Quotes." }) })
         const issuedData = await issued.json()

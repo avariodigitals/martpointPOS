@@ -8,6 +8,7 @@ import {
   submitAttempt,
   OUTCOME_LABELS,
 } from "@/lib/partner-assessments"
+import { notifyPartnerAssessmentReview } from "@/lib/partner-admin-notifications"
 
 async function guard() {
   const session = await getPartnerSession()
@@ -90,6 +91,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const result = await submitAttempt(assignment, parsed.data.answers)
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+  if (result.needsReview) await notifyPartnerAssessmentReview(assignment)
 
   const fresh = await getAssignmentById(id)
   const reveal = assignment.template.showResultImmediately && !result.needsReview

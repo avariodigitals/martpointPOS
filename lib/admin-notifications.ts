@@ -1,5 +1,7 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { getAllUsers } from "./admin-auth"
+import { getEmailRoute, getEmailSettings, sendEmail } from "./email"
+import type { UserRole } from "./admin-types"
 
 export type AdminNotification = {
   id: string
@@ -63,14 +65,28 @@ export async function notifyAllAdmins(input: {
   source_type?: string
   source_id?: string
   exclude_admin_user_id?: string
+  /** If supplied, only active admin-portal users in these roles get the bell. */
+  roles?: UserRole[]
+  /** Optional internal email sent alongside the per-admin bell alerts. */
+  email?: {
+    route?: string
+    to?: string | string[]
+    subject: string
+    text: string
+    html?: string
+    replyTo?: string
+  }
 }): Promise<void> {
   if (!isSupabaseConfigured()) return
 
   const users = (await getAllUsers()).filter(
-    (user) => user.status === "ACTIVE" && user.id !== input.exclude_admin_user_id,
+    (user) =>
+      user.status === "ACTIVE" &&
+      user.id !== input.exclude_admin_user_id &&
+      (!input.roles || input.roles.includes(user.role)),
   )
 
-  await Promise.all(
+  const bellDelivery = Promise.all(
     users.map((user) =>
       createAdminNotification({
         admin_user_id: user.id,
@@ -85,6 +101,38 @@ export async function notifyAllAdmins(input: {
       }),
     ),
   )
+
+  const emailDelivery = input.email
+    ? (async () => {
+        const configuredRecipients = input.email?.to
+          ? Array.isArray(input.email.to) ? input.email.to : [input.email.to]
+          : input.email?.route
+            ? await getEmailRoute(input.email.route)
+            : []
+        const settings = await getEmailSettings()
+        const fallback = settings.notifyEmail || process.env.NOTIFY_EMAIL || ""
+        const recipients = [...new Set(configuredRecipients.length > 0 ? configuredRecipients : (fallback ? [fallback] : []))]
+          .map((email) => email.trim())
+          .filter((email) => email.includes("@"))
+        if (recipients.length === 0) {
+          console.warn(`[admin notifications] no email recipient for ${input.type}`)
+          return
+        }
+        const email = input.email!
+        const sent = await sendEmail({
+          to: recipients,
+          subject: email.subject,
+          text: email.text,
+          html: email.html,
+          replyTo: email.replyTo,
+        })
+        if (!sent) console.error(`[admin notifications] email delivery failed for ${input.type}`)
+      })().catch((error) => {
+        console.error(`[admin notifications] email fan-out failed for ${input.type}`, error)
+      })
+    : Promise.resolve()
+
+  await Promise.all([bellDelivery, emailDelivery])
 }
 
 export async function listAdminNotifications(adminUserId: string, options?: { read?: boolean }): Promise<AdminNotification[]> {

@@ -4,6 +4,7 @@ import { auditContextFromPartnerSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTIT
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { sendEmail } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
+import { notifyAllAdmins } from "@/lib/admin-notifications"
 import { z } from "zod"
 
 const createSchema = z.object({
@@ -106,15 +107,25 @@ export async function POST(request: Request) {
 
     // Notify finance team (best-effort, post-response so the send isn't killed
     // when the serverless function freezes)
-    after(() =>
-      renderEmailTemplate("payout_request_admin", {
+    after(async () => {
+      const tpl = await renderEmailTemplate("payout_request_admin", {
         partnerId: session.partnerId,
         amount: parsed.data.amount.toLocaleString(),
         notes: parsed.data.notes || "—",
       })
-        .then((tpl) => sendEmail({ route: "partner_payout_request", subject: tpl.subject, text: tpl.text, html: tpl.html }))
-        .catch((err) => console.error("[payout-request] notify email failed:", err))
-    )
+      await Promise.all([
+        sendEmail({ route: "partner_payout_request", subject: tpl.subject, text: tpl.text, html: tpl.html }),
+        notifyAllAdmins({
+          type: "PARTNER_PAYOUT_REQUESTED",
+          title: "Partner payout request",
+          message: `Partner ${session.partnerId} requested NGN ${parsed.data.amount.toLocaleString()}.`,
+          deep_link: "/admin/partners/payout-requests",
+          source_type: "partner_payout_request",
+          source_id: data.id as string,
+          roles: ["Admin", "Finance"],
+        }),
+      ])
+    })
 
     return NextResponse.json({ request: data })
   } catch {

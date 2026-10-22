@@ -5,6 +5,7 @@ import { postPaymentJournal, postInvoiceJournal } from "./finance-ledger"
 import { buildInvoiceIncomeBuckets, type InvoiceIncomeLine } from "./invoice-income"
 import crypto from "crypto"
 import type { InvoiceStatus } from "./invoice-status"
+import { notifyPartnerPaymentRejected } from "./partner-notifications"
 
 export * from "./invoice-status"
 
@@ -94,6 +95,9 @@ export type Quote = {
   business_id: string | null
   partner_id?: string | null
   partner_lead_id?: string | null
+  partner_quote_request_id?: string | null
+  quote_origin?: "DIRECT" | "PARTNER_REQUEST" | string | null
+  plan_id?: string | null
   status: QuoteStatus
   currency: string
   subtotal: number
@@ -165,6 +169,9 @@ export type Payment = {
   paid_at?: string | null
   confirmed_at?: string | null
   confirmed_by?: string | null
+  rejected_at?: string | null
+  rejected_by?: string | null
+  rejection_reason?: string | null
   proof_document_path?: string | null
   notes?: string | null
   created_at: string
@@ -326,10 +333,10 @@ export type FinanceOverview = {
    ───────────────────────────────────────────────────────────────────────────── */
 
 export type FinanceAuditAction =
-  | "QUOTE_CREATED" | "QUOTE_SENT" | "QUOTE_ACCEPTED" | "QUOTE_CONVERTED" | "QUOTE_BUSINESS_ATTACHED"
+  | "QUOTE_CREATED" | "QUOTE_UPDATED" | "QUOTE_SENT" | "QUOTE_ACCEPTED" | "QUOTE_CONVERTED" | "QUOTE_BUSINESS_ATTACHED"
   | "INVOICE_CREATED" | "INVOICE_UPDATED" | "INVOICE_ISSUED" | "INVOICE_VOIDED" | "INVOICE_DELETED" | "INVOICE_WAIVED" | "INVOICE_REOPENED"
   | "INVOICE_EMAIL_SENT" | "INVOICE_REMINDER_SENT" | "INVOICE_REMINDERS_TOGGLED"
-  | "PAYMENT_RECORDED" | "PAYMENT_CONFIRMED" | "PAYMENT_REVERSED" | "PAYMENT_REFUNDED"
+  | "PAYMENT_RECORDED" | "PAYMENT_CONFIRMED" | "PAYMENT_REJECTED" | "PAYMENT_REVERSED" | "PAYMENT_REFUNDED"
   | "RECEIPT_ISSUED"
   | "SUBSCRIPTION_CREATED" | "SUBSCRIPTION_ACTIVATED" | "SUBSCRIPTION_SUSPENDED" | "SUBSCRIPTION_RENEWED" | "SUBSCRIPTION_CANCELLED" | "SUBSCRIPTION_WAIVED"
   | "ADDON_ACTIVATED" | "ADDON_REMOVED"
@@ -658,6 +665,76 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
   } catch (err) {
     console.error("[confirmPayment] confirmation email failed:", err)
   }
+}
+
+/**
+ * Reject a pending payment proof without pretending that money was received.
+ * The proof and reason remain attached to the payment for audit purposes, and
+ * the invoice is deliberately left unchanged so the partner can submit a
+ * corrected proof.
+ */
+export async function rejectPayment(paymentId: string, rejectedBy: string, reason: string, actorId?: string) {
+  if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
+  const trimmedReason = reason.trim()
+  if (trimmedReason.length < 5) throw new Error("A rejection reason is required")
+
+  const { data: payment } = await supabase.from("payments").select("*").eq("id", paymentId).single()
+  if (!payment) throw new Error("Payment not found")
+  if ((payment as Payment).status !== "PENDING") throw new Error(`Payment is not pending: ${(payment as Payment).status}`)
+
+  const rejectedAt = new Date().toISOString()
+  const { data: updated, error } = await supabase
+    .from("payments")
+    .update({
+      status: "FAILED",
+      rejected_at: rejectedAt,
+      rejected_by: rejectedBy,
+      rejection_reason: trimmedReason,
+      updated_at: rejectedAt,
+    })
+    .eq("id", paymentId)
+    .eq("status", "PENDING")
+    .select()
+    .single()
+
+  if (error || !updated) throw new Error(`Payment rejection failed: ${error?.message || "payment was already decided"}`)
+
+  await logFinanceAudit("ADMIN", actorId, "PAYMENT_REJECTED", "PAYMENT", paymentId, {
+    rejected_by: rejectedBy,
+    reason: trimmedReason,
+  })
+
+  try {
+    const { data: business } = await supabase
+      .from("businesses")
+      .select("id, originating_partner_id")
+      .eq("id", (payment as Payment).business_id)
+      .maybeSingle()
+    let partnerId = (business?.originating_partner_id as string | null) || null
+    if (!partnerId) {
+      const { data: assignment } = await supabase
+        .from("partner_customer_assignments")
+        .select("partner_id")
+        .eq("business_id", (payment as Payment).business_id)
+        .eq("status", "ACTIVE")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      partnerId = (assignment?.partner_id as string | null) || null
+    }
+    if (partnerId) {
+      await notifyPartnerPaymentRejected(partnerId, {
+        paymentReference: (payment as Payment).payment_reference,
+        amount: Number((payment as Payment).amount) || 0,
+        currency: (payment as Payment).currency || "NGN",
+        reason: trimmedReason,
+        link: `/partner/customers/${(payment as Payment).business_id}/finance`,
+      })
+    }
+  } catch (notifyError) {
+    console.error("[rejectPayment] partner notification failed", notifyError)
+  }
+  return updated as Payment
 }
 
 export async function allocatePayment(input: PaymentAllocationInput) {

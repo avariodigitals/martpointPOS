@@ -13,6 +13,7 @@ import {
   recalculateQuote,
   recordPayment,
   confirmPayment,
+  rejectPayment,
   allocatePayment,
   createReceipt,
   activateSubscription,
@@ -37,6 +38,9 @@ import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { sendInvoiceEmail } from "@/lib/invoice-emails"
 import { sendPaymentConfirmationEmail } from "@/lib/payment-emails"
 import { convertPartnerLeadToBusiness } from "@/lib/partner-leads"
+import { getPublicSiteSettings } from "@/lib/settings"
+import { resolveQuoteTemplate } from "@/lib/quote-templates"
+import { notifyPartnerQuoteIssued } from "@/lib/partner-notifications"
 
 type Action = string
 
@@ -46,7 +50,7 @@ const resourceActionMap: Record<string, Record<string, FinanceAction | null | un
   addons: { list: "finance:view", get: "finance:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: null, set_active: "finance:subscriptions:manage", set_inactive: "finance:subscriptions:manage", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   quotes: { list: "finance:view", get: "finance:view", create: "finance:quotes:create", update: "finance:quotes:create", delete: "finance:quotes:create", add_item: "finance:quotes:create", remove_item: "finance:quotes:create", attach_business: "finance:quotes:create", create_business: "finance:quotes:create", send: "finance:quotes:create", accept: "finance:quotes:approve", decline: "finance:quotes:approve", expire: "finance:quotes:approve", convert: "finance:invoices:create", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, activate: null, suspend: null, renew: null, cancel_subscription: null, confirm: null, reverse: null, allocate: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   invoices: { list: "finance:view", get: "finance:view", create: "finance:invoices:create", update: "finance:invoices:create", delete: "finance:invoices:create", add_item: "finance:invoices:create", remove_item: "finance:invoices:create", issue: "finance:invoices:issue", void: "finance:invoices:void", cancel: "finance:invoices:void", waive: "finance:invoices:void", reopen: "finance:invoices:void", set_active: null, set_inactive: null, send: "finance:invoices:issue", send_reminder: "finance:invoices:issue", pause_reminders: "finance:invoices:create", resume_reminders: "finance:invoices:create", accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
-  payments: { list: "finance:view", get: "finance:payments:view", create: "finance:payments:record", confirm: "finance:payments:confirm", reverse: "finance:payments:reverse", allocate: "finance:payments:record", update: "finance:payments:record", delete: "finance:payments:record", receipt: "finance:payments:record", send_receipt: "finance:payments:record", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, refresh: null },
+  payments: { list: "finance:view", get: "finance:payments:view", create: "finance:payments:record", confirm: "finance:payments:confirm", reject: "finance:payments:confirm", reverse: "finance:payments:reverse", allocate: "finance:payments:record", update: "finance:payments:record", delete: "finance:payments:record", receipt: "finance:payments:record", send_receipt: "finance:payments:record", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, refresh: null },
   subscriptions: { list: "finance:view", get: "finance:subscriptions:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: "finance:subscriptions:manage", activate: "finance:subscriptions:manage", waive: "finance:subscriptions:manage", suspend: "finance:subscriptions:manage", cancel_subscription: "finance:subscriptions:manage", renew: "finance:renewals:manage", add_addon: "finance:subscriptions:manage", remove_addon: "finance:subscriptions:manage", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   renewals: { list: "finance:view", get: "finance:view", create: "finance:renewals:manage", update: "finance:renewals:manage", delete: "finance:renewals:manage", link_invoice: "finance:renewals:manage", refresh: "finance:renewals:manage", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, evaluate: null, receipt: null },
   commission_plans: { list: "finance:view", get: "finance:view", create: "finance:commissions:approve", update: "finance:commissions:approve", delete: "finance:commissions:approve", set_active: "finance:commissions:approve", set_inactive: "finance:commissions:approve", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
@@ -398,10 +402,21 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           if (["LOST", "EXPIRED"].includes(String(lead.status))) return err("A quote cannot be created for a lost or expired lead")
           if (lead.protection_status !== "PROTECTED") return err("Protect the partner lead before creating its quote")
           fields.partner_id = fields.partner_id || lead.partner_id
+          const { data: linkedRequest } = await supabase
+            .from("partner_quote_requests")
+            .select("quote_id")
+            .eq("partner_lead_id", partnerLeadId)
+            .in("status", ["SUBMITTED", "UNDER_REVIEW"])
+            .not("quote_id", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (linkedRequest?.quote_id) return err("This partner request already has a Finance quote. Open the existing Partner Quotes view to continue.", 409)
         }
         fields.business_id = businessId
         fields.partner_lead_id = partnerLeadId
         fields.plan_id = planId
+        fields.quote_origin = partnerLeadId ? "PARTNER_REQUEST" : (fields.quote_origin || "DIRECT")
         // Legacy callers and the pre-catalog form could omit currency. Keep
         // every quote usable and consistently NGN unless an explicit catalog
         // currency was selected.
@@ -430,18 +445,55 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         if (partnerLeadId) {
           const { data: requestRow } = await supabase
             .from("partner_quote_requests")
-            .select("id")
+            .select("id, quote_id")
             .eq("partner_lead_id", partnerLeadId)
             .in("status", ["SUBMITTED", "UNDER_REVIEW"])
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle()
           if (requestRow) {
-            await supabase.from("partner_quote_requests").update({ issued_quote_ref: q.quote_number, updated_at: now() }).eq("id", requestRow.id)
+            await supabase.from("partner_quote_requests").update({ quote_id: requestRow.quote_id || q.id, issued_quote_ref: q.quote_number, updated_at: now() }).eq("id", requestRow.id)
+            if (!requestRow.quote_id) {
+              await supabase.from("quotes").update({ partner_quote_request_id: requestRow.id, updated_at: now() }).eq("id", q.id)
+            }
           }
         }
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_CREATED", "QUOTE", q.id)
         return ok(q)
+      }
+      if (action === "update") {
+        const { id, items, ...updates } = data
+        if (!id) return err("Quote ID required")
+        const allowed = ["currency", "valid_until", "notes_public", "notes_internal", "payment_terms", "bank_details", "template_industry", "plan_id"]
+        const patch: Record<string, unknown> = { updated_at: now() }
+        for (const key of allowed) {
+          if (key in updates) patch[key] = updates[key]
+        }
+        const { data: q, error } = await supabase.from("quotes").update(patch).eq("id", id).select().single()
+        if (error) return err(error.message, 500)
+        if (Array.isArray(items)) {
+          const { error: deleteError } = await supabase.from("quote_items").delete().eq("quote_id", id)
+          if (deleteError) return err(deleteError.message, 500)
+          if (items.length > 0) {
+            const { error: itemError } = await supabase.from("quote_items").insert(items.map((it: any) => ({
+              item_type: it.item_type || "CUSTOM",
+              reference_id: it.reference_id || null,
+              description: String(it.description || "").trim(),
+              quantity: Number(it.quantity) || 0,
+              unit_price: Number(it.unit_price) || 0,
+              discount: Number(it.discount) || 0,
+              tax: Number(it.tax) || 0,
+              tax_rate: it.tax_rate == null || it.tax_rate === "" ? null : Number(it.tax_rate),
+              quote_id: id,
+              line_total: money((it.quantity || 0) * (it.unit_price || 0) - (it.discount || 0) + (it.tax || 0)),
+            })))
+            if (itemError) return err(itemError.message, 500)
+          }
+        }
+        await recalculateQuote(id)
+        await logFinanceAudit("ADMIN", actor.id, "QUOTE_UPDATED", "QUOTE", id)
+        const { data: refreshed } = await supabase.from("quotes").select("*").eq("id", id).single()
+        return ok(refreshed || q)
       }
       if (action === "add_item") {
         const { quote_id, ...it } = data
@@ -489,6 +541,14 @@ export async function POST(request: Request, props: { params: Promise<{ resource
             .eq("partner_lead_id", q.partner_lead_id)
             .in("status", ["SUBMITTED", "UNDER_REVIEW"])
         }
+        if (q?.partner_id) {
+          await notifyPartnerQuoteIssued(q.partner_id as string, {
+            quoteNumber: q.quote_number as string,
+            total: Number(q.total_amount) || 0,
+            currency: (q.currency as string) || "NGN",
+            link: "/partner/quotes",
+          }).catch((notifyError) => console.error("[quotes.send] partner email", notifyError))
+        }
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_SENT", "QUOTE", id)
         return ok(q)
       }
@@ -530,6 +590,10 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           businessCreated = true
         }
         if (!quote.business_id) return err("Create the customer business from this quote before converting it to an invoice")
+        const siteSettings = await getPublicSiteSettings()
+        const quoteTemplate = resolveQuoteTemplate(quote.template_industry || null)
+        const paymentTerms = String(quote.payment_terms || "").trim() || quoteTemplate.paymentTerms
+        const bankDetails = String(quote.bank_details || "").trim() || siteSettings.accountNumber.trim() || null
         const invoiceNumber = await nextInvoiceNumber()
         const today = new Date().toISOString().split("T")[0]
         const dueDate = data.due_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
@@ -546,8 +610,8 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           total_amount: quote.total_amount,
           amount_paid: 0,
           balance_due: quote.total_amount,
-          payment_terms: quote.payment_terms ?? null,
-          bank_details: quote.bank_details ?? null,
+          payment_terms: paymentTerms,
+          bank_details: bankDetails,
           template_industry: quote.template_industry ?? null,
           notes_public: quote.notes_public ?? null,
           notes_internal: quote.notes_internal ?? null,
@@ -760,6 +824,10 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       if (action === "confirm") {
         await confirmPayment(data.id, actor.id, actor.id, data.payment_account_id)
         return ok({ success: true })
+      }
+      if (action === "reject") {
+        const rejected = await rejectPayment(data.id, actor.id, String(data.reason || ""), actor.id)
+        return ok(rejected)
       }
       if (action === "reverse") {
         const { id } = data

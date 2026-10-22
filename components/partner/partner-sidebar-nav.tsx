@@ -100,6 +100,7 @@ export function PartnerSidebarNav({
         isItemActive={(href) => pathname === href}
         onLogout={handleLogout}
         logoutLabel="Logout"
+        notificationEndpoint="/api/partner/notifications"
       />
 
       <PortalSidebar
@@ -114,6 +115,7 @@ export function PartnerSidebarNav({
         logoutLabel="Logout"
         storageKey="partner-nav"
         isItemActive={(href) => pathname === href}
+        notificationEndpoint="/api/partner/notifications"
       />
     </>
   )

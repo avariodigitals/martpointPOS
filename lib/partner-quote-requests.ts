@@ -1,5 +1,11 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "./audit"
+import { notifyAllAdmins } from "./admin-notifications"
+import { REPLY_TO } from "./email"
+import { notifyPartnerQuoteIssued } from "./partner-notifications"
+import { nextQuoteNumber, recalculateQuote } from "./finance-commercial"
+import { getPublicSiteSettings } from "./settings"
+import { resolveQuoteTemplate } from "./quote-templates"
 
 /* ───────────────────────────  Quotation requests  ───────────────────────────
  * Blueprint: a partner requests a MartPoint-issued quote against a registered
@@ -80,7 +86,7 @@ export async function createQuoteRequest(
   // The request must attach to a live lead owned by this partner.
   const { data: lead } = await supabase
     .from("partner_leads")
-    .select("id, partner_id, status, protection_status")
+    .select("id, partner_id, status, protection_status, business_name, contact_name, industry, business_type")
     .eq("id", input.partnerLeadId)
     .single()
   if (!lead || lead.partner_id !== partnerId) return { ok: false, error: "Opportunity not found" }
@@ -93,14 +99,22 @@ export async function createQuoteRequest(
 
   let selectedPlanId: string | null = null
   let selectedPlanName = input.planName?.trim() || null
+  let selectedPlan: { id: string; name: string; active: boolean; base_price: number; currency: string } | null = null
   if (!input.planId && !selectedPlanName) return { ok: false, error: "Select a plan before requesting a quote" }
   if (input.planId) {
     const { data: plan } = await supabase
       .from("plans")
-      .select("id, name, active")
+      .select("id, name, active, base_price, currency")
       .eq("id", input.planId)
       .maybeSingle()
     if (!plan || plan.active !== true) return { ok: false, error: "Select a current active plan" }
+    selectedPlan = {
+      id: String(plan.id),
+      name: String(plan.name),
+      active: Boolean(plan.active),
+      base_price: Number(plan.base_price) || 0,
+      currency: String(plan.currency || "NGN"),
+    }
     selectedPlanId = plan.id as string
     selectedPlanName = plan.name as string
   }
@@ -138,6 +152,85 @@ export async function createQuoteRequest(
     .single()
   if (error || !data) return { ok: false, error: "Failed to submit quote request" }
 
+  // Every new partner request is also a normal commercial quote from the
+  // moment it enters the system. The request row remains the partner-facing
+  // workflow envelope, while Finance works the linked quote like any other.
+  const quoteNumber = await nextQuoteNumber()
+  const industry = (lead.industry as string | null) || (lead.business_type as string | null) || null
+  const template = resolveQuoteTemplate(industry)
+  const siteSettings = await getPublicSiteSettings()
+  const quoteTotal = Number(selectedPlan?.base_price || 0)
+  const validUntil = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const { data: quote, error: quoteError } = await supabase
+    .from("quotes")
+    .insert({
+      quote_number: quoteNumber,
+      business_id: null,
+      partner_id: partnerId,
+      partner_lead_id: input.partnerLeadId,
+      partner_quote_request_id: data.id,
+      quote_origin: "PARTNER_REQUEST",
+      plan_id: selectedPlanId,
+      status: "DRAFT",
+      currency: selectedPlan?.currency || "NGN",
+      subtotal: quoteTotal,
+      discount_amount: 0,
+      tax_amount: 0,
+      total_amount: quoteTotal,
+      valid_until: validUntil,
+      notes_public: template.publicNotes,
+      notes_internal: [
+        "Created from a partner quote request.",
+        input.locations ? `Locations: ${input.locations}` : null,
+        input.usersEstimate ? `Estimated users: ${input.usersEstimate}` : null,
+        input.servicesRequested ? `Services requested: ${input.servicesRequested}` : null,
+        input.assumptions ? `Assumptions: ${input.assumptions}` : null,
+        input.notes ? `Partner notes: ${input.notes}` : null,
+      ].filter(Boolean).join("\n"),
+      payment_terms: template.paymentTerms,
+      bank_details: siteSettings.accountNumber.trim() || null,
+      template_industry: industry,
+      created_by: user.id,
+      created_at: now(),
+      updated_at: now(),
+    })
+    .select()
+    .single()
+
+  if (quoteError || !quote) {
+    await supabase.from("partner_quote_requests").delete().eq("id", data.id)
+    return { ok: false, error: "The request was received but its Finance quote could not be created" }
+  }
+
+  const { error: itemError } = await supabase.from("quote_items").insert({
+    quote_id: quote.id,
+    item_type: "PLAN",
+    reference_id: selectedPlanId,
+    description: selectedPlanName || "Requested plan",
+    quantity: 1,
+    unit_price: quoteTotal,
+    discount: 0,
+    tax: 0,
+    tax_rate: 0,
+    line_total: quoteTotal,
+  })
+  if (itemError) {
+    await supabase.from("quotes").delete().eq("id", quote.id)
+    await supabase.from("partner_quote_requests").delete().eq("id", data.id)
+    return { ok: false, error: "The request was received but its Finance quote could not be prepared" }
+  }
+  await recalculateQuote(quote.id)
+
+  const { error: linkError } = await supabase
+    .from("partner_quote_requests")
+    .update({ quote_id: quote.id, updated_at: now() })
+    .eq("id", data.id)
+  if (linkError) {
+    await supabase.from("quotes").delete().eq("id", quote.id)
+    await supabase.from("partner_quote_requests").delete().eq("id", data.id)
+    return { ok: false, error: "The request was received but could not be linked to Finance" }
+  }
+
   await recordAudit(
     { actorType: "PARTNER", actorId: user.id },
     {
@@ -147,7 +240,31 @@ export async function createQuoteRequest(
       metadata: { partnerId, partnerLeadId: input.partnerLeadId, requestedByName: user.name },
     }
   )
-  return { ok: true, request: data }
+
+  await notifyAllAdmins({
+    type: "PARTNER_QUOTE_REQUEST_SUBMITTED",
+    title: "New partner quote request",
+    message: `${selectedPlanName || "Quote request"} · partner ${partnerId} · lead ${input.partnerLeadId}`,
+    deep_link: "/admin/finance/commercial/quotes",
+    source_type: "partner_quote_request",
+    source_id: data.id as string,
+    roles: ["Admin", "Sales"],
+    email: {
+      route: "partner_quote_request",
+      subject: `New Partner Quote Request — ${selectedPlanName || "Review required"}`,
+      text: `A partner has submitted a quote request that needs review.
+
+Partner: ${partnerId}
+Opportunity: ${input.partnerLeadId}
+Plan: ${selectedPlanName || "Not specified"}
+Due date: ${input.dueDate || "Not specified"}
+
+Open Finance → Quotes in the Admin Portal:
+/admin/finance/commercial/quotes`,
+      replyTo: REPLY_TO.partners,
+    },
+  })
+  return { ok: true, request: { ...data, quote_id: quote.id, quote_number: quote.quote_number } }
 }
 
 export async function listPartnerQuoteRequests(partnerId: string): Promise<Record<string, unknown>[]> {
@@ -177,13 +294,13 @@ export async function getPartnerQuoteRequestForPartner(
   const leadRaw = request.partner_leads as Record<string, unknown> | Record<string, unknown>[] | null
   const lead = Array.isArray(leadRaw) ? leadRaw[0] || null : leadRaw
   const ref = typeof request.issued_quote_ref === "string" ? request.issued_quote_ref.trim() : ""
-  if (!ref) return { request: request as Record<string, unknown>, lead, quote: null }
+  const quoteId = typeof request.quote_id === "string" ? request.quote_id.trim() : ""
+  if (!quoteId && !ref) return { request: request as Record<string, unknown>, lead, quote: null }
 
-  const { data: quote } = await supabase
-    .from("quotes")
-    .select("*, quote_items(*)")
-    .eq("quote_number", ref)
-    .maybeSingle()
+  const quoteQuery = supabase.from("quotes").select("*, quote_items(*)")
+  const { data: quote } = quoteId
+    ? await quoteQuery.eq("id", quoteId).maybeSingle()
+    : await quoteQuery.eq("quote_number", ref).maybeSingle()
 
   // An admin may issue an older quote that has no partner linkage. If linkage
   // exists, it must still point to this partner/request before it is exposed.
@@ -213,7 +330,7 @@ export async function listQuoteRequestsForAdmin(partnerId?: string): Promise<Rec
   if (!isSupabaseConfigured()) return []
   let q = supabase
     .from("partner_quote_requests")
-    .select("*, partners(business_name, partner_id), partner_leads(business_name, contact_name, email, phone, industry, business_type, city, state, status)")
+    .select("*, partners(business_name, partner_id), partner_leads(business_name, contact_name, email, phone, industry, business_type, city, state, status), quotes:quote_id(id, quote_number, status, total_amount, currency, quote_origin)")
     .order("created_at", { ascending: false })
   if (partnerId) q = q.eq("partner_id", partnerId)
   const { data } = await q
@@ -301,38 +418,45 @@ export async function decideQuoteRequest(
   decidedBy: string
 ): Promise<{ ok: boolean; error?: string }> {
   if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
-  if (decision === "ISSUED" && !opts.issuedQuoteRef?.trim()) {
-    return { ok: false, error: "A quote reference is required when issuing" }
-  }
-
   const { data: qr } = await supabase.from("partner_quote_requests").select("*").eq("id", quoteRequestId).single()
   if (!qr) return { ok: false, error: "Quote request not found" }
   if (!["SUBMITTED", "UNDER_REVIEW"].includes(qr.status as string)) {
     return { ok: false, error: "Quote request already decided" }
   }
 
+  if (decision === "ISSUED" && !opts.issuedQuoteRef?.trim() && !qr.quote_id) {
+    return { ok: false, error: "Create the Finance quote first, then issue it from the Quotes workspace" }
+  }
+
+  let issuedQuoteRef = opts.issuedQuoteRef?.trim() || null
   if (decision === "ISSUED") {
-    const { data: quote } = await supabase
-      .from("quotes")
-      .select("id, status, partner_id, partner_lead_id")
-      .eq("quote_number", opts.issuedQuoteRef!.trim())
-      .maybeSingle()
+    const quoteQuery = supabase.from("quotes").select("id, quote_number, status, partner_id, partner_lead_id")
+    const { data: quote } = qr.quote_id
+      ? await quoteQuery.eq("id", qr.quote_id).maybeSingle()
+      : await quoteQuery.eq("quote_number", opts.issuedQuoteRef!.trim()).maybeSingle()
     if (!quote) return { ok: false, error: "Create the Finance quote first, then enter its quote number here" }
     if (quote.partner_id && quote.partner_id !== qr.partner_id) return { ok: false, error: "That quote belongs to another partner" }
     if (quote.partner_lead_id && quote.partner_lead_id !== qr.partner_lead_id) return { ok: false, error: "That quote is linked to another opportunity" }
     if (["DECLINED", "EXPIRED", "CONVERTED"].includes(quote.status as string)) {
       return { ok: false, error: `The Finance quote is already ${String(quote.status).toLowerCase()}` }
     }
+    issuedQuoteRef = quote.quote_number as string
     if (quote.status === "DRAFT") {
       await supabase.from("quotes").update({ status: "SENT", updated_at: now() }).eq("id", quote.id)
     }
+  } else if (decision === "DECLINED" && qr.quote_id) {
+    await supabase
+      .from("quotes")
+      .update({ status: "DECLINED", updated_at: now() })
+      .eq("id", qr.quote_id)
+      .in("status", ["DRAFT", "SENT"])
   }
 
   const { error } = await supabase
     .from("partner_quote_requests")
     .update({
       status: decision,
-      issued_quote_ref: decision === "ISSUED" ? opts.issuedQuoteRef!.trim() : null,
+      issued_quote_ref: decision === "ISSUED" ? issuedQuoteRef : null,
       decided_by: decidedBy,
       decided_at: now(),
       decision_reason: opts.decisionReason ?? null,
@@ -341,13 +465,29 @@ export async function decideQuoteRequest(
     .eq("id", quoteRequestId)
   if (error) return { ok: false, error: "Failed to record decision" }
 
+  if (decision === "ISSUED" && qr.quote_id) {
+    const { data: issuedQuote } = await supabase
+      .from("quotes")
+      .select("quote_number, total_amount, currency")
+      .eq("id", qr.quote_id)
+      .maybeSingle()
+    if (issuedQuote) {
+      await notifyPartnerQuoteIssued(qr.partner_id as string, {
+        quoteNumber: issuedQuote.quote_number as string,
+        total: Number(issuedQuote.total_amount) || 0,
+        currency: (issuedQuote.currency as string) || "NGN",
+        link: "/partner/quotes",
+      }).catch((notifyError) => console.error("[partner quote] issue email", notifyError))
+    }
+  }
+
   await recordAudit(
     { actorType: "ADMIN", actorId: decidedBy },
     {
       action: AUDIT_ACTIONS.PARTNER_QUOTE_REQUEST_DECIDED,
       entityType: AUDIT_ENTITIES.PARTNER_QUOTE_REQUEST,
       entityId: quoteRequestId,
-      metadata: { partnerId: qr.partner_id, partnerLeadId: qr.partner_lead_id, decision, issuedQuoteRef: opts.issuedQuoteRef },
+      metadata: { partnerId: qr.partner_id, partnerLeadId: qr.partner_lead_id, decision, issuedQuoteRef, quoteId: qr.quote_id || null },
     }
   )
   return { ok: true }

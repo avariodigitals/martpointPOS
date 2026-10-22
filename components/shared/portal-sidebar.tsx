@@ -11,6 +11,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react"
+import { PortalNotificationBell } from "@/components/shared/portal-notification-bell"
 
 export interface PortalNavItem {
   href: string
@@ -40,6 +41,7 @@ interface PortalSidebarProps {
   /** localStorage namespace, so each portal remembers its own state. */
   storageKey: string
   isItemActive: (href: string) => boolean
+  notificationEndpoint?: string
 }
 
 function initialsOf(value: string): string {
@@ -71,6 +73,7 @@ export function PortalSidebar({
   logoutLabel,
   storageKey,
   isItemActive,
+  notificationEndpoint,
 }: PortalSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean> | null>(null)
@@ -146,6 +149,7 @@ export function PortalSidebar({
             >
               {initialsOf(title)}
             </span>
+            {notificationEndpoint && <PortalNotificationBell endpoint={notificationEndpoint} />}
             <button
               type="button"
               onClick={toggleCollapsed}
@@ -169,16 +173,19 @@ export function PortalSidebar({
                   </p>
                 ))}
               </div>
-              <button
-                type="button"
-                onClick={toggleCollapsed}
-                title="Collapse menu"
-                aria-label="Collapse menu"
-                aria-expanded
-                className={`shrink-0 rounded-lg p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white ${FOCUS_RING}`}
-              >
-                <PanelLeftClose className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                {notificationEndpoint && <PortalNotificationBell endpoint={notificationEndpoint} />}
+                <button
+                  type="button"
+                  onClick={toggleCollapsed}
+                  title="Collapse menu"
+                  aria-label="Collapse menu"
+                  aria-expanded
+                  className={`rounded-lg p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white ${FOCUS_RING}`}
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="relative mt-3">

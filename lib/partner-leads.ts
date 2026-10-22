@@ -2,6 +2,8 @@ import crypto from "node:crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import { partnerHasCapability } from "./partner-auth"
+import { notifyAllAdmins } from "./admin-notifications"
+import { REPLY_TO } from "./email"
 
 export type PartnerLeadStatus =
   | "REGISTERED"
@@ -235,6 +237,33 @@ export async function createPartnerLead(
       possibleDuplicate: dup.possibleDuplicate,
     },
   })
+
+  if (partnerId) {
+    await notifyAllAdmins({
+      type: "PARTNER_LEAD_REGISTERED",
+      title: "New partner opportunity",
+      message: `${input.businessName} · ${input.contactName} · ${input.email}`,
+      deep_link: "/admin/partners/leads",
+      source_type: "partner_lead",
+      source_id: data.id as string,
+      roles: ["Admin", "Sales"],
+      email: {
+        route: "partner_lead_registration",
+        subject: `New Partner Opportunity — ${input.businessName}`,
+        text: `A partner has registered a new opportunity.
+
+Business: ${input.businessName}
+Contact: ${input.contactName}
+Email: ${input.email}
+Phone: ${input.phone}
+Industry: ${input.industry}
+
+Open Partner Leads in the Admin Portal:
+/admin/partners/leads`,
+        replyTo: REPLY_TO.partners,
+      },
+    })
+  }
 
   return { ok: true, lead: mapLead(data), warning: dup.possibleDuplicate ? dup.message : null }
 }

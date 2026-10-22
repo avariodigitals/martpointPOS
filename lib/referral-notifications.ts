@@ -163,3 +163,12 @@ export async function markPartnerNotificationRead(id: string, partnerId: string)
     .eq("id", id)
     .eq("partner_id", partnerId)
 }
+
+export async function markAllPartnerNotificationsRead(partnerId: string): Promise<void> {
+  if (!isSupabaseConfigured()) return
+  await supabase
+    .from("partner_notifications")
+    .update({ is_read: true, read_at: new Date().toISOString() })
+    .eq("partner_id", partnerId)
+    .eq("is_read", false)
+}

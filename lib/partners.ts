@@ -234,6 +234,7 @@ export async function submitPartnerApplication(
     deep_link: `/admin/partners/applications/${applicationId}`,
     source_type: "partner_application",
     source_id: applicationId,
+    roles: ["Admin", "Sales"],
   })
 
   return { ok: true, reference, applicationId }

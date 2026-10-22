@@ -5,6 +5,8 @@ import { convertLeadToBusiness } from "@/lib/businesses"
 import { resolveIndustryName } from "@/lib/industries"
 import { auditContextFromSession } from "@/lib/audit"
 import { nextInvoiceNumber, recalculateInvoice } from "@/lib/finance-commercial"
+import { getPublicSiteSettings } from "@/lib/settings"
+import { resolveQuoteTemplate } from "@/lib/quote-templates"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { session, denied } = await authorizeAdmin("quotations")
@@ -30,6 +32,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Quotation not found" }, { status: 404 })
     }
 
+    const quoteLead = Array.isArray(quote.lead)
+      ? (quote.lead[0] as Record<string, unknown> | undefined)
+      : (quote.lead as Record<string, unknown> | undefined)
+    const quoteIndustry = resolveIndustryName(
+      (quote.industry as string | null) ||
+        (quoteLead?.industry as string) ||
+        (quoteLead?.business_type as string) ||
+        "",
+    ) || null
+    const quoteTemplate = resolveQuoteTemplate(quoteIndustry)
+    const siteSettings = await getPublicSiteSettings()
+    const requestedPaymentTerms = typeof paymentTerms === "string" ? paymentTerms.trim() : ""
+    const effectivePaymentTerms =
+      requestedPaymentTerms || (quote.payment_terms as string | null)?.trim() || quoteTemplate.paymentTerms
+    const bankDetails = siteSettings.accountNumber.trim() || null
+
     if (["CONVERTED", "EXPIRED"].includes(quote.status as string)) {
       return NextResponse.json({ error: `Quotation is already ${quote.status}` }, { status: 400 })
     }
@@ -49,9 +67,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         targetBusinessId = existingBusiness.id as string
       } else {
         // Convert the lead to a business (requires status Won).
-        const quoteLead = Array.isArray(quote.lead)
-          ? (quote.lead[0] as Record<string, unknown> | undefined)
-          : (quote.lead as Record<string, unknown> | undefined)
         const industry = resolveIndustryName(
           (quote.industry as string | null) ||
             (quoteLead?.industry as string) ||
@@ -100,6 +115,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         status: "DRAFT",
         notes_public: (quote.notes_public as string | null) || null,
         notes_internal: `Converted from lead quotation ${quote.quote_number}. ${(quote.notes_internal as string | null) || ""}`.trim(),
+        payment_terms: effectivePaymentTerms,
+        bank_details: bankDetails,
+        template_industry: quoteIndustry,
         created_by: session?.userId ?? null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -135,7 +153,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         status: "CONVERTED",
         converted_business_id: targetBusinessId,
         converted_invoice_id: inv.id,
-        payment_terms: paymentTerms || (quote.payment_terms as string | null) || null,
+        payment_terms: effectivePaymentTerms,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)

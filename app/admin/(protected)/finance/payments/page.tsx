@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Search, X, ArrowLeft, CheckCircle2, Wallet } from "lucide-react"
+import { Loader2, Search, X, ArrowLeft, CheckCircle2, XCircle, Wallet } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
 
@@ -21,6 +21,7 @@ interface Payment {
   created_at?: string
   notes?: string | null
   proof_document_path?: string | null
+  rejection_reason?: string | null
   payment_account_id?: string | null
   businesses?: { business_name: string } | null
   invoices?: { invoice_number: string } | null
@@ -82,6 +83,9 @@ export default function PaymentsPage() {
   const [confirmTarget, setConfirmTarget] = useState<Payment | null>(null)
   const [confirmAccountId, setConfirmAccountId] = useState("")
   const [confirming, setConfirming] = useState(false)
+  const [rejectTarget, setRejectTarget] = useState<Payment | null>(null)
+  const [rejectReason, setRejectReason] = useState("")
+  const [rejecting, setRejecting] = useState(false)
 
   useEffect(() => {
     fetchPayments()
@@ -177,6 +181,35 @@ export default function PaymentsPage() {
       setMessage("Failed to confirm payment")
     } finally {
       setConfirming(false)
+    }
+  }
+
+  async function rejectPaymentRecord() {
+    if (!rejectTarget || rejectReason.trim().length < 5) {
+      setMessage("Enter a rejection reason of at least 5 characters")
+      return
+    }
+    setRejecting(true)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/finance/commercial/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reject", data: { id: rejectTarget.id, reason: rejectReason.trim() } }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMessage("Payment proof rejected; the invoice remains unpaid")
+        setRejectTarget(null)
+        setRejectReason("")
+        fetchPayments()
+      } else {
+        setMessage(data.error || "Failed to reject payment")
+      }
+    } catch {
+      setMessage("Failed to reject payment")
+    } finally {
+      setRejecting(false)
     }
   }
 
@@ -349,13 +382,22 @@ export default function PaymentsPage() {
                           <a href={`/api/admin/finance/payment-proof?id=${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer" className="mr-2 text-xs text-retail hover:underline">View proof</a>
                         )}
                         {p.status === "PENDING" && (
-                          <button
-                            onClick={() => openConfirm(p)}
-                            className="p-1.5 rounded-md text-muted-foreground hover:text-green-600 hover:bg-green-50"
-                            title="Confirm Payment"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => openConfirm(p)}
+                              className="p-1.5 rounded-md text-muted-foreground hover:text-green-600 hover:bg-green-50"
+                              title="Confirm Payment"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => { setRejectTarget(p); setRejectReason("") }}
+                              className="p-1.5 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                              title="Reject Payment Proof"
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                            </button>
+                          </>
                         )}
                       </td>
                     </tr>
@@ -407,6 +449,40 @@ export default function PaymentsPage() {
               <Button onClick={confirmPaymentRecord} disabled={confirming}>
                 {confirming ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
                 Confirm Payment
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Reject Payment Proof</h3>
+              <button onClick={() => setRejectTarget(null)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Reference {rejectTarget.payment_reference}</p>
+              {rejectTarget.businesses?.business_name && <p className="text-sm text-muted-foreground">{rejectTarget.businesses.business_name}{rejectTarget.invoices?.invoice_number ? ` · ${rejectTarget.invoices.invoice_number}` : ""}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="payment-rejection-reason">Reason *</label>
+              <textarea
+                id="payment-rejection-reason"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={4}
+                placeholder="e.g. Bank statement does not show the transfer; please upload the correct proof."
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-muted-foreground">The proof remains in the audit trail. The invoice stays unpaid and the partner can submit a corrected proof.</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setRejectTarget(null)} disabled={rejecting}>Cancel</Button>
+              <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" onClick={rejectPaymentRecord} disabled={rejecting || rejectReason.trim().length < 5}>
+                {rejecting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <XCircle className="mr-1 h-4 w-4" />}
+                Reject proof
               </Button>
             </div>
           </div>

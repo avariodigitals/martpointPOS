@@ -7,6 +7,7 @@
  * Shared by the Email tab and meeting invites.
  */
 
+import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { sendEmail, getEmailSettings, isSmtpConfigured, REPLY_TO, type EmailAttachment, type EmailSettings } from "./email"
 import { sendEmailViaSmtp } from "./email-smtp"
@@ -27,6 +28,8 @@ export interface LeadEmailRecord {
   bodyHtml: string | null
   status: string
   provider: string | null
+  providerMessageId: string | null
+  metadata: Record<string, unknown> | null
   createdAt: string
 }
 
@@ -42,6 +45,8 @@ export function mapLeadEmail(row: Record<string, unknown>): LeadEmailRecord {
     bodyHtml: (row.body_html as string) ?? null,
     status: (row.status as string) ?? "sent",
     provider: (row.provider as string) ?? null,
+    providerMessageId: (row.provider_message_id as string) ?? null,
+    metadata: (row.metadata as Record<string, unknown>) ?? null,
     createdAt: row.created_at as string,
   }
 }
@@ -64,6 +69,8 @@ export interface SendLeadEmailInput {
   senderName?: string
   /** Per-user signature override. An omitted value uses the global fallback. */
   signatureHtml?: string
+  /** Extra headers used for RFC email threading (In-Reply-To/References). */
+  headers?: Record<string, string>
   metadata?: Record<string, unknown>
 }
 
@@ -181,6 +188,8 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
   const { from, replyTo, safeFrom } = resolveLeadSenders(settings, input.senderName)
 
   const { text: textBody, html } = await renderLeadEmail(input, settings)
+  const messageId = input.headers?.["Message-ID"] || `<lead-${crypto.randomUUID()}@martpoint.com.ng>`
+  const headers = { ...(input.headers || {}), "Message-ID": messageId }
 
   const viaProvider = useProvider || !isSmtpConfigured(settings)
   const sendProvider = (sender: string) =>
@@ -193,10 +202,11 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
       replyTo,
       cc: input.cc,
       attachments: input.attachments,
+      headers,
     })
   const sendSmtp = (sender: string) =>
     sendEmailViaSmtp(
-      { subject: input.subject, text: textBody, html, replyTo: sender, cc: input.cc, attachments: input.attachments },
+      { subject: input.subject, text: textBody, html, replyTo: sender, cc: input.cc, attachments: input.attachments, headers },
       settings,
       sender,
       Array.isArray(input.to) ? input.to : [input.to],
@@ -228,7 +238,11 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
       body_html: html,
       status: sent ? "sent" : "failed",
       provider: effectiveProvider,
-      metadata: input.metadata || null,
+      provider_message_id: sent ? messageId : null,
+      metadata: {
+        ...(input.metadata || {}),
+        cc: input.cc ? (Array.isArray(input.cc) ? input.cc.join(", ") : input.cc) : null,
+      },
     })
     .select()
     .single()

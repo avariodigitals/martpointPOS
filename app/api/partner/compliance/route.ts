@@ -6,6 +6,9 @@ import {
   requestComplianceDocument,
   submitComplianceDocument,
 } from "@/lib/partner-service"
+import { supabase } from "@/lib/supabase"
+import { notifyAllAdmins } from "@/lib/admin-notifications"
+import { REPLY_TO } from "@/lib/email"
 
 export async function GET() {
   const session = await getPartnerSession()
@@ -54,6 +57,35 @@ export async function POST(request: Request) {
 
     const result = await submitComplianceDocument(targetDocId, session.partnerUserId, file)
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+
+    const { data: document } = await supabase
+      .from("partner_documents")
+      .select("partner_id, application_id, original_filename")
+      .eq("id", targetDocId)
+      .maybeSingle()
+    await notifyAllAdmins({
+      type: "PARTNER_COMPLIANCE_DOCUMENT_SUBMITTED",
+      title: "Partner compliance document submitted",
+      message: `${file.name} is ready for review from partner ${session.partnerId}.`,
+      deep_link: document?.application_id
+        ? `/admin/partners/applications/${document.application_id}`
+        : "/admin/partners/applications",
+      source_type: "partner_document",
+      source_id: targetDocId,
+      roles: ["Admin", "Sales"],
+      email: {
+        route: "partner_compliance_document",
+        subject: "Partner Compliance Document Submitted",
+        text: `A partner has uploaded compliance evidence for review.
+
+Partner: ${session.partnerId}
+Document: ${file.name}
+
+Open Partner Applications in the Admin Portal:
+/admin/partners/applications`,
+        replyTo: REPLY_TO.partners,
+      },
+    })
 
     return NextResponse.json({ success: true })
   } catch {

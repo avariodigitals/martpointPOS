@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createPortal } from "react-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -238,6 +238,7 @@ const ACTIONS: Record<SectionKey, { name: string; label: string }[]> = {
   ],
   payments: [
     { name: "confirm", label: "Confirm" },
+    { name: "reject", label: "Reject proof" },
     { name: "reverse", label: "Reverse" },
     { name: "allocate", label: "Allocate" },
     { name: "receipt", label: "Issue Receipt" },
@@ -483,7 +484,9 @@ function buildCreatePayload(section: SectionKey, values: Record<string, string>)
 
 export default function CommercialSectionPage() {
   const { section } = useParams() as { section: string }
+  const searchParams = useSearchParams()
   const resource = RESOURCES.includes(section as SectionKey) ? (section as SectionKey) : null
+  const partnerOnly = resource === "quotes" && searchParams.get("source") === "partner"
 
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
@@ -511,6 +514,7 @@ export default function CommercialSectionPage() {
   const [selectedRow, setSelectedRow] = useState<Row | null>(null)
   const [selectedAction, setSelectedAction] = useState("")
   const [actionData, setActionData] = useState("")
+  const [actionReason, setActionReason] = useState("")
   const [waiveReason, setWaiveReason] = useState("")
   const [working, setWorking] = useState(false)
 
@@ -691,14 +695,20 @@ export default function CommercialSectionPage() {
     }
   }, [resource])
 
+  const visibleRows = useMemo(
+    () => partnerOnly ? rows.filter((row) => row.quote_origin === "PARTNER_REQUEST" || Boolean(row.partner_lead_id)) : rows,
+    [partnerOnly, rows],
+  )
+
   const columns = useMemo(() => {
-    if (!rows.length) return []
-    const first = rows[0]
+    if (!visibleRows.length) return []
+    if (resource === "quotes") return ["quote_number", "quote_origin", "status", "partner_lead_id", "business_id", "currency", "total_amount", "valid_until"]
+    const first = visibleRows[0]
     return Object.keys(first).filter((k) => {
       const v = first[k]
       return v === null || (typeof v !== "object" && !Array.isArray(v))
     })
-  }, [rows])
+  }, [resource, visibleRows])
 
   async function handleCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -771,6 +781,14 @@ export default function CommercialSectionPage() {
       if (selectedAction === "waive" && payload && typeof payload === "object") {
         payload = { ...(payload as Record<string, unknown>), reason: waiveReason.trim() || undefined }
       }
+      if (selectedAction === "reject") {
+        if (actionReason.trim().length < 5) {
+          setMessage("Enter a rejection reason of at least 5 characters")
+          setWorking(false)
+          return
+        }
+        payload = { id: selectedRow?.id, reason: actionReason.trim() }
+      }
       const res = await fetch(`/api/admin/finance/commercial/${resource}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -781,6 +799,7 @@ export default function CommercialSectionPage() {
         setMessage("Action successful")
         setActionOpen(false)
         setWaiveReason("")
+        setActionReason("")
         refreshList()
       } else {
         setMessage(data.error || "Action failed")
@@ -813,6 +832,7 @@ export default function CommercialSectionPage() {
     setSelectedRow(row)
     setSelectedAction(actionName || (actions.length ? actions[0].name : ""))
     setActionData(JSON.stringify({ id: row.id }, null, 2))
+    setActionReason("")
     setActionBusinessId(String(row.business_id || ""))
     setActionDueDate("")
     setActionOpen(true)
@@ -847,6 +867,10 @@ export default function CommercialSectionPage() {
     const v = row[key]
     if (v === null || v === undefined) return <span className="text-muted-foreground">—</span>
     if (key === "id") return <span className="font-mono text-xs">{String(v)}</span>
+    if (key === "quote_origin") {
+      const partnerRequest = String(v) === "PARTNER_REQUEST"
+      return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${partnerRequest ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-700"}`}>{partnerRequest ? "Partner request" : "Direct quote"}</span>
+    }
     if (typeof v === "boolean") return v ? "Yes" : "No"
     if (["amount", "total_amount", "subtotal", "discount_amount", "tax_amount", "balance_due", "base_price", "default_price", "commission_amount", "basis_amount"].includes(key)) {
       return formatMoneyIn(Number(v), typeof row.currency === "string" ? row.currency : "NGN")
@@ -1025,8 +1049,8 @@ export default function CommercialSectionPage() {
           <Link href="/admin/finance/commercial" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="mr-1 h-4 w-4" /> Back
           </Link>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight">{TITLES[resource]}</h2>
-          <p className="text-sm text-muted-foreground">Manage {TITLES[resource].toLowerCase()} via the unified commercial finance API.</p>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight">{partnerOnly ? "Partner Quotes" : TITLES[resource]}</h2>
+          <p className="text-sm text-muted-foreground">{partnerOnly ? "Partner requests are normal Finance quotes with partner identity, review, send and conversion in one workspace." : `Manage ${TITLES[resource].toLowerCase()} via the unified commercial finance API.`}</p>
         </div>
         {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
       </div>
@@ -1287,8 +1311,8 @@ export default function CommercialSectionPage() {
           <CardTitle className="text-sm font-medium">{TITLES[resource]} List</CardTitle>
         </CardHeader>
         <CardContent>
-          {rows.length === 0 && !loading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No records found.</p>
+          {visibleRows.length === 0 && !loading ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">{partnerOnly ? "No partner-backed quotes found." : "No records found."}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -1303,7 +1327,7 @@ export default function CommercialSectionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {visibleRows.map((row) => (
                     <tr key={String(row.id ?? Math.random())} className="border-b last:border-0 hover:bg-muted/50">
                       {columns.slice(0, 8).map((c) => (
                         <td key={c} className="whitespace-nowrap px-3 py-2">
@@ -1469,6 +1493,21 @@ export default function CommercialSectionPage() {
               <label className="text-sm font-medium">Invoice due date</label>
               <input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
               <p className="text-xs text-muted-foreground">The accepted quote will become a draft invoice using its existing lines, tax, payment terms and total. Invoice numbering uses the same system-wide counter as every other invoice.</p>
+            </div>
+          ) : selectedAction === "reject" ? (
+            <div className="space-y-3 rounded-lg border border-red-200 bg-red-50/60 p-3">
+              <p className="text-sm text-red-900">Rejecting marks this pending proof as failed. The invoice remains unpaid and the proof remains in the audit trail.</p>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="payment-rejection-reason">Reason *</label>
+                <textarea
+                  id="payment-rejection-reason"
+                  value={actionReason}
+                  onChange={(e) => setActionReason(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  rows={3}
+                  placeholder="e.g. Funds not found in the receiving account"
+                />
+              </div>
             </div>
           ) : selectedAction === "waive" ? (
             <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">

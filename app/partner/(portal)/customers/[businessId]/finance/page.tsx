@@ -20,14 +20,19 @@ function fmtDate(iso?: string | null) {
 }
 
 function paymentStatusLabel(status: string) {
+  if (status === "DRAFT") return "Invoice not issued"
+  if (status === "ISSUED") return "Awaiting Payment"
   if (status === "PAID") return "Paid"
   if (status === "PARTIALLY_PAID") return "Partially Paid"
+  if (status === "OVERDUE") return "Overdue"
   return "Awaiting Payment"
 }
 
 function paymentStatusClass(status: string) {
+  if (status === "DRAFT") return "bg-slate-100 text-slate-700"
   if (status === "PAID") return "bg-green-100 text-green-700"
   if (status === "PARTIALLY_PAID") return "bg-amber-100 text-amber-700"
+  if (status === "OVERDUE") return "bg-red-100 text-red-700"
   return "bg-blue-100 text-blue-700"
 }
 
@@ -71,7 +76,7 @@ export default async function CustomerFinancePage({
         .order("created_at", { ascending: false }),
       supabase
         .from("payments")
-        .select("id, payment_reference, invoice_id, amount, currency, status, proof_document_path, created_at")
+        .select("id, payment_reference, invoice_id, amount, currency, status, proof_document_path, rejection_reason, rejected_at, created_at")
         .eq("business_id", businessId)
         .order("created_at", { ascending: false }),
       supabase
@@ -155,9 +160,23 @@ export default async function CustomerFinancePage({
                         </td>
                         <td className="px-4 py-2">{fmtDate(inv.due_date)}</td>
                       </tr>
+                      {inv.status === "DRAFT" && (
+                        <tr className="border-t border-border">
+                          <td colSpan={6} className="px-4 py-2 text-xs text-muted-foreground bg-muted/20">
+                            This invoice has been created but has not been issued by MartPoint Finance yet. Payment proof upload will appear here after it is issued.
+                          </td>
+                        </tr>
+                      )}
                       {canSubmitProof && inv.balance_due > 0 && ["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(inv.status) && (
                         <tr className="border-t border-border">
                           <td colSpan={6} className="px-4 py-2"><PaymentProofForm businessId={businessId} invoiceId={inv.id} balance={Number(inv.balance_due)} currency={inv.currency || "NGN"} /></td>
+                        </tr>
+                      )}
+                      {!canSubmitProof && inv.balance_due > 0 && ["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(inv.status) && (
+                        <tr className="border-t border-border">
+                          <td colSpan={6} className="px-4 py-2 text-xs text-amber-700 bg-amber-50">
+                            Your partner user role cannot submit payment proof. Ask the partner owner or manager to upload the transfer receipt, or update your partner role.
+                          </td>
                         </tr>
                       )}
                     </Fragment>
@@ -170,6 +189,26 @@ export default async function CustomerFinancePage({
             <p className="mt-3 text-xs text-amber-700 bg-amber-50 rounded-md p-3">
               Payment proof submitted. Finance must verify the transfer before the invoice status changes.
             </p>
+          )}
+          {payments.length > 0 && (
+            <div className="mt-4 border-t border-border pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment proof history</p>
+              <div className="space-y-2">
+                {payments.slice(0, 6).map((payment: any) => (
+                  <div key={payment.id} className="rounded-md border border-border px-3 py-2 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono">{payment.payment_reference}</span>
+                      <span className={`rounded-full px-2 py-0.5 font-medium uppercase ${payment.status === "CONFIRMED" ? "bg-green-100 text-green-700" : payment.status === "FAILED" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                        {payment.status === "FAILED" ? "Rejected" : enumLabel(payment.status)}
+                      </span>
+                    </div>
+                    {payment.status === "FAILED" && payment.rejection_reason && (
+                      <p className="mt-1 text-red-700">Finance note: {payment.rejection_reason}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

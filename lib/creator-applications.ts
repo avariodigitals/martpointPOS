@@ -126,6 +126,12 @@ export async function submitCreatorApplication(
     deep_link: `/admin/creators/applications/${applicationId}`,
     source_type: "creator_application",
     source_id: applicationId,
+    roles: ["Admin", "Digital Marketer"],
+    email: {
+      route: "creator_application",
+      subject: `New Creator Application — ${reference}`,
+      text: `A new creator application needs review.\n\nReference: ${reference}\nApplicant: ${input.fullName}\n\nOpen Creator Applications in the Admin Portal:\n/admin/creators/applications/${applicationId}`,
+    },
   })
 
   if (input.socialProfiles.length > 0) {

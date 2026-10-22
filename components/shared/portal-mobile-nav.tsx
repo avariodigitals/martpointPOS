@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useState, type ElementType } from "react"
 import { Menu, X } from "lucide-react"
+import { PortalNotificationBell } from "@/components/shared/portal-notification-bell"
 
 export interface PortalNavItem {
   href: string
@@ -26,6 +27,7 @@ interface PortalMobileNavProps {
   isItemActive: (href: string) => boolean
   onLogout: () => void | Promise<void>
   logoutLabel?: string
+  notificationEndpoint?: string
 }
 
 const MAX_INITIALS = 2
@@ -55,6 +57,7 @@ export function PortalMobileNav({
   isItemActive,
   onLogout,
   logoutLabel = "Sign out",
+  notificationEndpoint,
 }: PortalMobileNavProps) {
   const [moreOpen, setMoreOpen] = useState(false)
 
@@ -77,15 +80,18 @@ export function PortalMobileNav({
             {subtitle && <p className="truncate text-[11px] text-gray-400">{subtitle}</p>}
           </div>
 
-          <button
-            type="button"
-            onClick={onLogout}
-            aria-label={logoutLabel}
-            title={logoutLabel}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-retail text-sm font-semibold text-white transition-opacity hover:opacity-80"
-          >
-            {getInitials(userName)}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {notificationEndpoint && <PortalNotificationBell endpoint={notificationEndpoint} />}
+            <button
+              type="button"
+              onClick={onLogout}
+              aria-label={logoutLabel}
+              title={logoutLabel}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-retail text-sm font-semibold text-white transition-opacity hover:opacity-80"
+            >
+              {getInitials(userName)}
+            </button>
+          </div>
         </div>
       </header>
 

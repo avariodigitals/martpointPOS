@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { authorizeAdmin, getUserById } from "@/lib/admin-auth"
 import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { sendLeadEmail, mapLeadEmail, leadTemplateBrandedHtml } from "@/lib/lead-email-outbound"
+import { sendLeadEmail, mapLeadEmail, leadTemplateBrandedHtml, resolveLeadSenders } from "@/lib/lead-email-outbound"
+import { getEmailSettings } from "@/lib/email"
 import { LEAD_EMAIL_STAGE_KEYS } from "@/lib/lead-email-templates"
 import { z } from "zod"
 
@@ -24,7 +25,18 @@ const postSchema = z.object({
     })
     .optional(),
   attachments: z.array(attachmentSchema).max(5, "Up to 5 attachments per email").optional(),
+  replyToEmailId: z.string().uuid().optional(),
+  replyAll: z.boolean().optional(),
 })
+
+function extractAddresses(value: unknown): string[] {
+  if (typeof value !== "string") return []
+  return [...new Set((value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map((address) => address.toLowerCase()))]
+}
+
+function metadataValue(metadata: unknown, key: string): unknown {
+  return metadata && typeof metadata === "object" && key in metadata ? (metadata as Record<string, unknown>)[key] : null
+}
 
 /* ─── GET email thread for a lead ─── */
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -81,6 +93,71 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (leadError || !lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 })
     if (!lead.email) return NextResponse.json({ error: "Lead has no email address" }, { status: 400 })
 
+    let recipients = [lead.email as string, lead.additional_email as string | null].filter(
+      (email): email is string => Boolean(email),
+    )
+    let cc: string[] = []
+    let headers: Record<string, string> | undefined
+    let subject = parsed.data.subject
+    let replyMetadata: Record<string, unknown> | undefined
+
+    if (parsed.data.replyToEmailId) {
+      const { data: original, error: originalError } = await supabase
+        .from("lead_emails")
+        .select("*")
+        .eq("id", parsed.data.replyToEmailId)
+        .eq("lead_id", id)
+        .maybeSingle()
+
+      if (originalError || !original) return NextResponse.json({ error: "Original email not found" }, { status: 404 })
+
+      const settings = await getEmailSettings()
+      const sender = resolveLeadSenders(settings, auth.session.name)
+      const ownAddresses = new Set([
+        ...extractAddresses(sender.from),
+        ...extractAddresses(sender.replyTo),
+        ...extractAddresses(settings.fromEmail),
+        ...extractAddresses(settings.smtp.fromEmail),
+        ...extractAddresses(settings.smtp.user),
+      ])
+      const originalTo = extractAddresses(original.to_email)
+      const originalFrom = extractAddresses(original.from_email)
+      const originalCc = extractAddresses(metadataValue(original.metadata, "cc"))
+
+      recipients = original.direction === "inbound" ? originalFrom : originalTo
+      if (parsed.data.replyAll) {
+        cc = [
+          ...originalTo,
+          ...originalCc,
+          ...(lead.email ? [lead.email as string] : []),
+          ...(lead.additional_email ? [lead.additional_email as string] : []),
+        ]
+          .flatMap((value) => extractAddresses(value))
+          .filter((address) => !ownAddresses.has(address) && !recipients.some((to) => to.toLowerCase() === address))
+      }
+
+      if (recipients.length === 0) {
+        recipients = [lead.email as string, lead.additional_email as string | null].filter(
+          (email): email is string => Boolean(email),
+        )
+      }
+
+      const originalSubject = String(original.subject || "").trim()
+      subject = originalSubject && /^re:/i.test(originalSubject) ? originalSubject : `Re: ${originalSubject || parsed.data.subject}`
+
+      const parentMessageId = String(original.provider_message_id || "").trim()
+      if (parentMessageId && /^<[^>]+>$/.test(parentMessageId)) {
+        headers = { "In-Reply-To": parentMessageId }
+        const previousReferences = String(metadataValue(original.metadata, "references") || "").trim()
+        headers.References = [previousReferences, parentMessageId].filter(Boolean).join(" ")
+      }
+      replyMetadata = {
+        reply_to_email_id: parsed.data.replyToEmailId,
+        reply_all: Boolean(parsed.data.replyAll),
+        references: headers?.References || parentMessageId || null,
+      }
+    }
+
     // A packaged template renders the branded HTML edition; the composer body
     // travels as the plain-text part and lands in the thread as usual.
     const template = parsed.data.template
@@ -95,8 +172,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const result = await sendLeadEmail({
       leadId: id,
-      to: [...new Set([lead.email as string, lead.additional_email as string | null].filter((email): email is string => Boolean(email)))],
-      subject: parsed.data.subject,
+      to: [...new Set(recipients)],
+      cc: [...new Set(cc)],
+      subject,
       body: parsed.data.body,
       html,
       noSignature,
@@ -105,7 +183,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // stays the shared mailbox so the reply lands in the synced inbox.
       senderName: auth.session.name,
       signatureHtml: (await getUserById(auth.session.userId))?.signatureHtml || "<p><strong>MartPoint Sales Team</strong></p>",
-      metadata: template ? { template: template.key, industry: template.industry || (lead.industry as string | null) || null } : undefined,
+      metadata: {
+        ...(template ? { template: template.key, industry: template.industry || (lead.industry as string | null) || null } : {}),
+        ...(replyMetadata || {}),
+      },
+      headers,
     })
 
     if (!result.email) {
@@ -118,8 +200,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       entityId: id,
       metadata: {
         emailSent: result.sent,
-        subject: parsed.data.subject,
-        to: lead.email,
+        subject,
+        to: recipients.join(", "),
+        cc: cc.join(", ") || null,
+        replyToEmailId: parsed.data.replyToEmailId || null,
         template: parsed.data.template?.key || null,
         attachments: parsed.data.attachments?.map((a) => a.filename) || [],
       },

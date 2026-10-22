@@ -107,6 +107,7 @@ export default function CommercialFinancePage() {
                 { label: "Plans", href: "/admin/finance/commercial/plans", desc: "Pricing plans" },
                 { label: "Add-ons", href: "/admin/finance/commercial/addons", desc: "Optional add-ons" },
                 { label: "Quotes", href: "/admin/finance/commercial/quotes", desc: "Customer quotations" },
+                { label: "Partner Quotes", href: "/admin/finance/commercial/quotes?source=partner", desc: "Requests, review, send & convert" },
                 { label: "Invoices", href: "/admin/finance/commercial/invoices", desc: "Issue & manage invoices" },
                 { label: "Payments", href: "/admin/finance/commercial/payments", desc: "Record & confirm payments" },
                 { label: "Subscriptions", href: "/admin/finance/commercial/subscriptions", desc: "Activate & renew subscriptions" },

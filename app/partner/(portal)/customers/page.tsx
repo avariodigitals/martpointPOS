@@ -39,8 +39,8 @@ export default async function PartnerCustomersPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-2">{[c.business.city, c.business.state, c.business.country].filter(Boolean).join(", ")}</td>
-                  <td className="px-4 py-2">{c.relationship}</td>
-                  <td className="px-4 py-2">{c.accessLevel}</td>
+                  <td className="px-4 py-2">{enumLabel(c.relationship)}</td>
+                  <td className="px-4 py-2">{enumLabel(c.accessLevel)}</td>
                   <td className="px-4 py-2">{enumLabel(c.business.status)}</td>
                 </tr>
               ))}

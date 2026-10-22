@@ -55,7 +55,11 @@ export async function getPartnerCustomerDetail(
   const access = await canPartnerAccessBusiness(partnerId, businessId, {
     partnerUserId: partnerUser.id,
     userPermission: requiredAccessLevel === "ONBOARDING_MANAGER" ? "onboarding:manage_assigned" : "customers:view_assigned",
-    orgCapability: "CUSTOMER_ONBOARDING",
+    // Viewing an assigned customer is part of the normal customer permission.
+    // The onboarding capability is only required for the elevated onboarding
+    // workspace; otherwise existing partners without that capability receive
+    // a misleading 404 on their customer detail page.
+    orgCapability: requiredAccessLevel === "ONBOARDING_MANAGER" ? "CUSTOMER_ONBOARDING" : null,
     requiredAccessLevel,
   })
 

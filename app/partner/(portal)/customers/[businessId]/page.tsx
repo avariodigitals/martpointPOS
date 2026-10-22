@@ -33,8 +33,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Phone</p><p className="font-medium">{business.primaryPhone}</p></div>
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Email</p><p className="font-medium">{business.primaryEmail}</p></div>
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Location</p><p className="font-medium">{[business.address, business.city, business.state, business.country].filter(Boolean).join(", ")}</p></div>
-        <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Relationship</p><p className="font-medium">{assignment.relationship}</p></div>
-        <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Partner Access</p><p className="font-medium">{assignment.accessLevel}</p></div>
+        <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Relationship</p><p className="font-medium">{enumLabel(assignment.relationship)}</p></div>
+        <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Partner Access</p><p className="font-medium">{enumLabel(assignment.accessLevel)}</p></div>
         <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Business Status</p><p className="font-medium">{enumLabel(business.status)}</p></div>
       </div>
 

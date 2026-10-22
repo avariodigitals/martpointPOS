@@ -1339,7 +1339,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                     <option value="">No linked customer assignment</option>
                     {assignments.map((a) => (
                       <option key={a.id as string} value={a.id as string}>
-                        {((a.businesses as Record<string, unknown>)?.business_name as string) || "Customer"} · {a.relationship_type as string}
+                        {((a.businesses as Record<string, unknown>)?.business_name as string) || "Customer"} · {enumLabel(a.relationship_type as string)}
                       </option>
                     ))}
                   </select>
@@ -1553,10 +1553,10 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
               )}
               <div className="flex gap-2">
                 <select value={relationshipType} onChange={(e) => setRelationshipType(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-sm">
-                  {["REFERRED", "SOLD", "IMPLEMENTATION", "SUPPORT", "ACCOUNT_MANAGER"].map((t) => <option key={t} value={t}>{t}</option>)}
+                  {["REFERRED", "SOLD", "IMPLEMENTATION", "SUPPORT", "ACCOUNT_MANAGER"].map((t) => <option key={t} value={t}>{enumLabel(t)}</option>)}
                 </select>
                 <select value={accessLevel} onChange={(e) => setAccessLevel(e.target.value)} className="rounded-md border border-input bg-background px-3 py-2 text-sm">
-                  {["VIEW_ONLY", "SALES", "ONBOARDING_MANAGER", "SUPPORT"].map((l) => <option key={l} value={l}>{l}</option>)}
+                  {["VIEW_ONLY", "SALES", "ONBOARDING_MANAGER", "SUPPORT"].map((l) => <option key={l} value={l}>{enumLabel(l)}</option>)}
                 </select>
               </div>
               <Button type="submit" disabled={!selectedBusiness}>Create Assignment</Button>
@@ -1568,7 +1568,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                 return (
                 <div key={a.id as string} className="space-y-2 rounded-md border border-border p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <span><strong>{businessName}</strong> · {a.relationship_type as string} · {a.access_level as string} · <span className={a.status === "ACTIVE" ? "text-emerald-600" : "text-amber-600"}>{a.status as string}</span></span>
+                    <span><strong>{businessName}</strong> · {enumLabel(a.relationship_type as string)} · {enumLabel(a.access_level as string)} · <span className={a.status === "ACTIVE" ? "text-emerald-600" : "text-amber-600"}>{enumLabel(a.status as string)}</span></span>
                     <div className="flex flex-wrap gap-2">
                       {a.status === "ACTIVE" && <Button size="sm" variant="outline" onClick={() => changeAssignmentStatus(a.id as string, "suspend")}>Suspend</Button>}
                       {a.status === "SUSPENDED" && <Button size="sm" variant="outline" onClick={() => changeAssignmentStatus(a.id as string, "restore")}>Restore</Button>}

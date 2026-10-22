@@ -141,7 +141,7 @@ export async function PATCH(request: Request) {
       revalidateTag("settings", { expire: 0 })
     }
 
-    return NextResponse.json({ settings: result })
+    return NextResponse.json({ success: true, settings: result })
   } catch (err) {
     console.error("[Azera settings patch error]", err)
     return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to save settings" }, { status: 500 })

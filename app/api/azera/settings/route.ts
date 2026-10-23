@@ -186,6 +186,11 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true, settings: result })
   } catch (err) {
     console.error("[Azera settings patch error]", err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to save settings" }, { status: 500 })
+    const errorMessage = err instanceof Error
+      ? err.message
+      : err && typeof err === "object" && "message" in err
+        ? String((err as { message?: unknown }).message || "Failed to save settings")
+        : "Failed to save settings"
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

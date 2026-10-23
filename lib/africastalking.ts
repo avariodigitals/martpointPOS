@@ -236,16 +236,18 @@ export function textResponse(body: string): Response {
 }
 
 export async function resolveAfricaBusinessId(destinationNumber?: string): Promise<string | null> {
-  const configured = process.env.AFRICASTALKING_BUSINESS_ID || process.env.AZERA_PUBLIC_BUSINESS_ID
-  if (configured) return configured
-  if (!isSupabaseConfigured()) return null
-
   const destination = normalizePhone(destinationNumber)
-  const { data } = await supabase
-    .from("azera_settings")
-    .select("business_id, africas_talking_phone_number")
-  const match = (data || []).find((row) => normalizePhone(row.africas_talking_phone_number) === destination)
-  return (match?.business_id as string | undefined) || null
+  if (destination && isSupabaseConfigured()) {
+    // Prefer the number's persisted business mapping. This keeps a stale or
+    // shared deployment env ID from routing a callback to the wrong tenant.
+    const { data } = await supabase
+      .from("azera_settings")
+      .select("business_id, africas_talking_phone_number")
+    const match = (data || []).find((row) => normalizePhone(row.africas_talking_phone_number) === destination)
+    if (match?.business_id) return match.business_id as string
+  }
+
+  return process.env.AFRICASTALKING_BUSINESS_ID || process.env.AZERA_PUBLIC_BUSINESS_ID || null
 }
 
 export async function getAfricaVoiceConfig(businessId: string | null) {

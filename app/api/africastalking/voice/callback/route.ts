@@ -58,18 +58,19 @@ function dialAction(
   return `<Dial ${attributes}/>`
 }
 
-function voicemailOrHangup(
+function voicemailOrEnd(
   request: Request,
   config: Awaited<ReturnType<typeof getAfricaVoiceConfig>>,
   message: string,
   audioUrl = "",
 ): string[] {
-  if (!config.voicemailEnabled) return [say(message), "<Hangup/>"]
+  // Africa's Talking ends the call after the final Voice action. Hangup is not
+  // a supported Voice action and causes the provider to abort the call.
+  if (!config.voicemailEnabled) return [sayOrPlay(message, audioUrl)]
   return [
     sayOrPlay(message, audioUrl),
     `<Record maxLength="${config.voicemailMaxSeconds}" playBeep="true" callbackUrl="${xmlEscape(callbackUrl(request, "/api/africastalking/voice/recording"))}"/>`,
     say("Thank you. Your message has been recorded and our team will follow up."),
-    "<Hangup/>",
   ]
 }
 
@@ -124,7 +125,7 @@ export async function POST(request: Request) {
   try {
     if (!sessionId || !businessId || !isSupabaseConfigured()) {
       await finishAfricaWebhookEvent(webhookEventId, sessionId ? "processed" : "failed", sessionId ? undefined : "Missing Africa's Talking sessionId")
-      return voiceXml([say("Sorry, this call cannot be connected right now. Please try again later."), "<Hangup/>"])
+      return voiceXml([say("Sorry, this call cannot be connected right now. Please try again later.")])
     }
 
     const now = new Date().toISOString()
@@ -184,7 +185,7 @@ export async function POST(request: Request) {
         ])
       }
       await finishAfricaWebhookEvent(webhookEventId, "processed")
-      return voiceXml(voicemailOrHangup(request, config, config.afterHoursGreeting, config.afterHoursAudioUrl))
+      return voiceXml(voicemailOrEnd(request, config, config.afterHoursGreeting, config.afterHoursAudioUrl))
     }
 
     const hasConfiguredRoute = config.forwardNumbers.length > 0 || (config.menuEnabled && departments.some((department) => department.numbers.length))
@@ -198,7 +199,7 @@ export async function POST(request: Request) {
         created_at: now,
       })
       await finishAfricaWebhookEvent(webhookEventId, "processed")
-      return voiceXml(voicemailOrHangup(request, config, config.noAnswerGreeting, config.noAnswerAudioUrl))
+      return voiceXml(voicemailOrEnd(request, config, config.noAnswerGreeting, config.noAnswerAudioUrl))
     }
 
     if (config.menuEnabled && departments.length) {
@@ -212,7 +213,7 @@ export async function POST(request: Request) {
         if (canRetry) {
           await finishAfricaWebhookEvent(webhookEventId, "processed")
           const retryPrompt = digit === 9 ? prompt : `${dtmfDigits ? "That is not a valid selection. " : "We did not receive a selection. "}${prompt}`
-          return voiceXml([digitsAction(request, retryPrompt, digit === 9 ? "" : config.greetingAudioUrl), say("We did not receive a valid selection."), "<Hangup/>"])
+          return voiceXml([digitsAction(request, retryPrompt, digit === 9 ? "" : config.greetingAudioUrl)])
         }
 
         if (config.forwardNumbers.length) {
@@ -225,7 +226,7 @@ export async function POST(request: Request) {
           ])
         }
         await finishAfricaWebhookEvent(webhookEventId, "processed")
-        return voiceXml(voicemailOrHangup(request, config, config.noAnswerGreeting, config.noAnswerAudioUrl))
+        return voiceXml(voicemailOrEnd(request, config, config.noAnswerGreeting, config.noAnswerAudioUrl))
       }
 
       const department = departments.find((item) => item.digit === digit)
@@ -258,6 +259,6 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[Africa's Talking voice callback error]", error)
     await finishAfricaWebhookEvent(webhookEventId, "failed", error instanceof Error ? error.message : "Voice callback failed")
-    return voiceXml([say("Sorry, we are unable to connect your call right now."), "<Hangup/>"])
+    return voiceXml([say("Sorry, we are unable to connect your call right now.")])
   }
 }

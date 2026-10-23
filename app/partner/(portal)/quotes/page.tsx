@@ -31,7 +31,7 @@ export default async function PartnerQuotesPage({ searchParams }: { searchParams
 
   const openRequestLeadIds = new Set(
     requests
-      .filter((request) => ["SUBMITTED", "UNDER_REVIEW", "ISSUED"].includes(String(request.status)))
+      .filter((request) => ["SUBMITTED", "UNDER_REVIEW", "ISSUED"].includes(String(request.status).toUpperCase()))
       .map((request) => String(request.partner_lead_id)),
   )
   const eligibleLeads = leads
@@ -86,9 +86,15 @@ export default async function PartnerQuotesPage({ searchParams }: { searchParams
               {requests.map((r) => {
                 const lead = r.partner_leads as Record<string, unknown> | null
                 const status = r.status as QuoteRequestStatus
-                const linkedQuote = r.quotes as Record<string, unknown> | null
-                const quoteStatus = String(linkedQuote?.status || "")
-                const displayStatus = ["ACCEPTED", "CONVERTED"].includes(quoteStatus) ? quoteStatus : status
+                const linkedQuoteValue = r.quotes as Record<string, unknown> | Record<string, unknown>[] | null
+                const linkedQuote = Array.isArray(linkedQuoteValue) ? linkedQuoteValue[0] || null : linkedQuoteValue
+                const quoteStatus = String(linkedQuote?.status || "").toUpperCase()
+                const requestStatus = String(status || "").toUpperCase()
+                // Supabase can return the one-to-one quote relation as either
+                // an object or a one-item array. Read both forms so acceptance
+                // never falls back to the request's old ISSUED status.
+                const accepted = ["ACCEPTED", "CONVERTED"].includes(quoteStatus)
+                const displayStatus = accepted ? "ACCEPTED" : requestStatus
                 return (
                   <div key={r.id as string} className="p-4 rounded-xl border border-border bg-background">
                     <div className="flex items-start justify-between gap-3">
@@ -110,14 +116,15 @@ export default async function PartnerQuotesPage({ searchParams }: { searchParams
                         : displayStatus === "DECLINED" || displayStatus === "EXPIRED" ? "bg-red-100 text-red-700"
                         : "bg-blue-100 text-blue-700"
                       }`}>
-                        {displayStatus === "CONVERTED" ? "INVOICE CREATED" : displayStatus === "ACCEPTED" ? "ACCEPTED" : QUOTE_REQUEST_STATUS_LABELS[status] || status}
+                        {displayStatus === "ACCEPTED" ? "ACCEPTED" : QUOTE_REQUEST_STATUS_LABELS[status] || status}
                       </span>
                     </div>
-                    {["ISSUED", "ACCEPTED", "CONVERTED"].includes(String(displayStatus)) && typeof r.issued_quote_ref === "string" && r.issued_quote_ref && (
+                    {["ISSUED", "ACCEPTED"].includes(displayStatus) && typeof r.issued_quote_ref === "string" && r.issued_quote_ref && (
                       <div className="mt-3">
                         <Link href={`/partner/quotes/${r.id as string}`}>
-                          <Button size="sm" variant="outline">{displayStatus === "CONVERTED" ? "View invoice status" : displayStatus === "ACCEPTED" ? "View accepted quote" : "View, accept or download quote"}</Button>
+                          <Button size="sm" variant="outline">{displayStatus === "ACCEPTED" ? "View accepted quote" : "View, accept or download quote"}</Button>
                         </Link>
+                        {quoteStatus === "CONVERTED" && <p className="mt-2 text-xs text-green-700">Invoice created from this accepted quote.</p>}
                       </div>
                     )}
                   </div>

@@ -6,8 +6,9 @@ import { useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft } from "lucide-react"
-import { VERIFICATION_STATUSES, CANDIDATE_STATUSES, APPLICATION_STATUS_LABELS, applicationStatusLabel } from "@/lib/careers"
+import { VERIFICATION_STATUSES, CANDIDATE_STATUSES, applicationStatusLabel } from "@/lib/careers"
 import { enumLabel } from "@/lib/utils"
+import { LocationFields } from "@/components/location-fields"
 
 interface Candidate {
   id: string; reference_number: string; full_name: string; email: string
@@ -124,9 +125,20 @@ export default function TalentPoolDetailPage() {
             <input className={inputCls} value={String(form.full_name || "")} onChange={(e) => set("full_name", e.target.value)} placeholder="Full name" />
             <input className={inputCls} value={String(form.phone || "")} onChange={(e) => set("phone", e.target.value)} placeholder="Phone" />
             <input className={inputCls} value={String(form.whatsapp || "")} onChange={(e) => set("whatsapp", e.target.value)} placeholder="WhatsApp" />
-            <input className={inputCls} value={String(form.state || "")} onChange={(e) => set("state", e.target.value)} placeholder="State" />
             <input className={inputCls} value={String(form.lga || "")} onChange={(e) => set("lga", e.target.value)} placeholder="LGA" />
-            <input className={inputCls} value={String(form.city || "")} onChange={(e) => set("city", e.target.value)} placeholder="City" />
+            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <LocationFields
+                country="Nigeria"
+                state={String(form.state || "")}
+                city={String(form.city || "")}
+                showCountry={false}
+                inputClassName={inputCls}
+                onChange={(values) => {
+                  if (values.state !== undefined) set("state", values.state)
+                  if (values.city !== undefined) set("city", values.city)
+                }}
+              />
+            </div>
             <input className={inputCls} value={String(form.residential_area || "")} onChange={(e) => set("residential_area", e.target.value)} placeholder="Area" />
             <input className={inputCls} value={String(form.qualified_roles || "")} onChange={(e) => set("qualified_roles", e.target.value)} placeholder="Qualified roles (comma)" />
             <input className={inputCls} value={String(form.other_work_cities || "")} onChange={(e) => set("other_work_cities", e.target.value)} placeholder="Other cities" />

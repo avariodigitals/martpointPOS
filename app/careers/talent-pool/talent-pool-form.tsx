@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Check, Loader2, AlertCircle, Users } from "lucide-react"
 import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
-import { STATES } from "@/lib/locations"
+import { LocationFields } from "@/components/location-fields"
 
 const inputCls =
   "w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-retail/30"
@@ -163,17 +163,20 @@ export function TalentPoolForm() {
         </>)}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        {renderField("state", "State", true, <>
-          <select className={inputCls} value={form.state} onChange={(e) => set("state", e.target.value)}>
-            <option value="">Select</option>
-            {STATES["Nigeria"].map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </>)}
+        <div>
+          <LocationFields
+            country="Nigeria"
+            state={form.state}
+            city={form.city}
+            showCountry={false}
+            required
+            inputClassName={inputCls}
+            onChange={(values) => setForm((f) => ({ ...f, state: values.state ?? f.state, city: values.city ?? f.city }))}
+          />
+          {(errors.state || errors.city) && <p className={errCls}>{errors.state || errors.city}</p>}
+        </div>
         {renderField("lga", "LGA", false, <>
           <input className={inputCls} value={form.lga} onChange={(e) => set("lga", e.target.value)} />
-        </>)}
-        {renderField("city", "City / town", true, <>
-          <input className={inputCls} value={form.city} onChange={(e) => set("city", e.target.value)} />
         </>)}
       </div>
       {renderField("residentialArea", "Residential area", false, <>

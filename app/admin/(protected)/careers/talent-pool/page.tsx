@@ -8,6 +8,7 @@ import { Loader2, Users, Plus } from "lucide-react"
 import { VERIFICATION_STATUSES, CANDIDATE_STATUSES } from "@/lib/careers"
 import { STATES } from "@/lib/locations"
 import { enumLabel } from "@/lib/utils"
+import { LocationFields } from "@/components/location-fields"
 
 interface Candidate {
   id: string; reference_number: string; full_name: string; email: string
@@ -71,12 +72,17 @@ export default function TalentPoolPage() {
             <input className={inputCls} placeholder="Full name *" value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
             <input className={inputCls} placeholder="Email *" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
             <input className={inputCls} placeholder="Phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-            <select className={inputCls} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}>
-              <option value="">State</option>
-              {STATES["Nigeria"].map((s) => <option key={s}>{s}</option>)}
-            </select>
+            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <LocationFields
+                country="Nigeria"
+                state={form.state}
+                city={form.city}
+                showCountry={false}
+                inputClassName={inputCls}
+                onChange={(values) => setForm((f) => ({ ...f, state: values.state ?? f.state, city: values.city ?? f.city }))}
+              />
+            </div>
             <input className={inputCls} placeholder="LGA" value={form.lga} onChange={(e) => setForm((f) => ({ ...f, lga: e.target.value }))} />
-            <input className={inputCls} placeholder="City" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
             <input className={inputCls + " md:col-span-2"} placeholder="Qualified roles (comma-separated)" value={form.qualifiedRoles} onChange={(e) => setForm((f) => ({ ...f, qualifiedRoles: e.target.value }))} />
             <input className={inputCls} placeholder="Availability notes" value={form.availabilityNotes} onChange={(e) => setForm((f) => ({ ...f, availabilityNotes: e.target.value }))} />
           </div>

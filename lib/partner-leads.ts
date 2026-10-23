@@ -5,6 +5,7 @@ import { partnerHasCapability } from "./partner-auth"
 import { notifyAllAdmins } from "./admin-notifications"
 import { notifyPartnerLeadUpdated } from "./partner-notifications"
 import { REPLY_TO } from "./email"
+import { productLabel } from "./product-labels"
 
 export type PartnerLeadStatus =
   | "REGISTERED"
@@ -286,7 +287,7 @@ export async function createPartnerLead(
       business_type: input.businessType,
       estimated_branches: input.estimatedBranches ?? null,
       estimated_users: input.estimatedUsers ?? null,
-      interested_product: input.interestedProduct,
+      interested_product: productLabel(input.interestedProduct),
       estimated_deal_value: input.estimatedDealValue ?? null,
       notes: input.notes ?? null,
       status: "REGISTERED",
@@ -440,6 +441,7 @@ export async function updatePartnerLead(
         : k === "email" ? normaliseEmail(updates[k] as string)
         : k === "businessName" ? (updates[k] as string).trim()
         : k === "contactName" ? (updates[k] as string).trim()
+        : k === "interestedProduct" ? productLabel(updates[k] as string)
         : updates[k]
     }
   }
@@ -837,7 +839,7 @@ function mapLead(row: Record<string, unknown>): PartnerLeadRecord {
     businessType: (row.business_type as string) || "",
     estimatedBranches: (row.estimated_branches as number | null) ?? null,
     estimatedUsers: (row.estimated_users as number | null) ?? null,
-    interestedProduct: (row.interested_product as string) || "",
+    interestedProduct: productLabel(row.interested_product as string),
     estimatedDealValue: (row.estimated_deal_value as number | null) ?? null,
     notes: (row.notes as string | null) ?? null,
     status: row.status as PartnerLeadStatus,

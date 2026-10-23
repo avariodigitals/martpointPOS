@@ -77,6 +77,14 @@ export async function PATCH(request: Request) {
       position,
       ai_enabled,
       ai_prompt,
+      ai_voice_enabled,
+      ai_voice_provider,
+      ai_voice,
+      messenger_page_id,
+      instagram_account_id,
+      google_place_id,
+      google_review_enabled,
+      google_review_message,
       sip_provider,
       sip_from_number,
       africas_talking_api_key,
@@ -97,6 +105,14 @@ export async function PATCH(request: Request) {
     if (position !== undefined) updates.position = position
     if (ai_enabled !== undefined) updates.ai_enabled = ai_enabled
     if (ai_prompt !== undefined) updates.ai_prompt = ai_prompt
+    if (ai_voice_enabled !== undefined) updates.ai_voice_enabled = ai_voice_enabled
+    if (ai_voice_provider !== undefined) updates.ai_voice_provider = ai_voice_provider
+    if (ai_voice !== undefined) updates.ai_voice = ai_voice
+    if (messenger_page_id !== undefined) updates.messenger_page_id = messenger_page_id
+    if (instagram_account_id !== undefined) updates.instagram_account_id = instagram_account_id
+    if (google_place_id !== undefined) updates.google_place_id = google_place_id
+    if (google_review_enabled !== undefined) updates.google_review_enabled = google_review_enabled
+    if (google_review_message !== undefined) updates.google_review_message = google_review_message
 
     const { data: existing } = await supabase
       .from("azera_settings")

@@ -109,6 +109,7 @@ export function AzeraChatWidget({
   source = "public_site",
 }: AzeraChatWidgetProps) {
   const brandTextColor = getReadableTextColor(brandColor)
+  const tokenStorageKey = `azera_chat_token:${source}:${businessId || "public"}`
   const [open, setOpen] = useState(false)
   const [showEndConfirmation, setShowEndConfirmation] = useState(false)
   const [showRating, setShowRating] = useState(false)
@@ -124,7 +125,9 @@ export function AzeraChatWidget({
   const [chatTimerStartedAt, setChatTimerStartedAt] = useState<number | null>(null)
   const [chatElapsedSeconds, setChatElapsedSeconds] = useState(0)
   const [conversationToken, setConversationToken] = useState<string | null>(() =>
-    typeof window !== "undefined" ? localStorage.getItem("azera_chat_token") : null
+    typeof window !== "undefined"
+      ? localStorage.getItem(tokenStorageKey) || (source === "public_site" ? localStorage.getItem("azera_chat_token") : null)
+      : null
   )
   const [visitorProfile, setVisitorProfile] = useState<VisitorProfile | null>(() => {
     if (typeof window === "undefined") return null
@@ -145,7 +148,25 @@ export function AzeraChatWidget({
   function rememberConversationToken(token: string) {
     conversationTokenRef.current = token
     setConversationToken(token)
-    localStorage.setItem("azera_chat_token", token)
+    localStorage.setItem(tokenStorageKey, token)
+  }
+
+  /**
+   * A public visitor token is intentionally scoped to this site/business.
+   * If an old deployment used a different signing secret, the old token must
+   * not block the visitor from starting a fresh public conversation.
+   */
+  function resetPublicConversation(clearMessages = true): string | null {
+    if (source !== "public_site" || typeof window === "undefined") return null
+    const nextExternalId = `web_${crypto.randomUUID()}`
+    localStorage.setItem("azera_session_id", nextExternalId)
+    localStorage.removeItem(tokenStorageKey)
+    localStorage.removeItem("azera_chat_token")
+    conversationTokenRef.current = null
+    setConversationToken(null)
+    setConversation(null)
+    if (clearMessages) setMessages([])
+    return nextExternalId
   }
 
   // Call state
@@ -233,9 +254,12 @@ export function AzeraChatWidget({
       })
       const json = await res.json()
       if (res.status === 401 || res.status === 403) {
-        conversationTokenRef.current = null
-        setConversationToken(null)
-        localStorage.removeItem("azera_chat_token")
+        resetPublicConversation()
+        if (source !== "public_site") {
+          conversationTokenRef.current = null
+          setConversationToken(null)
+          localStorage.removeItem(tokenStorageKey)
+        }
         return
       }
       const data = json.data || json
@@ -288,16 +312,15 @@ export function AzeraChatWidget({
     ])
     scrollToBottom()
 
-    try {
-      const res = await fetch("/api/azera/chat", {
+    const postChatMessage = async (messageExternalId: string, token: string | null) => fetch("/api/azera/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(conversationTokenRef.current ? { "X-Azera-Chat-Token": conversationTokenRef.current } : {}),
+          ...(token ? { "X-Azera-Chat-Token": token } : {}),
         },
         body: JSON.stringify({
           business_id: businessId,
-          external_id: externalId,
+          external_id: messageExternalId,
           customer_name: visitorProfile?.name || customerName || undefined,
           customer_email: visitorProfile?.email || undefined,
           customer_phone: visitorProfile?.phone || undefined,
@@ -305,6 +328,23 @@ export function AzeraChatWidget({
           message: text,
         }),
       })
+
+    let sentExternalId = externalId
+    try {
+      let messageExternalId = externalId
+      let res = await postChatMessage(messageExternalId, conversationTokenRef.current)
+      // A deployment secret change or a stale browser token must not strand a
+      // public visitor on an existing thread they can no longer authorize.
+      // Start a new visitor thread and retry once; the old thread remains
+      // protected and available to admins.
+      if (res.status === 401 && source === "public_site") {
+        const nextExternalId = resetPublicConversation(false)
+        if (nextExternalId) {
+          messageExternalId = nextExternalId
+          res = await postChatMessage(messageExternalId, null)
+        }
+      }
+      sentExternalId = messageExternalId
       const json = await res.json()
       if (!res.ok || !json.success) {
         throw new Error(json.error || "We could not send your message. Please try again.")
@@ -348,7 +388,7 @@ export function AzeraChatWidget({
 
     // The chat API has finished generating or routing the reply, so refresh once
     // to pick up system handoff messages without adding a fixed polling delay.
-    await loadMessages(businessId, externalId, conversationTokenRef.current)
+    await loadMessages(businessId, sentExternalId, conversationTokenRef.current)
     scrollToBottom()
   }
 

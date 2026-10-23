@@ -1,5 +1,8 @@
 "use client"
 
+/* This page hydrates its legacy workflow state from the admin APIs. */
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+
 import { useState, useEffect, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -16,6 +19,7 @@ import {
   AlertCircle,
   Rocket,
   FileText,
+  CreditCard,
   X,
   Send,
   Clock,
@@ -64,6 +68,20 @@ interface OnboardingRecord {
   updatedAt: string
   businessId?: string
   onboardingStages?: Record<string, unknown>
+  commercial: {
+    businessId: string | null
+    quoteId: string | null
+    quoteNumber: string | null
+    quoteStatus: string | null
+    invoiceId: string | null
+    invoiceNumber: string | null
+    invoiceStatus: string | null
+    invoiceCount: number
+    totalAmount: number | null
+    amountPaid: number | null
+    balanceDue: number | null
+    canCreateInvoice: boolean
+  }
   accessDetails?: {
     recipients?: string
     softwareUrl?: string
@@ -115,18 +133,6 @@ export default function AdminOnboardingPage() {
   const [updating, setUpdating] = useState(false)
   const [stageSaving, setStageSaving] = useState<string | null>(null)
   const [formSendingId, setFormSendingId] = useState<string | null>(null)
-
-  // Invoice modal
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
-  const [invoiceRecord, setInvoiceRecord] = useState<OnboardingRecord | null>(null)
-  const [sendingInvoice, setSendingInvoice] = useState(false)
-  const [invoiceForm, setInvoiceForm] = useState({
-    description: "",
-    amount: "",
-    tax: "",
-    dueDate: "",
-    message: "",
-  })
 
   // Access details modal
   const [showAccessModal, setShowAccessModal] = useState(false)
@@ -358,57 +364,8 @@ export default function AdminOnboardingPage() {
     }
   }
 
-  const openInvoice = (record: OnboardingRecord) => {
-    setInvoiceRecord(record)
-    const desc = `MartPoint ${record.productInterest === "erp" ? "ERP" : "Retail"} Setup & Implementation`
-    const due = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-    const baseMessage = `Hi ${record.fullName},\n\nThank you for choosing MartPoint. Please find your invoice below:\n\nDescription: ${desc}\nAmount: ₦0\nTax: ₦0\nTotal Due: ₦0\nDue Date: ${due}\n\nBest regards,\nMartPoint Team`
-    setInvoiceForm({
-      description: desc,
-      amount: "",
-      tax: "",
-      dueDate: due,
-      message: baseMessage,
-    })
-    setShowInvoiceModal(true)
-  }
-
-  const sendInvoice = async () => {
-    if (!invoiceRecord) return
-    if (!invoiceForm.description || !invoiceForm.amount) return
-    setSendingInvoice(true)
-    setMessage("")
-    try {
-      const res = await fetch("/api/admin/onboarding/invoice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recordId: invoiceRecord.id,
-          description: invoiceForm.description,
-          amount: Number(invoiceForm.amount),
-          tax: invoiceForm.tax ? Number(invoiceForm.tax) : 0,
-          dueDate: invoiceForm.dueDate,
-          message: invoiceForm.message,
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setShowInvoiceModal(false)
-        setInvoiceRecord(null)
-        setMessage("Invoice sent and recorded as income.")
-        setTimeout(() => setMessage(""), 3000)
-      } else {
-        setMessage(data.error || "Failed to send invoice")
-      }
-    } catch {
-      setMessage("Failed to send invoice")
-    } finally {
-      setSendingInvoice(false)
-    }
-  }
-
   const buildAccessMessage = (record: OnboardingRecord, form: typeof accessForm, files: Array<{ name: string; content: string; size: number }> = accessFiles) => {
-    const productLabel = record.productInterest === "erp" ? "ERP" : "Retail"
+    const productLabel = record.productInterest === "erp" ? "MartPoint ERP" : "MartPoint Retail"
     const storeBlock = form.onlineStoreUrl ? `Online Store: ${form.onlineStoreUrl}\n\n` : ""
     const groupBlock = form.supportGroupUrl
       ? `Your MartPoint Support Group\n\nJoin your dedicated support group here:\n${form.supportGroupUrl}\n\nThe group is used for:\n\n• MartPoint onboarding and training coordination\n• Guidance on using the MartPoint software\n• Reporting software-related issues\n• Updates on reported issues\n• Important MartPoint service information\n\n`
@@ -679,7 +636,7 @@ MartPoint Team`
                 <div key={lead.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 p-4">
                   <div>
                     <p className="text-sm font-semibold text-foreground">{lead.fullName}</p>
-                    <p className="text-xs text-muted-foreground">{lead.businessName} · {lead.productInterest === "retail" ? "Retail" : "ERP"}</p>
+                    <p className="text-xs text-muted-foreground">{lead.businessName} · {lead.productInterest === "retail" ? "MartPoint Retail" : "MartPoint ERP"}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {lead.email}</span>
                       <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {lead.phone}</span>
@@ -733,7 +690,7 @@ MartPoint Team`
                         <p className="text-sm font-semibold text-foreground">{record.fullName}</p>
                         <StatusBadge status={record.status} />
                       </div>
-                      <p className="text-xs text-muted-foreground">{record.businessName || "No business name"} · {record.productInterest === "retail" ? "Retail" : "ERP"}</p>
+                      <p className="text-xs text-muted-foreground">{record.businessName || "No business name"} · {record.productInterest === "retail" ? "MartPoint Retail" : "MartPoint ERP"}</p>
                       <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {record.email}</span>
                         <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {record.phone}</span>
@@ -954,10 +911,32 @@ MartPoint Team`
                             {updating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
                             Save Status
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => openInvoice(record)}>
-                            <FileText className="w-3.5 h-3.5 mr-1" />
-                            Generate Invoice
-                          </Button>
+                          {record.commercial.invoiceId && Number(record.commercial.balanceDue || 0) > 0 && ["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(record.commercial.invoiceStatus || "") ? (
+                            <Button asChild size="sm" variant="outline">
+                              <Link href={`/admin/finance/commercial/payments?invoice_id=${record.commercial.invoiceId}`}>
+                                <CreditCard className="w-3.5 h-3.5 mr-1" />
+                                Make Payment
+                              </Link>
+                            </Button>
+                          ) : record.commercial.invoiceId ? (
+                            <Button asChild size="sm" variant="outline">
+                              <Link href={`/admin/finance/commercial/invoices?invoice_id=${record.commercial.invoiceId}`}>
+                                <FileText className="w-3.5 h-3.5 mr-1" />
+                                {record.commercial.invoiceStatus === "PAID" ? "Invoice Paid" : "Open Invoice"}
+                              </Link>
+                            </Button>
+                          ) : record.commercial.canCreateInvoice && record.commercial.quoteId ? (
+                            <Button asChild size="sm" variant="outline">
+                              <Link href={`/admin/finance/commercial/quotes?quote_id=${record.commercial.quoteId}`}>
+                                <FileText className="w-3.5 h-3.5 mr-1" />
+                                Create Invoice from Quote
+                              </Link>
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              {record.commercial.quoteStatus ? `Quote ${record.commercial.quoteStatus.toLowerCase()}` : "Commercial quote required"}
+                            </span>
+                          )}
                           <Button size="sm" variant="outline" onClick={() => openAccess(record)}>
                             <KeyRound className="w-3.5 h-3.5 mr-1" />
                             Send Access Details
@@ -1025,81 +1004,6 @@ MartPoint Team`
               <Button size="sm" variant="retail" onClick={initiateOnboarding} disabled={initiating}>
                 {initiating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
                 {initiating ? "Sending..." : "Confirm & Send"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Invoice Modal */}
-      {showInvoiceModal && invoiceRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Generate Invoice</h3>
-              <button
-                onClick={() => { setShowInvoiceModal(false); setInvoiceRecord(null) }}
-                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium mb-1">Description</label>
-                <input
-                  type="text"
-                  value={invoiceForm.description}
-                  onChange={(e) => setInvoiceForm((prev) => ({ ...prev, description: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium mb-1">Amount (₦)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={invoiceForm.amount}
-                    onChange={(e) => setInvoiceForm((prev) => ({ ...prev, amount: e.target.value }))}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Tax (₦)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={invoiceForm.tax}
-                    onChange={(e) => setInvoiceForm((prev) => ({ ...prev, tax: e.target.value }))}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Due Date</label>
-                <input
-                  type="date"
-                  value={invoiceForm.dueDate}
-                  onChange={(e) => setInvoiceForm((prev) => ({ ...prev, dueDate: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Invoice Email</label>
-                <textarea
-                  value={invoiceForm.message}
-                  onChange={(e) => setInvoiceForm((prev) => ({ ...prev, message: e.target.value }))}
-                  rows={8}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none font-mono"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => { setShowInvoiceModal(false); setInvoiceRecord(null) }}>Cancel</Button>
-              <Button size="sm" variant="retail" onClick={sendInvoice} disabled={sendingInvoice || !invoiceForm.description || !invoiceForm.amount}>
-                {sendingInvoice ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
-                {sendingInvoice ? "Sending..." : "Send Invoice"}
               </Button>
             </div>
           </div>

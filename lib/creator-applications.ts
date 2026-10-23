@@ -363,6 +363,62 @@ export async function approveCreatorApplication(
   const application = mapCreatorApplication(appRow)
 
   if (application.createdCreatorId) {
+    // A revoked approval can be reviewed and approved again. Reuse the
+    // existing creator identity rather than creating a duplicate account.
+    const { data: existingCreator } = await supabase
+      .from("creators")
+      .select("id, creator_id, referral_code, status")
+      .eq("id", application.createdCreatorId)
+      .maybeSingle()
+    if (existingCreator && application.status !== "APPROVED" && existingCreator.status === "SUSPENDED") {
+      const restoredAt = new Date().toISOString()
+      const { error: restoreError } = await supabase
+        .from("creators")
+        .update({
+          status: "PENDING_ACTIVATION",
+          status_reason: null,
+          activated_at: restoredAt,
+          activated_by: actor.id,
+          updated_at: restoredAt,
+        })
+        .eq("id", existingCreator.id)
+      if (restoreError) return { ok: false, error: "Could not restore the creator account" }
+
+      await changeCreatorApplicationStatus(applicationId, "APPROVED", actor)
+      const tokenResult = await createCreatorAuthToken(existingCreator.id as string, "SET_PASSWORD", actor.id)
+      const setPasswordUrl = tokenResult.ok && tokenResult.token
+        ? `${SITE_URL()}/creator/set-password/${tokenResult.token}`
+        : ""
+      void sendCreatorNotification({
+        template: "creator_approved",
+        to: application.email,
+        creatorId: existingCreator.id as string,
+        applicationId,
+        vars: {
+          fullName: application.fullName,
+          reference: application.referenceNumber,
+          creatorId: existingCreator.creator_id as string,
+          referralCode: existingCreator.referral_code as string,
+          trackingUrl: creatorTrackingUrl(existingCreator.referral_code as string),
+          setPasswordUrl,
+          loginUrl: `${SITE_URL()}/creator/login`,
+        },
+      })
+      await pushCreatorNotification({
+        creatorId: existingCreator.id as string,
+        type: "ACCOUNT",
+        title: "Your creator account is approved again",
+        body: "Your application has completed review. Complete onboarding to unlock challenges.",
+        link: "/creator",
+      })
+      await recordAudit(ctx, {
+        action: AUDIT_ACTIONS.CREATOR_APPROVED,
+        entityType: AUDIT_ENTITIES.CREATOR_APPLICATION,
+        entityId: applicationId,
+        metadata: { creatorId: existingCreator.id, creatorCode: existingCreator.creator_id, referralCode: existingCreator.referral_code, restored: true },
+      })
+      return { ok: true, creatorId: existingCreator.id as string, creatorCode: existingCreator.creator_id as string }
+    }
     return { ok: false, error: "Application already approved" }
   }
 
@@ -460,6 +516,103 @@ export async function approveCreatorApplication(
   })
 
   return { ok: true, creatorId: creatorUuid, creatorCode: codes.creatorId }
+}
+
+/**
+ * Reverse an accidental approval without deleting the application or creator
+ * identity. The account is suspended immediately and the application returns
+ * to manual review so another authorised reviewer can make the next decision.
+ */
+export async function revokeCreatorApproval(
+  applicationId: string,
+  actor: { id: string; name: string },
+  ctx: AuditContext,
+  reason: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Service unavailable" }
+  const trimmedReason = reason.trim()
+  if (trimmedReason.length < 5) return { ok: false, error: "A reason is required to revoke approval." }
+
+  const { data: row } = await supabase
+    .from("creator_applications")
+    .select("id, full_name, email, reference_number, status, created_creator_id")
+    .eq("id", applicationId)
+    .maybeSingle()
+  if (!row) return { ok: false, error: "Application not found" }
+  if (!row.created_creator_id) return { ok: false, error: "This application has no creator account to suspend." }
+
+  const { data: creator } = await supabase
+    .from("creators")
+    .select("id, creator_id, status, status_reason")
+    .eq("id", row.created_creator_id)
+    .maybeSingle()
+  if (!creator) return { ok: false, error: "The linked creator account could not be found." }
+  if (creator.status === "REMOVED") return { ok: false, error: "A removed creator account cannot be reopened from this application." }
+
+  const now = new Date().toISOString()
+  const { error: creatorError } = await supabase
+    .from("creators")
+    .update({ status: "SUSPENDED", status_reason: trimmedReason, updated_at: now })
+    .eq("id", creator.id)
+  if (creatorError) return { ok: false, error: "Could not suspend the creator account." }
+
+  const changed = await changeCreatorApplicationStatus(applicationId, "MANUAL_REVIEW", actor, trimmedReason)
+  if (!changed) {
+    await supabase
+      .from("creators")
+      .update({ status: creator.status, status_reason: creator.status_reason ?? null, updated_at: new Date().toISOString() })
+      .eq("id", creator.id)
+    return { ok: false, error: "Creator was suspended, but the application could not return to review." }
+  }
+
+  await recordAudit(ctx, {
+    action: AUDIT_ACTIONS.CREATOR_SUSPENDED,
+    entityType: AUDIT_ENTITIES.CREATOR,
+    entityId: creator.id as string,
+    metadata: { applicationId, reference: row.reference_number, reason: trimmedReason, reversedApproval: true },
+  })
+  await recordAudit(ctx, {
+    action: AUDIT_ACTIONS.CREATOR_APPLICATION_STATUS_CHANGED,
+    entityType: AUDIT_ENTITIES.CREATOR_APPLICATION,
+    entityId: applicationId,
+    metadata: { status: "MANUAL_REVIEW", reason: trimmedReason, reversedApproval: true },
+  })
+
+  await notifyAllAdmins({
+    type: "CREATOR_APPROVAL_REVOKED",
+    title: "Creator approval revoked",
+    message: `${row.reference_number}: ${row.full_name} returned to Manual Review. ${trimmedReason}`,
+    deep_link: `/admin/creators/applications/${applicationId}`,
+    source_type: "creator_application",
+    source_id: applicationId,
+    roles: ["Admin", "Digital Marketer"],
+  }).catch((error) => {
+    console.error("[creator] approval-revoked admin notification failed", error)
+  })
+
+  const statusUrl = `${SITE_URL()}/creators/application-status`
+  void sendCreatorNotification({
+    template: "creator_announcement",
+    to: row.email as string,
+    creatorId: creator.id as string,
+    applicationId,
+    vars: {
+      fullName: row.full_name as string,
+      title: "An update to your MartPoint Creator application",
+      body: `Your Creator Network approval has been placed on hold while we complete a further review. Reason: ${trimmedReason}`,
+      linkUrl: `Check your application status: ${statusUrl}`,
+      portalUrl: statusUrl,
+    },
+  })
+  await pushCreatorNotification({
+    creatorId: creator.id as string,
+    type: "ACCOUNT",
+    title: "Your creator approval is on hold",
+    body: "Your account is temporarily suspended while your application returns to review.",
+    link: "/creator",
+  })
+
+  return { ok: true }
 }
 
 /* ───────────────────────────  Admin notes (internal — never shown to applicants)  ─── */

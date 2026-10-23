@@ -274,7 +274,7 @@ export default function AdminCustomersPage() {
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {customer.businessName || "No business name"} · {customer.productInterest === "erp" ? "ERP" : "Retail"}
+                          {customer.businessName || "No business name"} · {customer.productInterest === "erp" ? "MartPoint ERP" : "MartPoint Retail"}
                         </p>
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span>{customer.email}</span>

@@ -28,6 +28,13 @@ interface Round {
   sent_at: string | null
   submitted_at: string | null
   reviewed_at: string | null
+  initial_email_status: "PENDING" | "SENT" | "FAILED"
+  reminder_count: number
+  last_reminder_at: string | null
+  next_reminder_at: string | null
+  first_viewed_at: string | null
+  last_viewed_at: string | null
+  view_count: number
 }
 
 interface SamplePack { key: string; title: string; description: string; fields: RoundField[] }
@@ -157,6 +164,21 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
     }
   }
 
+  async function sendReminder(roundId: string) {
+    setBusy(roundId)
+    try {
+      const res = await fetch(`/api/admin/creators/applications/${applicationId}/questions`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "REMIND", roundId }),
+      })
+      const d = await res.json()
+      flash(res.ok ? (d.emailSent ? "Reminder sent and delivery recorded." : "Reminder could not be delivered.") : d.error || "Could not send reminder")
+      if (res.ok) await load()
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const renderAnswer = (field: RoundField, answer: unknown) => {
     if (field.type === "file") {
       const items = Array.isArray(answer) ? answer as Attachment[] : []
@@ -211,7 +233,13 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
             {round.status === "Sent" && (
               <div className="space-y-2 border-t pt-2">
                 <p className="text-xs text-muted-foreground">
-                  Awaiting the applicant's answers — they will appear on this card as soon as they submit.
+                  Awaiting the applicant&apos;s answers — they will appear on this card as soon as they submit.
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Delivery: {round.initial_email_status === "SENT" ? "provider accepted" : round.initial_email_status === "FAILED" ? "failed — send again or copy the link" : "pending"}
+                  {round.first_viewed_at ? ` · link opened ${round.view_count || 1} time${(round.view_count || 1) === 1 ? "" : "s"}` : " · link not opened yet"}
+                  {` · reminders ${round.reminder_count || 0}/10`}
+                  {round.next_reminder_at ? ` · next ${new Date(round.next_reminder_at).toLocaleDateString("en-GB")}` : ""}
                 </p>
                 <Button size="sm" variant="ghost" className="h-auto p-0 text-xs font-semibold uppercase text-muted-foreground" onClick={() => setOpenSent((c) => ({ ...c, [round.id]: !c[round.id] }))}>
                   {openSent[round.id] ? "Hide" : "Show"} questions sent ({round.fields.length})
@@ -222,6 +250,10 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
                   </ul>
                 )}
                 <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" disabled={!!busy || (round.reminder_count || 0) >= 10} onClick={() => sendReminder(round.id)}>
+                    {busy === round.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                    Send reminder
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => copyAnswerLink(round)}>
                     <Send className="w-3.5 h-3.5 mr-1" />
                     {copiedId === round.id ? "Link copied" : "Copy answer link"}
@@ -265,9 +297,9 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
             <div className="space-y-2">
               {draftFields.map((f, i) => (
                 <div key={f.key} className="space-y-1.5 rounded-md bg-muted/40 p-2">
-                  <div className="flex gap-2">
-                    <input className={`${inputCls} flex-1`} value={f.label} onChange={(e) => setDraftFields((c) => c.map((d) => d.key === f.key ? { ...d, label: e.target.value } : d))} placeholder={`Question ${i + 1}`} />
-                    <select className="rounded-md border border-input bg-background px-2 py-2 text-xs shrink-0" value={f.type} onChange={(e) => setDraftFields((c) => c.map((d) => d.key === f.key ? { ...d, type: e.target.value } : d))}>
+                  <div className="flex min-w-0 flex-wrap gap-2">
+                    <input className={`${inputCls} min-w-0 flex-1`} value={f.label} onChange={(e) => setDraftFields((c) => c.map((d) => d.key === f.key ? { ...d, label: e.target.value } : d))} placeholder={`Question ${i + 1}`} />
+                    <select className="w-full rounded-md border border-input bg-background px-2 py-2 text-xs shrink-0 sm:w-40" value={f.type} onChange={(e) => setDraftFields((c) => c.map((d) => d.key === f.key ? { ...d, type: e.target.value } : d))}>
                       {FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                     <Button size="sm" variant="ghost" aria-label="Remove question" onClick={() => setDraftFields((c) => c.filter((d) => d.key !== f.key))}>
@@ -286,10 +318,10 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
                 </div>
               ))}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" variant="outline" onClick={() => setDraftFields((c) => [...c, newDraftField()])}><Plus className="w-3.5 h-3.5 mr-1" /> Add question</Button>
               <Button size="sm" variant="ghost" onClick={() => setComposing(false)}>Cancel</Button>
-              <Button size="sm" className="ml-auto" disabled={!!busy} onClick={send}>
+              <Button size="sm" className="sm:ml-auto" disabled={!!busy} onClick={send}>
                 {busy === "send" ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Send className="w-3.5 h-3.5 mr-1" />} Send to applicant
               </Button>
             </div>

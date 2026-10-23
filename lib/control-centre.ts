@@ -180,6 +180,13 @@ async function getCurrentState(): Promise<CurrentState> {
 export type PeriodMetrics = {
   revenueCollected: number
   newCustomers: number
+  leads: number
+  demos: number
+  leadConversions: number
+  creatorApplications: number
+  creatorsActivated: number
+  creatorLeads: number
+  creatorDemos: number
   churned: number
   ticketsResolved: number
   partnerApplications: number
@@ -195,6 +202,13 @@ async function getPeriodMetrics(
   const zero = {
     revenueCollected: 0,
     newCustomers: 0,
+    leads: 0,
+    demos: 0,
+    leadConversions: 0,
+    creatorApplications: 0,
+    creatorsActivated: 0,
+    creatorLeads: 0,
+    creatorDemos: 0,
     churned: 0,
     ticketsResolved: 0,
     partnerApplications: 0,
@@ -211,6 +225,11 @@ async function getPeriodMetrics(
   const [
     payments,
     businesses,
+    leads,
+    demos,
+    creatorApplications,
+    creatorsActivated,
+    creatorReferralEvents,
     churnedBusinesses,
     resolvedTickets,
     partnerApplications,
@@ -226,7 +245,34 @@ async function getPeriodMetrics(
       .lte("paid_at", range.end),
     supabase
       .from("businesses")
+      .select("id, source_lead_id", { count: "exact" })
+      .gte("created_at", range.start)
+      .lte("created_at", range.end),
+    supabase
+      .from("leads")
       .select("id", { count: "exact", head: true })
+      .gte("submitted_at", range.start)
+      .lte("submitted_at", range.end),
+    supabase
+      .from("lead_meetings")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "COMPLETED")
+      .gte("scheduled_at", range.start)
+      .lte("scheduled_at", range.end),
+    supabase
+      .from("creator_applications")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", range.start)
+      .lte("created_at", range.end),
+    supabase
+      .from("creators")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", range.start)
+      .lte("created_at", range.end),
+    supabase
+      .from("creator_referrals")
+      .select("event_type, created_at")
+      .in("event_type", ["LEAD", "DEMO"])
       .gte("created_at", range.start)
       .lte("created_at", range.end),
     supabase
@@ -273,9 +319,20 @@ async function getPeriodMetrics(
     }[] | null) || []
   ).filter((c) => inRange(c.earned_at || c.created_at, range))
 
+  const creatorEvents = (creatorReferralEvents.data as { event_type: string }[] | null) || []
+  const leadConversions = ((businesses.data as { source_lead_id: string | null }[] | null) || [])
+    .filter((business) => Boolean(business.source_lead_id)).length
+
   return {
     revenueCollected: sumBy(payments.data, "amount"),
     newCustomers: businesses.count ?? 0,
+    leads: leads.count ?? 0,
+    demos: demos.count ?? 0,
+    leadConversions,
+    creatorApplications: creatorApplications.count ?? 0,
+    creatorsActivated: creatorsActivated.count ?? 0,
+    creatorLeads: creatorEvents.filter((event) => event.event_type === "LEAD").length,
+    creatorDemos: creatorEvents.filter((event) => event.event_type === "DEMO").length,
     churned: churnedBusinesses.count ?? 0,
     ticketsResolved: resolvedTickets.data?.length ?? 0,
     partnerApplications: partnerApplications.count ?? 0,

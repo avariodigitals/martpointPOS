@@ -28,6 +28,21 @@ interface OnboardingRecord {
   updatedAt: string
 }
 
+type CommercialState = {
+  businessId: string | null
+  quoteId: string | null
+  quoteNumber: string | null
+  quoteStatus: string | null
+  invoiceId: string | null
+  invoiceNumber: string | null
+  invoiceStatus: string | null
+  invoiceCount: number
+  totalAmount: number | null
+  amountPaid: number | null
+  balanceDue: number | null
+  canCreateInvoice: boolean
+}
+
 /* ─── Auth guard ─── */
 async function guardOnboardingAccess() {
   const session = await getSession()
@@ -57,7 +72,88 @@ export async function GET() {
       return NextResponse.json({ error: "Failed to fetch onboarding records" }, { status: 500 })
     }
 
-    const records = (data || []).map((row) => ({
+    const leadIds = [...new Set((data || []).map((row) => row.lead_id).filter(Boolean))]
+    let businessRows: Array<{ id: string; source_lead_id: string | null }> = []
+    if (leadIds.length > 0) {
+      const { data: businesses, error: businessError } = await supabase
+        .from("businesses")
+        .select("id, source_lead_id")
+        .in("source_lead_id", leadIds)
+      if (businessError) console.error("[Supabase Onboarding business lookup error]", businessError)
+      businessRows = (businesses || []) as Array<{ id: string; source_lead_id: string | null }>
+    }
+
+    const businessIds = businessRows.map((business) => business.id)
+    let quoteRows: Array<{
+      id: string
+      business_id: string | null
+      quote_number: string
+      status: string
+      total_amount: number | string | null
+      created_at: string
+    }> = []
+    let invoiceRows: Array<{
+      id: string
+      business_id: string | null
+      quote_id: string | null
+      invoice_number: string
+      status: string
+      total_amount: number | string | null
+      amount_paid: number | string | null
+      balance_due: number | string | null
+      created_at: string
+    }> = []
+    if (businessIds.length > 0) {
+      const [quotesResult, invoicesResult] = await Promise.all([
+        supabase
+          .from("quotes")
+          .select("id, business_id, quote_number, status, total_amount, created_at")
+          .in("business_id", businessIds)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("invoices")
+          .select("id, business_id, quote_id, invoice_number, status, total_amount, amount_paid, balance_due, created_at")
+          .in("business_id", businessIds)
+          .order("created_at", { ascending: false }),
+      ])
+      if (quotesResult.error) console.error("[Supabase Onboarding quote lookup error]", quotesResult.error)
+      if (invoicesResult.error) console.error("[Supabase Onboarding invoice lookup error]", invoicesResult.error)
+      quoteRows = (quotesResult.data || []) as typeof quoteRows
+      invoiceRows = (invoicesResult.data || []) as typeof invoiceRows
+    }
+
+    const businessByLead = new Map(businessRows.map((business) => [business.source_lead_id, business.id]))
+    const commercialByBusiness = new Map<string, CommercialState>()
+    for (const business of businessRows) {
+      const quotes = quoteRows.filter((quote) => quote.business_id === business.id)
+      const invoices = invoiceRows.filter((invoice) => invoice.business_id === business.id)
+      const quote = quotes.find((candidate) => candidate.status === "ACCEPTED") || quotes[0] || null
+      const invoice = invoices.find((candidate) =>
+        ["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(candidate.status)
+        && Number(candidate.balance_due || 0) > 0
+      ) || invoices[0] || null
+      commercialByBusiness.set(business.id, {
+        businessId: business.id,
+        quoteId: quote?.id || null,
+        quoteNumber: quote?.quote_number || null,
+        quoteStatus: quote?.status || null,
+        invoiceId: invoice?.id || null,
+        invoiceNumber: invoice?.invoice_number || null,
+        invoiceStatus: invoice?.status || null,
+        invoiceCount: invoices.length,
+        totalAmount: invoice ? Number(invoice.total_amount) : quote ? Number(quote.total_amount) : null,
+        amountPaid: invoice ? Number(invoice.amount_paid) : null,
+        balanceDue: invoice ? Number(invoice.balance_due) : null,
+        canCreateInvoice: invoices.length === 0 && quote?.status === "ACCEPTED",
+      })
+    }
+
+    const records = (data || []).map((row) => {
+      const businessId = businessByLead.get(row.lead_id) || null
+      const commercial = businessId
+        ? commercialByBusiness.get(businessId)
+        : undefined
+      return {
       id: row.id,
       leadId: row.lead_id,
       fullName: row.full_name,
@@ -74,7 +170,23 @@ export async function GET() {
       accessDetails: row.access_details || null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-    }))
+        businessId,
+        commercial: commercial || {
+          businessId: null,
+          quoteId: null,
+          quoteNumber: null,
+          quoteStatus: null,
+          invoiceId: null,
+          invoiceNumber: null,
+          invoiceStatus: null,
+          invoiceCount: 0,
+          totalAmount: null,
+          amountPaid: null,
+          balanceDue: null,
+          canCreateInvoice: false,
+        },
+      }
+    })
 
     return NextResponse.json({ records })
   } catch {

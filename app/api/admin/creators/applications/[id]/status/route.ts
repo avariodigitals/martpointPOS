@@ -4,15 +4,17 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import {
   changeCreatorApplicationStatus,
   approveCreatorApplication,
+  revokeCreatorApproval,
 } from "@/lib/creator-applications"
 import { getCreatorApplicationById } from "@/lib/creators"
 import { sendCreatorNotification } from "@/lib/creator-notifications"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 
 const schema = z.object({
-  status: z.enum(["MANUAL_REVIEW", "INTERVIEW_REQUESTED", "APPROVED", "WAITLISTED", "REJECTED", "SUSPENDED"]),
+  status: z.enum(["MANUAL_REVIEW", "INTERVIEW_REQUESTED", "APPROVED", "WAITLISTED", "REJECTED", "SUSPENDED"]).optional(),
+  action: z.literal("REOPEN_REVIEW").optional(),
   reason: z.string().max(1000).optional().nullable(),
-})
+}).refine((value) => Boolean(value.status || value.action), { message: "A status or action is required" })
 
 const SITE_URL = () => (process.env.NEXT_PUBLIC_SITE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
 
@@ -28,6 +30,19 @@ export async function POST(
     const body = schema.parse(await request.json())
     const actor = { id: session.userId, name: session.name || session.username }
     const ctx = auditContextFromSession(session, request)
+
+    if (body.action === "REOPEN_REVIEW") {
+      if (!body.reason?.trim()) {
+        return NextResponse.json({ error: "A reason is required to revoke approval." }, { status: 400 })
+      }
+      const result = await revokeCreatorApproval(id, actor, ctx, body.reason)
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error || "Could not revoke approval" }, { status: 400 })
+      }
+      return NextResponse.json({ success: true, status: "MANUAL_REVIEW" })
+    }
+
+    if (!body.status) return NextResponse.json({ error: "Invalid status" }, { status: 400 })
 
     // Rejection requires a reason (visible to admin only by default).
     if ((body.status === "REJECTED" || body.status === "SUSPENDED") && !body.reason?.trim()) {

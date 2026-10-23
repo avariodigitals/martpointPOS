@@ -97,6 +97,21 @@ function mapProgress(row: Record<string, unknown>): LearningProgress {
   }
 }
 
+/**
+ * A progress row is only complete when it has the evidence that its lesson
+ * type requires. This prevents stale rows such as status=COMPLETED with no
+ * completion timestamp from making onboarding appear finished.
+ */
+export function isProgressComplete(content: LearningContent, progress: LearningProgress | null | undefined): boolean {
+  if (!progress || progress.status !== "COMPLETED" || !progress.completedAt) return false
+  if (content.type === "VIDEO" && progress.progressPct < 90) return false
+  if (content.type === "ASSESSMENT") {
+    const passingScore = content.assessmentConfig?.passingScore ?? 70
+    return progress.score != null && progress.score >= passingScore
+  }
+  return true
+}
+
 const LEARNING_SELECT =
   "id, title, slug, type, category, description, body, video_url, thumbnail_url, " +
   "duration_seconds, external_url, business_type, business_types, features, " +
@@ -334,20 +349,20 @@ export async function recalcOnboarding(creatorId: string): Promise<OnboardingSta
   const assessments = required.filter((c) => c.type === "ASSESSMENT")
   const lessons = required.filter((c) => c.type !== "ASSESSMENT")
 
-  const lessonsDone = lessons.filter((c) => progress.get(c.id)?.status === "COMPLETED").length
+  const lessonsDone = lessons.filter((c) => isProgressComplete(c, progress.get(c.id))).length
   const total = required.length
-  const done = required.filter((c) => progress.get(c.id)?.status === "COMPLETED").length
+  const done = required.filter((c) => isProgressComplete(c, progress.get(c.id))).length
   const pct = total > 0 ? Math.round((done / total) * 100) : 0
 
   const bestAssessment = assessments
     .map((a) => progress.get(a.id))
-    .filter(Boolean)
+    .filter((p, i) => !!p && isProgressComplete(assessments[i], p))
     .sort((a, b) => (b!.score ?? 0) - (a!.score ?? 0))[0]
   const passing = assessments.length > 0
     ? assessments.every((a) => {
         const cfg = a.assessmentConfig
         const threshold = cfg?.passingScore ?? 70
-        return (progress.get(a.id)?.score ?? -1) >= threshold
+        return isProgressComplete(a, progress.get(a.id)) && (progress.get(a.id)?.score ?? -1) >= threshold
       })
     : true
 
@@ -396,7 +411,7 @@ export async function recalcOnboarding(creatorId: string): Promise<OnboardingSta
   }
 
   const nextStep =
-    required.find((c) => progress.get(c.id)?.status !== "COMPLETED") ?? null
+    required.find((c) => !isProgressComplete(c, progress.get(c.id))) ?? null
 
   return {
     status,
@@ -429,29 +444,74 @@ export async function getOnboardingState(creatorId: string): Promise<OnboardingS
     .eq("creator_id", creatorId)
     .maybeSingle()
 
-  const done = required.filter((c) => progress.get(c.id)?.status === "COMPLETED").length
+  const done = required.filter((c) => isProgressComplete(c, progress.get(c.id))).length
   const pct = required.length > 0 ? Math.round((done / required.length) * 100) : 0
   const lessons = required.filter((c) => c.type !== "ASSESSMENT")
-  const lessonsAllDone = lessons.every((c) => progress.get(c.id)?.status === "COMPLETED")
-  const passing = ob?.assessment_passed ?? false
-  const ready = !!ob?.ready_at || (required.length > 0 && done === required.length && passing)
+  const lessonsAllDone = lessons.every((c) => isProgressComplete(c, progress.get(c.id)))
+  const assessments = required.filter((c) => c.type === "ASSESSMENT")
+  const passing = assessments.length === 0 || assessments.every((c) => isProgressComplete(c, progress.get(c.id)))
+  const completed = required.length > 0 && done === required.length
+  const ready = completed && passing
+  const status: OnboardingState["status"] =
+    done === 0 ? "NOT_STARTED" : completed ? "COMPLETED" : "IN_PROGRESS"
   const readiness: CreatorReadiness = ready
     ? "READY"
     : done === 0 ? "NOT_STARTED"
     : lessonsAllDone && !passing ? "ASSESSMENT_REQUIRED" : "IN_PROGRESS"
 
+  // Keep the summary row consistent for other modules that read
+  // creator_onboarding directly (for example challenge eligibility). The
+  // state is derived from the lesson rows above; stored summary flags are not
+  // allowed to make an incomplete creator look ready.
+  const assessmentScore = assessments
+    .map((c) => progress.get(c.id)?.score ?? null)
+    .filter((score): score is number => score != null)
+    .sort((a, b) => b - a)[0] ?? null
+  const latestCompletion = required
+    .map((c) => progress.get(c.id)?.completedAt)
+    .filter((value): value is string => !!value)
+    .sort()
+    .at(-1) ?? null
+  const completedAt = completed ? (ob?.completed_at as string | null) ?? latestCompletion : null
+  const readyAt = ready ? (ob?.ready_at as string | null) ?? completedAt : null
+  const storedStatus = (ob?.status as OnboardingState["status"]) ?? "NOT_STARTED"
+  const storedScore = (ob?.assessment_score as number | null) ?? null
+  if (
+    storedStatus !== status ||
+    Number(ob?.progress_pct ?? 0) !== pct ||
+    Boolean(ob?.assessment_passed) !== passing ||
+    storedScore !== assessmentScore ||
+    ((ob?.completed_at as string | null) ?? null) !== completedAt ||
+    ((ob?.ready_at as string | null) ?? null) !== readyAt
+  ) {
+    await supabase.from("creator_onboarding").upsert(
+      {
+        creator_id: creatorId,
+        status,
+        progress_pct: pct,
+        assessment_passed: passing,
+        assessment_score: assessmentScore,
+        started_at: (ob?.started_at as string | null) ?? (done > 0 ? latestCompletion : null),
+        completed_at: completedAt,
+        ready_at: readyAt,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "creator_id" }
+    )
+  }
+
   return {
-    status: (ob?.status as OnboardingState["status"]) ?? "NOT_STARTED",
+    status,
     progressPct: pct,
     assessmentPassed: passing,
-    assessmentScore: (ob?.assessment_score as number) ?? null,
+    assessmentScore,
     startedAt: (ob?.started_at as string) ?? null,
-    completedAt: (ob?.completed_at as string) ?? null,
-    readyAt: (ob?.ready_at as string) ?? null,
+    completedAt,
+    readyAt,
     readiness,
     requiredTotal: required.length,
     requiredCompleted: done,
-    nextStep: required.find((c) => progress.get(c.id)?.status !== "COMPLETED") ?? null,
+    nextStep: required.find((c) => !isProgressComplete(c, progress.get(c.id))) ?? null,
   }
 }
 
@@ -519,7 +579,15 @@ export async function getCreatorLearningDetail(creatorId: string): Promise<Creat
 
   return {
     onboarding,
-    lessons: all.map((content) => ({ content, progress: progressMap.get(content.id) ?? null })),
+    lessons: all.map((content) => {
+      const raw = progressMap.get(content.id) ?? null
+      // Keep the row visible for audit purposes, but do not present an
+      // unverifiable COMPLETED state as Done in the admin view.
+      const progress = raw && raw.status === "COMPLETED" && !isProgressComplete(content, raw)
+        ? { ...raw, status: "IN_PROGRESS" as const, completedAt: null }
+        : raw
+      return { content, progress }
+    }),
     attempts: (attempts || []).map((a) => ({
       contentTitle:
         ((a.creator_learning_content as unknown as { title: string } | null)?.title) || "Assessment",

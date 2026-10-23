@@ -13,7 +13,7 @@ import {
   type CareerVacancy,
 } from "@/lib/careers"
 import type { TemplateVacancyPrefill } from "@/lib/careers-role-templates"
-import { STATES } from "@/lib/locations"
+import { LocationFields } from "@/components/location-fields"
 import { enumLabel } from "@/lib/utils"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -565,20 +565,20 @@ export function VacancyForm({
               )}
               <p className="text-xs font-semibold uppercase text-muted-foreground">Location {i + 1}{i === 0 ? " (primary)" : ""}</p>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className={labelCls}>State</label>
-                  <select className={inputCls} value={loc.state} onChange={(e) => setLoc(i, "state", e.target.value)}>
-                    <option value="">Select</option>
-                    {STATES["Nigeria"].map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
+                <LocationFields
+                  country="Nigeria"
+                  state={loc.state}
+                  city={loc.city}
+                  showCountry={false}
+                  inputClassName={inputCls}
+                  onChange={(values) => {
+                    if (values.state !== undefined) setLoc(i, "state", values.state)
+                    if (values.city !== undefined) setLoc(i, "city", values.city)
+                  }}
+                />
                 <div>
                   <label className={labelCls}>LGA</label>
                   <input className={inputCls} value={loc.lga} onChange={(e) => setLoc(i, "lga", e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelCls}>City / town</label>
-                  <input className={inputCls} value={loc.city} onChange={(e) => setLoc(i, "city", e.target.value)} />
                 </div>
                 <div>
                   <label className={labelCls}>Area / site</label>

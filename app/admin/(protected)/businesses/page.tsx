@@ -336,7 +336,7 @@ export default function AdminBusinessesPage() {
                     <div>
                       <p className="text-sm font-semibold">{lead.businessName}</p>
                       <p className="text-xs text-muted-foreground">{lead.fullName} · {lead.email} · {lead.phone}</p>
-                      <p className="text-xs text-muted-foreground">{lead.businessType} · {lead.productInterest === "erp" ? "ERP" : "Retail"} · {lead.source}</p>
+                      <p className="text-xs text-muted-foreground">{lead.businessType} · {lead.productInterest === "erp" ? "MartPoint ERP" : "MartPoint Retail"} · {lead.source}</p>
                     </div>
                     <Button
                       size="sm"

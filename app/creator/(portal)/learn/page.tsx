@@ -4,6 +4,7 @@ import {
   listPublishedLearning,
   getProgressMap,
   getOnboardingState,
+  isProgressComplete,
 } from "@/lib/creator-learning"
 import {
   LEARNING_CATEGORY_LABELS,
@@ -108,8 +109,8 @@ export default async function CreatorLearnPage() {
           )}
           {journey.map((item, i) => {
             const p = progress.get(item.id)
-            const done = p?.status === "COMPLETED"
-            const isNext = !done && journey.slice(0, i).every((j) => progress.get(j.id)?.status === "COMPLETED")
+            const done = isProgressComplete(item, p)
+            const isNext = !done && journey.slice(0, i).every((j) => isProgressComplete(j, progress.get(j.id)))
             return (
               <Link
                 key={item.id}
@@ -162,7 +163,7 @@ export default async function CreatorLearnPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {items.map((l) => {
-                  const done = progress.get(l.id)?.status === "COMPLETED"
+                  const done = isProgressComplete(l, progress.get(l.id))
                   return (
                     <Link
                       key={l.id}

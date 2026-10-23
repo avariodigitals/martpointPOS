@@ -29,6 +29,7 @@ import { ADVANCED_QUESTIONNAIRE_FIELDS } from "@/lib/questionnaire-catalog"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 import { computeLeadScore, BUCKET_LABEL, type LeadScoreBucket } from "@/lib/lead-score"
 import { LEAD_SOURCE_OPTIONS, leadSourceLabel } from "@/lib/lead-sources"
+import { productLabel } from "@/lib/product-labels"
 
 const COUNTRY_OPTIONS = COUNTRIES.map((c) => c.name)
 const STATE_OPTIONS = [...new Set(Object.values(STATES).flat())].sort()
@@ -150,14 +151,9 @@ function LeadScoreBadge({ lead }: { lead: Lead }) {
   )
 }
 
-const PRODUCT_INTEREST_LABELS: Record<string, string> = {
-  retail: "Retail",
-  erp: "ERP",
-}
-
 /** Short badge label for a lead's product interest. */
 function productInterestLabel(interest: string, fallback: string): string {
-  return PRODUCT_INTEREST_LABELS[interest] ?? fallback
+  return productLabel(interest, fallback)
 }
 
 export default function AdminLeadsPage() {

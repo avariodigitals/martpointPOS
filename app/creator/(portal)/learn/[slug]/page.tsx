@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { requireCreatorSession } from "@/lib/creator-auth"
-import { getLearningBySlug, getProgressMap, markLessonStarted } from "@/lib/creator-learning"
+import { getLearningBySlug, getProgressMap, isProgressComplete, markLessonStarted } from "@/lib/creator-learning"
 import { LEARNING_TYPE_LABELS } from "@/lib/creator-constants"
 import { LessonPlayer } from "./lesson-player"
 import { AssessmentForm } from "./assessment-form"
@@ -62,7 +62,7 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
             type={lesson.type}
             videoUrl={lesson.videoUrl}
             externalUrl={lesson.externalUrl}
-            completed={p?.status === "COMPLETED"}
+            completed={isProgressComplete(lesson, p)}
             initialPct={p?.progressPct ?? 0}
           />
 

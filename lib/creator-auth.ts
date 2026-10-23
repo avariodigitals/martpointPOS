@@ -160,12 +160,19 @@ export async function authenticateCreator(email: string, password: string): Prom
   if (!creator.passwordHash) return null
   if (!verifyPassword(password, creator.passwordHash)) return null
 
-  await supabase
+  const loginAt = new Date().toISOString()
+  const { error } = await supabase
     .from("creators")
-    .update({ last_login_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({ last_login_at: loginAt, updated_at: loginAt })
     .eq("id", creator.id)
+  if (error) {
+    // Do not block a valid login because telemetry failed, but make the
+    // persistence problem visible instead of silently leaving an old value.
+    console.error("[creator-auth] last login update failed:", error.message)
+  }
 
-  return creator
+  const refreshed = await getCreatorById(creator.id)
+  return refreshed ?? { ...creator, lastLoginAt: loginAt }
 }
 
 /* ───────────────────────────  Auth tokens (set / reset password)  ─────────────────────────── */

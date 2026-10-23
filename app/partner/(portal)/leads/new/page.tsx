@@ -1,17 +1,17 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
+import { LocationFields } from "@/components/location-fields"
 import { allIndustries, businessTypeOptions } from "@/lib/industries"
-import { enumLabel } from "@/lib/utils"
+import { PARTNER_PRODUCT_OPTIONS } from "@/lib/product-labels"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-sm font-medium mb-1"
 
 const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
 const BUSINESS_TYPE_OPTIONS = businessTypeOptions
-const PRODUCT_OPTIONS = ["MartPoint Retail", "MartPoint ERP", "Not Sure — Need Guidance"]
+const PRODUCT_OPTIONS = PARTNER_PRODUCT_OPTIONS
 
 export default function NewLeadPage() {
   const router = useRouter()
@@ -21,12 +21,6 @@ export default function NewLeadPage() {
   const [country, setCountry] = useState("")
   const [state, setState] = useState("")
   const [city, setCity] = useState("")
-
-  const countries = useMemo(() => COUNTRIES.map((c) => c.name), [])
-  const states = useMemo(() => getStatesForCountry(country), [country])
-  const cities = useMemo(() => getCitiesForState(country, state), [country, state])
-  const stateIsSelect = states.length > 0
-  const cityIsSelect = cities.length > 0
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -93,82 +87,19 @@ export default function NewLeadPage() {
           </div>
         </div>
 
-        {/* Country / State / City */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className={labelCls}>Country *</label>
-            <select
-              required
-              name="country"
-              className={inputCls}
-              value={country}
-              onChange={(e) => {
-                setCountry(e.target.value)
-                setState("")
-                setCity("")
-              }}
-            >
-              <option value="">Select country</option>
-              {countries.map((c) => (
-                <option key={c} value={c}>{enumLabel(c)}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>State *</label>
-            {stateIsSelect ? (
-              <select
-                required
-                name="state"
-                className={inputCls}
-                value={state}
-                onChange={(e) => {
-                  setState(e.target.value)
-                  setCity("")
-                }}
-              >
-                <option value="">Select state</option>
-                {states.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                required
-                name="state"
-                className={inputCls}
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                placeholder="Type state"
-              />
-            )}
-          </div>
-          <div>
-            <label className={labelCls}>City *</label>
-            {cityIsSelect ? (
-              <select
-                required
-                name="city"
-                className={inputCls}
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-              >
-                <option value="">Select city</option>
-                {cities.map((c) => (
-                  <option key={c} value={c}>{enumLabel(c)}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                required
-                name="city"
-                className={inputCls}
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="Type city"
-              />
-            )}
-          </div>
+          <LocationFields
+            country={country}
+            state={state}
+            city={city}
+            required
+            inputClassName={inputCls}
+            onChange={(values) => {
+              setCountry(values.country ?? country)
+              setState(values.state ?? state)
+              setCity(values.city ?? city)
+            }}
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

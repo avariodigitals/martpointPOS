@@ -52,10 +52,27 @@ const READINESS_LABELS: Record<string, string> = {
   READY: "Creator Ready",
 }
 
+type LearningApiPayload = {
+  onboarding?: {
+    readiness?: string
+    progressPct?: number
+    requiredTotal?: number
+    requiredCompleted?: number
+    completedAt?: string | null
+  }
+  lessons?: Array<{
+    content?: { id?: string; title?: string; type?: string; required?: boolean }
+    progress?: { status?: string; score?: number | null; progressPct?: number; completedAt?: string | null; startedAt?: string | null } | null
+  }>
+  attempts?: Array<{ contentTitle?: string; score?: number | null; passed?: boolean; attemptNo?: number; submittedAt?: string }>
+  resourceDownloads?: number
+}
+
 /** Maps the API's CreatorLearningDetail shape onto this page's display model.
  * The API returns { onboarding, lessons:[{content,progress}], attempts, resourceDownloads }. */
-function normalizeLearning(d: any): LearningDetail | null {
-  if (!d || !d.onboarding) return null
+function normalizeLearning(input: unknown): LearningDetail | null {
+  const d = input as LearningApiPayload | null
+  if (!d?.onboarding) return null
   const ob = d.onboarding
   return {
     readiness: ob.readiness || "NOT_STARTED",
@@ -64,10 +81,10 @@ function normalizeLearning(d: any): LearningDetail | null {
       requiredTotal: ob.requiredTotal ?? 0,
       requiredDone: ob.requiredCompleted ?? 0,
       completedAt: ob.completedAt ?? null,
-      readinessLabel: READINESS_LABELS[ob.readiness] || ob.readiness || "Not started",
+      readinessLabel: (ob.readiness ? READINESS_LABELS[ob.readiness] : null) || ob.readiness || "Not started",
     },
-    progress: (d.lessons || []).map((l: any) => ({
-      contentId: l.content?.id,
+    progress: (d.lessons || []).map((l) => ({
+      contentId: l.content?.id || "",
       title: l.content?.title || "Untitled",
       type: l.content?.type || "",
       required: !!l.content?.required,
@@ -77,7 +94,7 @@ function normalizeLearning(d: any): LearningDetail | null {
       completedAt: l.progress?.completedAt ?? null,
       lastActivityAt: l.progress?.startedAt ?? null,
     })),
-    attempts: (d.attempts || []).map((a: any) => ({
+    attempts: (d.attempts || []).map((a) => ({
       contentId: "",
       title: a.contentTitle || "Assessment",
       score: a.score ?? 0,
@@ -239,7 +256,7 @@ export default function AdminCreatorDetailPage() {
               <div><span className="text-muted-foreground">Location:</span> {[creator.city, creator.state].filter(Boolean).join(", ") || "—"}</div>
               <div><span className="text-muted-foreground">Category:</span> {creator.primaryCategory || "—"}</div>
               <div><span className="text-muted-foreground">Activated:</span> {creator.activatedAt ? new Date(creator.activatedAt).toLocaleDateString("en-GB") : "—"}</div>
-              <div><span className="text-muted-foreground">Last login:</span> {creator.lastLoginAt ? new Date(creator.lastLoginAt).toLocaleString("en-GB") : "—"}</div>
+              <div><span className="text-muted-foreground">Last login:</span> {creator.lastLoginAt ? new Date(creator.lastLoginAt).toLocaleString("en-GB") : "Never logged in"}</div>
               <div className="col-span-2">
                 <span className="text-muted-foreground">Application:</span>{" "}
                 <a href={`/admin/creators/applications/${creator.applicationId}`} className="text-retail hover:underline text-xs">view original application →</a>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { isSupabaseConfigured } from "@/lib/supabase"
 import { runAutomationSweep } from "@/lib/automations"
 import { runDormancySweep } from "@/lib/client-checkins"
+import { runCreatorQuestionReminderSweep } from "@/lib/creator-application-questions"
 
 /* ───────────────────────────  Automation reminder sweep  ───────────────────
  * Runs the trigger → delay → action engine (lib/automations.ts). Picks up due,
@@ -46,7 +47,11 @@ export async function GET(request: Request) {
       console.error("[reminders-cron] dormancy sweep failed:", err)
       return null
     })
-    return NextResponse.json({ ok: true, ...result, dormancy })
+    const creatorQuestions = await runCreatorQuestionReminderSweep(new URL(request.url).origin).catch((err) => {
+      console.error("[reminders-cron] creator question sweep failed:", err)
+      return null
+    })
+    return NextResponse.json({ ok: true, ...result, dormancy, creatorQuestions })
   } catch (err) {
     console.error("[reminders-cron]", err)
     return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : "Reminder sweep failed" }, { status: 500 })

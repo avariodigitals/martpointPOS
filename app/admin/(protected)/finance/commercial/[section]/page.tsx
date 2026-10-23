@@ -632,7 +632,7 @@ export default function CommercialSectionPage() {
   const [actionReason, setActionReason] = useState("")
   const [waiveReason, setWaiveReason] = useState("")
   const [working, setWorking] = useState(false)
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useState(() => searchParams.get("invoice_id") || searchParams.get("quote_id") || "")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())

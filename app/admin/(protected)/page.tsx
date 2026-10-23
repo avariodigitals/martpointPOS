@@ -318,6 +318,21 @@ export default async function ControlCentrePage({
             icon={UserPlus}
           />
           <StatCard
+            value={fmtNumber(metrics.period.leads)}
+            label="Leads"
+            icon={Target}
+          />
+          <StatCard
+            value={fmtNumber(metrics.period.demos)}
+            label="Demos Held"
+            icon={CalendarClock}
+          />
+          <StatCard
+            value={fmtNumber(metrics.period.leadConversions)}
+            label="Lead Conversions"
+            icon={TrendingUp}
+          />
+          <StatCard
             value={fmtNumber(metrics.period.ticketsResolved)}
             label="Tickets Resolved"
             icon={CheckCircle2}
@@ -347,6 +362,26 @@ export default async function ControlCentrePage({
             value={fmtNumber(metrics.period.partnerApplications)}
             label="Partner Applications"
             icon={Users}
+          />
+          <StatCard
+            value={fmtNumber(metrics.period.creatorApplications)}
+            label="Creator Applications"
+            icon={Users}
+          />
+          <StatCard
+            value={fmtNumber(metrics.period.creatorsActivated)}
+            label="Creators Activated"
+            icon={UserPlus}
+          />
+          <StatCard
+            value={fmtNumber(metrics.period.creatorLeads)}
+            label="Creator Leads"
+            icon={Handshake}
+          />
+          <StatCard
+            value={fmtNumber(metrics.period.creatorDemos)}
+            label="Creator Demos"
+            icon={CalendarClock}
           />
         </div>
       </div>

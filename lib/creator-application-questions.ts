@@ -13,6 +13,7 @@ import { questionnaireFieldSchema, type QuestionnaireField } from "./lead-questi
 import { escapeHtml } from "./email-html"
 import { changeCreatorApplicationStatus } from "./creator-applications"
 import { uploadCreatorFile, createCreatorFileSignedUrl } from "./creator-storage"
+import { notifyAllAdmins } from "./admin-notifications"
 
 export type CreatorQuestionStatus = "Sent" | "Submitted" | "Reviewed"
 
@@ -34,10 +35,43 @@ export type CreatorApplicationQuestionRound = {
   sent_at: string | null
   submitted_at: string | null
   reviewed_at: string | null
+  initial_email_status: "PENDING" | "SENT" | "FAILED"
+  reminder_count: number
+  last_reminder_at: string | null
+  next_reminder_at: string | null
+  first_viewed_at: string | null
+  last_viewed_at: string | null
+  view_count: number
   created_at: string
 }
 
 const TERMINAL_STATUSES = ["APPROVED", "REJECTED", "SUSPENDED"]
+const MAX_REMINDERS = 10
+const REMINDER_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000
+const CLAIM_TIMEOUT_MS = 2 * 60 * 60 * 1000
+
+function siteUrl(origin?: string): string {
+  return (origin || process.env.NEXT_PUBLIC_SITE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
+}
+
+async function recordQuestionEmail(input: {
+  roundId: string
+  applicationId: string
+  kind: "INITIAL" | "REMINDER"
+  attemptNo: number
+  sent: boolean
+  errorMessage?: string | null
+}) {
+  await supabase.from("creator_application_question_emails").insert({
+    round_id: input.roundId,
+    application_id: input.applicationId,
+    kind: input.kind,
+    attempt_no: input.attemptNo,
+    status: input.sent ? "SENT" : "FAILED",
+    error_message: input.errorMessage ?? (input.sent ? null : "Email provider rejected send"),
+    provider_accepted_at: input.sent ? new Date().toISOString() : null,
+  })
+}
 
 export async function listApplicationQuestionRounds(applicationId: string): Promise<CreatorApplicationQuestionRound[]> {
   if (!isSupabaseConfigured()) return []
@@ -115,12 +149,140 @@ export async function sendApplicationQuestionRound(input: {
     replyTo: REPLY_TO.digitals,
   })
 
+  await recordQuestionEmail({
+    roundId: round.id as string,
+    applicationId: input.applicationId,
+    kind: "INITIAL",
+    attemptNo: 0,
+    sent,
+  })
+  await supabase.from("creator_application_question_rounds").update({
+    initial_email_status: sent ? "SENT" : "FAILED",
+    next_reminder_at: new Date(Date.now() + REMINDER_INTERVAL_MS).toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("id", round.id as string)
+
   await changeCreatorApplicationStatus(
     input.applicationId, "MANUAL_REVIEW",
     { id: input.actorId, name: input.actorName },
     `${safeTitle} · ${questionCount} question(s) sent to ${app.email}${sent ? "" : " (email delivery failed)"}`,
   )
   return { ok: true as const, round: round as CreatorApplicationQuestionRound, emailSent: sent, url }
+}
+
+type ReminderRound = {
+  id: string
+  application_id: string
+  token: string
+  title: string
+  status: CreatorQuestionStatus
+  reminder_count: number
+  reminder_claimed_at: string | null
+  application: { id: string; reference_number: string | null; full_name: string; email: string; status: string } | null
+}
+
+async function placeApplicationOnHold(applicationId: string, reference: string | null, name: string): Promise<boolean> {
+  const { data: current } = await supabase.from("creator_applications")
+    .select("status").eq("id", applicationId).maybeSingle()
+  if (!current || TERMINAL_STATUSES.includes(current.status as string)) return false
+  const held = await changeCreatorApplicationStatus(
+    applicationId,
+    "SUSPENDED",
+    { id: null, name: "Reminder automation" },
+    `Application placed on hold after ${MAX_REMINDERS} unanswered question reminders.`,
+  )
+  if (held) {
+    await notifyAllAdmins({
+      type: "CREATOR_APPLICATION_ON_HOLD",
+      title: "Creator application placed on hold",
+      message: `${reference || name} did not answer additional questions after ${MAX_REMINDERS} reminders.`,
+      deep_link: `/admin/creators/applications/${applicationId}`,
+      source_type: "creator_application",
+      source_id: applicationId,
+      roles: ["Admin", "Digital Marketer"],
+    })
+  }
+  return held
+}
+
+async function loadReminderRound(roundId: string): Promise<ReminderRound | null> {
+  const { data } = await supabase.from("creator_application_question_rounds")
+    .select("id, application_id, token, title, status, reminder_count, reminder_claimed_at, application:application_id(id, reference_number, full_name, email, status)")
+    .eq("id", roundId).maybeSingle()
+  return data as unknown as ReminderRound | null
+}
+
+/** Send one reminder, with a compare-and-claim update to avoid cron duplicates. */
+export async function sendApplicationQuestionReminder(input: {
+  roundId: string
+  origin?: string
+}): Promise<{ ok: boolean; skipped?: boolean; sent?: boolean; held?: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Service unavailable" }
+  const round = await loadReminderRound(input.roundId)
+  const app = round?.application
+  if (!round || !app) return { ok: false, error: "Question round not found" }
+  if (round.status !== "Sent") return { ok: true, skipped: true }
+  if (TERMINAL_STATUSES.includes(app.status) || !app.email) return { ok: true, skipped: true }
+  if (round.reminder_count >= MAX_REMINDERS) {
+    const held = await placeApplicationOnHold(round.application_id, app.reference_number, app.full_name)
+    return { ok: true, skipped: true, held }
+  }
+
+  const now = new Date()
+  const claimTime = now.toISOString()
+  const staleClaimBefore = new Date(now.getTime() - CLAIM_TIMEOUT_MS).toISOString()
+  await supabase.from("creator_application_question_rounds")
+    .update({ reminder_claimed_at: null, updated_at: claimTime })
+    .eq("id", round.id).eq("status", "Sent").lt("reminder_claimed_at", staleClaimBefore)
+
+  const { data: claimed } = await supabase.from("creator_application_question_rounds")
+    .update({ reminder_claimed_at: claimTime, updated_at: claimTime })
+    .eq("id", round.id).eq("status", "Sent").eq("reminder_count", round.reminder_count)
+    .is("reminder_claimed_at", null).select("id").maybeSingle()
+  if (!claimed) return { ok: true, skipped: true }
+
+  const reminderNo = round.reminder_count + 1
+  const url = `${siteUrl(input.origin)}/creator/questions/${round.token}`
+  const isFinal = reminderNo === MAX_REMINDERS
+  const subject = `MartPoint Creator Network: Reminder — ${round.title}`
+  const text = `Hello ${app.full_name || "there"},\n\nThis is reminder ${reminderNo} of ${MAX_REMINDERS} about the additional questions for your MartPoint Creator Network application ${app.reference_number || ""}.\n\nPlease answer them here:\n${url}\n\n${isFinal ? "This is the final reminder. If we do not receive your answers, your application will be placed on hold for follow-up with the MartPoint team." : "Your application remains under review while we wait for your answers."}\n\nMartPoint Creator Network Team`
+  const html = `<p>Hello ${escapeHtml(String(app.full_name || "there"))},</p><p>This is reminder <strong>${reminderNo} of ${MAX_REMINDERS}</strong> about the additional questions for your MartPoint Creator Network application ${escapeHtml(String(app.reference_number || ""))}.</p><p><a href="${url}">Answer the additional questions</a></p><p>${isFinal ? "This is the final reminder. If we do not receive your answers, your application will be placed on hold for follow-up with the MartPoint team." : "Your application remains under review while we wait for your answers."}</p><p>MartPoint Creator Network Team</p>`
+  const sent = await sendEmail({ to: app.email, subject, text, html, replyTo: REPLY_TO.digitals })
+  await recordQuestionEmail({ roundId: round.id, applicationId: round.application_id, kind: "REMINDER", attemptNo: reminderNo, sent })
+
+  const nextReminderAt = sent && reminderNo < MAX_REMINDERS
+    ? new Date(Date.now() + REMINDER_INTERVAL_MS).toISOString()
+    : sent ? null : new Date(Date.now() + REMINDER_INTERVAL_MS).toISOString()
+  await supabase.from("creator_application_question_rounds").update({
+    ...(sent ? { reminder_count: reminderNo, last_reminder_at: claimTime } : {}),
+    next_reminder_at: nextReminderAt,
+    reminder_claimed_at: null,
+    updated_at: new Date().toISOString(),
+  }).eq("id", round.id).eq("reminder_claimed_at", claimTime)
+
+  let held = false
+  if (sent && isFinal) {
+    held = await placeApplicationOnHold(round.application_id, app.reference_number, app.full_name)
+  }
+  return { ok: true, sent, held }
+}
+
+/** Hourly job: due rounds are individually claimed, then reminded every three days. */
+export async function runCreatorQuestionReminderSweep(origin?: string): Promise<{ scanned: number; sent: number; failed: number; held: number }> {
+  if (!isSupabaseConfigured()) return { scanned: 0, sent: 0, failed: 0, held: 0 }
+  const now = new Date().toISOString()
+  const { data } = await supabase.from("creator_application_question_rounds")
+    .select("id").eq("status", "Sent").lte("next_reminder_at", now).limit(100)
+  let sent = 0
+  let failed = 0
+  let held = 0
+  for (const row of data || []) {
+    const result = await sendApplicationQuestionReminder({ roundId: row.id as string, origin })
+    if (result.sent) sent++
+    if (result.sent === false) failed++
+    if (result.held) held++
+  }
+  return { scanned: data?.length || 0, sent, failed, held }
 }
 
 export async function submitApplicationQuestionResponses(

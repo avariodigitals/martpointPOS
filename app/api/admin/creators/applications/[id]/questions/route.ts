@@ -5,9 +5,9 @@ import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } f
 import { questionnaireFieldSchema, type QuestionnaireField } from "@/lib/lead-questionnaire"
 import {
   CREATOR_SAMPLE_QUESTION_PACKS,
-  generateDraftFromAiReview,
   listApplicationQuestionRounds,
   sendApplicationQuestionRound,
+  sendApplicationQuestionReminder,
   withSignedAttachmentUrls,
 } from "@/lib/creator-application-questions"
 import { supabase } from "@/lib/supabase"
@@ -27,11 +27,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const auth = await authorizeAdmin("creator.application.review")
   if (auth.denied) return auth.denied
   const { id } = await params
+  const reminderSchema = z.object({ action: z.literal("REMIND"), roundId: z.string().uuid() })
   const schema = z.object({
     title: z.string().trim().max(200).optional().default("Additional Questions"),
     fields: z.array(questionnaireFieldSchema).min(1).max(30),
   })
-  const parsed = schema.safeParse(await request.json().catch(() => null))
+  const body = await request.json().catch(() => null)
+  const reminder = reminderSchema.safeParse(body)
+  if (reminder.success) {
+    const result = await sendApplicationQuestionReminder({
+      roundId: reminder.data.roundId,
+      origin: new URL(request.url).origin,
+    })
+    if (!result.ok) return NextResponse.json({ error: result.error || "Could not send reminder" }, { status: 400 })
+    if (result.skipped) return NextResponse.json({ error: "This question round is no longer awaiting a response." }, { status: 400 })
+    await recordAudit(auditContextFromSession(auth.session, request), {
+      action: AUDIT_ACTIONS.CREATOR_APPLICATION_QUESTIONS_SENT,
+      entityType: AUDIT_ENTITIES.CREATOR_APPLICATION,
+      entityId: id,
+      metadata: { roundId: reminder.data.roundId, reminder: true, emailSent: result.sent },
+    })
+    return NextResponse.json({ success: true, emailSent: result.sent })
+  }
+
+  const parsed = schema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid questions" }, { status: 400 })
   const result = await sendApplicationQuestionRound({
     applicationId: id, title: parsed.data.title, fields: parsed.data.fields as QuestionnaireField[],

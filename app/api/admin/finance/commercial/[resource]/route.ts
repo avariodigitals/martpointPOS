@@ -41,6 +41,7 @@ import { convertPartnerLeadToBusiness } from "@/lib/partner-leads"
 import { getPublicSiteSettings } from "@/lib/settings"
 import { resolveQuoteTemplate } from "@/lib/quote-templates"
 import { notifyPartnerQuoteIssued } from "@/lib/partner-notifications"
+import { notifyAllAdmins } from "@/lib/admin-notifications"
 
 type Action = string
 
@@ -85,6 +86,40 @@ async function getActor() {
 
 function now() {
   return new Date().toISOString()
+}
+
+/**
+ * Commercial actions used to stop at the audit log, which meant the finance
+ * team had to discover important changes manually. Keep the audit trail and
+ * fan out a visible bell event for every successful commercial mutation.
+ * Delivery is best-effort so a notification outage never breaks finance.
+ */
+async function notifyCommercialAction(input: {
+  resource: string
+  action: string
+  actorName: string
+  sourceId?: string | null
+  reference?: string | null
+  detail?: string
+}) {
+  const resourceLabel = input.resource.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+  const actionLabel = input.action.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+  const reference = input.reference || input.sourceId || "record"
+  const linkResource = input.resource === "products"
+    ? "catalog"
+    : input.resource === "commission_plans"
+      ? "commissions"
+      : input.resource
+  await notifyAllAdmins({
+    type: `FINANCE_${input.resource.toUpperCase()}_${input.action.toUpperCase()}`,
+    title: `${resourceLabel}: ${actionLabel}`,
+    message: `${reference} · ${input.detail || `Completed by ${input.actorName}.`}`,
+    deep_link: `/admin/finance/commercial/${linkResource}`,
+    source_type: `finance_${input.resource}`,
+    source_id: input.sourceId || undefined,
+  }).catch((error) => {
+    console.error(`[finance notifications] ${input.resource}.${input.action}`, error)
+  })
 }
 
 /**
@@ -331,11 +366,13 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: p, error } = await supabase.from("commercial_products").insert({ ...data, created_at: now(), updated_at: now() }).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "BUSINESS_LICENCE_CREATED", "COMMERCIAL_PRODUCT", p.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: p.id, reference: p.name })
         return ok(p)
       }
       if (action === "update") {
         const { data: p, error } = await supabase.from("commercial_products").update({ ...data, updated_at: now() }).eq("id", data.id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: p.id, reference: p.name })
         return ok(p)
       }
     }
@@ -345,16 +382,19 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: p, error } = await supabase.from("plans").insert({ ...data, created_at: now(), updated_at: now() }).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "BUSINESS_LICENCE_CREATED", "PLAN", p.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: p.id, reference: p.name })
         return ok(p)
       }
       if (action === "update") {
         const { data: p, error } = await supabase.from("plans").update({ ...data, updated_at: now() }).eq("id", data.id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: p.id, reference: p.name })
         return ok(p)
       }
       if (action === "set_active" || action === "set_inactive") {
         const { data: p, error } = await supabase.from("plans").update({ active: action === "set_active", updated_at: now() }).eq("id", data.id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: p.id, reference: p.name, detail: `Plan is now ${action === "set_active" ? "active" : "inactive"}.` })
         return ok(p)
       }
     }
@@ -363,16 +403,19 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       if (action === "create") {
         const { data: a, error } = await supabase.from("addons").insert({ ...data, created_at: now(), updated_at: now() }).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: a.id, reference: a.name })
         return ok(a)
       }
       if (action === "update") {
         const { data: a, error } = await supabase.from("addons").update({ ...data, updated_at: now() }).eq("id", data.id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: a.id, reference: a.name })
         return ok(a)
       }
       if (action === "set_active" || action === "set_inactive") {
         const { data: a, error } = await supabase.from("addons").update({ active: action === "set_active", updated_at: now() }).eq("id", data.id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: a.id, reference: a.name, detail: `Add-on is now ${action === "set_active" ? "active" : "inactive"}.` })
         return ok(a)
       }
     }
@@ -459,6 +502,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           }
         }
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_CREATED", "QUOTE", q.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: q.id, reference: q.quote_number, detail: partnerLeadId ? "Partner quote request is ready for Finance review." : undefined })
         return ok(q)
       }
       if (action === "update") {
@@ -493,6 +537,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await recalculateQuote(id)
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_UPDATED", "QUOTE", id)
         const { data: refreshed } = await supabase.from("quotes").select("*").eq("id", id).single()
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: refreshed?.quote_number || id })
         return ok(refreshed || q)
       }
       if (action === "add_item") {
@@ -504,12 +549,14 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           line_total: money((it.quantity || 0) * (it.unit_price || 0) - (it.discount || 0) + (it.tax || 0)),
         })
         await recalculateQuote(quote_id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: quote_id, reference: quote_id, detail: "A quote line was added." })
         return ok({ success: true })
       }
       if (action === "remove_item") {
         const { quote_id, item_id } = data
         await supabase.from("quote_items").delete().eq("id", item_id)
         await recalculateQuote(quote_id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: quote_id, reference: quote_id, detail: "A quote line was removed." })
         return ok({ success: true })
       }
       if (action === "attach_business") {
@@ -521,6 +568,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: q, error } = await supabase.from("quotes").update({ business_id, updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_BUSINESS_ATTACHED", "QUOTE", id, { business_id })
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: q.quote_number || id, detail: "A customer business was attached." })
         return ok(q)
       }
       if (action === "create_business") {
@@ -528,6 +576,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         if (!id) return err("Quote is required")
         const prepared = await ensureQuoteBusiness(id, actor)
         if (!prepared.ok) return err(prepared.error)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: prepared.quote.quote_number || id, detail: "The customer business was created from an accepted partner quote." })
         return ok(prepared.business)
       }
       if (action === "send") {
@@ -550,6 +599,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           }).catch((notifyError) => console.error("[quotes.send] partner email", notifyError))
         }
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_SENT", "QUOTE", id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: q.quote_number, detail: "Quote sent to the customer and partner workflow." })
         return ok(q)
       }
       if (action === "accept") {
@@ -557,18 +607,21 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: q, error } = await supabase.from("quotes").update({ status: "ACCEPTED", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_ACCEPTED", "QUOTE", id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: q.quote_number, detail: "Accepted quote is ready for customer conversion and invoicing." })
         return ok(q)
       }
       if (action === "decline") {
         const { id } = data
         const { data: q, error } = await supabase.from("quotes").update({ status: "DECLINED", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: q.quote_number, detail: "The customer declined the quote." })
         return ok(q)
       }
       if (action === "expire") {
         const { id } = data
         const { data: q, error } = await supabase.from("quotes").update({ status: "EXPIRED", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: q.quote_number, detail: "The quote is no longer valid." })
         return ok(q)
       }
       if (action === "convert") {
@@ -644,6 +697,8 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await supabase.from("quotes").update({ status: "CONVERTED", updated_at: now() }).eq("id", id)
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_CONVERTED", "QUOTE", id, { invoice_id: inv.id })
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_CREATED", "INVOICE", inv.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: quote.quote_number, detail: `Converted to invoice ${inv.invoice_number}.` })
+        await notifyCommercialAction({ resource: "invoices", action: "create_from_quote", actorName: actor.name, sourceId: inv.id, reference: inv.invoice_number, detail: `Created from accepted quote ${quote.quote_number}.` })
         return ok({ ...inv, business_created: businessCreated })
       }
     }
@@ -673,18 +728,21 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         }
         await recalculateInvoice(inv.id)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_CREATED", "INVOICE", inv.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: inv.id, reference: inv.invoice_number })
         return ok(inv)
       }
       if (action === "add_item") {
         const { invoice_id, ...it } = data
         await supabase.from("invoice_items").insert({ ...it, invoice_id, line_total: money((it.quantity || 0) * (it.unit_price || 0) - (it.discount || 0) + (it.tax || 0)) })
         await recalculateInvoice(invoice_id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: invoice_id, reference: invoice_id, detail: "An invoice line was added." })
         return ok({ success: true })
       }
       if (action === "remove_item") {
         const { invoice_id, item_id } = data
         await supabase.from("invoice_items").delete().eq("id", item_id)
         await recalculateInvoice(invoice_id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: invoice_id, reference: invoice_id, detail: "An invoice line was removed." })
         return ok({ success: true })
       }
       if (action === "issue") {
@@ -694,16 +752,19 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_ISSUED", "INVOICE", id)
         await syncInvoiceFinanceTransaction(id)
         const email = await sendInvoiceEmail(id, "invoice", { type: "ADMIN", id: actor.id })
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: inv.invoice_number, detail: email.ok ? "Invoice issued and emailed to the customer." : "Invoice issued; customer email delivery needs attention." })
         return ok({ ...inv, emailSent: email.ok, emailError: email.error, emailSentTo: email.sentTo })
       }
       if (action === "send") {
         const r = await sendInvoiceEmail(data.id, "invoice", { type: "ADMIN", id: actor.id })
         if (!r.ok) return err(r.error || "Failed to send invoice email", 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: data.id, detail: "Invoice email sent to the customer." })
         return ok({ sentTo: r.sentTo })
       }
       if (action === "send_reminder") {
         const r = await sendInvoiceEmail(data.id, "reminder", { type: "ADMIN", id: actor.id })
         if (!r.ok) return err(r.error || "Failed to send reminder", 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: data.id, detail: "Payment reminder sent to the customer." })
         return ok({ sentTo: r.sentTo })
       }
       if (action === "pause_reminders" || action === "resume_reminders") {
@@ -711,6 +772,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: inv, error } = await supabase.from("invoices").update({ reminders_paused: paused, updated_at: now() }).eq("id", data.id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_REMINDERS_TOGGLED", "INVOICE", data.id, { paused })
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: inv.invoice_number, detail: `Invoice reminders ${paused ? "paused" : "resumed"}.` })
         return ok(inv)
       }
       if (action === "void") {
@@ -719,6 +781,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_VOIDED", "INVOICE", id)
         await syncInvoiceFinanceTransaction(id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: inv.invoice_number, detail: "Invoice voided; its finance transaction was synchronised." })
         return ok(inv)
       }
       if (action === "waive") {
@@ -734,6 +797,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_WAIVED", "INVOICE", id, { reason: waiverReason })
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: inv.invoice_number, detail: `Invoice waived: ${waiverReason}` })
         return ok(inv)
       }
       if (action === "cancel") {
@@ -741,6 +805,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: inv, error } = await supabase.from("invoices").update({ status: "CANCELLED", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await syncInvoiceFinanceTransaction(id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: inv.invoice_number, detail: "Invoice cancelled." })
         return ok(inv)
       }
       if (action === "reopen") {
@@ -755,6 +820,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         // that was voided on cancellation.
         await recalculateInvoice(id)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_REOPENED", "INVOICE", id, { restored_to: restored })
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: reopened.invoice_number, detail: `Invoice reopened as ${restored}.` })
         return ok(reopened)
       }
       if (action === "update") {
@@ -799,6 +865,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         }
         await recalculateInvoice(id)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_UPDATED", "INVOICE", id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: inv.invoice_number })
         return ok(inv)
       }
       if (action === "delete") {
@@ -811,6 +878,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: inv, error } = await supabase.from("invoices").delete().eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_DELETED", "INVOICE", id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: inv.invoice_number, detail: "Invoice deleted and related finance links were removed." })
         return ok(inv)
       }
     }
@@ -819,14 +887,17 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       if (action === "record") {
         const p = await recordPayment(data)
         await logFinanceAudit("ADMIN", actor.id, "PAYMENT_RECORDED", "PAYMENT", p.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: p.id, reference: p.id, detail: "A payment was recorded and is awaiting confirmation." })
         return ok(p)
       }
       if (action === "confirm") {
         await confirmPayment(data.id, actor.id, actor.id, data.payment_account_id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: data.id, detail: "Payment confirmed and included in commercial finance." })
         return ok({ success: true })
       }
       if (action === "reject") {
         const rejected = await rejectPayment(data.id, actor.id, String(data.reason || ""), actor.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: data.id, detail: `Payment rejected: ${String(data.reason || "No reason supplied")}` })
         return ok(rejected)
       }
       if (action === "reverse") {
@@ -836,20 +907,24 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await logFinanceAudit("ADMIN", actor.id, "PAYMENT_REVERSED", "PAYMENT", id)
         await removePaymentFinanceTransaction(id)
         try { await postPaymentReversal(id) } catch (e) { console.error("[payments.reverse] ledger", e) }
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: id, detail: "Payment reversed and finance entries were adjusted." })
         return ok(p)
       }
       if (action === "allocate") {
         await allocatePayment(data)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.payment_id, reference: data.payment_id, detail: "Payment allocation changed." })
         return ok({ success: true })
       }
       if (action === "receipt") {
         const r = await createReceipt(data.payment_id, actor.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: r.id, reference: r.receipt_number || r.id, detail: "Payment receipt created." })
         return ok(r)
       }
       if (action === "send_receipt") {
         const r = await sendPaymentConfirmationEmail(data.id, { type: "ADMIN", id: actor.id })
         if (!r.ok) return err(r.error || "Failed to send receipt email", 500)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_EMAIL_SENT", "PAYMENT", data.id, { to: r.sentTo, kind: "send_receipt" })
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: data.id, detail: "Payment receipt emailed to the customer." })
         return ok({ sentTo: r.sentTo })
       }
     }
@@ -894,11 +969,13 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         }).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "SUBSCRIPTION_CREATED", "SUBSCRIPTION", sub.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: sub.id, reference: sub.id, detail: "Subscription created and awaiting activation or payment." })
         return ok(sub)
       }
       if (action === "activate") {
         await activateSubscription(data.id, actor.id, { licence_type: data.licence_type, expires_at: data.expires_at })
         await logFinanceAudit("ADMIN", actor.id, "SUBSCRIPTION_ACTIVATED", "SUBSCRIPTION", data.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: data.id, detail: "Subscription activated and customer entitlements synchronised." })
         return ok({ success: true })
       }
       if (action === "waive") {
@@ -907,18 +984,21 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           licence_type: data.licence_type,
           expires_at: data.expires_at,
         })
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: data.id, detail: "Subscription charge or activation was waived." })
         return ok(result)
       }
       if (action === "suspend") {
         const { data: sub, error } = await supabase.from("subscriptions").update({ status: "SUSPENDED", updated_at: now() }).eq("id", data.id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "SUBSCRIPTION_SUSPENDED", "SUBSCRIPTION", data.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: data.id, detail: "Subscription suspended; customer access may need review." })
         return ok(sub)
       }
       if (action === "cancel_subscription") {
         const { data: sub, error } = await supabase.from("subscriptions").update({ status: "CANCELLED", updated_at: now() }).eq("id", data.id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "SUBSCRIPTION_CANCELLED", "SUBSCRIPTION", data.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: data.id, detail: "Subscription cancelled." })
         return ok(sub)
       }
       if (action === "renew") {
@@ -929,6 +1009,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await supabase.from("subscriptions").update({ current_period_end: nextEnd, renewal_date: nextEnd, updated_at: now() }).eq("id", id)
         await supabase.from("subscription_renewals").update({ status: "RENEWED", renewed_at: now(), updated_at: now() }).eq("subscription_id", id)
         await logFinanceAudit("ADMIN", actor.id, "SUBSCRIPTION_RENEWED", "SUBSCRIPTION", id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: id, detail: `Subscription renewed through ${nextEnd}.` })
         return ok({ success: true })
       }
       if (action === "add_addon") {
@@ -951,6 +1032,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         if (error) return err(error.message, 500)
         await syncEntitlementsFromSubscription(subscription_id, actor.id)
         await logFinanceAudit("ADMIN", actor.id, "ADDON_ACTIVATED", "SUBSCRIPTION_ADDON", sa.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: subscription_id, reference: subscription_id, detail: `Add-on ${addon.name} activated.` })
         return ok(sa)
       }
       if (action === "remove_addon") {
@@ -958,6 +1040,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await supabase.from("subscription_addons").update({ status: "INACTIVE", updated_at: now() }).eq("subscription_id", subscription_id).eq("addon_id", addon_id)
         await syncEntitlementsFromSubscription(subscription_id, actor.id)
         await logFinanceAudit("ADMIN", actor.id, "ADDON_REMOVED", "SUBSCRIPTION_ADDON", addon_id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: subscription_id, reference: subscription_id, detail: `Add-on ${addon_id} removed.` })
         return ok({ success: true })
       }
     }
@@ -973,22 +1056,26 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           updated_at: now(),
         }, { onConflict: "subscription_id" }).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: r.id, reference: r.id, detail: `Renewal scheduled for ${renewal_due_date}.` })
         return ok(r)
       }
       if (action === "update") {
         const { id } = data
         const { data: r, error } = await supabase.from("subscription_renewals").update({ ...data, updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: r.id, reference: r.id })
         return ok(r)
       }
       if (action === "link_invoice") {
         const { id, invoice_id } = data
         const { data: r, error } = await supabase.from("subscription_renewals").update({ renewal_invoice_id: invoice_id, updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: r.id, reference: r.id, detail: `Renewal linked to invoice ${invoice_id}.` })
         return ok(r)
       }
       if (action === "refresh") {
         await refreshRenewalStatus(data.subscription_id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.subscription_id, reference: data.subscription_id, detail: "Renewal status refreshed." })
         return ok({ success: true })
       }
     }
@@ -997,16 +1084,19 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       if (action === "create") {
         const { data: p, error } = await supabase.from("commission_plans").insert({ ...data, created_at: now(), updated_at: now() }).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: p.id, reference: p.name || p.id })
         return ok(p)
       }
       if (action === "update") {
         const { data: p, error } = await supabase.from("commission_plans").update({ ...data, updated_at: now() }).eq("id", data.id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: p.id, reference: p.name || p.id })
         return ok(p)
       }
       if (action === "set_active" || action === "set_inactive") {
         const { data: p, error } = await supabase.from("commission_plans").update({ active: action === "set_active", updated_at: now() }).eq("id", data.id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: p.id, reference: p.name || p.id, detail: `Commission plan is now ${action === "set_active" ? "active" : "inactive"}.` })
         return ok(p)
       }
     }
@@ -1026,11 +1116,13 @@ export async function POST(request: Request, props: { params: Promise<{ resource
           const res = await approveReferralCommission(id, { actorId: actor.id, actorName: actor.name })
           if (!res.ok) return err(res.error || "Approval failed", 400)
           const { data: c } = await supabase.from("partner_commissions").select("*").eq("id", id).single()
+          await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: id, detail: "Referral commission approved and is available for payout." })
           return ok(c)
         }
         const { data: c, error } = await supabase.from("partner_commissions").update({ status: "APPROVED", approved_at: now(), approved_by: actor.id, updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "COMMISSION_APPROVED", "PARTNER_COMMISSION", id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: id, detail: "Commission approved and is available for payout." })
         return ok(c)
       }
       if (action === "cancel") {
@@ -1039,6 +1131,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         if (guard) return guard
         const { data: c, error } = await supabase.from("partner_commissions").update({ status: "CANCELLED", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: id, detail: `Commission cancelled: ${String(reason || "No reason supplied")}` })
         return ok(c)
       }
       if (action === "reverse") {
@@ -1048,10 +1141,12 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: c, error } = await supabase.from("partner_commissions").update({ status: "REVERSED", reversal_reason: reason, updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "COMMISSION_REVERSED", "PARTNER_COMMISSION", id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: id, detail: `Commission reversed: ${String(reason || "No reason supplied")}` })
         return ok(c)
       }
       if (action === "evaluate") {
         await evaluateCommissionsForPayment(data.payment_id, actor.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.payment_id, reference: data.payment_id, detail: "Commission eligibility was recalculated for the payment." })
         return ok({ success: true })
       }
     }
@@ -1060,6 +1155,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       if (action === "create") {
         const { partner_id, commission_ids } = data
         const p = await createCommissionPayout(partner_id, commission_ids, actor.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: p.id, reference: p.id, detail: "Commission payout created and awaiting approval." })
         return ok(p)
       }
       if (action === "approve") {
@@ -1067,6 +1163,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const { data: p, error } = await supabase.from("commission_payouts").update({ status: "APPROVED", approved_by: actor.id, approved_at: now(), updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "COMMISSION_PAYOUT_APPROVED", "COMMISSION_PAYOUT", id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: id, detail: "Commission payout approved." })
         return ok(p)
       }
       if (action === "mark_paid") {
@@ -1083,6 +1180,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         } catch (e) { console.error("[payouts.mark_paid] commission settlement", e) }
         try { await postPayoutJournal(id) } catch (e) { console.error("[payouts.mark_paid] ledger", e) }
         try { await issuePayoutStatement(id, actor.id) } catch (e) { console.error("[payouts.mark_paid] statement", e) }
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: id, detail: "Commission payout marked paid and partner records updated." })
         return ok(p)
       }
     }
@@ -1090,6 +1188,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
     if (resource === "receipts") {
       if (action === "create") {
         const r = await createReceipt(data.payment_id, actor.id)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: r.id, reference: r.receipt_number, detail: "Payment receipt created." })
         return ok(r)
       }
     }

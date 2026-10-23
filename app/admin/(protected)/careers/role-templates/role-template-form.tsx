@@ -14,7 +14,7 @@ import {
   ROLE_CATEGORIES, ROLE_CATEGORY_LABELS, TEMPLATE_STATUSES, TEMPLATE_STATUS_LABELS,
   type CareerRoleTemplate,
 } from "@/lib/careers-role-templates"
-import { STATES } from "@/lib/locations"
+import { LocationFields } from "@/components/location-fields"
 import { enumLabel } from "@/lib/utils"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -313,19 +313,23 @@ export function RoleTemplateForm({
             <label className={labelCls}>End time</label>
             <input type="time" className={inputCls} value={f.work_end_time} onChange={(e) => set("work_end_time", e.target.value)} />
           </div>
-          <div>
-            <label className={labelCls}>Default state</label>
-            <select className={inputCls} value={locF.state} onChange={(e) => setLocF((p) => ({ ...p, state: e.target.value }))}>
-              <option value="">None</option>
-              {STATES["Nigeria"].map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+          <div className="md:col-span-2">
+            <LocationFields
+              country="Nigeria"
+              state={locF.state}
+              city={locF.city}
+              showCountry={false}
+              inputClassName={inputCls}
+              onChange={(values) => setLocF((p) => ({
+                ...p,
+                state: values.state ?? p.state,
+                city: values.city ?? p.city,
+              }))}
+            />
           </div>
           <div>
-            <label className={labelCls}>Default LGA / city</label>
-            <div className="grid grid-cols-2 gap-2">
-              <input className={inputCls} value={locF.lga} onChange={(e) => setLocF((p) => ({ ...p, lga: e.target.value }))} placeholder="LGA" />
-              <input className={inputCls} value={locF.city} onChange={(e) => setLocF((p) => ({ ...p, city: e.target.value }))} placeholder="City" />
-            </div>
+            <label className={labelCls}>Default LGA</label>
+            <input className={inputCls} value={locF.lga} onChange={(e) => setLocF((p) => ({ ...p, lga: e.target.value }))} placeholder="LGA" />
           </div>
           <div>
             <label className={labelCls}>Public location description</label>

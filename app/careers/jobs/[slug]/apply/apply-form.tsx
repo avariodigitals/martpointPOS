@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Upload, Check, Loader2, AlertCircle, ChevronLeft, ChevronRight, Copy } from "lucide-react"
 import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
-import { STATES } from "@/lib/locations"
+import { LocationFields } from "@/components/location-fields"
 
 const inputCls =
   "w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-retail/30"
@@ -545,20 +545,26 @@ export function ApplicationForm({
               <input type="tel" className={inputCls} value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} />
             </Field>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <Field label="State of residence" required error={errors.state}>
-                <select className={inputCls} value={form.state} onChange={(e) => set("state", e.target.value)}>
-                  <option value="">Select state</option>
-                  {STATES["Nigeria"].map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </Field>
+              <div>
+                <LocationFields
+                  country="Nigeria"
+                  state={form.state}
+                  city={form.city}
+                  showCountry={false}
+                  required
+                  inputClassName={inputCls}
+                  onChange={(values) => {
+                    set("state", values.state ?? form.state)
+                    set("city", values.city ?? form.city)
+                  }}
+                />
+                {(errors.state || errors.city) && <p className={errCls}>{errors.state || errors.city}</p>}
+              </div>
               <Field label="LGA" error={errors.lga}>
                 <input className={inputCls} value={form.lga} onChange={(e) => set("lga", e.target.value)} placeholder="Local government area" />
               </Field>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <Field label="City / town" required error={errors.city}>
-                <input className={inputCls} value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="e.g. Ilobu" />
-              </Field>
               <Field label="Residential area" error={errors.residentialArea}>
                 <input className={inputCls} value={form.residentialArea} onChange={(e) => set("residentialArea", e.target.value)} placeholder="Area / street" />
               </Field>

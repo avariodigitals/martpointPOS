@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Plus, X, UserPlus, Send, Trash2, LayoutGrid, List, Pencil } from "lucide-react"
-import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
+import { LocationFields } from "@/components/location-fields"
 
 type ProspectStatus =
   | "NEW_LEAD" | "CONTACTED" | "INTERESTED" | "INVITED_TO_APPLY" | "APPLICATION_SUBMITTED" | "CONVERTED" | "NOT_INTERESTED" | "DISQUALIFIED"
@@ -199,10 +199,6 @@ export default function PartnerProspectsPage() {
       setMessage(data.error || "Delete failed")
     }
   }
-
-  const countries = useMemo(() => COUNTRIES.map((c) => c.name), [])
-  const formStates = useMemo(() => getStatesForCountry(form.country), [form.country])
-  const formCities = useMemo(() => getCitiesForState(form.country, form.state), [form.country, form.state])
 
   const save = async () => {
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
@@ -454,32 +450,18 @@ export default function PartnerProspectsPage() {
                   {PARTNER_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              <div><label className={labelCls}>Country</label>
-                <select className={inputCls} value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value, state: "", city: "" })}>
-                  <option value="">Select country</option>
-                  {countries.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div><label className={labelCls}>State</label>
-                {formStates.length > 0 ? (
-                  <select className={inputCls} value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value, city: "" })}>
-                    <option value="">Select state</option>
-                    {formStates.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                ) : (
-                  <input className={inputCls} value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} placeholder="State / Region" />
-                )}
-              </div>
-              <div><label className={labelCls}>City</label>
-                {formCities.length > 0 ? (
-                  <select className={inputCls} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}>
-                    <option value="">Select city</option>
-                    {formCities.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                ) : (
-                  <input className={inputCls} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" />
-                )}
-              </div>
+              <LocationFields
+                country={form.country}
+                state={form.state}
+                city={form.city}
+                inputClassName={inputCls}
+                onChange={(values) => setForm((current) => ({
+                  ...current,
+                  country: values.country ?? current.country,
+                  state: values.state ?? current.state,
+                  city: values.city ?? current.city,
+                }))}
+              />
               <div><label className={labelCls}>Owner</label><input className={inputCls} value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} /></div>
               <div><label className={labelCls}>Next follow-up</label><input type="datetime-local" className={inputCls} value={form.nextFollowUp} onChange={(e) => setForm({ ...form, nextFollowUp: e.target.value })} /></div>
             </div>

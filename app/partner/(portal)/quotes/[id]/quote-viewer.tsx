@@ -9,6 +9,7 @@ import { Check, Download, FileText, Loader2, X } from "lucide-react"
 import { generateQuotationPdf } from "@/lib/quotation-pdf"
 import type { LeadSummary, Quotation } from "@/lib/quotations"
 import { formatMoney } from "@/lib/money-format"
+import { productLabel } from "@/lib/product-labels"
 
 type Row = Record<string, any>
 
@@ -45,7 +46,7 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
     businessName: (lead.business_name as string) || "",
     email: (lead.email as string) || "",
     phone: (lead.phone as string) || "",
-    productInterest: (lead.interested_product as string) || "",
+    productInterest: productLabel(lead.interested_product as string),
     businessType: (lead.business_type as string) || "",
     industry: (lead.industry as string) || "",
   }
@@ -107,7 +108,9 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
     }
   }
 
-  const canRespond = quote.status === "SENT"
+  const quoteStatus = String(quote.status || "").toUpperCase()
+  const displayQuoteStatus = ["ACCEPTED", "CONVERTED"].includes(quoteStatus) ? "ACCEPTED" : quoteStatus
+  const canRespond = quoteStatus === "SENT"
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-6">
       {message && <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{message}</p>}
@@ -116,7 +119,7 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
           <div className="flex items-center gap-2"><FileText className="w-5 h-5 text-retail" /><h3 className="text-lg font-semibold">{quotation.quote_number}</h3></div>
           <p className="text-sm text-muted-foreground mt-1">Prepared for {leadSummary.businessName}</p>
         </div>
-        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">{quote.status as string}</span>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${displayQuoteStatus === "ACCEPTED" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>{displayQuoteStatus}</span>
       </div>
       <div className="space-y-2">
         <div className="overflow-x-auto rounded-md border border-border">
@@ -145,8 +148,8 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
           <Button variant="outline" onClick={() => respond("decline")} disabled={busy}>{busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />} Decline</Button>
         </>}
       </div>
-      {quote.status === "ACCEPTED" && !invoice && <p className="text-sm text-green-700 bg-green-50 rounded-md p-3">Quote accepted. Your customer business and invoice are being prepared automatically.</p>}
-      {(["ACCEPTED", "CONVERTED"].includes(String(quote.status)) && invoice) && <div className="space-y-1 rounded-md bg-green-50 p-3 text-sm text-green-800">
+      {quoteStatus === "ACCEPTED" && !invoice && <p className="text-sm text-green-700 bg-green-50 rounded-md p-3">Quote accepted. Your customer business and invoice are being prepared automatically.</p>}
+      {(["ACCEPTED", "CONVERTED"].includes(quoteStatus) && invoice) && <div className="space-y-1 rounded-md bg-green-50 p-3 text-sm text-green-800">
         <p className="font-medium">Invoice created from this accepted quote</p>
         <p>{invoice.invoice_number} · {money(invoice.total_amount, invoice.currency || quotation.currency)} · {invoice.status || "ISSUED"}</p>
         {invoice.due_date && <p>Due {new Date(`${invoice.due_date}T00:00:00`).toLocaleDateString("en-NG")}</p>}

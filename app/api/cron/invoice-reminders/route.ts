@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { isSupabaseConfigured } from "@/lib/supabase"
 import { runInvoiceReminderSweep } from "@/lib/invoice-emails"
+import { notifyAllAdmins } from "@/lib/admin-notifications"
 
 /* ───────────────────────────  Invoice payment reminders  ───────────────────
  * Daily sweep: emails a payment reminder to the primary contact for unpaid
@@ -40,6 +41,18 @@ export async function GET(request: Request) {
   }
   try {
     const result = await runInvoiceReminderSweep()
+    if (result.sent > 0 || result.failed > 0 || result.markedOverdue > 0) {
+      await notifyAllAdmins({
+        type: "FINANCE_INVOICE_REMINDER_SWEEP",
+        title: "Invoice reminder sweep completed",
+        message: `${result.sent} reminder${result.sent === 1 ? "" : "s"} sent, ${result.markedOverdue} invoice${result.markedOverdue === 1 ? "" : "s"} marked overdue${result.failed ? `, ${result.failed} delivery failure${result.failed === 1 ? "" : "s"}` : ""}.`,
+        deep_link: "/admin/finance/commercial/invoices",
+        source_type: "invoice_reminder_sweep",
+        source_id: new Date().toISOString().slice(0, 10),
+      }).catch((notificationError) => {
+        console.error("[invoice-reminders] admin notification failed", notificationError)
+      })
+    }
     return NextResponse.json({ ok: true, ...result })
   } catch (err) {
     console.error("[invoice-reminders-cron]", err)

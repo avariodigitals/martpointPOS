@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
 
 interface LocationFieldsProps {
@@ -10,6 +10,8 @@ interface LocationFieldsProps {
   onChange: (values: { country?: string; state?: string; city?: string }) => void
   inputClassName?: string
   disabled?: boolean
+  required?: boolean
+  showCountry?: boolean
 }
 
 const inputClsDefault =
@@ -22,10 +24,10 @@ export function LocationFields({
   onChange,
   inputClassName = inputClsDefault,
   disabled = false,
+  required = false,
+  showCountry = true,
 }: LocationFieldsProps) {
   const [customCities, setCustomCities] = useState<string[]>([])
-  const [otherMode, setOtherMode] = useState(false)
-  const requestedRef = useRef<Set<string>>(new Set())
 
   const stateOptions = useMemo(() => getStatesForCountry(country), [country])
   const canonicalCityOptions = useMemo(() => getCitiesForState(country, state), [country, state])
@@ -54,13 +56,6 @@ export function LocationFields({
     }
   }, [country, state])
 
-  // Whether the currently selected city is a known (canonical or adopted) city.
-  const isKnown = city !== "" && cityOptions.some((c) => c.toLowerCase() === city.toLowerCase())
-  // Type-in mode for the State when the selected country has no state list.
-  const showOtherState = hasCountry && stateOptions.length === 0
-  // Typing mode: "Other" chosen, or the current value isn't a known drop-down entry.
-  const showOtherCity = hasCountry && state !== "" && (otherMode || (!isKnown && city !== ""))
-
   // Reset state when the selected country no longer supports the current state.
   // (Scheduled so the state update doesn't run synchronously in the effect body.)
   useEffect(() => {
@@ -72,33 +67,17 @@ export function LocationFields({
 
   const countryNames = useMemo(() => COUNTRIES.map((c) => c.name), [])
 
-  // Route a custom city for admin authorisation (fire-and-forget, once per value).
-  const requestCustomCity = (value: string) => {
-    const trimmed = value.trim()
-    if (!trimmed || !country || !state) return
-    if (cityOptions.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return
-    const key = `${country}|${state}|${trimmed.toLowerCase()}`
-    if (requestedRef.current.has(key)) return
-    requestedRef.current.add(key)
-    fetch("/api/locations/city-request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ country, state, city: trimmed }),
-    }).catch(() => {})
-  }
-
   return (
     <>
-      <div>
-        <label className="block text-xs font-medium mb-1">Country</label>
+      {showCountry && <div>
+        <label className="block text-xs font-medium mb-1">Country{required ? " *" : ""}</label>
         <select
           disabled={disabled}
+          required={required}
+          name="country"
           className={inputClassName}
           value={country}
-          onChange={(e) => {
-            setOtherMode(false)
-            onChange({ country: e.target.value, state: "", city: "" })
-          }}
+          onChange={(e) => onChange({ country: e.target.value, state: "", city: "" })}
         >
           <option value="">Select country</option>
           {countryNames.map((c) => (
@@ -107,31 +86,22 @@ export function LocationFields({
             </option>
           ))}
         </select>
-      </div>
+      </div>}
 
       <div>
-        <label className="block text-xs font-medium mb-1">State</label>
+        <label className="block text-xs font-medium mb-1">State{required ? " *" : ""}</label>
         {!hasCountry ? (
-          <select disabled className={inputClassName} value="">
+          <select disabled required={required} name="state" className={inputClassName} value="">
             <option value="">Select country first</option>
           </select>
-        ) : showOtherState ? (
-          <input
-            disabled={disabled}
-            className={inputClassName}
-            value={state}
-            onChange={(e) => onChange({ state: e.target.value, city: "" })}
-            placeholder="State / Province"
-          />
         ) : (
           <select
             disabled={disabled}
+            required={required}
+            name="state"
             className={inputClassName}
             value={state}
-            onChange={(e) => {
-              setOtherMode(false)
-              onChange({ state: e.target.value, city: "" })
-            }}
+            onChange={(e) => onChange({ state: e.target.value, city: "" })}
           >
             <option value="">Select state</option>
             {stateOptions.map((s) => (
@@ -144,42 +114,26 @@ export function LocationFields({
       </div>
 
       <div>
-        <label className="block text-xs font-medium mb-1">City</label>
+        <label className="block text-xs font-medium mb-1">City{required ? " *" : ""}</label>
         {!hasCountry || state === "" ? (
-          <select disabled className={inputClassName} value="">
+          <select disabled required={required} name="city" className={inputClassName} value="">
             <option value="">{!hasCountry ? "Select country first" : "Select state first"}</option>
           </select>
-        ) : showOtherCity ? (
-          <input
-            disabled={disabled}
-            className={inputClassName}
-            value={city}
-            onChange={(e) => onChange({ city: e.target.value })}
-            onBlur={() => requestCustomCity(city)}
-            placeholder="Type your city"
-          />
         ) : (
           <select
             disabled={disabled}
+            required={required}
+            name="city"
             className={inputClassName}
             value={city}
-            onChange={(e) => {
-              if (e.target.value === "__other__") {
-                setOtherMode(true)
-                onChange({ city: "" })
-              } else {
-                setOtherMode(false)
-                onChange({ city: e.target.value })
-              }
-            }}
+            onChange={(e) => onChange({ city: e.target.value })}
           >
-            <option value="">Select city</option>
+            <option value="">{cityOptions.length ? "Select city" : "No standard cities available"}</option>
             {cityOptions.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             ))}
-            <option value="__other__">Other</option>
           </select>
         )}
       </div>

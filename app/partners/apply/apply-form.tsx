@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Loader2, Check, ArrowRight, ArrowLeft, Upload, X, CheckCircle2 } from "lucide-react"
-import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
+import { LocationFields } from "@/components/location-fields"
 import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
 
 type PartnerType = "REFERRAL" | "CHANNEL" | "IMPLEMENTATION" | "CHANNEL_IMPLEMENTATION" | "TECHNOLOGY" | "PAYMENT"
@@ -70,6 +70,7 @@ export function PartnerApplicationForm() {
 
   // Hydration guard: don't render state-dependent helper text until mounted.
   const [mounted, setMounted] = useState(false)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), [])
 
   // Prefill from a partner-lead/prospect invite link (?invite=<token>)
@@ -102,19 +103,11 @@ export function PartnerApplicationForm() {
       .catch(() => {})
   }, [])
 
-  const countries = useMemo(() => COUNTRIES.map((c) => c.name), [])
-  const states = useMemo(() => getStatesForCountry(form.country), [form.country])
-  const cities = useMemo(() => getCitiesForState(form.country, form.state), [form.country, form.state])
-  const stateIsSelect = states.length > 0
-  const cityIsSelect = cities.length > 0
-
   const [docs, setDocs] = useState<DocFile[]>([])
   const [industryInput, setIndustryInput] = useState("")
   const [geoInput, setGeoInput] = useState("")
 
-  const isIndividual = form.applicantType === "INDIVIDUAL"
   const isReferral = form.requestedPartnerType === "REFERRAL"
-  const requiresCompanyDetails = form.applicantType === "COMPANY" && !isReferral
 
   const set = (k: keyof typeof form, v: unknown) => {
     setForm((p) => {
@@ -323,69 +316,18 @@ export function PartnerApplicationForm() {
             <div><label className={labelCls}>Phone *</label><input className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} /></div>
             <div><label className={labelCls}>WhatsApp</label><input className={inputCls} value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} /></div>
 
-            {/* Country select */}
-            <div>
-              <label className={labelCls}>Country *</label>
-              <select
-                className={inputCls}
-                value={form.country}
-                onChange={(e) => set("country", e.target.value)}
-                required
-              >
-                <option value="">Select a country</option>
-                {countries.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* State: dropdown if curated, otherwise free text */}
-            <div>
-              <label className={labelCls}>State</label>
-              {stateIsSelect ? (
-                <select
-                  className={inputCls}
-                  value={form.state}
-                  onChange={(e) => set("state", e.target.value)}
-                >
-                  <option value="">Select a state</option>
-                  {states.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className={inputCls}
-                  value={form.state}
-                  onChange={(e) => set("state", e.target.value)}
-                  placeholder="Type your state"
-                />
-              )}
-            </div>
-
-            {/* City: dropdown if curated, otherwise free text */}
-            <div>
-              <label className={labelCls}>City</label>
-              {cityIsSelect ? (
-                <select
-                  className={inputCls}
-                  value={form.city}
-                  onChange={(e) => set("city", e.target.value)}
-                >
-                  <option value="">Select a city</option>
-                  {cities.map((city) => (
-                    <option key={city} value={city}>{city}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className={inputCls}
-                  value={form.city}
-                  onChange={(e) => set("city", e.target.value)}
-                  placeholder="Type your city"
-                />
-              )}
-            </div>
+            <LocationFields
+              country={form.country}
+              state={form.state}
+              city={form.city}
+              required
+              inputClassName={inputCls}
+              onChange={(values) => {
+                set("country", values.country ?? form.country)
+                set("state", values.state ?? form.state)
+                set("city", values.city ?? form.city)
+              }}
+            />
           </div>
           {form.applicantType === "COMPANY" && (
             <div><label className={labelCls}>Business address</label><input className={inputCls} value={form.businessAddress} onChange={(e) => set("businessAddress", e.target.value)} /></div>

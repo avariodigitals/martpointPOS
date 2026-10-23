@@ -1,11 +1,10 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
+import { LocationFields } from "@/components/location-fields"
 import { businessTypeOptions } from "@/lib/industries"
-import { enumLabel } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -39,10 +38,6 @@ export default function NewReferralPage() {
   const [state, setState] = useState("")
   const [city, setCity] = useState("")
   const [consent, setConsent] = useState(false)
-
-  const countries = useMemo(() => COUNTRIES.map((c) => c.name), [])
-  const states = useMemo(() => getStatesForCountry(country), [country])
-  const cities = useMemo(() => getCitiesForState(country, state), [country, state])
 
   async function send(e: React.SyntheticEvent, asDraft: boolean) {
     e.preventDefault()
@@ -179,60 +174,18 @@ export default function NewReferralPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <label className={labelCls}>Country *</label>
-              <select
-                name="country"
-                required
-                className={inputCls}
-                value={country}
-                onChange={(ev) => {
-                  setCountry(ev.target.value)
-                  setState("")
-                  setCity("")
-                }}
-              >
-                <option value="">Select country</option>
-                {countries.map((c) => (
-                  <option key={c} value={c}>{enumLabel(c)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>State *</label>
-              {states.length > 0 ? (
-                <select
-                  name="state"
-                  required
-                  className={inputCls}
-                  value={state}
-                  onChange={(ev) => {
-                    setState(ev.target.value)
-                    setCity("")
-                  }}
-                >
-                  <option value="">Select state</option>
-                  {states.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              ) : (
-                <input name="state" required className={inputCls} value={state} onChange={(ev) => setState(ev.target.value)} />
-              )}
-            </div>
-            <div>
-              <label className={labelCls}>City *</label>
-              {cities.length > 0 ? (
-                <select name="city" required className={inputCls} value={city} onChange={(ev) => setCity(ev.target.value)}>
-                  <option value="">Select city</option>
-                  {cities.map((c) => (
-                    <option key={c} value={c}>{enumLabel(c)}</option>
-                  ))}
-                </select>
-              ) : (
-                <input name="city" required className={inputCls} value={city} onChange={(ev) => setCity(ev.target.value)} />
-              )}
-            </div>
+            <LocationFields
+              country={country}
+              state={state}
+              city={city}
+              required
+              inputClassName={inputCls}
+              onChange={(values) => {
+                setCountry(values.country ?? country)
+                setState(values.state ?? state)
+                setCity(values.city ?? city)
+              }}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

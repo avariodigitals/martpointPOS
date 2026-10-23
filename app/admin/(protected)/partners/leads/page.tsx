@@ -24,10 +24,11 @@ import {
 } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
 import { allIndustries, businessTypeOptions } from "@/lib/industries"
+import { PARTNER_PRODUCT_OPTIONS, productLabel } from "@/lib/product-labels"
 
 const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
 const BUSINESS_TYPE_OPTIONS = businessTypeOptions
-const PRODUCT_OPTIONS = ["MartPoint Retail", "MartPoint ERP", "Not Sure — Need Guidance"]
+const PRODUCT_OPTIONS = PARTNER_PRODUCT_OPTIONS
 
 type LeadStatus =
   | "REGISTERED" | "UNDER_REVIEW" | "QUALIFIED" | "DEMO" | "PROPOSAL"
@@ -141,15 +142,6 @@ const KANBAN_BG: Record<KanbanStage, string> = {
   IN_DISCUSSION: "bg-violet-50 border-violet-200",
   WON: "bg-emerald-50 border-emerald-200",
   LOST: "bg-red-50 border-red-200",
-}
-
-const KANBAN_REPRESENTATIVE_STATUS: Record<KanbanStage, LeadStatus> = {
-  SUBMITTED: "REGISTERED",
-  UNDER_REVIEW: "UNDER_REVIEW",
-  QUALIFIED: "QUALIFIED",
-  IN_DISCUSSION: "DEMO",
-  WON: "WON",
-  LOST: "LOST",
 }
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -291,7 +283,7 @@ export default function AdminPartnerLeadsPage() {
   const productCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     filteredLeads.forEach((l) => {
-      const label = l.interestedProduct || "Unspecified"
+      const label = productLabel(l.interestedProduct, "Unspecified")
       counts[label] = (counts[label] || 0) + 1
     })
     return counts
@@ -777,7 +769,7 @@ export default function AdminPartnerLeadsPage() {
                       <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-muted-foreground" />{[lead.city, lead.state, lead.country].filter(Boolean).join(", ") || "—"}</div>
                       <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-muted-foreground" />Created {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : "—"}</div>
                       <div><span className="text-muted-foreground">Industry:</span> {lead.industry || "—"} · <span className="text-muted-foreground">Type:</span> {lead.businessType || "—"}</div>
-                      <div><span className="text-muted-foreground">Product:</span> {lead.interestedProduct || "—"}</div>
+                      <div><span className="text-muted-foreground">Product:</span> {productLabel(lead.interestedProduct, "—")}</div>
                       <div><span className="text-muted-foreground">Est. branches:</span> {lead.estimatedBranches ?? "—"} · <span className="text-muted-foreground">Users:</span> {lead.estimatedUsers ?? "—"}</div>
                       <div><span className="text-muted-foreground">Deal value:</span> {lead.estimatedDealValue ?? "—"}</div>
                       <div><span className="text-muted-foreground">Protection expires:</span> {lead.protectionExpiresAt ? new Date(lead.protectionExpiresAt).toLocaleDateString() : "—"}</div>
@@ -899,9 +891,19 @@ export default function AdminPartnerLeadsPage() {
               <div><label className={labelCls}>Email *</label><input required type="email" className={inputCls} value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div><label className={labelCls}>Country *</label><input required className={inputCls} value={editForm.country} onChange={(e) => setEditForm((f) => ({ ...f, country: e.target.value }))} /></div>
-              <div><label className={labelCls}>State *</label><input required className={inputCls} value={editForm.state} onChange={(e) => setEditForm((f) => ({ ...f, state: e.target.value }))} /></div>
-              <div><label className={labelCls}>City *</label><input required className={inputCls} value={editForm.city} onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))} /></div>
+              <LocationFields
+                country={editForm.country}
+                state={editForm.state}
+                city={editForm.city}
+                required
+                inputClassName={inputCls}
+                onChange={(values) => setEditForm((f) => ({
+                  ...f,
+                  country: values.country ?? f.country,
+                  state: values.state ?? f.state,
+                  city: values.city ?? f.city,
+                }))}
+              />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setEditingLead(null)}>Cancel</Button>
@@ -962,6 +964,7 @@ export default function AdminPartnerLeadsPage() {
                 country={addForm.country}
                 state={addForm.state}
                 city={addForm.city}
+                required
                 onChange={(vals) => setAddForm((f) => ({ ...f, ...vals }))}
                 inputClassName={inputCls}
               />

@@ -5,9 +5,8 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, MapPin, Plus } from "lucide-react"
-import { DEPLOYMENT_STATUSES } from "@/lib/careers"
-import { STATES } from "@/lib/locations"
 import { enumLabel } from "@/lib/utils"
+import { LocationFields } from "@/components/location-fields"
 
 interface Deployment {
   id: string; name: string; project_client: string | null
@@ -83,12 +82,17 @@ export default function DeploymentsPage() {
               <option value="">Linked vacancy (optional)</option>
               {vacancies.map((v) => <option key={v.id} value={v.id}>{v.title}</option>)}
             </select>
-            <select className={inputCls} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}>
-              <option value="">State</option>
-              {STATES["Nigeria"].map((s) => <option key={s}>{s}</option>)}
-            </select>
+            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <LocationFields
+                country="Nigeria"
+                state={form.state}
+                city={form.city}
+                showCountry={false}
+                inputClassName={inputCls}
+                onChange={(values) => setForm((f) => ({ ...f, state: values.state ?? f.state, city: values.city ?? f.city }))}
+              />
+            </div>
             <input className={inputCls} placeholder="LGA" value={form.lga} onChange={(e) => setForm((f) => ({ ...f, lga: e.target.value }))} />
-            <input className={inputCls} placeholder="City / town" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
             <input className={inputCls} type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} />
             <input className={inputCls} type="date" value={form.end_date} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))} />
             <input className={inputCls} type="number" placeholder="Daily rate (₦)" value={form.daily_rate} onChange={(e) => setForm((f) => ({ ...f, daily_rate: e.target.value }))} />

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
+import { LocationFields } from "@/components/location-fields"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 
@@ -50,13 +51,19 @@ export function ProfileForm({
               <label className="block text-xs font-medium mb-1">WhatsApp</label>
               <input className={inputCls} value={form.whatsapp} onChange={set("whatsapp")} />
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">State</label>
-              <input className={inputCls} value={form.state} onChange={set("state")} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">City</label>
-              <input className={inputCls} value={form.city} onChange={set("city")} />
+            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <LocationFields
+                country="Nigeria"
+                state={form.state}
+                city={form.city}
+                showCountry={false}
+                inputClassName={inputCls}
+                onChange={(values) => setForm((current) => ({
+                  ...current,
+                  state: values.state ?? current.state,
+                  city: values.city ?? current.city,
+                }))}
+              />
             </div>
           </div>
           <div>

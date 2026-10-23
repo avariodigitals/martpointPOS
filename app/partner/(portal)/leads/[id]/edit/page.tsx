@@ -1,17 +1,18 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
-import { COUNTRIES, getStatesForCountry, getCitiesForState } from "@/lib/locations"
+import { LocationFields } from "@/components/location-fields"
 import { allIndustries, businessTypeOptions } from "@/lib/industries"
+import { PARTNER_PRODUCT_OPTIONS } from "@/lib/product-labels"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-sm font-medium mb-1"
 
 const INDUSTRY_OPTIONS = [...allIndustries.map((i) => i.name), "Other"]
 const BUSINESS_TYPE_OPTIONS = businessTypeOptions
-const PRODUCT_OPTIONS = ["MartPoint Retail", "MartPoint ERP", "Not Sure — Need Guidance"]
+const PRODUCT_OPTIONS = PARTNER_PRODUCT_OPTIONS
 
 interface Lead {
   id: string
@@ -51,12 +52,6 @@ export default function EditLeadPage() {
   const [country, setCountry] = useState("")
   const [state, setState] = useState("")
   const [city, setCity] = useState("")
-
-  const countries = useMemo(() => COUNTRIES.map((c) => c.name), [])
-  const states = useMemo(() => getStatesForCountry(country), [country])
-  const cities = useMemo(() => getCitiesForState(country, state), [country, state])
-  const stateIsSelect = states.length > 0
-  const cityIsSelect = cities.length > 0
 
   useEffect(() => {
     fetch(`/api/partner/leads/${id}`)
@@ -209,89 +204,20 @@ export default function EditLeadPage() {
           </div>
         </div>
 
-        {/* Country / State / City */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className={labelCls}>Country *</label>
-            <select
-              required
-              name="country"
-              className={inputCls}
-              value={country}
-              disabled={!editable}
-              onChange={(e) => {
-                setCountry(e.target.value)
-                setState("")
-                setCity("")
-              }}
-            >
-              <option value="">Select country</option>
-              {countries.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>State *</label>
-            {stateIsSelect ? (
-              <select
-                required
-                name="state"
-                className={inputCls}
-                value={state}
-                disabled={!editable}
-                onChange={(e) => {
-                  setState(e.target.value)
-                  setCity("")
-                }}
-              >
-                <option value="">Select state</option>
-                {state && !states.includes(state) && <option value={state}>{state}</option>}
-                {states.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                required
-                name="state"
-                className={inputCls}
-                value={state}
-                disabled={!editable}
-                onChange={(e) => setState(e.target.value)}
-                placeholder="Type state"
-              />
-            )}
-          </div>
-          <div>
-            <label className={labelCls}>City *</label>
-            {cityIsSelect ? (
-              <select
-                required
-                name="city"
-                className={inputCls}
-                value={city}
-                disabled={!editable}
-                onChange={(e) => setCity(e.target.value)}
-              >
-                <option value="">Select city</option>
-                {city && !cities.includes(city) && <option value={city}>{city}</option>}
-                {cities.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                required
-                name="city"
-                className={inputCls}
-                value={city}
-                disabled={!editable}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="Type city"
-              />
-            )}
-          </div>
+          <LocationFields
+            country={country}
+            state={state}
+            city={city}
+            required
+            disabled={!editable}
+            inputClassName={inputCls}
+            onChange={(values) => {
+              setCountry(values.country ?? country)
+              setState(values.state ?? state)
+              setCity(values.city ?? city)
+            }}
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -342,7 +268,7 @@ export default function EditLeadPage() {
             disabled={!commercialEditable}
           >
             <option value="" disabled>Select product</option>
-            {lead.interestedProduct && !PRODUCT_OPTIONS.includes(lead.interestedProduct) && (
+            {lead.interestedProduct && !PRODUCT_OPTIONS.some((option) => option === lead.interestedProduct) && (
               <option value={lead.interestedProduct}>{lead.interestedProduct}</option>
             )}
             {PRODUCT_OPTIONS.map((p) => (

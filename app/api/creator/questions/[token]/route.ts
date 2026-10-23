@@ -14,9 +14,16 @@ export async function GET(_: Request, { params }: { params: Promise<{ token: str
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
   const { token } = await params
   const { data: round, error } = await supabase.from("creator_application_question_rounds")
-    .select("title, fields, responses, status, application:application_id(full_name, reference_number)")
+    .select("id, title, fields, responses, status, view_count, first_viewed_at, application:application_id(full_name, reference_number)")
     .eq("token", token).maybeSingle()
   if (error || !round) return NextResponse.json({ error: "This question link is invalid or has expired." }, { status: 404 })
+  const now = new Date().toISOString()
+  await supabase.from("creator_application_question_rounds").update({
+    first_viewed_at: round.first_viewed_at || now,
+    last_viewed_at: now,
+    view_count: Number(round.view_count || 0) + 1,
+    updated_at: now,
+  }).eq("id", round.id as string)
   const applicant = round.application as unknown as { full_name: string; reference_number: string | null } | null
   return NextResponse.json({
     title: round.title,

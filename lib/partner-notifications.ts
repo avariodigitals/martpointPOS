@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { productLabel } from "./product-labels"
 import { sendEmail, REPLY_TO } from "./email"
 import { brandedEmailHtml, escapeHtml } from "./email-templates"
 
@@ -84,7 +85,7 @@ export async function notifyPartnerLeadReceived(
   if (!isSupabaseConfigured() || !partnerId) return
 
   const title = "New customer lead received"
-  const body = `${input.businessName} · ${input.contactName} submitted a ${input.productInterest} enquiry through your public MartPoint partner profile.`
+  const body = `${input.businessName} · ${input.contactName} submitted a ${productLabel(input.productInterest)} enquiry through your public MartPoint partner profile.`
   const link = input.link || `/partner/leads/${input.leadId}`
   const emailLink = link.startsWith("http")
     ? link

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
   Loader2, ArrowLeft, Sparkles, CalendarClock, CheckCircle2,
-  PauseCircle, XCircle, Ban, ExternalLink, StickyNote, Trash2,
+  PauseCircle, XCircle, Ban, ExternalLink, StickyNote, Trash2, RotateCcw,
 } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 import { CreatorQuestionRoundsPanel } from "@/components/admin/creator-question-rounds-panel"
@@ -203,9 +203,9 @@ export default function CreatorApplicationDetailPage() {
 
       {toast && <p className="rounded-md bg-muted px-4 py-2 text-sm">{toast}</p>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid w-full min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
         {/* Left: applicant info */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="min-w-0 space-y-6">
           <Card>
             <CardHeader><CardTitle className="text-sm">Applicant</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
@@ -301,7 +301,7 @@ export default function CreatorApplicationDetailPage() {
         </div>
 
         {/* Right column: AI review + actions + notes */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-retail" /> AI Assessment</CardTitle>
@@ -374,14 +374,38 @@ export default function CreatorApplicationDetailPage() {
           <Card>
             <CardHeader><CardTitle className="text-sm">Decision</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {application.createdCreatorId ? (
-                <p className="text-sm text-green-700 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> Approved — creator account created.
-                </p>
+              {application.createdCreatorId && application.status === "APPROVED" ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-green-700 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" /> Approved — creator account created.
+                  </p>
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                    If this approval was premature or incorrect, revoke it here. The creator account will be suspended, the application will return to Manual Review, and the full decision history will remain intact.
+                  </div>
+                  <textarea
+                    className={inputCls}
+                    rows={2}
+                    placeholder="Reason required to revoke approval"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                  <Button
+                    size="sm" variant="outline" className="w-full border-amber-300 text-amber-800 hover:bg-amber-50"
+                    disabled={!!busy || !reason.trim()}
+                    onClick={() => act("REOPEN_REVIEW", () => fetch(`/api/admin/creators/applications/${id}/status`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "REOPEN_REVIEW", reason: reason.trim() }),
+                    }), "Approval revoked — account suspended and application returned to Manual Review")}
+                  >
+                    {busy === "REOPEN_REVIEW" ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <RotateCcw className="w-3.5 h-3.5 mr-1" />}
+                    Revoke approval & return to review
+                  </Button>
+                </div>
               ) : confirmDelete ? (
                 <div className="rounded-md border border-red-200 bg-red-50 p-3 space-y-2 dark:border-red-900 dark:bg-red-950">
                   <p className="text-sm text-red-700 dark:text-red-300">
-                    Delete this application? It will be removed from the list and hidden from the applicant's status lookup. Staff can still see it in the audit log.
+                    Delete this application? It will be removed from the list and hidden from the applicant&apos;s status lookup. Staff can still see it in the audit log.
                   </p>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" className="bg-red-600 text-white hover:bg-red-700 border-red-600" disabled={!!busy} onClick={deleteApplication}>
@@ -421,13 +445,15 @@ export default function CreatorApplicationDetailPage() {
                       <Ban className="w-3.5 h-3.5 mr-1" /> Suspend
                     </Button>
                   </div>
-                  <Button
-                    size="sm" variant="ghost" className="w-full text-red-600 hover:text-red-700"
-                    disabled={!!busy}
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete application
-                  </Button>
+                  {!application.createdCreatorId && (
+                    <Button
+                      size="sm" variant="ghost" className="w-full text-red-600 hover:text-red-700"
+                      disabled={!!busy}
+                      onClick={() => setConfirmDelete(true)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete application
+                    </Button>
+                  )}
                 </>
               )}
 

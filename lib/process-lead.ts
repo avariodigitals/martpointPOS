@@ -11,6 +11,7 @@ import {
 import { resolveSubmissionToken } from "@/lib/creator-challenges"
 import { notifyAllAdmins } from "@/lib/admin-notifications"
 import { notifyPartnerLeadReceived } from "@/lib/partner-notifications"
+import { productLabel } from "@/lib/product-labels"
 
 export interface LeadInput {
   fullName: string
@@ -117,7 +118,7 @@ export async function createAttributedPartnerLead(input: AttributedLeadInput): P
       business_type: input.businessType,
       estimated_branches: wholeNumber(input.branches),
       estimated_users: wholeNumber(input.staffSize),
-      interested_product: input.productInterest,
+      interested_product: productLabel(input.productInterest),
       notes: [input.challenge, input.message].filter((value) => Boolean(value?.trim())).join("\n\n") || null,
       status: "REGISTERED",
       protection_status: "PENDING",

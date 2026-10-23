@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { isConversationIdentityMatch } from "@/lib/azera-identity"
+import { tokenFromRequest, verifyConversationToken } from "@/lib/azera-public-auth"
 
 async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession()
@@ -56,9 +58,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await requireSession()
-  if (!session) return err("Forbidden", 403)
-
   if (!isSupabaseConfigured()) return err("Supabase not configured", 500)
 
   try {
@@ -68,8 +67,8 @@ export async function POST(request: Request) {
       call_type = "webrtc",
       direction = "outbound",
       conversation_id,
-      agent_user_id = session.userId,
-      agent_name = session.name,
+      agent_user_id,
+      agent_name,
       customer_name,
       customer_phone,
       customer_external_id,
@@ -77,9 +76,32 @@ export async function POST(request: Request) {
       sip_from_number,
       sip_to_number,
       webrtc_room,
+      source = "retail_app",
+      conversation_token,
     } = body
 
     if (!business_id) return err("business_id is required")
+
+    const isPublicRequest = source === "public_site"
+    let session: SessionPayload | null = null
+    if (isPublicRequest) {
+      const claims = verifyConversationToken(tokenFromRequest(request, conversation_token))
+      if (!claims || claims.conversationId !== conversation_id || claims.businessId !== business_id || claims.externalId !== customer_external_id) {
+        return err("Conversation authorization required", 401)
+      }
+      const { data: conversation, error: conversationError } = await supabase
+        .from("azera_conversations")
+        .select("id, business_id, external_id")
+        .eq("id", conversation_id)
+        .eq("channel", "website")
+        .maybeSingle()
+      if (conversationError || !conversation || !isConversationIdentityMatch(claims, conversation)) {
+        return err("Conversation authorization required", 401)
+      }
+    } else {
+      session = await requireSession()
+      if (!session) return err("Forbidden", 403)
+    }
 
     const now = new Date().toISOString()
 
@@ -91,8 +113,8 @@ export async function POST(request: Request) {
         call_type,
         direction,
         status: direction === "outbound" ? "ringing" : "ringing",
-        agent_user_id,
-        agent_name,
+        agent_user_id: isPublicRequest ? null : agent_user_id || session?.userId || null,
+        agent_name: isPublicRequest ? "Website visitor" : agent_name || session?.name || null,
         customer_name,
         customer_phone,
         customer_external_id,
@@ -113,8 +135,8 @@ export async function POST(request: Request) {
     await supabase.from("azera_call_events").insert({
       call_id: data.id,
       event_type: "call_initiated",
-      actor_type: "agent",
-      actor_id: session.userId,
+      actor_type: isPublicRequest ? "customer" : "agent",
+      actor_id: isPublicRequest ? null : session?.userId || null,
       metadata: { call_type, direction },
       created_at: now,
     })

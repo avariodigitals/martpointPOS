@@ -820,7 +820,7 @@ export default function AdminSettingsPage() {
             </CardFooter>
           </Card>
 
-          <Card className={activeTab === "content" ? "hidden" : ""}>
+          <Card id="openai-configuration" className={activeTab === "content" ? "hidden" : ""}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-retail" />

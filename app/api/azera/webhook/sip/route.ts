@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { readAfricaRequest, storeAfricaWebhookEvent } from "@/lib/africastalking"
 
 function ok<T>(data: T) {
   return NextResponse.json({ success: true, data })
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json()
+    const { rawBody, payload: body } = await readAfricaRequest(request)
 
     // Detect provider by header or body shape
     const provider = detectProvider(request.headers, body)
@@ -48,22 +49,32 @@ export async function POST(request: Request) {
       body.call_sid ||
       body.call_id ||
       body.CallSid ||
+      body.sessionId ||
       body.callReference ||
       body.id
 
     const status = mapProviderEvent(
-      body.status || body.call_status || body.Status || body.event || "failed"
+      String(body.callSessionState || body.status || body.call_status || body.Status || body.event || "failed")
     )
 
-    const fromNumber = body.from || body.From || body.caller || body.from_number
-    const toNumber = body.to || body.To || body.called || body.to_number
+    const toNumber = body.to || body.To || body.called || body.destinationNumber || body.to_number
 
-    const duration = body.duration || body.Duration || body.duration_seconds || 0
+    const duration = body.duration || body.Duration || body.durationInSeconds || body.duration_seconds || 0
     const answeredAt = body.answered_at || body.AnsweredAt || null
     const endedAt = body.ended_at || body.EndedAt || null
 
     if (!callSid) {
       return err("Missing call reference", 400)
+    }
+
+    if (provider === "africas_talking") {
+      await storeAfricaWebhookEvent({
+        product: "voice",
+        endpoint: "legacy/azera/webhook/sip",
+        request,
+        rawBody,
+        payload: body,
+      })
     }
 
     // Find the call by sip_call_sid
@@ -108,7 +119,7 @@ export async function POST(request: Request) {
 
       await supabase.from("azera_call_events").insert({
         call_id: targetCall.id,
-        event_type: status,
+        event_type: status === "active" ? "answered" : status,
         actor_type: "sip_provider",
         metadata: { provider, raw: body },
         created_at: now,
@@ -136,7 +147,7 @@ export async function POST(request: Request) {
 
     await supabase.from("azera_call_events").insert({
       call_id: call.id,
-      event_type: status,
+      event_type: status === "active" ? "answered" : status,
       actor_type: "sip_provider",
       metadata: { provider, raw: body },
       created_at: now,
@@ -149,9 +160,9 @@ export async function POST(request: Request) {
   }
 }
 
-function detectProvider(headers: Headers, body: any): string {
+function detectProvider(headers: Headers, body: Record<string, unknown>): string {
   // Africa's Talking
-  if (body?.provider === "africas_talking" || headers.get("x-at-signature")) {
+  if (body?.provider === "africas_talking" || body?.sessionId || body?.callSessionState || headers.get("x-at-signature")) {
     return "africas_talking"
   }
   // Twilio

@@ -8,6 +8,7 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { createAdminNotification } from "./admin-notifications"
 import { sendEmail } from "./email"
+import { getPartnerSession } from "./partner-auth"
 
 export const REFERRAL_NOTIFICATION_EVENTS = [
   "APPLICATION_SUBMITTED",
@@ -89,6 +90,13 @@ export interface ReferralNotificationInput {
 export async function emitReferralNotification(input: ReferralNotificationInput): Promise<void> {
   if (!isSupabaseConfigured()) return
 
+  let actorPartnerUserId: string | null = null
+  try {
+    actorPartnerUserId = (await getPartnerSession())?.partnerUserId || null
+  } catch {
+    actorPartnerUserId = null
+  }
+
   // 1. Partner in-app feed
   if (input.partnerId) {
     try {
@@ -100,6 +108,7 @@ export async function emitReferralNotification(input: ReferralNotificationInput)
         link: input.link || null,
         source_type: input.sourceType || null,
         source_id: input.sourceId || null,
+        actor_partner_user_id: actorPartnerUserId,
       })
     } catch (err) {
       console.error("[referral-notifications] partner feed insert failed:", err)
@@ -146,12 +155,15 @@ export async function emitReferralNotification(input: ReferralNotificationInput)
 
 export async function listPartnerNotifications(partnerId: string, limit = 50) {
   if (!isSupabaseConfigured()) return []
-  const { data } = await supabase
+  let q = supabase
     .from("partner_notifications")
     .select("*")
     .eq("partner_id", partnerId)
     .order("created_at", { ascending: false })
     .limit(limit)
+  const actorPartnerUserId = await currentPartnerUserId()
+  if (actorPartnerUserId) q = q.or(`actor_partner_user_id.is.null,actor_partner_user_id.neq.${actorPartnerUserId}`)
+  const { data } = await q
   return (data as Record<string, unknown>[]) || []
 }
 
@@ -166,9 +178,20 @@ export async function markPartnerNotificationRead(id: string, partnerId: string)
 
 export async function markAllPartnerNotificationsRead(partnerId: string): Promise<void> {
   if (!isSupabaseConfigured()) return
-  await supabase
+  let q = supabase
     .from("partner_notifications")
     .update({ is_read: true, read_at: new Date().toISOString() })
     .eq("partner_id", partnerId)
     .eq("is_read", false)
+  const actorPartnerUserId = await currentPartnerUserId()
+  if (actorPartnerUserId) q = q.or(`actor_partner_user_id.is.null,actor_partner_user_id.neq.${actorPartnerUserId}`)
+  await q
+}
+
+async function currentPartnerUserId(): Promise<string | null> {
+  try {
+    return (await getPartnerSession())?.partnerUserId || null
+  } catch {
+    return null
+  }
 }

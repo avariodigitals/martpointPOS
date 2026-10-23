@@ -115,6 +115,7 @@ const navItems: NavItem[] = [
 
   // FINANCE
   { href: "/admin/finance", label: "Finance", icon: Landmark, page: "finance", section: "Finance" },
+  { href: "/admin/finance/reports", label: "Reports", icon: BarChart3, page: "finance", section: "Finance" },
   { href: "/admin/finance/accounts", label: "Accounts", icon: ArrowLeftRight, page: "finance", section: "Finance" },
   { href: "/admin/finance/chart-of-accounts", label: "Chart of Accounts", icon: Scale, page: "finance", section: "Finance" },
   { href: "/admin/finance/invoices", label: "Invoices", icon: Receipt, page: "finance", section: "Finance" },
@@ -250,6 +251,7 @@ export function AdminSidebarNav({
         isItemActive={isItemActive}
         onLogout={handleLogout}
         logoutLabel="Logout"
+        profileHref="/admin/profile"
       />
 
       <PortalSidebar
@@ -261,6 +263,7 @@ export function AdminSidebarNav({
         logoutLabel="Logout"
         storageKey="admin-nav"
         isItemActive={isItemActive}
+        showFooterUser={false}
       />
     </>
   )

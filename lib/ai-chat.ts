@@ -24,69 +24,105 @@ export interface AiChatOptions {
 export interface AiChatResult {
   content: string
   model: string
-  provider: "openai" | "fallback"
+  provider: string
 }
 
-interface FallbackConfig {
+interface ProviderConfig {
+  name: string
   apiKey?: string
-  baseUrl: string
+  baseUrl?: string
   model: string
 }
 
+function usableApiKey(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const key = value.trim()
+  if (!key || /your[-_ ]|example|placeholder|replace[-_ ]?me/i.test(key)) return undefined
+  return key
+}
+
 const OPENAI_BASE_MODEL = "gpt-4o-mini"
-// Defaults keep the original Grok fallback working when only a key is set.
 const FALLBACK_BASE_URL = "https://api.x.ai/v1"
 const FALLBACK_MODEL = "grok-4-fast-latest"
 
-async function getOpenAiKey(): Promise<string | undefined> {
+async function getStoredAiSettings(): Promise<{ openai?: Record<string, string>; xai?: Record<string, string> }> {
   try {
     const settings = await readSettings()
-    const openai = settings?.openai as Record<string, string> | undefined
-    if (openai?.apiKey) return openai.apiKey
+    return {
+      openai: settings?.openai as Record<string, string> | undefined,
+      xai: settings?.xai as Record<string, string> | undefined,
+    }
   } catch {
     // ignore
   }
-  return process.env.OPENAI_API_KEY
+  return {}
 }
 
-async function getFallbackConfig(): Promise<FallbackConfig> {
-  let apiKey: string | undefined
-  let baseUrl = ""
-  let model = ""
-  try {
-    const settings = await readSettings()
-    const xai = settings?.xai as Record<string, string> | undefined
-    apiKey = xai?.apiKey
-    baseUrl = (xai?.baseUrl || "").trim()
-    model = (xai?.model || "").trim()
-  } catch {
-    // ignore
-  }
-  return {
-    apiKey: apiKey || process.env.XAI_API_KEY,
-    baseUrl: baseUrl || FALLBACK_BASE_URL,
-    model: model || FALLBACK_MODEL,
-  }
+function envProvider(keyName: string, name: string, baseUrl: string | undefined, model: string): ProviderConfig | null {
+  const apiKey = usableApiKey(process.env[keyName])
+  return apiKey ? { name, apiKey, baseUrl, model } : null
 }
 
 export function hasAnyAiKey(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY || process.env.XAI_API_KEY)
+  return Boolean(
+    usableApiKey(process.env.OPENAI_API_KEY) ||
+    usableApiKey(process.env.XAI_API_KEY) ||
+    usableApiKey(process.env.GROQ_API_KEY) ||
+    usableApiKey(process.env.OPENROUTER_API_KEY) ||
+    usableApiKey(process.env.MISTRAL_API_KEY) ||
+    usableApiKey(process.env.GEMINI_API_KEY) ||
+    usableApiKey(process.env.AI_API_KEY),
+  )
+}
+
+async function getProviderCandidates(): Promise<ProviderConfig[]> {
+  const stored = await getStoredAiSettings()
+  const openaiKey = usableApiKey(stored.openai?.apiKey) || usableApiKey(process.env.OPENAI_API_KEY)
+  const xaiKey = usableApiKey(stored.xai?.apiKey) || usableApiKey(process.env.XAI_API_KEY)
+  const xaiBaseUrl = (stored.xai?.baseUrl || "").trim() || FALLBACK_BASE_URL
+  const xaiModel = (stored.xai?.model || "").trim() || FALLBACK_MODEL
+
+  const candidates = [
+    openaiKey ? {
+      name: "OpenAI",
+      apiKey: openaiKey,
+      baseUrl: (process.env.OPENAI_BASE_URL || "").trim() || undefined,
+      model: (process.env.OPENAI_MODEL || "").trim() || OPENAI_BASE_MODEL,
+    } : null,
+    xaiKey ? { name: "XAI / fallback", apiKey: xaiKey, baseUrl: xaiBaseUrl, model: xaiModel } : null,
+    envProvider("GROQ_API_KEY", "Groq", (process.env.GROQ_BASE_URL || "").trim() || "https://api.groq.com/openai/v1", (process.env.GROQ_MODEL || "").trim() || "llama-3.3-70b-versatile"),
+    envProvider("OPENROUTER_API_KEY", "OpenRouter", (process.env.OPENROUTER_BASE_URL || "").trim() || "https://openrouter.ai/api/v1", (process.env.OPENROUTER_MODEL || "").trim() || "openai/gpt-4o-mini"),
+    envProvider("MISTRAL_API_KEY", "Mistral", (process.env.MISTRAL_BASE_URL || "").trim() || "https://api.mistral.ai/v1", (process.env.MISTRAL_MODEL || "").trim() || "mistral-small-latest"),
+    envProvider("GEMINI_API_KEY", "Gemini", (process.env.GEMINI_BASE_URL || "").trim() || "https://generativelanguage.googleapis.com/v1beta/openai", (process.env.GEMINI_MODEL || "").trim() || "gemini-2.0-flash"),
+    envProvider("AI_API_KEY", "Configured AI provider", (process.env.AI_BASE_URL || "").trim() || undefined, (process.env.AI_MODEL || "").trim() || OPENAI_BASE_MODEL),
+  ]
+
+  return candidates.filter((candidate): candidate is ProviderConfig => Boolean(candidate))
+}
+
+/** Safe, non-secret provider status for admin diagnostics. */
+export async function getAiProviderStatus(): Promise<{
+  openaiConfigured: boolean
+  fallbackConfigured: boolean
+  configured: boolean
+}> {
+  const providers = await getProviderCandidates()
+  return {
+    openaiConfigured: providers.some((provider) => provider.name === "OpenAI"),
+    fallbackConfigured: providers.some((provider) => provider.name !== "OpenAI"),
+    configured: providers.length > 0,
+  }
 }
 
 async function complete(
-  provider: "openai" | "fallback",
+  provider: ProviderConfig,
   opts: AiChatOptions
 ): Promise<AiChatResult> {
   const OpenAI = (await import("openai")).default
-  const isFallback = provider === "fallback"
-  const cfg = isFallback ? await getFallbackConfig() : null
-  const apiKey = isFallback ? cfg!.apiKey : await getOpenAiKey()
-  if (!apiKey) throw new Error(isFallback ? "Fallback AI key not configured" : "OpenAI API key not configured")
+  if (!provider.apiKey) throw new Error(`${provider.name} API key not configured`)
 
-  // The fallback always runs on its own configured model — an OpenAI model
-  // name from the caller would not exist on Grok/Groq/MiMo endpoints.
-  const client = isFallback ? new OpenAI({ apiKey, baseURL: cfg!.baseUrl }) : new OpenAI({ apiKey })
-  const model = isFallback ? cfg!.model : opts.model ?? OPENAI_BASE_MODEL
+  const client = new OpenAI({ apiKey: provider.apiKey, ...(provider.baseUrl ? { baseURL: provider.baseUrl } : {}) })
+  const model = provider.model || opts.model || OPENAI_BASE_MODEL
   const completion = await client.chat.completions.create({
     model,
     messages: opts.messages,
@@ -97,28 +133,22 @@ async function complete(
   return {
     content: completion.choices[0]?.message?.content?.trim() || "",
     model: completion.model || model,
-    provider,
+    provider: provider.name,
   }
 }
 
 export async function aiChat(opts: AiChatOptions): Promise<AiChatResult> {
-  try {
-    return await complete("openai", opts)
-  } catch (err) {
-    const openAiMessage = err instanceof Error ? err.message : "OpenAI request failed"
-    const fallback = await getFallbackConfig()
-    if (!fallback.apiKey) {
-      // No fallback to lean on — but a missing key shouldn't masquerade as a request failure.
-      if (openAiMessage.includes("not configured") && !hasAnyAiKey()) {
-        throw new Error("No AI provider key configured (OpenAI or fallback)")
-      }
-      throw new Error(openAiMessage)
-    }
+  const providers = await getProviderCandidates()
+  if (!providers.length) throw new Error("No AI provider key configured")
+
+  const failures: string[] = []
+  for (const provider of providers) {
     try {
-      return await complete("fallback", opts)
-    } catch (fbErr) {
-      const fbMessage = fbErr instanceof Error ? fbErr.message : "Fallback AI request failed"
-      throw new Error(`OpenAI failed (${openAiMessage}); fallback AI failed (${fbMessage})`)
+      return await complete(provider, opts)
+    } catch (error) {
+      failures.push(`${provider.name}: ${error instanceof Error ? error.message : "request failed"}`)
     }
   }
+
+  throw new Error(failures.join("; "))
 }

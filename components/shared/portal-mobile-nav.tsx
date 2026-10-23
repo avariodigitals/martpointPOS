@@ -75,11 +75,11 @@ export function PortalMobileNav({
   return (
     <>
       {/* Top bar — the avatar is the only sign-out control on mobile. */}
-      <header className="md:hidden sticky top-0 z-50 border-b border-white/10 bg-[#0A0F1C] text-white">
+      <header className="md:hidden sticky top-0 z-50 border-b border-slate-200 bg-white text-slate-950">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">
             <h1 className="text-base font-bold leading-tight">{title}</h1>
-            {subtitle && <p className="truncate text-[11px] text-gray-400">{subtitle}</p>}
+            {subtitle && <p className="truncate text-[11px] text-slate-500">{subtitle}</p>}
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -89,7 +89,7 @@ export function PortalMobileNav({
                 href={profileHref}
                 aria-label="Open profile"
                 title="Open profile"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-retail text-sm font-semibold text-white transition-opacity hover:opacity-80"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-retail-soft text-sm font-semibold text-retail ring-1 ring-inset ring-retail/15 transition-opacity hover:opacity-80"
               >
                 {getInitials(userName)}
               </Link>
@@ -99,7 +99,7 @@ export function PortalMobileNav({
                 onClick={onLogout}
                 aria-label={logoutLabel}
                 title={logoutLabel}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-retail text-sm font-semibold text-white transition-opacity hover:opacity-80"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-retail-soft text-sm font-semibold text-retail ring-1 ring-inset ring-retail/15 transition-opacity hover:opacity-80"
               >
                 {getInitials(userName)}
               </button>
@@ -109,7 +109,7 @@ export function PortalMobileNav({
       </header>
 
       {/* Fixed bottom quick menu */}
-      <footer className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0A0F1C] text-white pb-[env(safe-area-inset-bottom)]">
+      <footer className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white text-slate-700 pb-[env(safe-area-inset-bottom)]">
         <nav aria-label="Quick navigation" className="flex items-stretch">
           {quickItems.map((item) => {
             const Icon = item.icon
@@ -120,7 +120,7 @@ export function PortalMobileNav({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-2 text-[10px] font-medium transition-colors ${
-                  active ? "text-white" : "text-gray-400 hover:text-white"
+                  active ? "text-retail" : "text-slate-400 hover:text-slate-700"
                 }`}
               >
                 <Icon className="h-5 w-5" />
@@ -132,7 +132,7 @@ export function PortalMobileNav({
             type="button"
             onClick={() => setMoreOpen(true)}
             aria-label="Open full menu"
-            className="flex flex-1 flex-col items-center gap-1 px-1 py-2 text-[10px] font-medium text-gray-400 transition-colors hover:text-white"
+            className="flex flex-1 flex-col items-center gap-1 px-1 py-2 text-[10px] font-medium text-slate-400 transition-colors hover:text-slate-700"
           >
             <Menu className="h-5 w-5" />
             <span>More</span>
@@ -144,18 +144,18 @@ export function PortalMobileNav({
       {moreOpen && (
         <div className="md:hidden fixed inset-0 z-[60]">
           <div
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-slate-950/35"
             onClick={() => setMoreOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-x-0 bottom-0 flex max-h-[80vh] flex-col rounded-t-2xl bg-[#0A0F1C] text-white pb-[env(safe-area-inset-bottom)]">
-            <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-4">
+          <div className="absolute inset-x-0 bottom-0 flex max-h-[80vh] flex-col rounded-t-2xl bg-white text-slate-950 pb-[env(safe-area-inset-bottom)] shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4">
               <h2 className="text-sm font-semibold">Menu</h2>
               <button
                 type="button"
                 onClick={() => setMoreOpen(false)}
                 aria-label="Close menu"
-                className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -165,7 +165,7 @@ export function PortalMobileNav({
               {sections.map((section, sectionIndex) => (
                 <div key={section.label ?? sectionIndex} className="mb-3 last:mb-0">
                   {section.label && (
-                    <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                    <p className="px-3 pb-1 pt-2 text-[10px] font-semibold normal-case tracking-wide text-slate-600">
                       {section.label}
                     </p>
                   )}
@@ -180,8 +180,8 @@ export function PortalMobileNav({
                           onClick={() => setMoreOpen(false)}
                           className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
                             active
-                              ? "bg-retail text-white"
-                              : "text-gray-300 hover:bg-white/10 hover:text-white"
+                              ? "bg-retail-soft text-retail"
+                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                           }`}
                         >
                           <Icon className="h-4 w-4 shrink-0" />
@@ -195,7 +195,7 @@ export function PortalMobileNav({
               <button
                 type="button"
                 onClick={() => void onLogout()}
-                className="mt-4 flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2.5 text-left text-xs font-medium text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+                className="mt-4 flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 text-left text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950"
               >
                 <LogOut className="h-4 w-4" />
                 {logoutLabel}

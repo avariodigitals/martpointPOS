@@ -5,7 +5,7 @@ import { PermissionGuard } from "@/components/admin/permission-guard"
 import { AdminSessionTimeoutWatcher } from "@/components/admin/admin-session-timeout-watcher"
 import { AdminToastProvider } from "@/components/admin/admin-toast"
 import { AdminFetchInterceptor } from "@/components/admin/admin-fetch-interceptor"
-import { AdminNotificationBell } from "@/components/admin/admin-notification-bell"
+import { AdminTopbar } from "@/components/admin/admin-topbar"
 
 export default async function AdminProtectedLayout({
   children,
@@ -20,20 +20,19 @@ export default async function AdminProtectedLayout({
 
   return (
     <AdminToastProvider>
-      <div className="min-h-screen flex flex-col md:flex-row bg-background">
+      <div className="min-h-screen flex flex-col md:flex-row bg-[#f4f6fb]">
         <AdminSessionTimeoutWatcher />
         <AdminFetchInterceptor />
         <AdminSidebarNav userName={session.name || session.username} userRole={session.role} />
 
-        {/* Main Content */}
-        <main className="min-w-0 flex-1 overflow-auto p-6 pb-24 md:p-8">
-          <div className="mb-6 flex justify-end">
-            <AdminNotificationBell />
-          </div>
-          <PermissionGuard role={session.role}>
-            {children}
-          </PermissionGuard>
-        </main>
+        <div className="min-w-0 flex-1">
+          <AdminTopbar userName={session.name || session.username} userRole={session.role} />
+          <main className="min-w-0 overflow-auto px-4 pb-24 pt-5 sm:px-6 md:px-8 md:py-7">
+            <PermissionGuard role={session.role}>
+              {children}
+            </PermissionGuard>
+          </main>
+        </div>
       </div>
     </AdminToastProvider>
   )

@@ -1,8 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Send, MessageCircle, X, Loader2, Phone, Smile } from "lucide-react"
-import { useWebRTCCall, AzeraCallUI } from "@/components/shared/azera-webrtc-call"
+import dynamic from "next/dynamic"
+import { Send, MessageCircle, X, Loader2, Phone, Minus } from "lucide-react"
+
+const AzeraCallController = dynamic(
+  () => import("@/components/shared/azera-call-controller").then((module) => module.AzeraCallController),
+  { ssr: false },
+)
 
 interface AzeraChatWidgetProps {
   /** The business's public ID (from businesses table) */
@@ -120,6 +125,7 @@ export function AzeraChatWidget({
   const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({})
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
+  const [slowReply, setSlowReply] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [conversation, setConversation] = useState<Conversation | null>(null)
   const [chatTimerStartedAt, setChatTimerStartedAt] = useState<number | null>(null)
@@ -172,14 +178,6 @@ export function AzeraChatWidget({
   // Call state
   const [activeCall, setActiveCall] = useState<{ id: string; type: "webrtc" } | null>(null)
   const [callError, setCallError] = useState<string | null>(null)
-
-  // WebRTC hook for customer side
-  const webrtc = useWebRTCCall({
-    callId: activeCall?.id || "",
-    enabled: activeCall?.type === "webrtc",
-    isAgent: false,
-    onCallEnded: () => setActiveCall(null),
-  })
 
   const externalId =
     externalIdProp ||
@@ -303,6 +301,7 @@ export function AzeraChatWidget({
     setInput("")
     setSendError(null)
     setLoading(true)
+    const slowReplyTimer = window.setTimeout(() => setSlowReply(true), 4500)
 
     // Optimistically add customer message
     const tempId = "temp_" + Date.now()
@@ -383,6 +382,8 @@ export function AzeraChatWidget({
       return
     } finally {
       setLoading(false)
+      window.clearTimeout(slowReplyTimer)
+      setSlowReply(false)
       scrollToBottom()
     }
 
@@ -398,12 +399,17 @@ export function AzeraChatWidget({
     try {
       const res = await fetch("/api/azera/calls", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(conversationTokenRef.current ? { "X-Azera-Chat-Token": conversationTokenRef.current } : {}),
+        },
         body: JSON.stringify({
-          business_id: businessId,
+          business_id: conversation.business_id || businessId,
           conversation_id: conversation.id,
           call_type: "webrtc",
           direction: "inbound",
+          source,
+          conversation_token: conversationTokenRef.current,
           customer_name: customerName || undefined,
           customer_external_id: externalId,
           webrtc_room: `azera-web-${conversation.id}`,
@@ -413,10 +419,12 @@ export function AzeraChatWidget({
       if (json.success && json.data) {
         setActiveCall({ id: json.data.id, type: "webrtc" })
       } else {
-        setCallError(json.error || "Failed to request call")
+        setCallError(res.status === 401 || res.status === 403
+          ? "We couldn't securely connect the call. Please refresh the page and try again."
+          : json.error || "We couldn't start the call right now. Please try again shortly.")
       }
-    } catch (e) {
-      setCallError(String(e))
+    } catch {
+      setCallError("We couldn't start the call right now. Please try again shortly.")
     }
   }
 
@@ -546,21 +554,17 @@ export function AzeraChatWidget({
             color: brandColor,
           }}
           className={cn(
-            "pointer-events-auto group fixed bottom-8 flex h-24 w-24 items-center justify-center rounded-full bg-transparent shadow-none transition-all duration-300 hover:-translate-y-1 hover:scale-105 active:scale-95 sm:bottom-9",
-            position === "bottom-right" ? "right-8 sm:right-10" : "left-8 sm:left-10",
+            "pointer-events-auto group fixed bottom-5 flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-[0_12px_32px_rgba(15,23,42,0.22)] ring-1 ring-slate-200 transition-all duration-300 hover:-translate-y-1 hover:scale-105 active:scale-95 sm:bottom-6 sm:h-[4.25rem] sm:w-[4.25rem]",
+            position === "bottom-right" ? "right-4 sm:right-6" : "left-4 sm:left-6",
           )}
           aria-label="Open Azera chat"
           aria-expanded={false}
         >
-          {/* Professional Pulse Effect */}
-          <span className="absolute inset-4 rounded-full border-2 border-current opacity-50 animate-ping" aria-hidden="true" />
-
-          <span className="relative flex h-24 w-24 items-center justify-center drop-shadow-[0_12px_20px_rgba(15,23,42,0.3)]">
-            <span className="animate-[pulse_3s_ease-in-out_infinite]">
-              <MartPointBubbleIcon className="h-20 w-20 transition-transform group-hover:rotate-6" />
-            </span>
-            <Smile className="absolute right-2 top-14 h-6 w-6 rounded-full bg-white/90 p-0.5 text-amber-500 shadow-sm" aria-hidden="true" />
+          <span className="absolute inset-0 rounded-full border-2 border-current opacity-20 transition-opacity group-hover:opacity-40" aria-hidden="true" />
+          <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm sm:h-12 sm:w-12" style={{ backgroundColor: brandColor, color: brandTextColor }}>
+            <MartPointBubbleIcon className="h-7 w-7 transition-transform group-hover:rotate-6" />
           </span>
+          <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" aria-label="Online" />
         </button>
       )}
 
@@ -568,9 +572,9 @@ export function AzeraChatWidget({
       {open && (
         <div
           className={cn(
-            "pointer-events-auto fixed z-50 flex h-[min(680px,calc(100dvh-9rem))] w-[min(420px,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_65px_rgba(15,23,42,0.24)]",
-            "bottom-28 sm:bottom-32",
-            position === "bottom-right" ? "right-4 sm:right-8" : "left-4 sm:left-8",
+            "pointer-events-auto fixed z-50 flex h-[min(680px,calc(100dvh-1.5rem))] w-[min(420px,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_65px_rgba(15,23,42,0.24)]",
+            "bottom-3 sm:bottom-6",
+            position === "bottom-right" ? "right-2 sm:right-6" : "left-2 sm:left-6",
           )}
           role="dialog"
           aria-label={title}
@@ -584,15 +588,20 @@ export function AzeraChatWidget({
               <div className="truncate text-sm font-bold tracking-tight">{title}</div>
               <div className="mt-0.5 flex items-center gap-1.5 text-xs opacity-90">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
-                Live Sales &amp; Support
+                Online support
                 <span className="ml-2 rounded-md bg-black/10 px-1.5 py-0.5 font-mono text-[11px] tabular-nums" aria-label={`Chat open for ${formattedChatTimer}`}>
                   {formattedChatTimer}
                 </span>
               </div>
             </div>
-            <button onClick={closeOrRateChat} aria-label="Close chat" className="rounded-lg p-2 opacity-75 transition hover:bg-white/15 hover:opacity-100">
+            <div className="flex items-center gap-1">
+              <button onClick={() => setOpen(false)} aria-label="Minimize chat" title="Minimize chat" className="rounded-lg p-2 opacity-75 transition hover:bg-white/15 hover:opacity-100">
+                <Minus className="h-4 w-4" />
+              </button>
+              <button onClick={closeOrRateChat} aria-label="Close chat" title="Close chat" className="rounded-lg p-2 opacity-75 transition hover:bg-white/15 hover:opacity-100">
               <X className="h-4 w-4" />
-            </button>
+              </button>
+            </div>
           </div>
 
           {showEndConfirmation && (
@@ -692,7 +701,7 @@ export function AzeraChatWidget({
           )}
 
           {/* Messages */}
-          <div ref={scrollRef} className={cn("min-h-0 flex-1 space-y-3 overflow-y-auto scroll-py-2 bg-slate-100 p-4 sm:p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", (needsVisitorProfile || showRating || showEndConfirmation) && "hidden")}>
+          <div ref={scrollRef} aria-live="polite" className={cn("min-h-0 flex-1 space-y-3 overflow-y-auto scroll-py-2 bg-slate-50 p-4 sm:p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", (needsVisitorProfile || showRating || showEndConfirmation) && "hidden")}>
             {!needsVisitorProfile && conversation?.status === "closed" && conversation.last_message_at && (
               <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <p className="text-sm font-bold text-slate-900">Welcome back</p>
@@ -708,6 +717,21 @@ export function AzeraChatWidget({
                 </div>
                 <p className="text-base font-semibold text-slate-800">Start a conversation</p>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">Ask about MartPoint, setup, pricing, or support.</p>
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  {["Request a demo", "How does MartPoint work?", "I need support"].map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => {
+                        setInput(prompt)
+                        inputRef.current?.focus()
+                      }}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             {!needsVisitorProfile && messages.map((m) => {
@@ -778,7 +802,7 @@ export function AzeraChatWidget({
             )}
             {!needsVisitorProfile && loading && (
               <div className="mr-auto flex w-fit max-w-[94%] items-center gap-2 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3.5 py-2.5 text-sm leading-5 text-slate-700 shadow-sm">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Typing…
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> {slowReply ? "Azera is taking a little longer…" : "Azera is thinking…"}
               </div>
             )}
             {sendError && !needsVisitorProfile && (
@@ -826,23 +850,19 @@ export function AzeraChatWidget({
             </button>
           </form>
           {callError && <p className="border-t border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{callError}</p>}
-          <div className="border-t border-slate-100 bg-white px-3 py-2 text-center text-xs text-slate-500">
-            Powered by <a href="https://www.avariodigitals.com" target="_blank" rel="noreferrer" className="font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-blue-600">Avario</a>
+          <div className="border-t border-slate-100 bg-white px-3 py-2 text-center text-[11px] text-slate-400">
+            Secured by <a href="https://www.avariodigitals.com" target="_blank" rel="noreferrer" className="font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-blue-600">Avario</a>
           </div>
         </div>
       )}
 
       {/* Call UI */}
       {activeCall && (
-        <AzeraCallUI
-          state={webrtc.state}
-          isAgent={false}
-          customerName={customerName || "You"}
-          onAccept={webrtc.answerCall}
-          onReject={() => setActiveCall(null)}
-          onEnd={() => setActiveCall(null)}
-          onToggleMute={webrtc.toggleMute}
-          isMuted={webrtc.isMuted}
+        <AzeraCallController
+          callId={activeCall.id}
+          customerName={customerName || visitorProfile?.name || "You"}
+          authToken={conversationToken}
+          onEnded={() => setActiveCall(null)}
         />
       )}
     </div>

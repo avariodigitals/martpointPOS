@@ -4,6 +4,8 @@ import { getSession as getAdminSession } from "@/lib/admin-auth"
 import { hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { isConversationIdentityMatch } from "@/lib/azera-identity"
+import { tokenFromRequest, verifyConversationToken } from "@/lib/azera-public-auth"
 
 function ok<T>(data: T) {
   return NextResponse.json({ success: true, data })
@@ -22,7 +24,7 @@ function err(message: string, status = 400) {
  * Auth: either an admin agent (session) OR a customer support session.
  */
 
-async function getActor(request: Request) {
+async function getActor(request: Request, callId: string) {
   // Try admin session first
   const admin = await getAdminSession()
   if (admin && hasPermission(admin.role as UserRole, "azera")) {
@@ -35,6 +37,27 @@ async function getActor(request: Request) {
     return { type: "customer" as const, id: customer.businessId, name: customer.contactName }
   }
 
+  // Public website visitors are authorized by the conversation token issued
+  // by the chat API. They do not have a users row, so actor_id stays null.
+  const claims = verifyConversationToken(tokenFromRequest(request))
+  if (claims && isSupabaseConfigured()) {
+    const { data: call } = await supabase
+      .from("azera_calls")
+      .select("id, business_id, conversation_id")
+      .eq("id", callId)
+      .maybeSingle()
+    if (call?.conversation_id) {
+      const { data: conversation } = await supabase
+        .from("azera_conversations")
+        .select("id, business_id, external_id")
+        .eq("id", call.conversation_id)
+        .maybeSingle()
+      if (conversation && isConversationIdentityMatch(claims, conversation)) {
+        return { type: "customer" as const, id: null, name: "Website visitor" }
+      }
+    }
+  }
+
   return null
 }
 
@@ -42,10 +65,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const actor = await getActor(request)
-  if (!actor) return err("Unauthorized", 401)
-
   const { id } = await params
+  const actor = await getActor(request, id)
+  if (!actor) return err("Unauthorized", 401)
 
   if (!isSupabaseConfigured()) return err("Supabase not configured", 500)
 
@@ -59,7 +81,7 @@ export async function POST(
       candidate_sdp_mline_index,
     } = body
 
-    if (!sdp_type || !sdp) return err("sdp_type and sdp are required")
+    if (!sdp_type || (sdp_type !== "ice" && !sdp)) return err("sdp_type and sdp are required")
 
     // Verify call exists and actor is part of it
     const { data: call, error: callError } = await supabase
@@ -106,10 +128,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const actor = await getActor(request)
-  if (!actor) return err("Unauthorized", 401)
-
   const { id } = await params
+  const actor = await getActor(request, id)
+  if (!actor) return err("Unauthorized", 401)
 
   if (!isSupabaseConfigured()) return ok([])
 

@@ -194,9 +194,6 @@ export default function FinanceDashboardPage() {
           <Button variant="outline" size="sm" asChild>
             <Link href="/admin/finance/commercial">Commercial Finance</Link>
           </Button>
-          <Button size="sm" asChild>
-            <Link href="/admin/finance/reports">View Reports</Link>
-          </Button>
         </div>
       </div>
 

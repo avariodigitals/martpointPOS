@@ -1,12 +1,18 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import { Phone, PhoneOff, Mic, MicOff, Loader2, User, FileAudio } from "lucide-react"
+import { Phone, PhoneOff, Mic, MicOff, FileAudio } from "lucide-react"
+
+const STUN_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+]
 
 interface UseWebRTCCallProps {
   callId: string
   enabled?: boolean
   isAgent: boolean
+  authToken?: string | null
   localStream?: MediaStream
   remoteAudioEl?: HTMLAudioElement
   onCallEnded?: () => void
@@ -19,8 +25,16 @@ interface SignalingMessage {
   id: string
   event_type: string
   actor_type: string
-  metadata: any
+  metadata: SignalingMetadata
   created_at: string
+}
+
+interface SignalingMetadata {
+  sdp_type?: string
+  sdp?: string
+  candidate?: string
+  sdp_mid?: string | null
+  sdp_mline_index?: number | null
 }
 
 /**
@@ -38,10 +52,10 @@ export function useWebRTCCall({
   callId,
   enabled = true,
   isAgent,
+  authToken,
   localStream,
   remoteAudioEl,
   onCallEnded,
-  onCallError,
   onStartRecording,
   onStopRecording,
 }: UseWebRTCCallProps) {
@@ -53,10 +67,22 @@ export function useWebRTCCall({
   const [isMuted, setIsMuted] = useState(false)
   const iceCandidatesRef = useRef<RTCIceCandidate[]>([])
 
-  const STUN_SERVERS = [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ]
+  const sendSignaling = useCallback(
+    async (msg: { event_type: string; metadata: SignalingMetadata }) => {
+      try {
+        const headers: HeadersInit = { "Content-Type": "application/json" }
+        if (authToken) headers["X-Azera-Chat-Token"] = authToken
+        await fetch(`/api/azera/calls/${encodeURIComponent(callId)}/signaling`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(msg.metadata),
+        })
+      } catch (e) {
+        console.error("[WebRTC] signaling send failed", e)
+      }
+    },
+    [authToken, callId]
+  )
 
   const createPeerConnection = useCallback(() => {
     const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS })
@@ -77,6 +103,7 @@ export function useWebRTCCall({
       sendSignaling({
         event_type: "webrtc_ice_candidate",
         metadata: {
+          sdp_type: "ice",
           candidate: event.candidate.candidate,
           sdp_mid: event.candidate.sdpMid,
           sdp_mline_index: event.candidate.sdpMLineIndex,
@@ -95,32 +122,19 @@ export function useWebRTCCall({
 
     pcRef.current = pc
     return pc
-  }, [remoteAudioEl])
-
-  const sendSignaling = useCallback(
-    async (msg: { event_type: string; metadata: any }) => {
-      try {
-        await fetch(`/api/azera/calls/${encodeURIComponent(callId)}/signaling`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(msg.metadata),
-        })
-      } catch (e) {
-        console.error("[WebRTC] signaling send failed", e)
-      }
-    },
-    [callId]
-  )
+  }, [remoteAudioEl, sendSignaling])
 
   const fetchSignaling = useCallback(async () => {
     try {
-      const res = await fetch(`/api/azera/calls/${encodeURIComponent(callId)}/signaling`)
+      const res = await fetch(`/api/azera/calls/${encodeURIComponent(callId)}/signaling`, {
+        headers: authToken ? { "X-Azera-Chat-Token": authToken } : undefined,
+      })
       const json = await res.json()
       return (json.data || []) as SignalingMessage[]
     } catch {
       return []
     }
-  }, [callId])
+  }, [authToken, callId])
 
   const startCall = useCallback(async () => {
     if (!localStreamRef.current) {
@@ -206,10 +220,9 @@ export function useWebRTCCall({
     localStreamRef.current?.getTracks().forEach((t) => t.stop())
     localStreamRef.current = null
     remoteStreamRef.current = null
-    if (remoteAudioEl) remoteAudioEl.srcObject = null
     setState("ended")
     onCallEnded?.()
-  }, [remoteAudioEl, onCallEnded])
+  }, [onCallEnded])
 
   const toggleMute = useCallback(() => {
     localStreamRef.current?.getAudioTracks().forEach((t) => {
@@ -297,6 +310,7 @@ export function useWebRTCCall({
 export function AzeraCallUI({
   state,
   isAgent = false,
+  outgoing = false,
   customerName = "Customer",
   onAccept,
   onReject,
@@ -309,6 +323,7 @@ export function AzeraCallUI({
 }: {
   state: "idle" | "connecting" | "ringing" | "active" | "ended" | "error"
   isAgent?: boolean
+  outgoing?: boolean
   customerName?: string
   onAccept?: () => void
   onReject?: () => void
@@ -320,6 +335,7 @@ export function AzeraCallUI({
   isRecording?: boolean
 }) {
   const isRinging = state === "ringing"
+  const isConnecting = state === "connecting"
   const isActive = state === "active"
   const isEnded = state === "ended"
   const isError = state === "error"
@@ -336,13 +352,13 @@ export function AzeraCallUI({
         </div>
         <div>
           <div className="font-semibold text-sm">
-            {isRinging ? "Incoming call" : isActive ? "Call active" : "Call ended"}
+            {isConnecting ? (outgoing ? "Starting call" : "Connecting") : isRinging ? (outgoing ? "Calling support" : "Incoming call") : isActive ? "Call active" : isError ? "Call error" : "Call ended"}
           </div>
           <div className="text-xs text-muted-foreground">{customerName}</div>
         </div>
       </div>
 
-      {isRinging && (
+      {isRinging && !outgoing && (
         <div className="flex gap-2">
           <button
             onClick={onAccept}
@@ -357,6 +373,15 @@ export function AzeraCallUI({
             Decline
           </button>
         </div>
+      )}
+
+      {(isConnecting || isRinging) && outgoing && (
+        <button
+          onClick={onReject}
+          className="rounded-lg bg-slate-900 px-6 py-2 font-medium text-white transition-colors hover:bg-slate-800"
+        >
+          Cancel call
+        </button>
       )}
 
       {isActive && (

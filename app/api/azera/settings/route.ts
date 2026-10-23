@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { getAiProviderStatus } from "@/lib/ai-chat"
 
 async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession()
@@ -49,7 +50,11 @@ export async function GET(request: Request) {
 
     const { data: globalRow } = await supabase.from("settings").select("data").eq("id", 1).maybeSingle()
     const globalSip = ((globalRow?.data as Record<string, unknown> | null)?.sip as Record<string, unknown> | undefined) || {}
-    return NextResponse.json({ settings: data ? { ...data, sip_provider: globalSip.provider || null, sip_from_number: globalSip.from_number || null, africas_talking_api_key: globalSip.api_key || null, africas_talking_username: globalSip.username || null, twilio_account_sid: globalSip.account_sid || null, twilio_auth_token: globalSip.auth_token || null, twilio_from: globalSip.from_number || null } : null })
+    const aiProvider = await getAiProviderStatus()
+    return NextResponse.json({
+      settings: data ? { ...data, ...aiProvider, sip_provider: globalSip.provider || null, sip_from_number: globalSip.from_number || null, africas_talking_api_key: globalSip.api_key || null, africas_talking_username: globalSip.username || null, twilio_account_sid: globalSip.account_sid || null, twilio_auth_token: globalSip.auth_token || null, twilio_from: globalSip.from_number || null } : null,
+      ai_provider: aiProvider,
+    })
   } catch (err) {
     console.error("[Azera settings get error]", err)
     return NextResponse.json({ error: "Failed to load settings" }, { status: 500 })
@@ -80,6 +85,12 @@ export async function PATCH(request: Request) {
       ai_voice_enabled,
       ai_voice_provider,
       ai_voice,
+      africas_talking_phone_number,
+      africas_talking_forward_numbers,
+      voice_greeting,
+      voice_no_answer_greeting,
+      voice_menu_enabled,
+      voice_departments,
       messenger_page_id,
       instagram_account_id,
       google_place_id,
@@ -108,6 +119,21 @@ export async function PATCH(request: Request) {
     if (ai_voice_enabled !== undefined) updates.ai_voice_enabled = ai_voice_enabled
     if (ai_voice_provider !== undefined) updates.ai_voice_provider = ai_voice_provider
     if (ai_voice !== undefined) updates.ai_voice = ai_voice
+    if (africas_talking_phone_number !== undefined) updates.africas_talking_phone_number = africas_talking_phone_number
+    if (africas_talking_forward_numbers !== undefined) {
+      updates.africas_talking_forward_numbers = Array.isArray(africas_talking_forward_numbers)
+        ? africas_talking_forward_numbers
+        : String(africas_talking_forward_numbers)
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean)
+    }
+    if (voice_greeting !== undefined) updates.voice_greeting = String(voice_greeting).trim()
+    if (voice_no_answer_greeting !== undefined) updates.voice_no_answer_greeting = String(voice_no_answer_greeting).trim()
+    if (voice_menu_enabled !== undefined) updates.voice_menu_enabled = Boolean(voice_menu_enabled)
+    if (voice_departments !== undefined) {
+      updates.voice_departments = Array.isArray(voice_departments) ? voice_departments : []
+    }
     if (messenger_page_id !== undefined) updates.messenger_page_id = messenger_page_id
     if (instagram_account_id !== undefined) updates.instagram_account_id = instagram_account_id
     if (google_place_id !== undefined) updates.google_place_id = google_place_id

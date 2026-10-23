@@ -114,7 +114,7 @@ function localFallbackReply(message: string, knowledge: KnowledgeArticle[], shou
   }
   const article = knowledge[0]
   if (article) return article.content
-  return "I’m sorry, I can’t confirm that from my approved MartPoint information yet. Would you like a specialist to help, or can you tell me a little more about what you need?"
+  return "I don’t have a reliable answer for that yet. Could you tell me a little more, or would you like a MartPoint specialist to help?"
 }
 
 export async function POST(request: Request) {

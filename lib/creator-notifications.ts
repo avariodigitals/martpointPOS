@@ -9,6 +9,7 @@
 import { sendEmail, type EmailAttachment } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { getCreatorSession } from "./creator-auth"
 
 export type CreatorNotificationTemplate =
   | "creator_application_received"
@@ -149,15 +150,19 @@ export async function pushCreatorNotification(input: {
   title: string
   body?: string | null
   link?: string | null
+  actorCreatorId?: string | null
 }): Promise<void> {
   if (!isSupabaseConfigured()) return
   try {
+    const actorCreatorId = input.actorCreatorId ?? await currentCreatorId()
+    if (actorCreatorId && actorCreatorId === input.creatorId) return
     await supabase.from("creator_notifications").insert({
       creator_id: input.creatorId,
       type: input.type,
       title: input.title,
       body: input.body ?? null,
       link: input.link ?? null,
+      actor_creator_id: actorCreatorId,
     })
   } catch (err) {
     console.error("[creator-notify] in-app insert failed:", err)
@@ -169,12 +174,15 @@ export async function listCreatorNotifications(
   limit = 30
 ): Promise<CreatorInAppNotification[]> {
   if (!isSupabaseConfigured()) return []
-  const { data } = await supabase
+  let q = supabase
     .from("creator_notifications")
     .select("*")
     .eq("creator_id", creatorId)
     .order("created_at", { ascending: false })
     .limit(limit)
+  const actorCreatorId = await currentCreatorId()
+  if (actorCreatorId) q = q.or(`actor_creator_id.is.null,actor_creator_id.neq.${actorCreatorId}`)
+  const { data } = await q
   return (data || []).map((r) => ({
     id: r.id as string,
     type: r.type as string,
@@ -189,13 +197,24 @@ export async function listCreatorNotifications(
 export async function markCreatorNotificationsRead(creatorId: string): Promise<void> {
   if (!isSupabaseConfigured()) return
   try {
-    await supabase
+    let q = supabase
       .from("creator_notifications")
       .update({ read_at: new Date().toISOString() })
       .eq("creator_id", creatorId)
       .is("read_at", null)
+    const actorCreatorId = await currentCreatorId()
+    if (actorCreatorId) q = q.or(`actor_creator_id.is.null,actor_creator_id.neq.${actorCreatorId}`)
+    await q
   } catch (err) {
     console.error("[creator-notify] mark read failed:", err)
+  }
+}
+
+async function currentCreatorId(): Promise<string | null> {
+  try {
+    return (await getCreatorSession())?.creatorId || null
+  } catch {
+    return null
   }
 }
 

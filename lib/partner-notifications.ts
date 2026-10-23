@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { productLabel } from "./product-labels"
+import { getPartnerSession } from "./partner-auth"
 import { sendEmail, REPLY_TO } from "./email"
 import { brandedEmailHtml, escapeHtml } from "./email-templates"
 
@@ -9,19 +10,30 @@ async function pushPartnerInAppNotification(input: {
   title: string
   body: string
   link?: string | null
+  actorPartnerUserId?: string | null
 }): Promise<void> {
   if (!isSupabaseConfigured() || !input.partnerId) return
   try {
+    const actorPartnerUserId = input.actorPartnerUserId ?? await currentPartnerUserId()
     const { error } = await supabase.from("partner_notifications").insert({
       partner_id: input.partnerId,
       type: input.type,
       title: input.title,
       body: input.body,
       link: input.link || null,
+      actor_partner_user_id: actorPartnerUserId,
     })
     if (error) console.error("[partner-notify] in-app insert failed:", error.message)
   } catch (err) {
     console.error("[partner-notify] in-app insert failed:", err)
+  }
+}
+
+async function currentPartnerUserId(): Promise<string | null> {
+  try {
+    return (await getPartnerSession())?.partnerUserId || null
+  } catch {
+    return null
   }
 }
 

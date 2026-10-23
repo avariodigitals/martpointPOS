@@ -50,7 +50,7 @@ function initialsOf(value: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-retail/50"
 
 /**
  * Shared portal sidebar (Control Centre, Creator Portal, Partner Portal).
@@ -134,7 +134,7 @@ export function PortalSidebar({
 
   return (
     <aside
-      className={`hidden md:flex md:flex-col md:sticky md:top-0 md:self-start md:h-screen shrink-0 border-r border-white/10 bg-gradient-to-b from-retail to-erp text-white transition-[width] duration-200 ${
+      className={`hidden md:flex md:flex-col md:sticky md:top-0 md:self-start md:h-screen shrink-0 border-r border-slate-200 bg-white text-slate-700 shadow-[1px_0_0_rgba(15,23,42,0.02)] transition-[width] duration-200 ${
         collapsed ? "md:w-16" : "md:w-64"
       }`}
     >
@@ -144,7 +144,7 @@ export function PortalSidebar({
           <div className="flex flex-col items-center gap-3">
             <span
               aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 text-[11px] font-semibold ring-1 ring-inset ring-white/20"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-retail-soft text-[11px] font-semibold text-retail ring-1 ring-inset ring-retail/15"
             >
               {initialsOf(title)}
             </span>
@@ -154,7 +154,7 @@ export function PortalSidebar({
               title="Expand menu"
               aria-label="Expand menu"
               aria-expanded={false}
-              className={`rounded-lg p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white ${FOCUS_RING}`}
+              className={`rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900 ${FOCUS_RING}`}
             >
               <PanelLeftOpen className="h-4 w-4" />
             </button>
@@ -163,10 +163,10 @@ export function PortalSidebar({
           <>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <h1 className="text-lg font-semibold tracking-tight text-white">{title}</h1>
-                {subtitle && <p className="mt-0.5 truncate text-[11px] text-white/70">{subtitle}</p>}
+                <h1 className="text-lg font-semibold tracking-tight text-slate-950">{title}</h1>
+                {subtitle && <p className="mt-0.5 truncate text-[11px] text-slate-500">{subtitle}</p>}
                 {meta?.map((line) => (
-                  <p key={line} className="mt-0.5 truncate font-mono text-[10px] text-white/55">
+                  <p key={line} className="mt-0.5 truncate font-mono text-[10px] text-retail/70">
                     {line}
                   </p>
                 ))}
@@ -178,7 +178,7 @@ export function PortalSidebar({
                   title="Collapse menu"
                   aria-label="Collapse menu"
                   aria-expanded
-                  className={`rounded-lg p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white ${FOCUS_RING}`}
+                  className={`rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900 ${FOCUS_RING}`}
                 >
                   <PanelLeftClose className="h-4 w-4" />
                 </button>
@@ -186,7 +186,7 @@ export function PortalSidebar({
             </div>
 
             <div className="relative mt-3">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/55" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 type="search"
                 value={query}
@@ -196,14 +196,14 @@ export function PortalSidebar({
                 }}
                 placeholder="Filter menu"
                 aria-label="Filter menu"
-                className="w-full rounded-lg bg-white/10 py-1.5 pl-8 pr-8 text-[13px] text-white placeholder-white/55 outline-none ring-1 ring-inset ring-white/15 transition focus:bg-white/15 focus:ring-white/40 [&::-webkit-search-cancel-button]:hidden"
+                className="w-full rounded-lg bg-slate-50 py-1.5 pl-8 pr-8 text-[13px] text-slate-800 placeholder-slate-400 outline-none ring-1 ring-inset ring-slate-200 transition focus:bg-white focus:ring-retail/40 [&::-webkit-search-cancel-button]:hidden"
               />
               {searching && (
                 <button
                   type="button"
                   onClick={() => setQuery("")}
                   aria-label="Clear filter"
-                  className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-white/60 transition hover:text-white ${FOCUS_RING}`}
+                  className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition hover:text-slate-700 ${FOCUS_RING}`}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -223,14 +223,14 @@ export function PortalSidebar({
           return (
             <div
               key={section.label || `flat-${index}`}
-              className={collapsed && index > 0 ? "border-t border-white/10 pt-1" : ""}
+              className={collapsed && index > 0 ? "border-t border-slate-200 pt-1" : ""}
             >
               {section.label && !collapsed && (
                 <button
                   type="button"
                   onClick={() => toggleSection(section, open)}
                   aria-expanded={open}
-                  className={`mb-0.5 flex w-full items-center justify-between rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-white/60 transition-colors hover:text-white/90 ${FOCUS_RING}`}
+                  className={`mb-0.5 flex w-full items-center justify-between rounded px-2 py-1 text-[11px] font-semibold normal-case tracking-wide text-slate-600 transition-colors hover:text-slate-950 ${FOCUS_RING}`}
                 >
                   {section.label}
                   <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
@@ -252,8 +252,8 @@ export function PortalSidebar({
                             : "gap-2.5 px-3 py-1.5 text-[13px] leading-tight"
                         } ${
                           active
-                            ? "bg-white/15 font-semibold text-white ring-1 ring-inset ring-white/20"
-                            : "font-medium text-white/85 hover:bg-white/10 hover:text-white"
+                            ? "bg-retail-soft font-semibold text-retail ring-1 ring-inset ring-retail/10"
+                            : "font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-950"
                         }`}
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
@@ -272,20 +272,20 @@ export function PortalSidebar({
         })}
 
         {searching && filteredSections.length === 0 && (
-          <p className="px-3 py-6 text-center text-xs text-white/60">
+          <p className="px-3 py-6 text-center text-xs text-slate-400">
             No menu items match &ldquo;{query.trim()}&rdquo;.
           </p>
         )}
       </nav>
 
-      {/* Optional footer — admin keeps its existing account controls; portals use the header avatar menu. */}
-      {showFooterUser && <div className={`shrink-0 border-t border-white/15 ${collapsed ? "p-2" : "px-3 py-4"}`}>
+      {/* Optional footer — admin uses the workspace header; partner/creator portals may keep account controls here. */}
+      {showFooterUser && <div className={`shrink-0 border-t border-slate-200 ${collapsed ? "p-2" : "px-3 py-4"}`}>
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
             <span
               aria-hidden
               title={userName}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-[10px] font-semibold ring-1 ring-inset ring-white/20"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-retail-soft text-[10px] font-semibold text-retail ring-1 ring-inset ring-retail/15"
             >
               {initialsOf(userName)}
             </span>
@@ -294,7 +294,7 @@ export function PortalSidebar({
               onClick={onLogout}
               title={logoutLabel}
               aria-label={logoutLabel}
-              className={`rounded-lg p-2 text-white/85 transition-colors hover:bg-white/10 hover:text-white ${FOCUS_RING}`}
+              className={`rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 ${FOCUS_RING}`}
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -302,16 +302,16 @@ export function PortalSidebar({
         ) : (
           <>
             <div className="mb-3 px-3">
-              <p className="truncate text-[13px] font-medium text-white">{userName}</p>
+              <p className="truncate text-[13px] font-medium text-slate-800">{userName}</p>
               {userMeta && (
-                <p className="truncate text-[10px] uppercase tracking-wider text-white/60">{userMeta}</p>
+                <p className="truncate text-[10px] normal-case tracking-wide text-slate-500">{userMeta}</p>
               )}
-              {footerNote && <p className="mt-1 truncate text-[10px] text-white/55">{footerNote}</p>}
+              {footerNote && <p className="mt-1 truncate text-[10px] text-slate-400">{footerNote}</p>}
             </div>
             <button
               type="button"
               onClick={onLogout}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-white/85 transition-colors hover:bg-white/10 hover:text-white ${FOCUS_RING}`}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950 ${FOCUS_RING}`}
             >
               <LogOut className="h-4 w-4" />
               {logoutLabel}

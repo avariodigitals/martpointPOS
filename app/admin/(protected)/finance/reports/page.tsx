@@ -21,7 +21,7 @@ interface FinanceTransaction {
   frequency?: string
 }
 
-type PeriodType = "year" | "month" | "week"
+type PeriodType = "year" | "month" | "week" | "custom"
 
 function getISOWeek(date: Date): number {
   const temp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
@@ -118,6 +118,8 @@ export default function FinanceReportsPage() {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`)
   const [week, setWeek] = useState(`${now.getFullYear()}-W${String(getISOWeek(now)).padStart(2, "0")}`)
+  const [fromDate, setFromDate] = useState(`${now.getFullYear()}-01-01`)
+  const [toDate, setToDate] = useState(now.toISOString().split("T")[0])
 
   useEffect(() => {
     fetch("/api/admin/finance")
@@ -144,8 +146,12 @@ export default function FinanceReportsPage() {
       const { start, end } = getWeekRange(Number(wy), Number(wStr))
       return transactions.filter((t) => t.date >= start && t.date <= end)
     }
+    if (periodType === "custom") {
+      if (!fromDate || !toDate || fromDate > toDate) return []
+      return transactions.filter((t) => t.date >= fromDate && t.date <= toDate)
+    }
     return transactions
-  }, [transactions, periodType, year, month, week])
+  }, [transactions, periodType, year, month, week, fromDate, toDate])
 
   const incomeTxns = filteredTransactions.filter((t) => t.type === "income")
   const expenseTxns = filteredTransactions.filter((t) => t.type === "expense")
@@ -192,7 +198,7 @@ export default function FinanceReportsPage() {
     const blob = new Blob([csv], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
-    const label = periodType === "year" ? String(year) : periodType === "month" ? month : week
+    const label = periodType === "year" ? String(year) : periodType === "month" ? month : periodType === "week" ? week : `${fromDate}-${toDate}`
     a.href = url
     a.download = `martpoint-finance-${label}.csv`
     a.click()
@@ -279,7 +285,7 @@ export default function FinanceReportsPage() {
       },
     })
 
-    const label = periodType === "year" ? String(year) : periodType === "month" ? month : week
+    const label = periodType === "year" ? String(year) : periodType === "month" ? month : periodType === "week" ? week : `${fromDate}-${toDate}`
     doc.save(`martpoint-pnl-${label}.pdf`)
   }
 
@@ -290,6 +296,10 @@ export default function FinanceReportsPage() {
       const [wy, wStr] = week.split("-W")
       const { start, end } = getWeekRange(Number(wy), Number(wStr))
       return `Week ${wStr} (${start} – ${end})`
+    }
+    if (periodType === "custom") {
+      if (!fromDate || !toDate) return "Choose a date range"
+      return `${fromDate} – ${toDate}`
     }
     return ""
   })()
@@ -349,7 +359,7 @@ export default function FinanceReportsPage() {
       {/* Period selector */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <div className="flex gap-1 bg-muted rounded-lg p-1">
-          {(["year", "month", "week"] as PeriodType[]).map((p) => (
+          {(["year", "month", "week", "custom"] as PeriodType[]).map((p) => (
             <button
               key={p}
               onClick={() => setPeriodType(p)}
@@ -357,7 +367,7 @@ export default function FinanceReportsPage() {
                 periodType === p ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {p === "year" ? "Yearly" : p === "month" ? "Monthly" : "Weekly"}
+                {p === "year" ? "Yearly" : p === "month" ? "Monthly" : p === "week" ? "Weekly" : "Custom range"}
             </button>
           ))}
         </div>
@@ -388,7 +398,36 @@ export default function FinanceReportsPage() {
             <Button variant="ghost" size="sm" onClick={() => shiftWeek(1)}><ChevronRight className="w-4 h-4" /></Button>
           </div>
         )}
+
+        {periodType === "custom" && (
+          <div className="flex w-full flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:w-auto sm:flex-row sm:items-end">
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-slate-600 sm:min-w-[155px]">
+              From
+              <input
+                type="date"
+                value={fromDate}
+                max={toDate || undefined}
+                onChange={(event) => setFromDate(event.target.value)}
+                className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-retail/40 focus:bg-white focus:ring-4 focus:ring-retail/10"
+              />
+            </label>
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-slate-600 sm:min-w-[155px]">
+              To
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate || undefined}
+                onChange={(event) => setToDate(event.target.value)}
+                className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-retail/40 focus:bg-white focus:ring-4 focus:ring-retail/10"
+              />
+            </label>
+          </div>
+        )}
       </div>
+
+      {periodType === "custom" && fromDate && toDate && fromDate > toDate && (
+        <p className="-mt-3 text-sm text-rose-600">The From date must be before the To date.</p>
+      )}
 
       {/* P&L Statement */}
       <Card>

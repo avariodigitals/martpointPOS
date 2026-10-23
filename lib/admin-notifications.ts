@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
-import { getAllUsers } from "./admin-auth"
+import { getAllUsers, getSession } from "./admin-auth"
 import { getEmailRoute, getEmailSettings, sendEmail } from "./email"
 import type { UserRole } from "./admin-types"
 
@@ -21,6 +21,16 @@ function now() {
   return new Date().toISOString()
 }
 
+async function currentAdminUserId(): Promise<string | null> {
+  try {
+    return (await getSession())?.userId || null
+  } catch {
+    // Notification helpers also run from cron/background contexts where there
+    // is no request cookie.
+    return null
+  }
+}
+
 export async function createAdminNotification(input: {
   admin_user_id: string
   type: string
@@ -29,8 +39,12 @@ export async function createAdminNotification(input: {
   deep_link?: string
   source_type?: string
   source_id?: string
-}): Promise<AdminNotification> {
+  actor_admin_user_id?: string | null
+}): Promise<AdminNotification | null> {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
+
+  const actorId = input.actor_admin_user_id ?? await currentAdminUserId()
+  if (actorId && actorId === input.admin_user_id) return null
 
   const { data, error } = await supabase
     .from("admin_notifications")
@@ -43,6 +57,7 @@ export async function createAdminNotification(input: {
       is_read: false,
       source_type: input.source_type,
       source_id: input.source_id,
+      actor_admin_user_id: actorId,
       created_at: now(),
     })
     .select()
@@ -62,6 +77,7 @@ export async function notifyAdminUser(input: {
   deep_link?: string
   source_type?: string
   source_id?: string
+  actor_admin_user_id?: string | null
 }): Promise<void> {
   if (!isSupabaseConfigured() || !input.admin_user_id) return
   try {
@@ -95,13 +111,16 @@ export async function notifyAllAdmins(input: {
     html?: string
     replyTo?: string
   }
+  /** Explicit actor override for background/service workflows. */
+  actor_admin_user_id?: string | null
 }): Promise<void> {
   if (!isSupabaseConfigured()) return
 
+  const actorId = input.actor_admin_user_id ?? input.exclude_admin_user_id ?? await currentAdminUserId()
   const users = (await getAllUsers()).filter(
     (user) =>
       user.status === "ACTIVE" &&
-      user.id !== input.exclude_admin_user_id &&
+      user.id !== actorId &&
       (!input.roles || input.roles.includes(user.role)),
   )
 
@@ -115,6 +134,7 @@ export async function notifyAllAdmins(input: {
         deep_link: input.deep_link,
         source_type: input.source_type,
         source_id: input.source_id,
+        actor_admin_user_id: actorId,
       }).catch((error) => {
         console.error("[admin notifications] fan-out failed", error)
       }),

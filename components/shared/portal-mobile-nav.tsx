@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState, type ElementType } from "react"
-import { Menu, X } from "lucide-react"
+import { LogOut, Menu, X } from "lucide-react"
 import { PortalNotificationBell } from "@/components/shared/portal-notification-bell"
 
 export interface PortalNavItem {
@@ -28,6 +28,7 @@ interface PortalMobileNavProps {
   onLogout: () => void | Promise<void>
   logoutLabel?: string
   notificationEndpoint?: string
+  profileHref?: string
 }
 
 const MAX_INITIALS = 2
@@ -58,6 +59,7 @@ export function PortalMobileNav({
   onLogout,
   logoutLabel = "Sign out",
   notificationEndpoint,
+  profileHref,
 }: PortalMobileNavProps) {
   const [moreOpen, setMoreOpen] = useState(false)
 
@@ -82,15 +84,26 @@ export function PortalMobileNav({
 
           <div className="flex shrink-0 items-center gap-2">
             {notificationEndpoint && <PortalNotificationBell endpoint={notificationEndpoint} />}
-            <button
-              type="button"
-              onClick={onLogout}
-              aria-label={logoutLabel}
-              title={logoutLabel}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-retail text-sm font-semibold text-white transition-opacity hover:opacity-80"
-            >
-              {getInitials(userName)}
-            </button>
+            {profileHref ? (
+              <Link
+                href={profileHref}
+                aria-label="Open profile"
+                title="Open profile"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-retail text-sm font-semibold text-white transition-opacity hover:opacity-80"
+              >
+                {getInitials(userName)}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={onLogout}
+                aria-label={logoutLabel}
+                title={logoutLabel}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-retail text-sm font-semibold text-white transition-opacity hover:opacity-80"
+              >
+                {getInitials(userName)}
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -179,6 +192,14 @@ export function PortalMobileNav({
                   </div>
                 </div>
               ))}
+              <button
+                type="button"
+                onClick={() => void onLogout()}
+                className="mt-4 flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2.5 text-left text-xs font-medium text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <LogOut className="h-4 w-4" />
+                {logoutLabel}
+              </button>
             </div>
           </div>
         </div>

@@ -77,6 +77,7 @@ export async function POST(request: Request) {
         success: true,
         message: "Lead submitted successfully",
         pipeline: productInterest,
+        notificationEmailSent: result.notificationEmailSent ?? null,
       },
       { status: 200 }
     )

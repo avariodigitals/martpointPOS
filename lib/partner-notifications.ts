@@ -50,7 +50,7 @@ export async function notifyPartnerCustomerEvent(
     .select("email")
     .eq("partner_id", partnerId)
     .eq("status", "ACTIVE")
-    .in("role", ["PARTNER_OWNER", "PARTNER_MANAGER", "PARTNER_IMPLEMENTATION"])
+    .in("role", ["PARTNER_OWNER", "PARTNER_MANAGER", "PARTNER_SALES", "PARTNER_IMPLEMENTATION"])
 
   const recipients = Array.from(new Set(((data || []) as { email?: string | null }[]).map((row) => row.email?.trim()).filter(Boolean) as string[]))
   if (recipients.length === 0) return
@@ -68,6 +68,90 @@ export async function notifyPartnerCustomerEvent(
   )
 
   await sendEmail({ to: recipients, subject: input.subject, text, html, replyTo: REPLY_TO.partners })
+}
+
+/** Notify the owning partner when a public website enquiry is attributed to them. */
+export async function notifyPartnerLeadReceived(
+  partnerId: string,
+  input: {
+    leadId: string
+    businessName: string
+    contactName: string
+    productInterest: string
+    link?: string
+  },
+): Promise<void> {
+  if (!isSupabaseConfigured() || !partnerId) return
+
+  const title = "New customer lead received"
+  const body = `${input.businessName} · ${input.contactName} submitted a ${input.productInterest} enquiry through your public MartPoint partner profile.`
+  const link = input.link || `/partner/leads/${input.leadId}`
+  const emailLink = link.startsWith("http")
+    ? link
+    : `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}${link}`
+  await pushPartnerInAppNotification({ partnerId, type: "LEAD_RECEIVED", title, body, link })
+
+  const { data } = await supabase
+    .from("partner_users")
+    .select("email")
+    .eq("partner_id", partnerId)
+    .eq("status", "ACTIVE")
+    .in("role", ["PARTNER_OWNER", "PARTNER_MANAGER", "PARTNER_SALES", "PARTNER_IMPLEMENTATION"])
+
+  const recipients = Array.from(
+    new Set(
+      ((data || []) as { email?: string | null }[])
+        .map((row) => row.email?.trim())
+        .filter(Boolean) as string[],
+    ),
+  )
+  if (recipients.length === 0) return
+
+  const text = `${title}\n\n${body}\n\nOpen the partner lead: ${emailLink}`
+  const html = brandedEmailHtml(
+    `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">${escapeHtml(title)}</p>
+     <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;">${escapeHtml(body)}</p>
+     <p style="font-size:14px;line-height:1.6;margin:0;"><a href="${escapeHtml(emailLink)}" style="color:#0057FF;">Open the partner lead</a></p>`,
+    { eyebrow: "Partner Leads", title, signoff: "MartPoint Partner Operations" },
+  )
+  await sendEmail({ to: recipients, subject: `${title} — ${input.businessName}`, text, html, replyTo: REPLY_TO.partners })
+}
+
+/** Notify the owning partner when a lead's customer details are corrected. */
+export async function notifyPartnerLeadUpdated(
+  partnerId: string,
+  input: { leadId: string; businessName: string; updatedFields: string[]; link?: string },
+): Promise<void> {
+  if (!isSupabaseConfigured() || !partnerId) return
+
+  const title = "Customer lead details updated"
+  const fields = input.updatedFields.length > 0 ? input.updatedFields.join(", ") : "customer details"
+  const body = `MartPoint updated ${fields} for ${input.businessName}. Any issued quote totals and commercial terms remain unchanged.`
+  const link = input.link || `/partner/leads/${input.leadId}`
+  const emailLink = link.startsWith("http")
+    ? link
+    : `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}${link}`
+
+  await pushPartnerInAppNotification({ partnerId, type: "LEAD_UPDATED", title, body, link })
+
+  const { data } = await supabase
+    .from("partner_users")
+    .select("email")
+    .eq("partner_id", partnerId)
+    .eq("status", "ACTIVE")
+    .in("role", ["PARTNER_OWNER", "PARTNER_MANAGER", "PARTNER_SALES", "PARTNER_IMPLEMENTATION"])
+
+  const recipients = Array.from(new Set(((data || []) as { email?: string | null }[]).map((row) => row.email?.trim()).filter(Boolean) as string[]))
+  if (recipients.length === 0) return
+
+  const text = `${title}\n\n${body}\n\nOpen the partner lead: ${emailLink}`
+  const html = brandedEmailHtml(
+    `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">${escapeHtml(title)}</p>
+     <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;">${escapeHtml(body)}</p>
+     <p style="font-size:14px;line-height:1.6;margin:0;"><a href="${escapeHtml(emailLink)}" style="color:#0057FF;">Open the partner lead</a></p>`,
+    { eyebrow: "Partner Leads", title, signoff: "MartPoint Partner Operations" },
+  )
+  await sendEmail({ to: recipients, subject: `${title} — ${input.businessName}`, text, html, replyTo: REPLY_TO.partners })
 }
 
 /** Notify active partner users when MartPoint has issued a quote for them. */
@@ -140,4 +224,18 @@ export async function notifyPartnerPaymentRejected(
     { eyebrow: "Payment Verification", title: "Payment proof needs correction", signoff: "MartPoint Finance" },
   )
   await sendEmail({ to: recipients, subject: `Payment proof rejected — ${input.paymentReference}`, text, html, replyTo: REPLY_TO.partners })
+}
+
+/** Tell the partner when Finance has confirmed a payment proof. */
+export async function notifyPartnerPaymentConfirmed(
+  partnerId: string,
+  input: { businessName: string; paymentReference: string; amount: number; currency: string; link?: string },
+): Promise<void> {
+  await notifyPartnerCustomerEvent(partnerId, {
+    subject: `Payment confirmed — ${input.paymentReference}`,
+    title: "Payment confirmed",
+    businessName: input.businessName,
+    body: `Payment ${input.paymentReference} for ${input.currency} ${input.amount.toLocaleString()} has been confirmed by MartPoint Finance.`,
+    link: input.link || "/partner/customers",
+  })
 }

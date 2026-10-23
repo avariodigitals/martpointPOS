@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -160,6 +161,7 @@ function productInterestLabel(interest: string, fallback: string): string {
 }
 
 export default function AdminLeadsPage() {
+  const searchParams = useSearchParams()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
@@ -244,6 +246,15 @@ export default function AdminLeadsPage() {
       })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    const requestedLeadId = searchParams.get("lead")
+    if (!requestedLeadId || leads.length === 0) return
+    const requestedLead = leads.find((lead) => lead.id === requestedLeadId)
+    if (!requestedLead) return
+    const timer = window.setTimeout(() => setSelectedLead(requestedLead), 0)
+    return () => window.clearTimeout(timer)
+  }, [leads, searchParams])
 
   useEffect(() => {
     // A lead is owned by the front-line team only — Sales, Marketing and

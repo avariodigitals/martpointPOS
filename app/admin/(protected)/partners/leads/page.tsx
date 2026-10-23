@@ -20,6 +20,7 @@ import {
   Phone,
   MapPin,
   Calendar,
+  Pencil,
 } from "lucide-react"
 import { LocationFields } from "@/components/location-fields"
 import { allIndustries, businessTypeOptions } from "@/lib/industries"
@@ -194,6 +195,9 @@ export default function AdminPartnerLeadsPage() {
   const [addForm, setAddForm] = useState({ ...emptyForm })
   const [adding, setAdding] = useState(false)
   const [partners, setPartners] = useState<PartnerOption[]>([])
+  const [editingLead, setEditingLead] = useState<Lead | null>(null)
+  const [editForm, setEditForm] = useState({ businessName: "", contactName: "", phone: "", email: "", country: "", state: "", city: "" })
+  const [savingEdit, setSavingEdit] = useState(false)
 
   function loadLeads() {
     return fetch("/api/admin/partner-leads")
@@ -354,12 +358,57 @@ export default function AdminPartnerLeadsPage() {
     }
   }
 
+  function openEdit(lead: Lead) {
+    setEditingLead(lead)
+    setEditForm({
+      businessName: lead.businessName || "",
+      contactName: lead.contactName || "",
+      phone: lead.phone || "",
+      email: lead.email || "",
+      country: lead.country || "",
+      state: lead.state || "",
+      city: lead.city || "",
+    })
+  }
+
+  async function saveEdit() {
+    if (!editingLead) return
+    setSavingEdit(true)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/partner-leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingLead.id, action: "update", ...editForm }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setMessage(data.error || "Failed to update lead")
+        return
+      }
+      if (data.lead) setLeads((prev) => prev.map((lead) => lead.id === editingLead.id ? { ...lead, ...data.lead } : lead))
+      setEditingLead(null)
+      setMessage("Customer details updated. Any issued quote remains unchanged.")
+    } catch {
+      setMessage("Failed to update lead")
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   const setField = (key: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setAddForm((f) => ({ ...f, [key]: e.target.value }))
 
   function LeadActions({ lead }: { lead: Lead }) {
     return (
       <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => openEdit(lead)}
+          className="text-xs bg-muted text-foreground rounded px-2 py-1 inline-flex items-center gap-1"
+          title="Correct customer identity and contact details"
+        >
+          <Pencil className="w-3 h-3" /> Edit details
+        </button>
         {lead.protectionStatus === "PENDING" && (
           <>
             <button onClick={() => act(lead, "decide", { protectionStatus: "PROTECTED" })} className="text-xs bg-green-100 text-green-800 rounded px-2 py-1">Protect</button>
@@ -831,6 +880,39 @@ export default function AdminPartnerLeadsPage() {
       )}
 
       {/* Add Lead modal */}
+      {editingLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xl rounded-lg bg-background p-6 shadow-lg space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Correct customer details</h3>
+                <p className="text-xs text-muted-foreground mt-1">Identity/contact corrections are audited. Issued quote prices, terms and totals are not changed.</p>
+              </div>
+              <button onClick={() => setEditingLead(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><label className={labelCls}>Business name *</label><input required className={inputCls} value={editForm.businessName} onChange={(e) => setEditForm((f) => ({ ...f, businessName: e.target.value }))} /></div>
+              <div><label className={labelCls}>Contact name *</label><input required className={inputCls} value={editForm.contactName} onChange={(e) => setEditForm((f) => ({ ...f, contactName: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><label className={labelCls}>Phone *</label><input required className={inputCls} value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} /></div>
+              <div><label className={labelCls}>Email *</label><input required type="email" className={inputCls} value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div><label className={labelCls}>Country *</label><input required className={inputCls} value={editForm.country} onChange={(e) => setEditForm((f) => ({ ...f, country: e.target.value }))} /></div>
+              <div><label className={labelCls}>State *</label><input required className={inputCls} value={editForm.state} onChange={(e) => setEditForm((f) => ({ ...f, state: e.target.value }))} /></div>
+              <div><label className={labelCls}>City *</label><input required className={inputCls} value={editForm.city} onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))} /></div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setEditingLead(null)}>Cancel</Button>
+              <Button onClick={saveEdit} disabled={savingEdit || !editForm.businessName.trim() || !editForm.contactName.trim() || !editForm.email.trim()}>
+                {savingEdit ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Save correction
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-background p-6 shadow-lg space-y-4">

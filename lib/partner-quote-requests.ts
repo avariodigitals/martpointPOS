@@ -2,7 +2,7 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "./audit"
 import { notifyAllAdmins } from "./admin-notifications"
 import { REPLY_TO } from "./email"
-import { notifyPartnerQuoteIssued } from "./partner-notifications"
+import { notifyPartnerCustomerEvent, notifyPartnerQuoteIssued } from "./partner-notifications"
 import { nextQuoteNumber, recalculateQuote } from "./finance-commercial"
 import { getPublicSiteSettings } from "./settings"
 import { resolveQuoteTemplate } from "./quote-templates"
@@ -245,10 +245,10 @@ export async function createQuoteRequest(
     type: "PARTNER_QUOTE_REQUEST_SUBMITTED",
     title: "New partner quote request",
     message: `${selectedPlanName || "Quote request"} · partner ${partnerId} · lead ${input.partnerLeadId}`,
-    deep_link: "/admin/finance/commercial/quotes",
+    deep_link: "/admin/partners/quotes",
     source_type: "partner_quote_request",
     source_id: data.id as string,
-    roles: ["Admin", "Sales"],
+    roles: ["Admin", "Sales", "Finance"],
     email: {
       route: "partner_quote_request",
       subject: `New Partner Quote Request — ${selectedPlanName || "Review required"}`,
@@ -259,8 +259,8 @@ Opportunity: ${input.partnerLeadId}
 Plan: ${selectedPlanName || "Not specified"}
 Due date: ${input.dueDate || "Not specified"}
 
-Open Finance → Quotes in the Admin Portal:
-/admin/finance/commercial/quotes`,
+Open Partner Quotes in the Admin Portal:
+/admin/partners/quotes`,
       replyTo: REPLY_TO.partners,
     },
   })
@@ -480,6 +480,35 @@ export async function decideQuoteRequest(
       }).catch((notifyError) => console.error("[partner quote] issue email", notifyError))
     }
   }
+
+  if (decision === "DECLINED" || decision === "UNDER_REVIEW") {
+    const { data: partnerLead } = await supabase
+      .from("partner_leads")
+      .select("business_name")
+      .eq("id", qr.partner_lead_id)
+      .maybeSingle()
+    await notifyPartnerCustomerEvent(qr.partner_id as string, {
+      subject: decision === "DECLINED" ? "Quote request declined" : "Quote request under review",
+      title: decision === "DECLINED" ? "Quote request declined" : "Quote request under review",
+      businessName: String(partnerLead?.business_name || "Partner opportunity"),
+      body:
+        decision === "DECLINED"
+          ? (opts.decisionReason?.trim() || "MartPoint Finance has declined this quote request. Please contact the team if you need clarification.")
+          : "MartPoint Finance is reviewing this quote request. We will update you when the commercial quote is ready.",
+      link: "/partner/quotes",
+    }).catch((notifyError) => console.error("[partner quote] decision notification", notifyError))
+  }
+
+  await notifyAllAdmins({
+    type: `PARTNER_QUOTE_REQUEST_${decision}`,
+    title: `Partner quote request ${decision === "UNDER_REVIEW" ? "under review" : decision.toLowerCase()}`,
+    message: `Partner ${qr.partner_id} · opportunity ${qr.partner_lead_id}`,
+    deep_link: "/admin/partners/quotes",
+    source_type: "partner_quote_request",
+    source_id: quoteRequestId,
+    exclude_admin_user_id: decidedBy,
+    roles: ["Admin", "Sales", "Finance"],
+  })
 
   await recordAudit(
     { actorType: "ADMIN", actorId: decidedBy },

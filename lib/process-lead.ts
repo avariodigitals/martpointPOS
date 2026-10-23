@@ -9,6 +9,8 @@ import {
   recordCreatorReferral,
 } from "@/lib/creator-attribution"
 import { resolveSubmissionToken } from "@/lib/creator-challenges"
+import { notifyAllAdmins } from "@/lib/admin-notifications"
+import { notifyPartnerLeadReceived } from "@/lib/partner-notifications"
 
 export interface LeadInput {
   fullName: string
@@ -34,8 +36,118 @@ export interface LeadInput {
 }
 
 export type ProcessLeadResult =
-  | { success: true; leadId: string; duplicate?: boolean }
+  | { success: true; leadId: string; duplicate?: boolean; notificationEmailSent?: boolean }
   | { success: false; error: string; status: number }
+
+export interface AttributedLeadInput {
+  leadId: string
+  partnerCode?: string | null
+  fullName: string
+  businessName: string
+  email: string
+  phone: string
+  businessType: string
+  productInterest: string
+  branches?: string | number | null
+  staffSize?: string | number | null
+  challenge?: string | null
+  message?: string | null
+  submittedAt?: string
+  updatedAt?: string
+}
+
+function normalizePartnerCode(value?: string | null): string | null {
+  return typeof value === "string" && /^MP-[A-Z]{2,3}-\d{1,6}$/i.test(value.trim())
+    ? value.trim().toUpperCase()
+    : null
+}
+
+async function resolveActivePartnerId(partnerCode: string | null): Promise<string | null> {
+  if (!partnerCode || !isSupabaseConfigured()) return null
+  const { data: partner } = await supabase
+    .from("partners")
+    .select("id")
+    .eq("partner_id", partnerCode)
+    .eq("status", "ACTIVE")
+    .maybeSingle()
+  return (partner?.id as string | undefined) || null
+}
+
+function wholeNumber(value: string | number | null | undefined): number | null {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null
+}
+
+/**
+ * Bring a lead created by a specialised public form (estimate/demo) into the
+ * same partner-owned workflow as the main quote form. The matched lead id is
+ * the stable link back to the canonical leads table.
+ */
+export async function createAttributedPartnerLead(input: AttributedLeadInput): Promise<{
+  partnerId: string
+  partnerLeadId: string
+} | null> {
+  const partnerCode = normalizePartnerCode(input.partnerCode)
+  const partnerId = await resolveActivePartnerId(partnerCode)
+  if (!partnerId) return null
+
+  const { data: existing } = await supabase
+    .from("partner_leads")
+    .select("id")
+    .eq("partner_id", partnerId)
+    .eq("matched_lead_id", input.leadId)
+    .maybeSingle()
+  if (existing?.id) return { partnerId, partnerLeadId: String(existing.id) }
+
+  const now = input.updatedAt || input.submittedAt || new Date().toISOString()
+  const createdAt = input.submittedAt || now
+  const { data: partnerLead, error } = await supabase
+    .from("partner_leads")
+    .insert({
+      partner_id: partnerId,
+      submitted_by_partner_user_id: null,
+      business_name: input.businessName.trim(),
+      contact_name: input.fullName.trim(),
+      phone: input.phone.trim(),
+      email: input.email.trim().toLowerCase() || null,
+      country: "Nigeria",
+      state: "",
+      city: "",
+      industry: resolveIndustryName(input.businessType),
+      business_type: input.businessType,
+      estimated_branches: wholeNumber(input.branches),
+      estimated_users: wholeNumber(input.staffSize),
+      interested_product: input.productInterest,
+      notes: [input.challenge, input.message].filter((value) => Boolean(value?.trim())).join("\n\n") || null,
+      status: "REGISTERED",
+      protection_status: "PENDING",
+      protection_expires_at: null,
+      matched_lead_id: input.leadId,
+      matched_business_id: null,
+      created_at: createdAt,
+      updated_at: now,
+    })
+    .select("id")
+    .single()
+
+  if (error || !partnerLead) {
+    console.error("[partner-leads] attributed lead insert failed:", error?.message)
+    return null
+  }
+
+  try {
+    await notifyPartnerLeadReceived(partnerId, {
+      leadId: String(partnerLead.id),
+      businessName: input.businessName,
+      contactName: input.fullName,
+      productInterest: input.productInterest,
+    })
+  } catch (notificationError) {
+    console.error("[partner-leads] partner notification failed:", notificationError)
+  }
+
+  return { partnerId, partnerLeadId: String(partnerLead.id) }
+}
 
 /**
  * Shared lead intake pipeline: Supabase -> RelaviCX CRM -> webhook -> email -> WhatsApp.
@@ -62,10 +174,13 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
   } = input
 
   // Validate partner attribution format (e.g. MP-NG-00001); ignore anything else
-  const referringPartnerCode =
-    typeof partnerCode === "string" && /^MP-[A-Z]{2,3}-\d{1,6}$/i.test(partnerCode.trim())
-      ? partnerCode.trim().toUpperCase()
-      : null
+  const referringPartnerCode = normalizePartnerCode(partnerCode)
+
+  // The public form stores the human-facing partner code on `leads`. Resolve
+  // the internal partner UUID as well so the same enquiry can enter the
+  // partner-owned lead workflow and appear in the Partner Portal.
+  let referringPartnerId: string | null = null
+  referringPartnerId = await resolveActivePartnerId(referringPartnerCode)
 
   // Creator attribution: code must match MP-<digits> and resolve to an ACTIVE creator.
   const creator =
@@ -97,6 +212,7 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
     updatedAt: new Date().toISOString(),
   }
 
+  let leadPersisted = false
   if (isSupabaseConfigured()) {
     const { error } = await supabase.from("leads").insert({
       id: lead.id,
@@ -132,6 +248,45 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
         return { success: true, leadId: lead.id, duplicate: true }
       }
       console.error("[Supabase Lead Insert Error]", error)
+      return { success: false, error: "We could not save your enquiry. Please try again.", status: 503 }
+    } else {
+      leadPersisted = true
+    }
+  }
+
+  let partnerLeadId: string | null = null
+  if (leadPersisted && referringPartnerId) {
+    const attributed = await createAttributedPartnerLead({
+      leadId: lead.id,
+      partnerCode: referringPartnerCode,
+      fullName,
+      businessName,
+      email,
+      phone,
+      businessType,
+      productInterest,
+      branches,
+      staffSize,
+      challenge,
+      message,
+      submittedAt: lead.submittedAt,
+      updatedAt: lead.updatedAt,
+    })
+    partnerLeadId = attributed?.partnerLeadId || null
+  }
+
+  if (leadPersisted) {
+    try {
+      await notifyAllAdmins({
+        type: referringPartnerId ? "PARTNER_REFERRED_LEAD_RECEIVED" : "LEAD_RECEIVED",
+        title: referringPartnerId ? "New partner-referred lead" : "New website lead",
+        message: `${businessName} · ${fullName} · ${email}${referringPartnerCode ? ` · partner ${referringPartnerCode}` : ""}`,
+        deep_link: partnerLeadId ? "/admin/partners/leads" : `/admin/leads?lead=${encodeURIComponent(lead.id)}`,
+        source_type: partnerLeadId ? "partner_lead" : "lead",
+        source_id: partnerLeadId || lead.id,
+      })
+    } catch (notificationError) {
+      console.error("[leads] admin notification failed:", notificationError)
     }
   }
 
@@ -234,7 +389,21 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
     source: source || "website",
     referringPartnerBlock: referringPartnerCode ? ` (referred by partner ${referringPartnerCode})` : "",
   })
-  await sendEmail({ route: "lead_submission", subject: leadTpl.subject, text: leadTpl.text, html: leadTpl.html })
+  const notificationEmailSent = await sendEmail({ route: "lead_submission", subject: leadTpl.subject, text: leadTpl.text, html: leadTpl.html })
+  if (!notificationEmailSent && leadPersisted) {
+    try {
+      await notifyAllAdmins({
+        type: "LEAD_NOTIFICATION_EMAIL_FAILED",
+        title: "Lead saved — notification email failed",
+        message: `${businessName} · ${fullName} was saved, but the sales notification email could not be delivered. Check Email Logs.`,
+        deep_link: partnerLeadId ? "/admin/partners/leads" : `/admin/leads?lead=${encodeURIComponent(lead.id)}`,
+        source_type: partnerLeadId ? "partner_lead" : "lead",
+        source_id: partnerLeadId || lead.id,
+      })
+    } catch (notificationError) {
+      console.error("[leads] email failure alert failed:", notificationError)
+    }
+  }
 
   // 4. WhatsApp Business API auto-send (requires Meta credentials)
   const waPhoneId = process.env.WHATSAPP_PHONE_ID
@@ -262,5 +431,5 @@ export async function processLead(input: LeadInput): Promise<ProcessLeadResult> 
     }
   }
 
-  return { success: true, leadId: lead.id }
+  return { success: true, leadId: lead.id, notificationEmailSent }
 }

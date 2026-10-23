@@ -4,7 +4,7 @@ import { listQuoteRequestsForAdmin, decideQuoteRequest, repairPartnerQuoteReques
 
 /* ─── GET: quotation request queue (optionally ?partnerId=) ─── */
 export async function GET(request: Request) {
-  const { denied } = await authorizeAdmin("partners", "view")
+  const { denied } = await authorizeAdmin("partner_quotes", "view")
   if (denied) return denied
 
   const partnerId = new URL(request.url).searchParams.get("partnerId") || undefined
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
  *         issuedQuoteRef?, decisionReason? }
  */
 export async function POST(request: Request) {
-  const { session, denied } = await authorizeAdmin("partners", "manage")
+  const { session, denied } = await authorizeAdmin("partner_quotes", "manage")
   if (denied) return denied
 
   const body = await request.json().catch(() => ({}))

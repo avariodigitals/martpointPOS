@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
 import { auditContextFromPartnerSession } from "@/lib/audit"
-import { getPartnerLeadByIdForPartner, updatePartnerLead } from "@/lib/partner-leads"
+import { getPartnerLeadByIdForPartner, getPartnerLeadEditPolicy, updatePartnerLead } from "@/lib/partner-leads"
 import { z } from "zod"
 
 const updateSchema = z.object({
@@ -33,7 +33,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   if (!lead) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 })
   }
-  return NextResponse.json({ lead })
+  return NextResponse.json({ lead, editPolicy: await getPartnerLeadEditPolicy(lead) })
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {

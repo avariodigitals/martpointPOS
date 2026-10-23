@@ -19,6 +19,8 @@ import {
   recordCreatorReferral,
 } from "@/lib/creator-attribution"
 import { resolveSubmissionToken } from "@/lib/creator-challenges"
+import { createAttributedPartnerLead } from "@/lib/process-lead"
+import { notifyAllAdmins } from "@/lib/admin-notifications"
 
 const bookSchema = z.object({
   fullName: z.string().trim().min(2).max(200),
@@ -108,6 +110,30 @@ export async function POST(request: Request) {
     console.error("[demo-booking] lead insert failed:", leadError)
     return NextResponse.json({ error: "Could not complete the booking. Please try again." }, { status: 500 })
   }
+
+  const attributed = await createAttributedPartnerLead({
+    leadId,
+    partnerCode: referringPartnerCode,
+    fullName: body.fullName,
+    businessName: body.businessName,
+    email: body.email,
+    phone: body.phone,
+    businessType: body.businessType,
+    productInterest: "not-sure",
+    branches: "1",
+    staffSize: "1-5",
+    message: body.message,
+    submittedAt: now,
+    updatedAt: now,
+  })
+  await notifyAllAdmins({
+    type: attributed ? "PARTNER_REFERRED_LEAD_RECEIVED" : "LEAD_RECEIVED",
+    title: attributed ? "New partner-referred demo booking" : "New demo booking",
+    message: `${body.businessName} · ${body.fullName} · ${body.email}${referringPartnerCode ? ` · partner ${referringPartnerCode}` : ""}`,
+    deep_link: attributed ? "/admin/partners/leads" : `/admin/leads?lead=${encodeURIComponent(leadId)}`,
+    source_type: attributed ? "partner_lead" : "lead",
+    source_id: attributed?.partnerLeadId || leadId,
+  })
 
   // Creator funnel events — the lead is both a LEAD and a booked DEMO.
   if (creator) {

@@ -92,6 +92,7 @@ export default function CatalogPage() {
 
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Product | Plan | Service | Addon | null>(null)
+  const [formError, setFormError] = useState("")
 
   const emptyProduct = { code: "", name: "", description: "", product_family: "RETAIL", default_price: "", currency: "NGN", active: true }
   const emptyPlan = { code: "", name: "", description: "", product_id: "", billing_type: "RECURRING", billing_interval: "MONTHLY", base_price: "", currency: "NGN", included_branches: "1", included_users: "1", online_store_included: false, active: true, effective_from: new Date().toISOString().split("T")[0] }
@@ -141,6 +142,7 @@ export default function CatalogPage() {
 
   function openNew() {
     setEditing(null)
+    setFormError("")
     if (tab === "products") setForm({ ...emptyProduct })
     else if (tab === "plans") setForm({ ...emptyPlan })
     else if (tab === "addons") setForm({ ...emptyAddon })
@@ -150,6 +152,7 @@ export default function CatalogPage() {
 
   function openEdit(item: Product | Plan | Service | Addon) {
     setEditing(item)
+    setFormError("")
     if (tab === "products") {
       const p = item as Product
       setForm({ code: p.code, name: p.name, description: p.description || "", product_family: p.product_family, default_price: String(p.default_price), currency: p.currency, active: p.active })
@@ -176,6 +179,16 @@ export default function CatalogPage() {
   }
 
   async function save() {
+    setFormError("")
+    if (!String(form.code ?? "").trim() || !String(form.name ?? "").trim()) {
+      setFormError("Enter both a code and a name before saving.")
+      return
+    }
+    if (tab === "plans" && !String(form.product_id ?? "").trim()) {
+      setFormError("Select a product for this plan before saving.")
+      return
+    }
+
     setSaving(true)
     setMessage("")
     try {
@@ -198,16 +211,16 @@ export default function CatalogPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: tab, id: editing?.id, data: payload }),
       })
-      const data = await res.json()
-      if (data.success) {
+      const data = await res.json().catch(() => null)
+      if (res.ok && data?.success) {
         setMessage(`${tab.slice(0, -1)} saved`)
         setShowForm(false)
         fetchCatalog()
       } else {
-        setMessage(data.error || "Save failed")
+        setFormError(data?.error || `Save failed (HTTP ${res.status}). Please try again or contact support.`)
       }
-    } catch {
-      setMessage("Save failed")
+    } catch (error) {
+      setFormError(error instanceof Error ? `Could not save: ${error.message}` : "Could not reach the server. Check your connection and try again.")
     } finally {
       setSaving(false)
     }
@@ -394,6 +407,12 @@ export default function CatalogPage() {
               <button onClick={() => setShowForm(false)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
 
+            {formError && (
+              <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {formError}
+              </div>
+            )}
+
             {tab === "products" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5"><label className="text-sm font-medium">Code *</label><input value={String(form.code ?? "")} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
@@ -517,7 +536,7 @@ export default function CatalogPage() {
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowForm(false)} disabled={saving}>Cancel</Button>
-              <Button onClick={save} disabled={saving || !form.code || !form.name || (tab === "plans" && !form.product_id)}>
+              <Button type="button" onClick={save} disabled={saving}>
                 {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
                 Save
               </Button>

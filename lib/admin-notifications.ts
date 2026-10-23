@@ -52,6 +52,25 @@ export async function createAdminNotification(input: {
   return data as AdminNotification
 }
 
+/** Create a bell notification for one known admin user. Used for assignments
+ * and changes that belong to a specific owner rather than a whole team. */
+export async function notifyAdminUser(input: {
+  admin_user_id: string
+  type: string
+  title: string
+  message?: string
+  deep_link?: string
+  source_type?: string
+  source_id?: string
+}): Promise<void> {
+  if (!isSupabaseConfigured() || !input.admin_user_id) return
+  try {
+    await createAdminNotification(input)
+  } catch (error) {
+    console.error("[admin notifications] user notification failed", error)
+  }
+}
+
 /**
  * Fan an operational event out to every active admin account.
  * Notification delivery is deliberately best-effort: an alert must never

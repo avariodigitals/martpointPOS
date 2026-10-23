@@ -2,6 +2,7 @@ import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { resolveIndustryName } from "./industries"
 import { getSignedResourceUrl } from "./partner-service"
+import { notifyAllAdmins } from "./admin-notifications"
 
 const BROCHURE_CATEGORIES = ["Brochure", "Product Brochures"]
 
@@ -59,8 +60,9 @@ export async function createBrochureLead(input: BrochureLeadInput): Promise<bool
   if (!isSupabaseConfigured()) return true
 
   const now = new Date().toISOString()
+  const leadId = crypto.randomUUID()
   const { error } = await supabase.from("leads").insert({
-    id: crypto.randomUUID(),
+    id: leadId,
     full_name: input.fullName,
     business_name: input.businessName,
     email: input.email,
@@ -80,6 +82,27 @@ export async function createBrochureLead(input: BrochureLeadInput): Promise<bool
     console.error("[createBrochureLead]", error)
     return false
   }
+
+  await notifyAllAdmins({
+    type: "LEAD_RECEIVED",
+    title: "New brochure request",
+    message: `${input.businessName} · ${input.fullName} · ${input.email}`,
+    deep_link: `/admin/leads?lead=${encodeURIComponent(leadId)}`,
+    source_type: "lead",
+    source_id: leadId,
+    email: {
+      route: "lead_submission",
+      subject: `New brochure request — ${input.businessName}`,
+      text: [
+        "A visitor requested the MartPoint brochure.",
+        `Name: ${input.fullName}`,
+        `Business: ${input.businessName}`,
+        `Email: ${input.email}`,
+        `Phone: ${input.phone}`,
+        `Business type: ${input.businessType}`,
+      ].join("\n"),
+    },
+  })
 
   return true
 }

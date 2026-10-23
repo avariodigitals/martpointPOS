@@ -113,9 +113,9 @@ export const CREATOR_PERMISSIONS = [
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   Admin: "Full access to all Control Centre features",
-  Finance: "Dashboard, finance, tracker, analytics, leads, customers, onboarding",
+  Finance: "Dashboard, finance, partner quotes, tracker, analytics, leads, customers, onboarding",
   "Digital Marketer": "Dashboard, SEO, blog, FAQs, tracker, analytics, leads, customers, onboarding",
-  Sales: "Tracker, analytics, leads, customers, finance, onboarding",
+  Sales: "Tracker, analytics, leads, partner quotes, customers, finance, onboarding",
   "Customer Care": "Leads, customers, onboarding, support and customer success",
   Tech: "Settings, SEO, blog, FAQs, customers",
   Editor: "Blog & FAQs content only",
@@ -127,9 +127,9 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   Admin: ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "integrations", "users", "leads", "quotations", "customers", "finance", "onboarding", "partners", "businesses", "support", "azera", "customer_success", "compliance", "tasks", "marketing", "status"],
-  Finance: ["dashboard", "finance", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "compliance"],
+  Finance: ["dashboard", "finance", "partner_quotes", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "compliance"],
   "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "marketing", ...CREATOR_PERMISSIONS],
-  Sales: ["tracker", "analytics", "leads", "quotations", "customers", "finance", "onboarding", "businesses", "partners", "customer_success", "marketing", "azera", "creator.view", "creator.report.view"],
+  Sales: ["tracker", "analytics", "leads", "quotations", "partner_quotes", "customers", "finance", "onboarding", "businesses", "partners", "customer_success", "marketing", "azera", "creator.view", "creator.report.view"],
   "Customer Care": ["dashboard", "leads", "customers", "onboarding", "businesses", "support", "azera", "customer_success"],
   Tech: ["settings", "integrations", "seo", "blog", "faqs", "customers", "businesses", "support", "azera", "customer_success", "compliance", "tasks", "status"],
   Editor: ["blog", "faqs"],

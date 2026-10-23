@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import { partnerHasCapability } from "./partner-auth"
 import { notifyAllAdmins } from "./admin-notifications"
+import { notifyPartnerLeadUpdated } from "./partner-notifications"
 import { REPLY_TO } from "./email"
 
 export type PartnerLeadStatus =
@@ -88,6 +89,84 @@ function normaliseEmail(email: string): string {
 
 function normaliseBusinessName(name: string): string {
   return (name || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
+const PARTNER_LEAD_TERMINAL_STATUSES = ["LOST", "EXPIRED", "WON"]
+const LEAD_IDENTITY_FIELDS = ["businessName", "contactName", "phone", "email", "country", "state", "city"] as const
+
+function toDbKey(key: string): string {
+  return key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+}
+
+function formatLeadField(key: string): string {
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (value) => value.toUpperCase())
+}
+
+/** An issued/sent quote is a commercial snapshot. Lead identity may still be
+ * corrected, but changing the lead must never silently change quote totals,
+ * tax, bank details, payment terms or line items. */
+async function isPartnerLeadCommerciallyLocked(leadId: string): Promise<boolean> {
+  const { data: request } = await supabase
+    .from("partner_quote_requests")
+    .select("status, quote_id")
+    .eq("partner_lead_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (String(request?.status || "") === "ISSUED") return true
+  if (!request?.quote_id) return false
+
+  const { data: quote } = await supabase.from("quotes").select("status").eq("id", request.quote_id).maybeSingle()
+  return ["SENT", "ACCEPTED", "DECLINED", "EXPIRED", "CONVERTED"].includes(String(quote?.status || ""))
+}
+
+export async function getPartnerLeadEditPolicy(lead: Pick<PartnerLeadRecord, "id" | "status">): Promise<{
+  canEdit: boolean
+  commercialLocked: boolean
+}> {
+  return {
+    canEdit: !PARTNER_LEAD_TERMINAL_STATUSES.includes(String(lead.status)),
+    commercialLocked: await isPartnerLeadCommerciallyLocked(lead.id),
+  }
+}
+
+async function syncCanonicalLeadIdentity(lead: Record<string, unknown>, updates: Record<string, unknown>): Promise<void> {
+  const matchedLeadId = typeof lead.matched_lead_id === "string" ? lead.matched_lead_id : null
+  const canonical: Record<string, unknown> = { updated_at: now() }
+  if (updates.business_name !== undefined) canonical.business_name = updates.business_name
+  if (updates.contact_name !== undefined) canonical.full_name = updates.contact_name
+  if (updates.phone !== undefined) canonical.phone = updates.phone
+  if (updates.email !== undefined) canonical.email = updates.email
+  if (updates.industry !== undefined) canonical.industry = updates.industry
+  if (updates.business_type !== undefined) canonical.business_type = updates.business_type
+  if (matchedLeadId && Object.keys(canonical).length > 1) {
+    const { error } = await supabase.from("leads").update(canonical).eq("id", matchedLeadId)
+    if (error) console.error("[partner-leads] canonical lead sync failed:", error.message)
+  }
+
+  // If the opportunity has already been converted, keep the customer master
+  // record aligned with the corrected lead identity too. This does not touch
+  // invoices, quote totals, payment terms or any other commercial snapshot.
+  const businessUpdate: Record<string, unknown> = { updated_at: now() }
+  if (updates.business_name !== undefined) businessUpdate.business_name = updates.business_name
+  if (updates.contact_name !== undefined) businessUpdate.primary_contact_name = updates.contact_name
+  if (updates.phone !== undefined) businessUpdate.primary_phone = updates.phone
+  if (updates.email !== undefined) businessUpdate.primary_email = updates.email
+  if (updates.country !== undefined) businessUpdate.country = updates.country
+  if (updates.state !== undefined) businessUpdate.state = updates.state
+  if (updates.city !== undefined) businessUpdate.city = updates.city
+  if (updates.industry !== undefined) businessUpdate.industry = updates.industry
+  if (updates.business_type !== undefined) businessUpdate.business_type = updates.business_type
+  if (Object.keys(businessUpdate).length === 1) return
+
+  const { error: businessError } = await supabase
+    .from("businesses")
+    .update(businessUpdate)
+    .eq("partner_lead_id", lead.id)
+  if (businessError) console.error("[partner-leads] converted business sync failed:", businessError.message)
 }
 
 export interface LeadDuplicateCheck {
@@ -326,9 +405,11 @@ export async function updatePartnerLead(
     .single()
 
   if (!current) return { ok: false, error: "Lead not found" }
-  if (!["REGISTERED", "UNDER_REVIEW"].includes(current.status as string)) {
-    return { ok: false, error: "Lead can no longer be edited by partner" }
+  if (PARTNER_LEAD_TERMINAL_STATUSES.includes(String(current.status))) {
+    return { ok: false, error: "This lead is closed and can no longer be edited by partner" }
   }
+
+  const commercialLocked = await isPartnerLeadCommerciallyLocked(id)
 
   const updateData: Record<string, unknown> = { updated_at: now() }
   const allowed = [
@@ -348,8 +429,11 @@ export async function updatePartnerLead(
     "notes",
   ] as const
 
+  const lockedFields = new Set<string>(LEAD_IDENTITY_FIELDS)
+
   for (const k of allowed) {
     if (updates[k] !== undefined) {
+      if (commercialLocked && !lockedFields.has(k)) continue
       const dbKey = k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
       updateData[dbKey] =
         k === "phone" ? normalisePhone(updates[k] as string)
@@ -357,6 +441,16 @@ export async function updatePartnerLead(
         : k === "businessName" ? (updates[k] as string).trim()
         : k === "contactName" ? (updates[k] as string).trim()
         : updates[k]
+    }
+  }
+
+  const updatedFields = Object.keys(updateData).filter((k) => k !== "updated_at")
+  if (updatedFields.length === 0) {
+    return {
+      ok: false,
+      error: commercialLocked
+        ? "This quote has been issued. Only customer identity and contact details can be corrected."
+        : "No lead details were supplied",
     }
   }
 
@@ -370,12 +464,33 @@ export async function updatePartnerLead(
 
   if (error || !data) return { ok: false, error: "Update failed" }
 
+  await syncCanonicalLeadIdentity(current as Record<string, unknown>, updateData)
+
   await recordAudit(ctx, {
     action: AUDIT_ACTIONS.PARTNER_LEAD_UPDATED,
     entityType: AUDIT_ENTITIES.PARTNER_LEAD,
     entityId: id,
-    metadata: { partnerId, submittedBy, updatedFields: Object.keys(updateData).filter((k) => k !== "updated_at") },
+    metadata: { partnerId, submittedBy, updatedFields, commercialLocked, identityCorrection: commercialLocked },
   })
+
+  if (commercialLocked && current.partner_id) {
+    await Promise.all([
+      notifyPartnerLeadUpdated(String(current.partner_id), {
+        leadId: id,
+        businessName: String(data.business_name || current.business_name || "Partner opportunity"),
+        updatedFields: updatedFields.map((field) => formatLeadField(field.replace(/_([a-z])/g, (_, c) => String(c).toUpperCase()))),
+      }).catch((error) => console.error("[partner-leads] partner correction notification failed", error)),
+      notifyAllAdmins({
+        type: "PARTNER_LEAD_DETAILS_UPDATED",
+        title: "Partner lead details corrected",
+        message: `${data.business_name || current.business_name} · ${updatedFields.join(", ")}`,
+        deep_link: "/admin/partners/leads",
+        source_type: "partner_lead",
+        source_id: id,
+        roles: ["Admin", "Sales", "Finance"],
+      }),
+    ])
+  }
 
   return { ok: true, lead: mapLead(data) }
 }
@@ -387,6 +502,7 @@ export interface AdminLeadDecision {
   matchedLeadId?: string | null
   matchedBusinessId?: string | null
   notes?: string
+  updates?: Partial<PartnerLeadInput>
 }
 
 export async function adminUpdateLead(
@@ -401,6 +517,19 @@ export async function adminUpdateLead(
   if (!current) return { ok: false, error: "Lead not found" }
 
   const updateData: Record<string, unknown> = { updated_at: now() }
+
+  const commercialLocked = await isPartnerLeadCommerciallyLocked(leadId)
+  const sourceUpdates = decision.updates || {}
+  const editableFields = Object.keys(sourceUpdates) as (keyof PartnerLeadInput)[]
+  for (const k of editableFields) {
+    if (sourceUpdates[k] === undefined) continue
+    if (commercialLocked && !(LEAD_IDENTITY_FIELDS as readonly string[]).includes(k)) continue
+    updateData[toDbKey(k)] =
+      k === "phone" ? normalisePhone(sourceUpdates[k] as string)
+      : k === "email" ? normaliseEmail(sourceUpdates[k] as string)
+      : ["businessName", "contactName"].includes(k) ? String(sourceUpdates[k]).trim()
+      : sourceUpdates[k]
+  }
 
   if (decision.status) {
     updateData.status = decision.status
@@ -419,6 +548,16 @@ export async function adminUpdateLead(
   if (decision.matchedLeadId !== undefined) updateData.matched_lead_id = decision.matchedLeadId
   if (decision.matchedBusinessId !== undefined) updateData.matched_business_id = decision.matchedBusinessId
 
+  const updatedFields = Object.keys(updateData).filter((k) => k !== "updated_at")
+  if (updatedFields.length === 0 && Object.keys(decision).length === 1 && decision.updates) {
+    return {
+      ok: false,
+      error: commercialLocked
+        ? "This quote has been issued. Only customer identity and contact details can be corrected."
+        : "No lead details were supplied",
+    }
+  }
+
   const { data, error } = await supabase
     .from("partner_leads")
     .update(updateData)
@@ -427,6 +566,8 @@ export async function adminUpdateLead(
     .single()
 
   if (error || !data) return { ok: false, error: "Update failed" }
+
+  await syncCanonicalLeadIdentity(current as Record<string, unknown>, updateData)
 
   const action =
     decision.protectionStatus === "PROTECTED" ? AUDIT_ACTIONS.PARTNER_LEAD_PROTECTION_APPROVED
@@ -440,8 +581,33 @@ export async function adminUpdateLead(
     action,
     entityType: AUDIT_ENTITIES.PARTNER_LEAD,
     entityId: leadId,
-    metadata: { decision, adminId },
+    metadata: { decision, adminId, commercialLocked, updatedFields },
   })
+
+  if (updatedFields.some((field) => ["business_name", "contact_name", "phone", "email", "country", "state", "city", "industry", "business_type"].includes(field))) {
+    const partnerId = String(data.partner_id || current.partner_id || "")
+    await Promise.all([
+      partnerId
+        ? notifyPartnerLeadUpdated(partnerId, {
+            leadId,
+            businessName: String(data.business_name || current.business_name || "Partner opportunity"),
+            updatedFields: updatedFields
+              .filter((field) => field !== "status" && field !== "protection_status")
+              .map((field) => formatLeadField(field.replace(/_([a-z])/g, (_, c) => String(c).toUpperCase()))),
+          }).catch((error) => console.error("[partner-leads] partner correction notification failed", error))
+        : Promise.resolve(),
+      notifyAllAdmins({
+        type: "PARTNER_LEAD_DETAILS_UPDATED",
+        title: "Partner lead details corrected",
+        message: `${data.business_name || current.business_name} · ${updatedFields.join(", ")}`,
+        deep_link: "/admin/partners/leads",
+        source_type: "partner_lead",
+        source_id: leadId,
+        exclude_admin_user_id: adminId,
+        roles: ["Admin", "Sales", "Finance"],
+      }),
+    ])
+  }
 
   return { ok: true, lead: mapLead(data) }
 }

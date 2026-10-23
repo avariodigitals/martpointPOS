@@ -4,6 +4,7 @@ import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromPartnerSess
 import { recordPayment } from "@/lib/finance-commercial"
 import { PARTNER_DOCUMENTS_BUCKET, uploadPrivateFile, validatePartnerFile } from "@/lib/partner-documents"
 import { isSupabaseConfigured, supabase } from "@/lib/supabase"
+import { notifyAllAdmins } from "@/lib/admin-notifications"
 
 export const dynamic = "force-dynamic"
 
@@ -76,6 +77,27 @@ export async function POST(request: Request, props: { params: Promise<{ business
       entityType: AUDIT_ENTITIES.PARTNER_PAYMENT,
       entityId: payment.id,
       metadata: { partnerId: session!.partnerId, businessId, invoiceId, amount, paymentReference: payment.payment_reference },
+    })
+    await notifyAllAdmins({
+      type: "PARTNER_PAYMENT_PROOF_SUBMITTED",
+      title: "Partner payment proof submitted",
+      message: `${payment.payment_reference}: ${invoiceId} · ${amount.toLocaleString()} ${invoice.currency}`,
+      deep_link: `/admin/finance/transactions?businessId=${encodeURIComponent(businessId)}`,
+      source_type: "payment",
+      source_id: payment.id as string,
+      roles: ["Admin", "Finance", "Sales", "Customer Care"],
+      email: {
+        route: "payment_proof_submitted",
+        subject: `Payment proof requires review — ${payment.payment_reference}`,
+        text: [
+          "A partner submitted payment proof for review.",
+          `Payment reference: ${payment.payment_reference}`,
+          `Business: ${businessId}`,
+          `Invoice: ${invoiceId}`,
+          `Amount: ${amount.toLocaleString()} ${invoice.currency}`,
+          "Open Finance → Transactions in the Admin Portal.",
+        ].join("\n"),
+      },
     })
     return NextResponse.json({ success: true, payment: { id: payment.id, reference: payment.payment_reference, status: payment.status } })
   } catch (error) {

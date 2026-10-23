@@ -99,9 +99,9 @@ const navItems: NavItem[] = [
 
   // PARTNERS
   { href: "/admin/partners", label: "Partners", icon: Handshake, page: "partners", section: "Partners" },
-  { href: "/admin/finance/commercial/quotes?source=partner", label: "Partner Quotes", icon: FileText, page: "finance", section: "Finance" },
   { href: "/admin/partners/applications", label: "Applications", icon: FileText, page: "partners", section: "Partners" },
   { href: "/admin/partners/leads", label: "Partner Leads", icon: Funnel, page: "partners", section: "Partners" },
+  { href: "/admin/partners/quotes", label: "Partner Quotes", icon: FileText, page: "partner_quotes", section: "Partners" },
   { href: "/admin/partners/referrals", label: "Referral Decisions", icon: Share2, page: "partners", section: "Partners" },
   { href: "/admin/partners/prospects", label: "Partner Prospects", icon: UserPlus, page: "partners", section: "Partners" },
   { href: "/admin/partners/payout-requests", label: "Payout Requests", icon: Wallet, page: "finance", section: "Partners" },

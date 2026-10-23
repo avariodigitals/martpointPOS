@@ -32,6 +32,11 @@ interface Lead {
   status: string
 }
 
+interface EditPolicy {
+  canEdit: boolean
+  commercialLocked: boolean
+}
+
 export default function EditLeadPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
@@ -41,6 +46,7 @@ export default function EditLeadPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lead, setLead] = useState<Lead | null>(null)
+  const [editPolicy, setEditPolicy] = useState<EditPolicy>({ canEdit: false, commercialLocked: false })
 
   const [country, setCountry] = useState("")
   const [state, setState] = useState("")
@@ -63,6 +69,7 @@ export default function EditLeadPage() {
         }
         const l = json.lead as Lead
         setLead(l)
+        setEditPolicy(json.editPolicy || { canEdit: !["LOST", "EXPIRED", "WON"].includes(l.status), commercialLocked: false })
         setCountry(l.country)
         setState(l.state)
         setCity(l.city)
@@ -81,7 +88,7 @@ export default function EditLeadPage() {
     setError(null)
     const form = e.currentTarget
     const formData = new FormData(form)
-    const payload = {
+    const payload: Record<string, unknown> = {
       businessName: formData.get("businessName"),
       contactName: formData.get("contactName"),
       phone: formData.get("phone"),
@@ -89,13 +96,15 @@ export default function EditLeadPage() {
       country: formData.get("country"),
       state: formData.get("state"),
       city: formData.get("city"),
-      industry: formData.get("industry"),
-      businessType: formData.get("businessType"),
-      interestedProduct: formData.get("interestedProduct"),
-      estimatedBranches: formData.get("estimatedBranches") || null,
-      estimatedUsers: formData.get("estimatedUsers") || null,
-      estimatedDealValue: formData.get("estimatedDealValue") || null,
-      notes: formData.get("notes"),
+    }
+    if (!editPolicy.commercialLocked) {
+      payload.industry = formData.get("industry")
+      payload.businessType = formData.get("businessType")
+      payload.interestedProduct = formData.get("interestedProduct")
+      payload.estimatedBranches = formData.get("estimatedBranches") || null
+      payload.estimatedUsers = formData.get("estimatedUsers") || null
+      payload.estimatedDealValue = formData.get("estimatedDealValue") || null
+      payload.notes = formData.get("notes")
     }
     const res = await fetch(`/api/partner/leads/${id}`, {
       method: "PATCH",
@@ -129,7 +138,8 @@ export default function EditLeadPage() {
     )
   }
 
-  const editable = ["REGISTERED", "UNDER_REVIEW"].includes(lead.status)
+  const editable = editPolicy.canEdit
+  const commercialEditable = editable && !editPolicy.commercialLocked
 
   return (
     <div className="space-y-4 max-w-2xl">
@@ -142,7 +152,13 @@ export default function EditLeadPage() {
 
       {!editable && (
         <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
-          This lead is under review by MartPoint and can no longer be edited.
+          This lead is closed and can no longer be edited.
+        </p>
+      )}
+
+      {commercialEditable === false && editable && (
+        <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded p-3">
+          Finance has issued a quote. Correct the customer identity and contact details here; commercial requirements and the issued quote remain locked.
         </p>
       )}
 
@@ -286,7 +302,7 @@ export default function EditLeadPage() {
               name="industry"
               defaultValue={lead.industry}
               className={inputCls}
-              disabled={!editable}
+              disabled={!commercialEditable}
             >
               <option value="" disabled>Select industry</option>
               {lead.industry && !INDUSTRY_OPTIONS.includes(lead.industry) && (
@@ -304,7 +320,7 @@ export default function EditLeadPage() {
               name="businessType"
               defaultValue={lead.businessType}
               className={inputCls}
-              disabled={!editable}
+              disabled={!commercialEditable}
             >
               <option value="" disabled>Select business type</option>
               {lead.businessType && !BUSINESS_TYPE_OPTIONS.includes(lead.businessType) && (
@@ -323,7 +339,7 @@ export default function EditLeadPage() {
             name="interestedProduct"
             defaultValue={lead.interestedProduct}
             className={inputCls}
-            disabled={!editable}
+            disabled={!commercialEditable}
           >
             <option value="" disabled>Select product</option>
             {lead.interestedProduct && !PRODUCT_OPTIONS.includes(lead.interestedProduct) && (
@@ -343,7 +359,7 @@ export default function EditLeadPage() {
               min={1}
               defaultValue={lead.estimatedBranches ?? ""}
               className={inputCls}
-              disabled={!editable}
+              disabled={!commercialEditable}
             />
           </div>
           <div>
@@ -354,7 +370,7 @@ export default function EditLeadPage() {
               min={1}
               defaultValue={lead.estimatedUsers ?? ""}
               className={inputCls}
-              disabled={!editable}
+              disabled={!commercialEditable}
             />
           </div>
           <div>
@@ -366,7 +382,7 @@ export default function EditLeadPage() {
               step="0.01"
               defaultValue={lead.estimatedDealValue ?? ""}
               className={inputCls}
-              disabled={!editable}
+              disabled={!commercialEditable}
             />
           </div>
         </div>
@@ -377,7 +393,7 @@ export default function EditLeadPage() {
             rows={3}
             defaultValue={lead.notes ?? ""}
             className={inputCls}
-            disabled={!editable}
+            disabled={!commercialEditable}
           />
         </div>
         {editable && (

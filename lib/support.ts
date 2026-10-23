@@ -1,9 +1,8 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { isSensitiveSupportCategory } from "./support-permissions"
 import { canPartnerAccessBusiness } from "./partner-auth"
-import { logFinanceAudit } from "./finance-commercial"
 import { resolveAdminTasks } from "./tasks"
-import { notifyAllAdmins } from "./admin-notifications"
+import { notifyAllAdmins, notifyAdminUser } from "./admin-notifications"
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPES
@@ -298,22 +297,21 @@ export async function createTicket(input: {
   await addEvent(data.id, "CREATED", input.created_by_type, input.created_by_id, { ticket_number: ticketNumber })
   await logSupportAudit(input.created_by_type, input.created_by_id, "SUPPORT_TICKET_CREATED", data.id)
 
-  if (input.created_by_type !== "ADMIN") {
-    await notifyAllAdmins({
-      type: "SUPPORT_TICKET_CREATED",
-      title: "New support ticket",
-      message: `${ticketNumber}: ${input.subject}`,
-      deep_link: `/admin/support/${data.id}`,
-      source_type: "support_ticket",
-      source_id: data.id as string,
-      roles: ["Admin", "Customer Care", "Tech"],
-      email: {
-        route: "support_ticket",
-        subject: `New Support Ticket — ${ticketNumber}`,
-        text: `A new support ticket needs attention.\n\nTicket: ${ticketNumber}\nSubject: ${input.subject}\n\nOpen Support in the Admin Portal:\n/admin/support/${data.id}`,
-      },
-    })
-  }
+  await notifyAllAdmins({
+    type: "SUPPORT_TICKET_CREATED",
+    title: "New support ticket",
+    message: `${ticketNumber}: ${input.subject}`,
+    deep_link: `/admin/support/${data.id}`,
+    source_type: "support_ticket",
+    source_id: data.id as string,
+    exclude_admin_user_id: input.created_by_type === "ADMIN" ? input.created_by_id || undefined : undefined,
+    roles: ["Admin", "Customer Care", "Tech"],
+    email: {
+      route: "support_ticket",
+      subject: `New Support Ticket — ${ticketNumber}`,
+      text: `A new support ticket needs attention.\n\nTicket: ${ticketNumber}\nSubject: ${input.subject}\n\nOpen Support in the Admin Portal:\n/admin/support/${data.id}`,
+    },
+  })
 
   return data as SupportTicket
 }
@@ -383,6 +381,27 @@ export async function addMessage(
         .update({ first_responded_at: (data as SupportMessage).created_at, updated_at: now() })
         .eq("id", ticketId)
     }
+  }
+
+  // Keep the support team aware of internal notes and admin replies too. A
+  // ticket update should not disappear simply because the original requester
+  // was not the person who changed it.
+  if (visibility === "INTERNAL" || authorType === "ADMIN") {
+    const { data: ticket } = await supabase
+      .from("support_tickets")
+      .select("ticket_number, subject")
+      .eq("id", ticketId)
+      .maybeSingle()
+    await notifyAllAdmins({
+      type: visibility === "INTERNAL" ? "SUPPORT_INTERNAL_NOTE" : "SUPPORT_TICKET_ADMIN_REPLY",
+      title: visibility === "INTERNAL" ? "New internal support note" : "Support ticket updated",
+      message: `${ticket?.ticket_number || "Support ticket"}: ${ticket?.subject || "Ticket activity"}`,
+      deep_link: `/admin/support/${ticketId}`,
+      source_type: "support_ticket",
+      source_id: ticketId,
+      exclude_admin_user_id: authorType === "ADMIN" ? authorId || undefined : undefined,
+      roles: ["Admin", "Customer Care", "Tech"],
+    })
   }
 
   return data as SupportMessage
@@ -507,6 +526,17 @@ export async function changeStatus(
   }
   if (newStatus === "CLOSED") await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_CLOSED", ticketId)
 
+  await notifyAllAdmins({
+    type: "SUPPORT_TICKET_STATUS_CHANGED",
+    title: "Support ticket status changed",
+    message: `${t.ticket_number}: ${t.status} → ${newStatus}`,
+    deep_link: `/admin/support/${ticketId}`,
+    source_type: "support_ticket",
+    source_id: ticketId,
+    exclude_admin_user_id: actorType === "ADMIN" ? actorId : undefined,
+    roles: ["Admin", "Customer Care", "Tech"],
+  })
+
   return data as SupportTicket
 }
 
@@ -541,6 +571,16 @@ export async function changePriority(
 
   await addEvent(ticketId, "PRIORITY_CHANGED", actorType, actorId, {}, t.priority, newPriority)
   await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_PRIORITY_CHANGED", ticketId)
+  await notifyAllAdmins({
+    type: "SUPPORT_TICKET_PRIORITY_CHANGED",
+    title: "Support ticket priority changed",
+    message: `${t.ticket_number}: ${t.priority} → ${newPriority}`,
+    deep_link: `/admin/support/${ticketId}`,
+    source_type: "support_ticket",
+    source_id: ticketId,
+    exclude_admin_user_id: actorType === "ADMIN" ? actorId : undefined,
+    roles: ["Admin", "Customer Care", "Tech"],
+  })
   return data as SupportTicket
 }
 
@@ -568,6 +608,16 @@ export async function escalateTicket(
 
   await addEvent(ticketId, "ESCALATED", actorType, actorId, { reason })
   await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_ESCALATED", ticketId)
+  await notifyAllAdmins({
+    type: "SUPPORT_TICKET_ESCALATED",
+    title: "Support ticket escalated",
+    message: `${(data as SupportTicket).ticket_number}: ${reason || "Needs higher-level attention"}`,
+    deep_link: `/admin/support/${ticketId}`,
+    source_type: "support_ticket",
+    source_id: ticketId,
+    exclude_admin_user_id: actorType === "ADMIN" ? actorId : undefined,
+    roles: ["Admin", "Customer Care", "Tech"],
+  })
   return data as SupportTicket
 }
 
@@ -599,5 +649,14 @@ export async function assignAdmin(
   await resolveAdminTasks("SUPPORT_TICKET", ticketId, ["SUPPORT_UNASSIGNED"])
   await addEvent(ticketId, "ASSIGNED", actorType, actorId, {}, t.assigned_admin_user_id || undefined, adminUserId)
   await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_ASSIGNED", ticketId)
+  await notifyAdminUser({
+    admin_user_id: adminUserId,
+    type: "SUPPORT_TICKET_ASSIGNED",
+    title: "Support ticket assigned to you",
+    message: `${t.ticket_number}: ${t.subject}`,
+    deep_link: `/admin/support/${ticketId}`,
+    source_type: "support_ticket",
+    source_id: ticketId,
+  })
   return data as SupportTicket
 }

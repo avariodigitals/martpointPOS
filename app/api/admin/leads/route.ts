@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server"
 import crypto from "crypto"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, getAllUsers, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordAuditBatch, auditContextFromSession, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { resolveIndustryName } from "@/lib/industries"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 import { normalizeLeadSource } from "@/lib/lead-sources"
+import { notifyAdminUser, notifyAllAdmins } from "@/lib/admin-notifications"
 
 interface LeadRecord {
   id: string
@@ -112,6 +113,7 @@ export async function PUT(request: Request) {
   if (denied) return denied
 
   try {
+    const session = await getSession()
     const body = await request.json()
     const { id, status, notes, assignedTo } = body
     const {
@@ -141,6 +143,12 @@ export async function PUT(request: Request) {
     if (!isSupabaseConfigured()) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
     }
+
+    const { data: before } = await supabase
+      .from("leads")
+      .select("status, assigned_to")
+      .eq("id", id)
+      .maybeSingle()
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (status !== undefined) updateData.status = status
@@ -198,6 +206,49 @@ export async function PUT(request: Request) {
       remindersPaused: Boolean(data.reminders_paused),
       submittedAt: data.submitted_at,
       updatedAt: data.updated_at,
+    }
+
+    if (assignedTo !== undefined && assignedTo !== before?.assigned_to) {
+      const assignee = String(assignedTo || "").trim()
+      if (assignee) {
+        const users = await getAllUsers()
+        const target = users.find((user) => user.name === assignee || user.username === assignee)
+        if (target) {
+          await notifyAdminUser({
+            admin_user_id: target.id,
+            type: "LEAD_ASSIGNED",
+            title: "Lead assigned to you",
+            message: `${data.business_name} · ${data.full_name}`,
+            deep_link: `/admin/leads?lead=${encodeURIComponent(id)}`,
+            source_type: "lead",
+            source_id: id,
+          })
+        }
+      } else {
+        await notifyAllAdmins({
+          type: "LEAD_UNASSIGNED",
+          title: "Lead is unassigned",
+          message: `${data.business_name} · ${data.full_name} needs an owner.`,
+          deep_link: `/admin/leads?lead=${encodeURIComponent(id)}`,
+          source_type: "lead",
+          source_id: id,
+          exclude_admin_user_id: session?.userId,
+          roles: ["Admin", "Sales", "Digital Marketer", "Customer Care"],
+        })
+      }
+    }
+
+    if (status !== undefined && status !== before?.status) {
+      await notifyAllAdmins({
+        type: "LEAD_STATUS_CHANGED",
+        title: "Lead status changed",
+        message: `${data.business_name} · ${data.full_name}: ${before?.status || "—"} → ${data.status}`,
+        deep_link: `/admin/leads?lead=${encodeURIComponent(id)}`,
+        source_type: "lead",
+        source_id: id,
+        exclude_admin_user_id: session?.userId,
+        roles: ["Admin", "Sales", "Digital Marketer", "Customer Care"],
+      })
     }
 
     return NextResponse.json({ success: true, lead })

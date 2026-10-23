@@ -6,6 +6,7 @@
 
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { notifyAllAdmins } from "./admin-notifications"
 
 export interface InboundLeadEmail {
   from: string
@@ -38,15 +39,21 @@ export function inboundMessageKey(email: Pick<InboundLeadEmail, "messageId" | "f
 }
 
 /** Leads reply from the address on their form, and sometimes a second one. */
-async function findLeadByAddress(address: string): Promise<string | null> {
+async function findLeadByAddress(address: string): Promise<{ id: string; full_name: string; business_name: string } | null> {
   for (const column of ["email", "additional_email"] as const) {
     const { data } = await supabase
       .from("leads")
-      .select("id")
+      .select("id, full_name, business_name")
       .ilike(column, address)
       .limit(1)
       .maybeSingle()
-    if (data?.id) return String(data.id)
+    if (data?.id) {
+      return {
+        id: String(data.id),
+        full_name: String(data.full_name || "Lead"),
+        business_name: String(data.business_name || "Unnamed business"),
+      }
+    }
   }
   return null
 }
@@ -56,23 +63,23 @@ async function findLeadByAddress(address: string): Promise<string | null> {
 export async function fileInboundLeadEmail(email: InboundLeadEmail): Promise<boolean> {
   if (!isSupabaseConfigured() || !email.from) return false
 
-  const leadId = await findLeadByAddress(email.from)
-  if (!leadId) return false
+  const lead = await findLeadByAddress(email.from)
+  if (!lead) return false
 
   const messageKey = inboundMessageKey(email)
   if (messageKey) {
     const { data: existing } = await supabase
       .from("lead_emails")
       .select("id")
-      .eq("lead_id", leadId)
+      .eq("lead_id", lead.id)
       .eq("provider_message_id", messageKey)
       .limit(1)
       .maybeSingle()
     if (existing) return false
   }
 
-  const { error } = await supabase.from("lead_emails").insert({
-    lead_id: leadId,
+  const { data: inserted, error } = await supabase.from("lead_emails").insert({
+    lead_id: lead.id,
     direction: "inbound",
     from_email: email.from,
     to_email: email.to || null,
@@ -88,11 +95,37 @@ export async function fileInboundLeadEmail(email: InboundLeadEmail): Promise<boo
       cc: email.cc || null,
       sent_at: email.sentAt || null,
     },
-  })
+  }).select("id").single()
 
   if (error) {
     console.error("[lead-emails] inbound insert failed:", error.message)
     return false
+  }
+
+  try {
+    await notifyAllAdmins({
+      type: "LEAD_EMAIL_RECEIVED",
+      title: "New email received from a lead",
+      message: `${lead.business_name} · ${lead.full_name} · ${email.subject || "(no subject)"}`,
+      deep_link: `/admin/leads?lead=${encodeURIComponent(lead.id)}`,
+      source_type: "lead_email",
+      source_id: inserted?.id ? String(inserted.id) : lead.id,
+      email: {
+        route: "lead_submission",
+        subject: `New lead email: ${email.subject || "(no subject)"}`,
+        text: [
+          "A new email was received from a lead.",
+          `Lead: ${lead.full_name}`,
+          `Business: ${lead.business_name}`,
+          `From: ${email.from}`,
+          `Subject: ${email.subject || "(no subject)"}`,
+          "",
+          "Open Admin → Leads → Email to reply.",
+        ].join("\n"),
+      },
+    })
+  } catch (notificationError) {
+    console.error("[lead-emails] admin notification failed:", notificationError)
   }
   return true
 }

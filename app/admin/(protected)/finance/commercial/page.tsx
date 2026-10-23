@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Landmark, FileText, CreditCard, AlertCircle, Repeat, Calendar, Gift, Wallet } from "lucide-react"
 import Link from "next/link"
@@ -107,7 +107,6 @@ export default function CommercialFinancePage() {
                 { label: "Plans", href: "/admin/finance/commercial/plans", desc: "Pricing plans" },
                 { label: "Add-ons", href: "/admin/finance/commercial/addons", desc: "Optional add-ons" },
                 { label: "Quotes", href: "/admin/finance/commercial/quotes", desc: "Customer quotations" },
-                { label: "Partner Quotes", href: "/admin/finance/commercial/quotes?source=partner", desc: "Requests, review, send & convert" },
                 { label: "Invoices", href: "/admin/finance/commercial/invoices", desc: "Issue & manage invoices" },
                 { label: "Payments", href: "/admin/finance/commercial/payments", desc: "Record & confirm payments" },
                 { label: "Subscriptions", href: "/admin/finance/commercial/subscriptions", desc: "Activate & renew subscriptions" },

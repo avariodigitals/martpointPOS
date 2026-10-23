@@ -130,6 +130,7 @@ const DEFAULT_ROUTES: Record<string, string> = {
   partner_quote_request: "sales@martpoint.com.ng",
   partner_lead_registration: "sales@martpoint.com.ng",
   partner_payout_request: "sales@martpoint.com.ng",
+  payment_proof_submitted: "sales@martpoint.com.ng",
   partner_compliance_document: "sales@martpoint.com.ng",
   partner_assessment_review: "sales@martpoint.com.ng",
   onboarding_welcome: "",

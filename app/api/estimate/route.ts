@@ -8,6 +8,8 @@ import { renderEmailTemplate } from "@/lib/email-templates"
 import { readSettings } from "@/lib/settings"
 import { resolveIndustryName } from "@/lib/industries"
 import { enqueueAutomation } from "@/lib/automations"
+import { createAttributedPartnerLead } from "@/lib/process-lead"
+import { notifyAllAdmins } from "@/lib/admin-notifications"
 import {
   buildEstimate,
   buildPricingFromSettings,
@@ -92,6 +94,8 @@ export async function POST(request: Request) {
     const leadId = crypto.randomUUID()
     const now = new Date().toISOString()
     const productInterest = "not-sure"
+    let leadPersisted = false
+    let partnerLeadId: string | null = null
 
     // 1. Persist to Supabase leads table (so it appears in the Leads dashboard)
     if (isSupabaseConfigured()) {
@@ -117,7 +121,33 @@ export async function POST(request: Request) {
       })
       if (error) {
         console.error("[estimate] Supabase lead insert error:", error.message)
+        return NextResponse.json({ error: "We could not save your estimate request. Please try again." }, { status: 503 })
       } else {
+        leadPersisted = true
+        const attributed = await createAttributedPartnerLead({
+          leadId,
+          partnerCode: referringPartnerCode,
+          fullName,
+          businessName: businessName || "",
+          email,
+          phone,
+          businessType,
+          productInterest,
+          branches,
+          staffSize,
+          message: notes,
+          submittedAt: now,
+          updatedAt: now,
+        })
+        partnerLeadId = attributed?.partnerLeadId || null
+        await notifyAllAdmins({
+          type: partnerLeadId ? "PARTNER_REFERRED_LEAD_RECEIVED" : "LEAD_RECEIVED",
+          title: partnerLeadId ? "New partner-referred estimate" : "New estimate request",
+          message: `${businessName || "Unnamed business"} · ${fullName} · ${email}${referringPartnerCode ? ` · partner ${referringPartnerCode}` : ""}`,
+          deep_link: partnerLeadId ? "/admin/partners/leads" : `/admin/leads?lead=${encodeURIComponent(leadId)}`,
+          source_type: partnerLeadId ? "partner_lead" : "lead",
+          source_id: partnerLeadId || leadId,
+        })
         // Schedule the friendly "turn your estimate into a quote" follow-up
         // (+48h, then every 48h). Best-effort — never block the submission.
         await enqueueAutomation({
@@ -190,7 +220,17 @@ export async function POST(request: Request) {
       erpBlock: result.erp ? `ERP ALSO REQUESTED\n${result.erp.planName} — ${formatRange(result.erp)}` : "",
       notes: notes || "—",
     })
-    await sendEmail({ route: "estimate_submission", subject: tpl.subject, text: tpl.text, html: tpl.html })
+    const notificationEmailSent = await sendEmail({ route: "estimate_submission", subject: tpl.subject, text: tpl.text, html: tpl.html })
+    if (!notificationEmailSent && leadPersisted) {
+      await notifyAllAdmins({
+        type: "LEAD_NOTIFICATION_EMAIL_FAILED",
+        title: "Estimate saved — notification email failed",
+        message: `${businessName || "Unnamed business"} · ${fullName} was saved, but the sales notification email could not be delivered. Check Email Logs.`,
+        deep_link: partnerLeadId ? "/admin/partners/leads" : `/admin/leads?lead=${encodeURIComponent(leadId)}`,
+        source_type: partnerLeadId ? "partner_lead" : "lead",
+        source_id: partnerLeadId || leadId,
+      })
+    }
 
     // 4. WhatsApp Business API auto-notify (requires Meta credentials)
     const waPhoneId = process.env.WHATSAPP_PHONE_ID
@@ -218,6 +258,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: "Estimate submitted successfully",
+      notificationEmailSent,
       recommendation: {
         retail: { planName: result.retail.planName, range: formatRange(result.retail) },
         ...(result.erp

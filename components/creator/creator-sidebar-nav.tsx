@@ -87,7 +87,7 @@ export function CreatorSidebarNav({
         isItemActive={isItemActive}
         onLogout={handleLogout}
         logoutLabel="Sign out"
-        notificationEndpoint="/api/creator/notifications"
+        profileHref="/creator/profile"
       />
 
       <PortalSidebar
@@ -100,7 +100,6 @@ export function CreatorSidebarNav({
         logoutLabel="Sign out"
         storageKey="creator-nav"
         isItemActive={isItemActive}
-        notificationEndpoint="/api/creator/notifications"
       />
     </>
   )

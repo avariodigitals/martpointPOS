@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation"
 import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
-import { getPartnerLeadByIdForPartner } from "@/lib/partner-leads"
+import { getPartnerLeadByIdForPartner, getPartnerLeadEditPolicy } from "@/lib/partner-leads"
 import Link from "next/link"
 import { enumLabel } from "@/lib/utils"
 
@@ -15,14 +15,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const lead = await getPartnerLeadByIdForPartner(id, session.partnerId, session.partnerUserId)
   if (!lead) notFound()
 
-  const editable = ["REGISTERED", "UNDER_REVIEW"].includes(lead.status)
+  const editPolicy = await getPartnerLeadEditPolicy(lead)
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">{lead.businessName}</h2>
         <div className="flex items-center gap-3">
-          {editable && (
+          {editPolicy.canEdit && (
             <Link
               href={`/partner/leads/${id}/edit`}
               className="inline-flex items-center rounded-md bg-retail px-4 py-2 text-sm font-medium text-white hover:bg-retail/90"
@@ -49,8 +49,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </p>
       )}
 
-      {!editable && (
-        <p className="text-sm text-muted-foreground">This lead is under review by MartPoint and cannot be edited.</p>
+      {!editPolicy.canEdit && (
+        <p className="text-sm text-muted-foreground">This lead is closed and cannot be edited.</p>
+      )}
+
+      {editPolicy.canEdit && editPolicy.commercialLocked && (
+        <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded p-3">
+          Finance has issued a quote for this opportunity. You can still correct the customer&apos;s name, contact details and location. The issued quote&apos;s prices, terms and totals remain locked; request a revised quote if the requirements changed.
+        </p>
       )}
 
       {lead.protectionStatus === "PROTECTED" && !["LOST", "EXPIRED"].includes(lead.status) ? (

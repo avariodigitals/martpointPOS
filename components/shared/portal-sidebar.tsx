@@ -11,7 +11,6 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react"
-import { PortalNotificationBell } from "@/components/shared/portal-notification-bell"
 
 export interface PortalNavItem {
   href: string
@@ -41,7 +40,6 @@ interface PortalSidebarProps {
   /** localStorage namespace, so each portal remembers its own state. */
   storageKey: string
   isItemActive: (href: string) => boolean
-  notificationEndpoint?: string
 }
 
 function initialsOf(value: string): string {
@@ -73,7 +71,6 @@ export function PortalSidebar({
   logoutLabel,
   storageKey,
   isItemActive,
-  notificationEndpoint,
 }: PortalSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean> | null>(null)
@@ -149,7 +146,6 @@ export function PortalSidebar({
             >
               {initialsOf(title)}
             </span>
-            {notificationEndpoint && <PortalNotificationBell endpoint={notificationEndpoint} />}
             <button
               type="button"
               onClick={toggleCollapsed}
@@ -174,7 +170,6 @@ export function PortalSidebar({
                 ))}
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                {notificationEndpoint && <PortalNotificationBell endpoint={notificationEndpoint} />}
                 <button
                   type="button"
                   onClick={toggleCollapsed}

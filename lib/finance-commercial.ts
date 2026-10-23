@@ -5,7 +5,7 @@ import { postPaymentJournal, postInvoiceJournal } from "./finance-ledger"
 import { buildInvoiceIncomeBuckets, type InvoiceIncomeLine } from "./invoice-income"
 import crypto from "crypto"
 import type { InvoiceStatus } from "./invoice-status"
-import { notifyPartnerPaymentRejected } from "./partner-notifications"
+import { notifyPartnerPaymentConfirmed, notifyPartnerPaymentRejected } from "./partner-notifications"
 
 export * from "./invoice-status"
 
@@ -626,6 +626,38 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
 
   // On a paid invoice, advance the business onboarding to Payment Confirmed.
   const business = p.business_id ? await getBusinessById(p.business_id) : null
+  try {
+    if (p.business_id) {
+      const { data: businessRow } = await supabase
+        .from("businesses")
+        .select("business_name, originating_partner_id")
+        .eq("id", p.business_id)
+        .maybeSingle()
+      let partnerId = (businessRow?.originating_partner_id as string | null) || null
+      if (!partnerId) {
+        const { data: assignment } = await supabase
+          .from("partner_customer_assignments")
+          .select("partner_id")
+          .eq("business_id", p.business_id)
+          .eq("status", "ACTIVE")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        partnerId = (assignment?.partner_id as string | null) || null
+      }
+      if (partnerId) {
+        await notifyPartnerPaymentConfirmed(partnerId, {
+          businessName: String(businessRow?.business_name || business?.businessName || "Customer"),
+          paymentReference: p.payment_reference,
+          amount: Number(p.amount) || 0,
+          currency: p.currency || "NGN",
+          link: `/partner/customers/${p.business_id}/finance`,
+        })
+      }
+    }
+  } catch (notifyError) {
+    console.error("[confirmPayment] partner notification failed", notifyError)
+  }
   if (business && business.status !== "ACTIVE") {
     const actor: AuditContext = { actorType: "ADMIN", actorId: actorId || confirmedBy, actorName: null }
     await setOnboardingStage(business.id, "AWAITING_PAYMENT", true, actor)

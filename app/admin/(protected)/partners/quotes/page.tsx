@@ -4,12 +4,18 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, CheckCircle2, Clock3, FileText, Loader2, Plus, Send, Trash2, X } from "lucide-react"
+import { ArrowRight, CheckCircle2, Clock3, FileText, Loader2, Plus, Receipt, Send, Trash2, X } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 import { formatMoney } from "@/lib/money-format"
 import { quoteTemplateOptions, resolveQuoteTemplate } from "@/lib/quote-templates"
 
-type Tab = "requests" | "create"
+type Tab = "requests" | "create" | "issued" | "accepted" | "conversion"
+
+const TAB_KEYS: Tab[] = ["requests", "create", "issued", "accepted", "conversion"]
+
+function tabFromParam(value: string | null): Tab {
+  return TAB_KEYS.includes(value as Tab) ? value as Tab : "requests"
+}
 
 type Lead = {
   id?: string
@@ -43,6 +49,37 @@ type QuoteRequest = {
   created_at: string
   partners?: { business_name?: string; partner_id?: string } | null
   partner_leads?: Lead | null
+}
+
+type FinanceQuote = {
+  id: string
+  quote_number: string
+  status: string
+  quote_origin?: string | null
+  partner_id?: string | null
+  partner_lead_id?: string | null
+  partner_quote_request_id?: string | null
+  business_id?: string | null
+  currency: string
+  total_amount: number
+  valid_until?: string | null
+  created_at: string
+  updated_at?: string
+  businesses?: { business_name?: string } | null
+  partner_leads?: Lead | null
+}
+
+type InvoiceSummary = {
+  id: string
+  invoice_number: string
+  quote_id?: string | null
+  business_id: string
+  currency: string
+  total_amount: number
+  status: string
+  issue_date: string
+  due_date: string
+  businesses?: { business_name?: string } | null
 }
 
 type CatalogItem = {
@@ -90,6 +127,10 @@ function requestLabel(request: QuoteRequest) {
 
 function statusClass(status: string) {
   if (status === "ISSUED") return "bg-emerald-50 text-emerald-700"
+  if (status === "SENT") return "bg-blue-50 text-blue-700"
+  if (status === "ACCEPTED") return "bg-emerald-50 text-emerald-700"
+  if (status === "CONVERTED") return "bg-violet-50 text-violet-700"
+  if (status === "DRAFT") return "bg-slate-100 text-slate-700"
   if (status === "DECLINED" || status === "EXPIRED") return "bg-red-50 text-red-700"
   if (status === "UNDER_REVIEW") return "bg-amber-50 text-amber-700"
   return "bg-blue-50 text-blue-700"
@@ -98,14 +139,17 @@ function statusClass(status: string) {
 export default function PartnerQuotesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<Tab>(searchParams.get("tab") === "create" ? "create" : "requests")
+  const [tab, setTab] = useState<Tab>(() => tabFromParam(searchParams.get("tab")))
   const [requests, setRequests] = useState<QuoteRequest[]>([])
+  const [quotes, setQuotes] = useState<FinanceQuote[]>([])
+  const [invoices, setInvoices] = useState<InvoiceSummary[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
   const [catalog, setCatalog] = useState<CatalogItem[]>([])
   const [taxRates, setTaxRates] = useState<{ name: string; rate: number }[]>([])
   const [bankDetails, setBankDetails] = useState("")
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
+  const [quoteActionId, setQuoteActionId] = useState<string | null>(null)
   const [message, setMessage] = useState("")
   const [selectedRequestId, setSelectedRequestId] = useState("")
   const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({})
@@ -146,12 +190,20 @@ export default function PartnerQuotesPage() {
         fetch("/api/admin/quotations"),
         fetch("/api/admin/settings"),
       ])
+      const [quoteRes, invoiceRes] = await Promise.all([
+        fetch("/api/admin/finance/commercial/quotes"),
+        fetch("/api/admin/finance/commercial/invoices"),
+      ])
       const requestData = await requestRes.json()
       const planData = await planRes.json()
       const catalogData = await catalogRes.json()
       const quotationData = await quotationRes.json()
       const settingsData = await settingsRes.json()
+      const quoteData = await quoteRes.json()
+      const invoiceData = await invoiceRes.json()
       setRequests(requestData.requests || [])
+      setQuotes(Array.isArray(quoteData.data) ? quoteData.data : [])
+      setInvoices(Array.isArray(invoiceData.data) ? invoiceData.data : [])
       const planRows = Array.isArray(planData.data) ? planData.data : planData.data?.plans || []
       setPlans(planRows.filter((p: Plan) => p.active !== false))
       const all = catalogData.data || {}
@@ -174,6 +226,46 @@ export default function PartnerQuotesPage() {
   function switchTab(next: Tab) {
     setTab(next)
     router.replace(`/admin/partners/quotes?tab=${next}`)
+  }
+
+  const requestForQuote = (quote: FinanceQuote) => requests.find((request) =>
+    request.id === quote.partner_quote_request_id || request.quote_id === quote.id
+  ) || null
+
+  const partnerQuotes = useMemo(() => quotes.filter((quote) =>
+    quote.quote_origin === "PARTNER_REQUEST" || Boolean(quote.partner_quote_request_id) || Boolean(requests.find((request) => request.quote_id === quote.id))
+  ), [quotes, requests])
+  const issuedQuotes = useMemo(() => partnerQuotes.filter((quote) => quote.status === "SENT"), [partnerQuotes])
+  const acceptedQuotes = useMemo(() => partnerQuotes.filter((quote) => quote.status === "ACCEPTED"), [partnerQuotes])
+  const conversionQuotes = useMemo(() => partnerQuotes.filter((quote) =>
+    ["ACCEPTED", "CONVERTED"].includes(quote.status) || invoices.some((invoice) => invoice.quote_id === quote.id)
+  ), [partnerQuotes, invoices])
+  const invoiceByQuoteId = useMemo(() => new Map(invoices.filter((invoice) => invoice.quote_id).map((invoice) => [invoice.quote_id as string, invoice])), [invoices])
+
+  async function runQuoteAction(quote: FinanceQuote, action: "send" | "convert") {
+    setQuoteActionId(quote.id)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/finance/commercial/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, data: { id: quote.id, ...(action === "convert" ? { create_business: true } : {}) } }),
+      })
+      const data = await res.json()
+      if (!data.success) {
+        setMessage(data.error || `The quote could not be ${action === "convert" ? "converted" : "issued"}.`)
+        return
+      }
+      setMessage(action === "convert"
+        ? `Quote ${quote.quote_number} converted to invoice ${data.data?.invoice_number || "successfully"}.`
+        : `Quote ${quote.quote_number} issued to the partner.`)
+      await loadWorkspace()
+      if (action === "convert") switchTab("conversion")
+    } catch {
+      setMessage(`The quote could not be ${action === "convert" ? "converted" : "issued"}.`)
+    } finally {
+      setQuoteActionId(null)
+    }
   }
 
   function applyTemplate(industry: string, keepPlan = true) {
@@ -269,6 +361,64 @@ export default function PartnerQuotesPage() {
     }
   }
 
+  function renderQuoteList(list: FinanceQuote[], emptyMessage: string, mode: "issued" | "accepted" | "conversion") {
+    if (list.length === 0) {
+      return <p className="py-10 text-center text-sm text-muted-foreground">{emptyMessage}</p>
+    }
+
+    return (
+      <div className="space-y-3">
+        {list.map((quote) => {
+          const request = requestForQuote(quote)
+          const invoice = invoiceByQuoteId.get(quote.id)
+          const opportunity = quote.partner_leads?.business_name || request?.partner_leads?.business_name || quote.businesses?.business_name || "Partner opportunity"
+          const contact = quote.partner_leads?.contact_name || request?.partner_leads?.contact_name || "Contact not supplied"
+          const actionBusy = quoteActionId === quote.id
+          return (
+            <div key={quote.id} className="rounded-lg border border-border p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{opportunity}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${statusClass(quote.status)}`}>{enumLabel(quote.status)}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{quote.quote_number} · {contact} · {formatMoney(quote.total_amount, quote.currency)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {quote.valid_until ? `Valid until ${new Date(quote.valid_until).toLocaleDateString()}` : "No expiry date"}
+                    {quote.business_id ? " · Customer business linked" : " · Business will be created at conversion"}
+                  </p>
+                  {invoice && (
+                    <p className="flex items-center gap-1 text-xs font-medium text-violet-700">
+                      <Receipt className="h-3.5 w-3.5" /> Invoice {invoice.invoice_number} · {enumLabel(invoice.status)} · {formatMoney(invoice.total_amount, invoice.currency)}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  {mode === "issued" && (
+                    <Button size="sm" variant="outline" onClick={() => void runQuoteAction(quote, "send")} disabled={actionBusy}>
+                      {actionBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />} Send again
+                    </Button>
+                  )}
+                  {mode === "accepted" && (
+                    <Button size="sm" onClick={() => void runQuoteAction(quote, "convert")} disabled={actionBusy}>
+                      {actionBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Receipt className="mr-1 h-3.5 w-3.5" />} Convert to invoice
+                    </Button>
+                  )}
+                  {mode === "conversion" && !invoice && quote.status === "ACCEPTED" && (
+                    <Button size="sm" onClick={() => void runQuoteAction(quote, "convert")} disabled={actionBusy}>
+                      {actionBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Receipt className="mr-1 h-3.5 w-3.5" />} Create invoice
+                    </Button>
+                  )}
+                  {invoice && <a href="/admin/finance/invoices" className="inline-flex items-center rounded-md border border-input px-3 py-2 text-xs font-medium hover:bg-muted">Open invoices</a>}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -281,9 +431,12 @@ export default function PartnerQuotesPage() {
 
       {message && <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">{message}</p>}
 
-      <div className="flex gap-2 border-b border-border">
-        <button className={`border-b-2 px-4 py-2 text-sm font-medium ${tab === "requests" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`} onClick={() => switchTab("requests")}>Quote Requests <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{requests.length}</span></button>
-        <button className={`border-b-2 px-4 py-2 text-sm font-medium ${tab === "create" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`} onClick={() => switchTab("create")}>Create Quote</button>
+      <div className="flex gap-1 overflow-x-auto border-b border-border">
+        <button className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium ${tab === "requests" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`} onClick={() => switchTab("requests")}>Quote Requests <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{requests.length}</span></button>
+        <button className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium ${tab === "create" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`} onClick={() => switchTab("create")}>Quote Creation</button>
+        <button className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium ${tab === "issued" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`} onClick={() => switchTab("issued")}>Issued Quotes <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{issuedQuotes.length}</span></button>
+        <button className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium ${tab === "accepted" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`} onClick={() => switchTab("accepted")}>Accepted Quotes <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{acceptedQuotes.length}</span></button>
+        <button className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium ${tab === "conversion" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`} onClick={() => switchTab("conversion")}>Conversion / Invoicing <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{conversionQuotes.length}</span></button>
       </div>
 
       {loading ? <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : tab === "requests" ? (
@@ -317,7 +470,7 @@ export default function PartnerQuotesPage() {
             )}
           </CardContent>
         </Card>
-      ) : (
+      ) : tab === "create" ? (
         <form onSubmit={(e) => { e.preventDefault(); void createQuote(false) }} className="space-y-6">
           <Card>
             <CardHeader><CardTitle className="text-sm font-medium">1. Link the request</CardTitle></CardHeader>
@@ -360,6 +513,21 @@ export default function PartnerQuotesPage() {
 
           <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={() => switchTab("requests")}>Cancel</Button><Button type="submit" variant="outline" disabled={working || !selectedRequestId}><FileText className="mr-1 h-4 w-4" /> Save draft</Button><Button type="button" onClick={() => void createQuote(true)} disabled={working || !selectedRequestId}><CheckCircle2 className="mr-1 h-4 w-4" /> Create & issue quote</Button></div>
         </form>
+      ) : tab === "issued" ? (
+        <Card>
+          <CardHeader><CardTitle className="text-sm font-medium">Issued quotes awaiting partner response</CardTitle></CardHeader>
+          <CardContent>{renderQuoteList(issuedQuotes, "No issued partner quotes are waiting for a response.", "issued")}</CardContent>
+        </Card>
+      ) : tab === "accepted" ? (
+        <Card>
+          <CardHeader><CardTitle className="text-sm font-medium">Accepted quotes ready for Finance conversion</CardTitle></CardHeader>
+          <CardContent>{renderQuoteList(acceptedQuotes, "No partner quotes have been accepted yet.", "accepted")}</CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader><CardTitle className="text-sm font-medium">Customer conversion and invoice status</CardTitle></CardHeader>
+          <CardContent>{renderQuoteList(conversionQuotes, "No accepted or converted partner quotes need invoicing.", "conversion")}</CardContent>
+        </Card>
       )}
     </div>
   )

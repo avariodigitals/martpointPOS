@@ -35,6 +35,7 @@ export function PaymentProofForm({ businessId, invoiceId, balance, currency }: {
   return (
     <div className="mt-3 rounded-md border border-border bg-muted/20 p-3 space-y-2">
       <p className="text-xs font-semibold">Submit payment proof</p>
+      <p className="text-xs text-muted-foreground">Upload a clear transfer receipt or payment confirmation. Add the bank/payment reference if one was provided by your bank.</p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
         <input className="rounded-md border border-input bg-background px-2 py-1.5 text-sm" type="number" min="0.01" max={balance} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`Amount (${currency})`} />
         <input className="rounded-md border border-input bg-background px-2 py-1.5 text-sm" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Bank/payment reference" />

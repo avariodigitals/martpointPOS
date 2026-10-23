@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Landmark, FileText, CreditCard, AlertCircle, Repeat, Calendar, Gift, Wallet } from "lucide-react"
+import { Loader2, Landmark, FileText, CreditCard, AlertCircle, Repeat, Calendar, Gift, Users, Wallet } from "lucide-react"
 import Link from "next/link"
 import type { FinanceOverview } from "@/lib/finance-commercial"
 import { formatMoney } from "@/lib/money-format"
@@ -88,6 +88,10 @@ export default function CommercialFinancePage() {
           <div>
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Commercial Overview</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <KpiCard title="Active businesses" value={String(overview.active_businesses)} sub="Live customer tenants" icon={Users} />
+              <KpiCard title="Paid businesses" value={String(overview.paid_businesses)} sub="Confirmed payments, all time" icon={CreditCard} />
+              <KpiCard title="Activation pending" value={String(overview.activation_pending_businesses)} sub="Paid but no active access yet" icon={AlertCircle} />
+              <KpiCard title="Entitled businesses" value={String(overview.entitled_businesses)} sub="Access currently issued" icon={Repeat} />
               <KpiCard title="Invoices Issued" value={String(overview.invoices_issued)} icon={FileText} />
               <KpiCard title="Payments Received" value={formatNgn(overview.payments_received)} icon={CreditCard} />
               <KpiCard title="Outstanding" value={formatNgn(overview.outstanding_balance)} icon={Wallet} />
@@ -109,8 +113,8 @@ export default function CommercialFinancePage() {
                 { label: "Quotes", href: "/admin/finance/commercial/quotes", desc: "Customer quotations" },
                 { label: "Invoices", href: "/admin/finance/commercial/invoices", desc: "Issue & manage invoices" },
                 { label: "Payments", href: "/admin/finance/commercial/payments", desc: "Record & confirm payments" },
-                { label: "Subscriptions", href: "/admin/finance/commercial/subscriptions", desc: "Activate & renew subscriptions" },
-                { label: "Licences Sold", href: "/admin/finance/commercial/licences_sold", desc: "How many licences are sold (incl. waived)" },
+                { label: "Subscriptions", href: "/admin/finance/commercial/subscriptions", desc: "Customer billing agreements: activate, suspend & renew" },
+                { label: "Licence Ledger", href: "/admin/finance/commercial/licences_sold", desc: "Access entitlements issued by subscriptions, including waived" },
                 { label: "Renewals", href: "/admin/finance/commercial/renewals", desc: "Renewal pipeline" },
                 { label: "Commission Plans", href: "/admin/finance/commercial/commission_plans", desc: "Partner commission plans" },
                 { label: "Commissions", href: "/admin/finance/commercial/commissions", desc: "Approve & pay commissions" },

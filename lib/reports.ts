@@ -67,6 +67,13 @@ export type InvestorReport = {
   arr: number
   arpu: number
   active_businesses: number
+  /** Businesses with at least one confirmed payment in the selected period. */
+  paid_businesses: number
+  /** Paid businesses that do not yet have an active subscription or licence. */
+  activation_pending_businesses: number
+  /** Businesses with a currently granted licence/entitlement. */
+  entitled_businesses: number
+  /** Subscription-backed businesses used for MRR/ARPU. */
   paying_businesses: number
   new_businesses: number
   churned_businesses: number
@@ -81,7 +88,7 @@ export type InvestorReport = {
   concentration_top5: number
   monthly: { month: string; collected: number; new_mrr: number; churned_mrr: number }[]
   cohorts: { cohort: string; businesses: number; active: number; retention: number }[]
-  by_industry: { name: string; businesses: number; mrr: number }[]
+  by_industry: { name: string; businesses: number; paid_businesses: number; mrr: number; collected: number }[]
 }
 
 type PeriodBounds = {
@@ -628,6 +635,9 @@ export async function investorReport(period: ReportPeriod): Promise<InvestorRepo
     arr: 0,
     arpu: 0,
     active_businesses: 0,
+    paid_businesses: 0,
+    activation_pending_businesses: 0,
+    entitled_businesses: 0,
     paying_businesses: 0,
     new_businesses: 0,
     churned_businesses: 0,
@@ -651,7 +661,7 @@ export async function investorReport(period: ReportPeriod): Promise<InvestorRepo
   const now = new Date()
 
   try {
-    const [subsRes, bizRes, payRes, invRes] = await Promise.all([
+    const [subsRes, bizRes, payRes, invRes, licencesRes] = await Promise.all([
       supabase
         .from("subscriptions")
         .select(
@@ -667,9 +677,13 @@ export async function investorReport(period: ReportPeriod): Promise<InvestorRepo
         .from("invoices")
         .select("total_amount, amount_paid, issue_date, status")
         .not("status", "in", '("DRAFT","VOID","CANCELLED")'),
+      supabase
+        .from("business_licenses")
+        .select("business_id, status")
+        .in("status", ["ACTIVE", "WAIVED"]),
     ])
 
-    for (const [name, res] of Object.entries({ subs: subsRes, biz: bizRes, pay: payRes, inv: invRes })) {
+    for (const [name, res] of Object.entries({ subs: subsRes, biz: bizRes, pay: payRes, inv: invRes, licences: licencesRes })) {
       if (res.error) console.error(`investor report ${name} error:`, res.error.message)
     }
 
@@ -677,6 +691,11 @@ export async function investorReport(period: ReportPeriod): Promise<InvestorRepo
     const businesses = (bizRes.data as InvestorBusinessRow[] | null) || []
     const payments = (payRes.data as InvestorPaymentRow[] | null) || []
     const invoices = (invRes.data as InvestorInvoiceRow[] | null) || []
+    const entitledBusinessIds = new Set(
+      ((licencesRes.data as { business_id: string; status: string }[] | null) || [])
+        .map((row) => row.business_id)
+        .filter(Boolean)
+    )
 
     const inPeriod = (ts: string | null | undefined) => !!ts && ts >= start && ts <= end
 
@@ -684,8 +703,23 @@ export async function investorReport(period: ReportPeriod): Promise<InvestorRepo
     const mrrStatuses = new Set(["ACTIVE", "PAST_DUE"])
     const activeSubs = subs.filter((s) => mrrStatuses.has(s.status))
     const mrr = activeSubs.reduce((sum, s) => sum + monthlyValue(s), 0)
-    const payingBusinesses = new Set(activeSubs.map((s) => s.business_id)).size
+    const subscribedBusinessIds = new Set(activeSubs.map((s) => s.business_id))
+    const payingBusinesses = subscribedBusinessIds.size
     const activeBusinesses = businesses.filter((b) => b.status === "ACTIVE").length
+
+    // Cash receipt and subscription activation are deliberately separate
+    // lifecycle events. A one-time purchase has no subscription by design;
+    // a recurring purchase may be paid while Finance still needs to activate
+    // its subscription. Both must remain visible to Finance.
+    const paidBusinessIds = new Set(
+      payments
+        .filter((p) => inPeriod(p.paid_at))
+        .map((p) => p.business_id)
+        .filter(Boolean)
+    )
+    const activationPendingBusinessIds = new Set(
+      Array.from(paidBusinessIds).filter((businessId) => !subscribedBusinessIds.has(businessId) && !entitledBusinessIds.has(businessId))
+    )
 
     // ── MRR movements in period ──
     const newMrr = subs
@@ -756,22 +790,24 @@ export async function investorReport(period: ReportPeriod): Promise<InvestorRepo
     for (const s of activeSubs) {
       mrrByBusiness[s.business_id] = (mrrByBusiness[s.business_id] || 0) + monthlyValue(s)
     }
-    const industryMap: Record<string, { businesses: number; mrr: number }> = {}
-    for (const b of businesses) {
-      const name = b.industry || "Unspecified"
-      if (!industryMap[name]) industryMap[name] = { businesses: 0, mrr: 0 }
-      industryMap[name].businesses += 1
-      industryMap[name].mrr += mrrByBusiness[b.id] || 0
-    }
-    const byIndustry = Object.entries(industryMap)
-      .map(([name, v]) => ({ name, businesses: v.businesses, mrr: v.mrr }))
-      .sort((a, b) => b.mrr - a.mrr || b.businesses - a.businesses)
-
-    // ── Revenue concentration (top 5 by collected revenue in period) ──
     const collectedByBusiness: Record<string, number> = {}
     for (const p of payments.filter((p) => inPeriod(p.paid_at))) {
       collectedByBusiness[p.business_id] = (collectedByBusiness[p.business_id] || 0) + numeric(p.amount)
     }
+    const industryMap: Record<string, { businesses: number; paid_businesses: number; mrr: number; collected: number }> = {}
+    for (const b of businesses) {
+      const name = b.industry || "Unspecified"
+      if (!industryMap[name]) industryMap[name] = { businesses: 0, paid_businesses: 0, mrr: 0, collected: 0 }
+      industryMap[name].businesses += 1
+      if (paidBusinessIds.has(b.id)) industryMap[name].paid_businesses += 1
+      industryMap[name].mrr += mrrByBusiness[b.id] || 0
+      industryMap[name].collected += collectedByBusiness[b.id] || 0
+    }
+    const byIndustry = Object.entries(industryMap)
+      .map(([name, v]) => ({ name, businesses: v.businesses, paid_businesses: v.paid_businesses, mrr: v.mrr, collected: v.collected }))
+      .sort((a, b) => b.collected - a.collected || b.mrr - a.mrr || b.businesses - a.businesses)
+
+    // ── Revenue concentration (top 5 by collected revenue in period) ──
     const top5 = Object.values(collectedByBusiness)
       .sort((a, b) => b - a)
       .slice(0, 5)
@@ -782,6 +818,9 @@ export async function investorReport(period: ReportPeriod): Promise<InvestorRepo
       arr: mrr * 12,
       arpu: payingBusinesses > 0 ? mrr / payingBusinesses : 0,
       active_businesses: activeBusinesses,
+      paid_businesses: paidBusinessIds.size,
+      activation_pending_businesses: activationPendingBusinessIds.size,
+      entitled_businesses: entitledBusinessIds.size,
       paying_businesses: payingBusinesses,
       new_businesses: businesses.filter((b) => inPeriod(b.created_at)).length,
       churned_businesses: churnedBusinesses,

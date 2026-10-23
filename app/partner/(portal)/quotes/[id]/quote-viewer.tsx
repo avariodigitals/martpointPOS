@@ -30,6 +30,14 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
   }
 
   const accountNumber = String(quote.account_number || "")
+  const invoice = (quote.invoice || null) as {
+    invoice_number?: string
+    status?: string
+    total_amount?: number
+    currency?: string
+    due_date?: string
+    invoice_email_sent_at?: string | null
+  } | null
 
   const leadSummary: LeadSummary = {
     id: lead.id as string,
@@ -137,7 +145,13 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
           <Button variant="outline" onClick={() => respond("decline")} disabled={busy}>{busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />} Decline</Button>
         </>}
       </div>
-      {quote.status === "ACCEPTED" && <p className="text-sm text-green-700 bg-green-50 rounded-md p-3">Quote accepted. MartPoint Finance can now convert it to an invoice and issue payment instructions.</p>}
+      {quote.status === "ACCEPTED" && !invoice && <p className="text-sm text-green-700 bg-green-50 rounded-md p-3">Quote accepted. Your customer business and invoice are being prepared automatically.</p>}
+      {(["ACCEPTED", "CONVERTED"].includes(String(quote.status)) && invoice) && <div className="space-y-1 rounded-md bg-green-50 p-3 text-sm text-green-800">
+        <p className="font-medium">Invoice created from this accepted quote</p>
+        <p>{invoice.invoice_number} · {money(invoice.total_amount, invoice.currency || quotation.currency)} · {invoice.status || "ISSUED"}</p>
+        {invoice.due_date && <p>Due {new Date(`${invoice.due_date}T00:00:00`).toLocaleDateString("en-NG")}</p>}
+        <p>{invoice.invoice_email_sent_at ? "The invoice email has been sent to the customer." : "The invoice is ready, but the customer email still needs attention."}</p>
+      </div>}
     </div>
   )
 }

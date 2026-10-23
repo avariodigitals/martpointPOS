@@ -162,7 +162,10 @@ function investorCsv(d: InvestorReport) {
     line(["ARR", d.arr]),
     line(["ARPU", d.arpu]),
     line(["Active businesses", d.active_businesses]),
-    line(["Paying businesses", d.paying_businesses]),
+    line(["Paid businesses (period)", d.paid_businesses]),
+    line(["Activation pending", d.activation_pending_businesses]),
+    line(["Entitled businesses", d.entitled_businesses]),
+    line(["Subscribed businesses", d.paying_businesses]),
     line(["New businesses (period)", d.new_businesses]),
     line(["Churned businesses (period)", d.churned_businesses]),
     line(["New MRR (period)", d.new_mrr]),
@@ -181,8 +184,8 @@ function investorCsv(d: InvestorReport) {
     line(["Cohort", "Businesses", "Still active", "Retention %"]),
     ...d.cohorts.map((r) => line([r.cohort, r.businesses, r.active, r.retention])),
     "",
-    line(["Industry", "Businesses", "MRR"]),
-    ...d.by_industry.map((r) => line([r.name, r.businesses, r.mrr])),
+    line(["Industry", "Businesses", "Paid (period)", "MRR", "Collected"]),
+    ...d.by_industry.map((r) => line([r.name, r.businesses, r.paid_businesses, r.mrr, r.collected])),
   ]
   return lines.join("\n")
 }
@@ -576,7 +579,10 @@ function InvestorContent({ data }: { data: InvestorReport }) {
         <MetricCard title="ARR" value={formatMoney(data.arr)} />
         <MetricCard title="ARPU / month" value={formatMoney(data.arpu)} />
         <MetricCard title="Active businesses" value={formatNumber(data.active_businesses)} />
-        <MetricCard title="Paying businesses" value={formatNumber(data.paying_businesses)} />
+        <MetricCard title="Paid businesses (period)" value={formatNumber(data.paid_businesses)} />
+        <MetricCard title="Activation pending" value={formatNumber(data.activation_pending_businesses)} />
+        <MetricCard title="Entitled businesses" value={formatNumber(data.entitled_businesses)} />
+        <MetricCard title="Subscribed businesses" value={formatNumber(data.paying_businesses)} />
         <MetricCard title="New businesses (period)" value={formatNumber(data.new_businesses)} />
         <MetricCard title="Net new MRR (period)" value={formatMoney(data.net_new_mrr)} />
         <MetricCard title="Logo churn (period)" value={pct(data.logo_churn_rate)} />
@@ -585,6 +591,10 @@ function InvestorContent({ data }: { data: InvestorReport }) {
         <MetricCard title="Collection rate" value={pct(data.collection_rate)} />
         <MetricCard title="Top-5 concentration" value={pct(data.concentration_top5)} />
       </div>
+
+      <p className="text-sm text-muted-foreground">
+        Paid businesses are based on confirmed payments in the selected period. Subscribed businesses drive MRR and ARPU. Entitled businesses have access issued; activation pending identifies paid customers who have neither yet.
+      </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
@@ -687,7 +697,9 @@ function InvestorContent({ data }: { data: InvestorReport }) {
                     <tr>
                       <th className="px-4 py-2 text-left">Industry</th>
                       <th className="px-4 py-2 text-right">Businesses</th>
+                      <th className="px-4 py-2 text-right">Paid (period)</th>
                       <th className="px-4 py-2 text-right">MRR</th>
+                      <th className="px-4 py-2 text-right">Collected</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -695,7 +707,9 @@ function InvestorContent({ data }: { data: InvestorReport }) {
                       <tr key={r.name} className="border-t border-border">
                         <td className="px-4 py-2">{r.name}</td>
                         <td className="px-4 py-2 text-right">{formatNumber(r.businesses)}</td>
+                        <td className="px-4 py-2 text-right">{formatNumber(r.paid_businesses)}</td>
                         <td className="px-4 py-2 text-right">{formatMoney(r.mrr)}</td>
+                        <td className="px-4 py-2 text-right">{formatMoney(r.collected)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -6,6 +6,7 @@ import {
   calculateSummary,
   type FinanceTransaction,
 } from "@/lib/finance"
+import type { ReportPeriod } from "@/lib/reports"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { postFinanceTransactionJournal, voidEntriesForSource } from "@/lib/finance-ledger"
 import crypto from "crypto"
@@ -22,7 +23,11 @@ export async function GET(request: Request) {
     const action = searchParams.get("action") || "list"
 
     if (action === "summary") {
-      const summary = await calculateSummary()
+      const requestedPeriod = searchParams.get("period") as ReportPeriod | null
+      const period: ReportPeriod = requestedPeriod && ["today", "7d", "30d", "this_month", "quarter", "year"].includes(requestedPeriod)
+        ? requestedPeriod
+        : "year"
+      const summary = await calculateSummary(period)
       return NextResponse.json({ success: true, summary })
     }
 

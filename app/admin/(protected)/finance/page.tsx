@@ -1,5 +1,8 @@
 "use client"
 
+/* The dashboard refreshes its summary state when the selected reporting period changes. */
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,6 +21,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { formatMoney } from "@/lib/money-format"
+import type { ReportPeriod } from "@/lib/reports"
 import {
   AreaChart,
   Area,
@@ -35,6 +39,7 @@ import {
 
 interface FinanceSummary {
   totalRevenue: number
+  cashCollected: number
   totalExpenses: number
   netProfit: number
   grossMargin: number
@@ -43,6 +48,9 @@ interface FinanceSummary {
   burnRate: number
   runwayMonths: number
   customerCount: number
+  paidBusinessCount: number
+  activationPendingCount: number
+  entitledBusinessCount: number
   revenuePerCustomer: number
   cac: number
   ltv: number
@@ -100,16 +108,18 @@ function KpiCard({
 export default function FinanceDashboardPage() {
   const [summary, setSummary] = useState<FinanceSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<ReportPeriod>("year")
 
   useEffect(() => {
-    fetch("/api/admin/finance?action=summary")
+    setLoading(true)
+    fetch(`/api/admin/finance?action=summary&period=${period}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) setSummary(data.summary)
       })
       .catch(() => setSummary(null))
       .finally(() => setLoading(false))
-  }, [])
+  }, [period])
 
   const expensePieData = useMemo(() => {
     if (!summary) return []
@@ -143,7 +153,7 @@ export default function FinanceDashboardPage() {
             <Landmark className="w-5 h-5" />
             Finance & Investor Dashboard
           </h2>
-          <p className="text-muted-foreground">Track revenue, expenses, and investor KPIs.</p>
+        <p className="text-muted-foreground">Track live commercial revenue, expenses, active businesses, and investor KPIs.</p>
         </div>
         <p className="text-muted-foreground">Failed to load financial data.</p>
       </div>
@@ -161,6 +171,14 @@ export default function FinanceDashboardPage() {
           <p className="text-muted-foreground">Track revenue, expenses, and investor KPIs.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <select value={period} onChange={(event) => setPeriod(event.target.value as ReportPeriod)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="today">Today</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="this_month">This month</option>
+            <option value="quarter">This quarter</option>
+            <option value="year">This year</option>
+          </select>
           <Button variant="outline" size="sm" asChild>
             <Link href="/admin/finance/accounts">Accounts</Link>
           </Button>
@@ -188,12 +206,15 @@ export default function FinanceDashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard title="MRR" value={formatNgn(summary.mrr)} sub="Monthly Recurring Revenue" icon={TrendingUp} trend="+0% vs last month" positive />
           <KpiCard title="ARR" value={formatNgn(summary.arr)} sub="Annual Recurring Revenue" icon={Target} />
-          <KpiCard title="Customers" value={String(summary.customerCount)} sub="Converted leads" icon={Users} />
-          <KpiCard title="Revenue/Customer" value={formatNgn(summary.revenuePerCustomer)} sub="ARPU (Annual)" icon={Wallet} />
+          <KpiCard title="Active businesses" value={String(summary.customerCount)} sub="Live customer tenants" icon={Users} />
+          <KpiCard title="Paid businesses" value={String(summary.paidBusinessCount)} sub="Confirmed payments in period" icon={Wallet} />
+          <KpiCard title="Activation pending" value={String(summary.activationPendingCount)} sub="Paid, access not issued" icon={Flame} />
+          <KpiCard title="Entitled businesses" value={String(summary.entitledBusinessCount)} sub="Access currently issued" icon={Users} />
+          <KpiCard title="Revenue/Customer" value={formatNgn(summary.revenuePerCustomer)} sub="Monthly recurring ARPU" icon={Wallet} />
           <KpiCard title="CAC" value={formatNgn(summary.cac)} sub="Customer Acquisition Cost" icon={TrendingDown} />
           <KpiCard title="LTV" value={formatNgn(summary.ltv)} sub="Lifetime Value" icon={PiggyBank} />
           <KpiCard title="LTV:CAC Ratio" value={summary.ltvCacRatio.toFixed(1) + "x"} sub={summary.ltvCacRatio >= 3 ? "Healthy" : summary.ltvCacRatio >= 1 ? "Acceptable" : "Needs Work"} icon={TrendingUp} positive={summary.ltvCacRatio >= 3} />
-          <KpiCard title="Gross Margin" value={summary.grossMargin.toFixed(1) + "%"} sub="Net profit / Revenue" icon={Flame} positive={summary.grossMargin > 0} />
+          <KpiCard title="Profit margin" value={summary.grossMargin.toFixed(1) + "%"} sub="Net profit / Revenue" icon={Flame} positive={summary.grossMargin > 0} />
         </div>
       </div>
 
@@ -201,7 +222,8 @@ export default function FinanceDashboardPage() {
       <div>
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Financial Overview</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard title="Total Revenue" value={formatNgn(summary.totalRevenue)} icon={TrendingUp} positive />
+          <KpiCard title="Recognized revenue" value={formatNgn(summary.totalRevenue)} sub="Issued invoice / ledger income" icon={TrendingUp} positive />
+          <KpiCard title="Cash collected" value={formatNgn(summary.cashCollected)} sub="Confirmed commercial payments" icon={Wallet} positive />
           <KpiCard title="Total Expenses" value={formatNgn(summary.totalExpenses)} icon={TrendingDown} />
           <KpiCard title="Net Profit" value={formatNgn(summary.netProfit)} icon={Wallet} positive={summary.netProfit > 0} />
           <KpiCard title="Burn Rate" value={formatNgn(summary.burnRate) + "/mo"} sub={`Runway: ${summary.runwayMonths >= 999 ? "∞" : summary.runwayMonths.toFixed(1) + " months"}`} icon={Flame} />

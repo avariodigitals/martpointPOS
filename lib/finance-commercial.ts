@@ -316,6 +316,10 @@ export type CommissionPayout = {
 }
 
 export type FinanceOverview = {
+  active_businesses: number
+  paid_businesses: number
+  activation_pending_businesses: number
+  entitled_businesses: number
   invoices_issued: number
   payments_received: number
   outstanding_balance: number
@@ -1274,6 +1278,10 @@ export async function evaluateCommissionsForPayment(paymentId: string, actorId?:
 export async function getFinanceOverview(): Promise<FinanceOverview> {
   if (!isSupabaseConfigured()) {
     return {
+      active_businesses: 0,
+      paid_businesses: 0,
+      activation_pending_businesses: 0,
+      entitled_businesses: 0,
       invoices_issued: 0,
       payments_received: 0,
       outstanding_balance: 0,
@@ -1290,12 +1298,14 @@ export async function getFinanceOverview(): Promise<FinanceOverview> {
   const in30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
   const in7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  const [issued, payments, overdue, outstanding, activeSubs, ren30, ren7, pendingComm] = await Promise.all([
+  const [activeBusinesses, issued, payments, overdue, outstanding, activeSubs, licences, ren30, ren7, pendingComm] = await Promise.all([
+    supabase.from("businesses").select("id", { count: "exact", head: true }).eq("status", "ACTIVE"),
     supabase.from("invoices").select("total_amount", { count: "exact", head: true }).in("status", ["ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE"]),
-    supabase.from("payments").select("amount").eq("status", "CONFIRMED"),
+    supabase.from("payments").select("amount, business_id").eq("status", "CONFIRMED"),
     supabase.from("invoices").select("balance_due").eq("status", "OVERDUE"),
     supabase.from("invoices").select("balance_due").in("status", ["ISSUED", "PARTIALLY_PAID", "OVERDUE"]),
-    supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "ACTIVE"),
+    supabase.from("subscriptions").select("business_id", { count: "exact" }).eq("status", "ACTIVE"),
+    supabase.from("business_licenses").select("business_id").in("status", ["ACTIVE", "WAIVED"]),
     supabase.from("subscription_renewals").select("id", { count: "exact", head: true }).lte("renewal_due_date", in30.split("T")[0]).in("status", ["UPCOMING", "DUE"]),
     supabase.from("subscription_renewals").select("id", { count: "exact", head: true }).lte("renewal_due_date", in7.split("T")[0]).in("status", ["UPCOMING", "DUE"]),
     supabase.from("partner_commissions").select("commission_amount, status").in("status", ["PENDING", "ELIGIBLE"]),
@@ -1307,7 +1317,23 @@ export async function getFinanceOverview(): Promise<FinanceOverview> {
     .filter((c) => c.status === "ELIGIBLE" || c.status === "APPROVED" || c.status === "SCHEDULED")
     .reduce((s, c) => s + toKobo(c.commission_amount), 0)
 
+  const paidBusinessIds = new Set(
+    ((payments.data as { business_id?: string | null }[]) || []).map((p) => p.business_id).filter(Boolean) as string[]
+  )
+  const subscribedBusinessIds = new Set(
+    ((activeSubs.data as { business_id?: string | null }[]) || []).map((s) => s.business_id).filter(Boolean) as string[]
+  )
+  const entitledBusinessIds = new Set(
+    ((licences.data as { business_id?: string | null }[]) || []).map((l) => l.business_id).filter(Boolean) as string[]
+  )
+
   return {
+    active_businesses: activeBusinesses.count || 0,
+    paid_businesses: paidBusinessIds.size,
+    activation_pending_businesses: Array.from(paidBusinessIds).filter(
+      (businessId) => !subscribedBusinessIds.has(businessId) && !entitledBusinessIds.has(businessId)
+    ).length,
+    entitled_businesses: entitledBusinessIds.size,
     invoices_issued: issued.count || 0,
     payments_received: fromKobo(((payments.data as { amount: number }[] | null) || []).reduce((s, p) => s + toKobo(p.amount), 0)),
     outstanding_balance: fromKobo(outstandingBalance),

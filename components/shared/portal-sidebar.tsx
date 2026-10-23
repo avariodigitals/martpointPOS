@@ -40,6 +40,7 @@ interface PortalSidebarProps {
   /** localStorage namespace, so each portal remembers its own state. */
   storageKey: string
   isItemActive: (href: string) => boolean
+  showFooterUser?: boolean
 }
 
 function initialsOf(value: string): string {
@@ -71,6 +72,7 @@ export function PortalSidebar({
   logoutLabel,
   storageKey,
   isItemActive,
+  showFooterUser = true,
 }: PortalSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean> | null>(null)
@@ -276,8 +278,8 @@ export function PortalSidebar({
         )}
       </nav>
 
-      {/* Footer — pinned */}
-      <div className={`shrink-0 border-t border-white/15 ${collapsed ? "p-2" : "px-3 py-4"}`}>
+      {/* Optional footer — admin keeps its existing account controls; portals use the header avatar menu. */}
+      {showFooterUser && <div className={`shrink-0 border-t border-white/15 ${collapsed ? "p-2" : "px-3 py-4"}`}>
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
             <span
@@ -316,7 +318,7 @@ export function PortalSidebar({
             </button>
           </>
         )}
-      </div>
+      </div>}
     </aside>
   )
 }

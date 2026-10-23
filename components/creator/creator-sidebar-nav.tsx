@@ -100,6 +100,7 @@ export function CreatorSidebarNav({
         logoutLabel="Sign out"
         storageKey="creator-nav"
         isItemActive={isItemActive}
+        showFooterUser={false}
       />
     </>
   )

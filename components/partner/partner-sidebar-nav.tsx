@@ -115,6 +115,7 @@ export function PartnerSidebarNav({
         logoutLabel="Logout"
         storageKey="partner-nav"
         isItemActive={(href) => pathname === href}
+        showFooterUser={false}
       />
     </>
   )

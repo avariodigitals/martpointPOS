@@ -41,11 +41,13 @@ export default async function PartnerPortalLayout({
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <PortalHeader
-          title="Partner Portal"
-          subtitle={partner.displayName || partner.businessName}
           userName={user.fullName}
           userMeta={user.role.replace("PARTNER_", "")}
           profileHref="/partner/profile"
+          walletHref="/partner/commissions"
+          walletLabel="Wallet & Earnings"
+          logoutEndpoint="/api/partner/logout"
+          loginPath="/partner/login"
           quickLinks={quickLinks}
           notificationEndpoint="/api/partner/notifications"
         />

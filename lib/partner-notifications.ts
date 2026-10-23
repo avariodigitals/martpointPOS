@@ -191,6 +191,46 @@ export async function notifyPartnerQuoteIssued(
   await sendEmail({ to: recipients, subject: `MartPoint Quote ${input.quoteNumber} is ready`, text, html, replyTo: REPLY_TO.partners })
 }
 
+/** Notify the partner when an accepted quote has automatically become an invoice. */
+export async function notifyPartnerInvoiceCreated(
+  partnerId: string,
+  input: { businessName: string; invoiceNumber: string; total: number; currency: string; dueDate: string; clientEmailSent?: boolean; link?: string },
+): Promise<void> {
+  if (!isSupabaseConfigured() || !partnerId) return
+
+  const title = "Invoice created from accepted quote"
+  const delivery = input.clientEmailSent === false
+    ? "The invoice was created, but the customer email needs attention."
+    : "The invoice has been sent to the customer."
+  const body = `${input.businessName}: invoice ${input.invoiceNumber} has been created for ${input.currency} ${input.total.toLocaleString()}. ${delivery} Due ${input.dueDate || "as stated on the invoice"}.`
+  const link = input.link || "/partner/quotes"
+  await pushPartnerInAppNotification({ partnerId, type: "INVOICE_CREATED", title, body, link })
+
+  const { data } = await supabase
+    .from("partner_users")
+    .select("email")
+    .eq("partner_id", partnerId)
+    .eq("status", "ACTIVE")
+    .in("role", ["PARTNER_OWNER", "PARTNER_MANAGER", "PARTNER_SALES", "PARTNER_IMPLEMENTATION"])
+
+  const recipients = Array.from(new Set(((data || []) as { email?: string | null }[]).map((row) => row.email?.trim()).filter(Boolean) as string[]))
+  if (recipients.length === 0) return
+
+  const emailLink = link.startsWith("http")
+    ? link
+    : `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}${link}`
+  const text = `${title}\n\n${body}\n\nOpen Partner Quotes: ${emailLink}`
+  const html = brandedEmailHtml(
+    `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">${escapeHtml(title)}</p>
+     <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 8px;"><strong>Customer:</strong> ${escapeHtml(input.businessName)}</p>
+     <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 8px;"><strong>Invoice:</strong> ${escapeHtml(input.invoiceNumber)}</p>
+     <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;"><strong>Total:</strong> ${escapeHtml(input.currency)} ${input.total.toLocaleString()} · <strong>Due:</strong> ${escapeHtml(input.dueDate || "as stated on the invoice")}</p>
+     <p style="font-size:14px;line-height:1.6;margin:0;"><a href="${escapeHtml(emailLink)}" style="color:#0057FF;">Open Partner Quotes</a></p>`,
+    { eyebrow: "Partner Finance", title, signoff: "MartPoint Finance" },
+  )
+  await sendEmail({ to: recipients, subject: `${title} — ${input.invoiceNumber}`, text, html, replyTo: REPLY_TO.partners })
+}
+
 /** Tell the partner why a submitted payment proof was not accepted. */
 export async function notifyPartnerPaymentRejected(
   partnerId: string,

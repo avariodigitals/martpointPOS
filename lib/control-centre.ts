@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { getIndustryByName, resolveIndustryName } from "./industries"
 import type { AdminTask } from "./tasks"
+import { getGlAccountByKey, getGlBalances } from "./finance-ledger"
 
 export type ControlCentrePeriod = "today" | "7d" | "30d" | "this_month" | "quarter" | "year"
 
@@ -343,33 +344,40 @@ export async function getRequiresAttention(): Promise<AdminTask[]> {
 
 export type FinancialSnapshot = {
   revenueCollected: number
+  revenueByCategory: { category: string; amount: number }[]
   outstanding: number
+  taxPayable: number
+  commissionPayable: number
   renewals: number
-  commission: number
 }
 
 export async function getFinancialSnapshot(
   period: string
 ): Promise<FinancialSnapshot> {
-  const zero = { revenueCollected: 0, outstanding: 0, renewals: 0, commission: 0 }
+  const zero = {
+    revenueCollected: 0,
+    revenueByCategory: [],
+    outstanding: 0,
+    taxPayable: 0,
+    commissionPayable: 0,
+    renewals: 0,
+  }
   if (!isSupabaseConfigured()) return zero
 
   const p = parseControlPeriod(period)
   const range = getRange(p)
 
-  const [payments, invoices, renewals, commissions] = await Promise.all([
+  const [payments, invoices, renewals, commissions, taxAccount, glBalances] = await Promise.all([
     supabase
       .from("payments")
-      .select("amount")
+      .select("id, amount, invoice_id")
       .eq("status", "CONFIRMED")
       .gte("paid_at", range.start)
       .lte("paid_at", range.end),
     supabase
       .from("invoices")
       .select("balance_due, status")
-      .not("status", "in", '("PAID","CANCELLED","VOID","DRAFT")')
-      .gte("created_at", range.start)
-      .lte("created_at", range.end),
+      .in("status", ["ISSUED", "PARTIALLY_PAID", "OVERDUE"]),
     supabase
       .from("subscription_renewals")
       .select("id", { count: "exact", head: true })
@@ -380,27 +388,99 @@ export async function getFinancialSnapshot(
       .from("partner_commissions")
       .select("commission_amount, earned_at, created_at, status")
       .not("status", "in", '("CANCELLED")'),
+    getGlAccountByKey("tax_payable"),
+    getGlBalances(),
   ])
+
+  type PaymentRow = { id: string; amount: number; invoice_id: string | null }
+  type AllocationRow = { payment_id: string; invoice_id: string; amount_allocated: number }
+  type IncomeRow = { invoice_id: string | null; category: string; amount: number; type: string }
+  const paymentRows = (payments.data as PaymentRow[] | null) || []
+  const paymentIds = paymentRows.map((p) => p.id).filter(Boolean)
+  const allocationsResult = paymentIds.length
+    ? await supabase.from("payment_allocations").select("payment_id, invoice_id, amount_allocated").in("payment_id", paymentIds)
+    : { data: [] as AllocationRow[] }
+  const allocationRows = (allocationsResult.data as AllocationRow[] | null) || []
+  const invoiceIds = Array.from(new Set([
+    ...paymentRows.map((p) => p.invoice_id).filter(Boolean),
+    ...allocationRows.map((a) => a.invoice_id).filter(Boolean),
+  ])) as string[]
+  const incomeResult = invoiceIds.length
+    ? await supabase.from("finance_transactions").select("invoice_id, category, amount, type").eq("type", "income").in("invoice_id", invoiceIds)
+    : { data: [] as IncomeRow[] }
+  const incomeRows = (incomeResult.data as IncomeRow[] | null) || []
+
+  // Payment allocations point to the invoice; finance_transactions point to
+  // the invoice's split categories. Pro-rate a payment across those categories
+  // so cash received is not incorrectly reported as one undifferentiated total.
+  const incomeByInvoice = new Map<string, Map<string, number>>()
+  for (const row of incomeRows) {
+    if (!row.invoice_id) continue
+    const categories = incomeByInvoice.get(row.invoice_id) || new Map<string, number>()
+    categories.set(row.category || "Other Income", (categories.get(row.category || "Other Income") || 0) + (Number(row.amount) || 0))
+    incomeByInvoice.set(row.invoice_id, categories)
+  }
+  const allocationsByPayment = new Map<string, AllocationRow[]>()
+  for (const row of allocationRows) {
+    const rows = allocationsByPayment.get(row.payment_id) || []
+    rows.push(row)
+    allocationsByPayment.set(row.payment_id, rows)
+  }
+  const receivedByCategory = new Map<string, number>()
+  const addReceived = (category: string, amount: number) => {
+    if (amount > 0) receivedByCategory.set(category, (receivedByCategory.get(category) || 0) + amount)
+  }
+  for (const payment of paymentRows) {
+    const allocations = allocationsByPayment.get(payment.id)
+    const effectiveAllocations = allocations?.length
+      ? allocations
+      : payment.invoice_id
+        ? [{ payment_id: payment.id, invoice_id: payment.invoice_id, amount_allocated: payment.amount }]
+        : []
+    if (effectiveAllocations.length === 0) {
+      addReceived("Unallocated Receipts", Number(payment.amount) || 0)
+      continue
+    }
+    for (const allocation of effectiveAllocations) {
+      const categories = incomeByInvoice.get(allocation.invoice_id)
+      if (!categories || categories.size === 0) {
+        addReceived("Unclassified Receipts", Number(allocation.amount_allocated) || 0)
+        continue
+      }
+      const totalCategorised = Array.from(categories.values()).reduce((sum, amount) => sum + amount, 0)
+      for (const [category, amount] of categories) {
+        addReceived(category, (Number(allocation.amount_allocated) || 0) * (amount / totalCategorised))
+      }
+    }
+  }
 
   const commissionInPeriod = (
     (commissions.data as {
       commission_amount: number
       earned_at: string | null
       created_at: string
+      status: string
     }[] | null) || []
-  ).filter((c) => inRange(c.earned_at || c.created_at, range))
+  ).filter((c) => inRange(c.earned_at || c.created_at, range) && ["PENDING", "ELIGIBLE", "APPROVED", "SCHEDULED"].includes(c.status))
+
+  const taxAccountRow = taxAccount as { id?: string } | null
+  const taxPayable = taxAccountRow?.id ? Number((glBalances as Record<string, number>)[taxAccountRow.id] || 0) : 0
 
   return {
     revenueCollected: sumBy(payments.data, "amount"),
+    revenueByCategory: Array.from(receivedByCategory.entries())
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount),
     outstanding: sumBy(
       (invoices.data as { balance_due: number }[] | null) || [],
       "balance_due"
     ),
-    renewals: renewals.count ?? 0,
-    commission: commissionInPeriod.reduce(
+    taxPayable,
+    commissionPayable: commissionInPeriod.reduce(
       (s, c) => s + (Number(c.commission_amount) || 0),
       0
     ),
+    renewals: renewals.count ?? 0,
   }
 }
 

@@ -1,12 +1,15 @@
 "use client"
 
+/* The page synchronizes its form/list state with route changes and remote API reads. */
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createPortal } from "react-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, ArrowLeft, Plus, X } from "lucide-react"
+import { Loader2, ArrowLeft, ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
 import { resolveIndustryName } from "@/lib/industries"
@@ -65,14 +68,14 @@ const TITLES: Record<SectionKey, string> = {
   commissions: "Commissions",
   payouts: "Commission Payouts",
   receipts: "Receipts",
-  licences_sold: "Licences Sold",
+  licences_sold: "Licence Ledger",
 }
 
 type FieldType = "text" | "number" | "select" | "textarea" | "date" | "boolean" | "derived"
 
 // Which dynamic option list a select should be populated from. Static
 // `options` remain supported for simple enums.
-type OptionSource = "businesses" | "plans" | "partner_leads"
+type OptionSource = "businesses" | "plans" | "partner_leads" | "invoices" | "partners" | "subscriptions" | "products" | "addons" | "payments"
 
 interface FieldConfig {
   name: string
@@ -137,7 +140,7 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
   ],
   quotes: [
     { name: "business_id", label: "Customer business (optional)", type: "select", optionSource: "businesses", help: "Leave blank when preparing a quote for a partner lead. You can attach the customer after acceptance." },
-    { name: "partner_id", label: "Partner ID", type: "text" },
+    { name: "partner_id", label: "Partner (optional)", type: "select", optionSource: "partners" },
     { name: "partner_lead_id", label: "Partner Lead", type: "select", optionSource: "partner_leads", help: "Select the lead. This creates a lead-backed quote without creating a customer." },
     { name: "plan_id", label: "Plan", type: "select", optionSource: "plans", help: "Select the active commercial plan for this quote." },
     { name: "currency", label: "Currency", type: "select", options: CURRENCY_OPTIONS },
@@ -146,13 +149,13 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "valid_until", label: "Valid Until", type: "date" },
   ],
   invoices: [
-    { name: "business_id", label: "Business ID", type: "text" },
+    { name: "business_id", label: "Customer business", type: "select", optionSource: "businesses" },
     { name: "due_date", label: "Due Date", type: "date" },
     { name: "notes_public", label: "Public Notes", type: "textarea" },
   ],
   payments: [
-    { name: "business_id", label: "Business ID", type: "text" },
-    { name: "invoice_id", label: "Invoice ID", type: "text" },
+    { name: "business_id", label: "Customer business", type: "select", optionSource: "businesses" },
+    { name: "invoice_id", label: "Invoice", type: "select", optionSource: "invoices" },
     { name: "amount", label: "Amount", type: "number" },
     { name: "payment_method", label: "Payment Method", type: "select", options: ["BANK_TRANSFER", "PAYSTACK", "FLUTTERWAVE", "CASH", "POS", "OTHER"] },
     { name: "gateway_reference", label: "Gateway Reference", type: "text" },
@@ -160,9 +163,9 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "notes", label: "Notes", type: "textarea" },
   ],
   subscriptions: [
-    { name: "business_id", label: "Business", type: "select", optionSource: "businesses", help: "Only active businesses that can hold a licence are listed." },
-    { name: "plan_id", label: "Plan", type: "select", optionSource: "plans", help: "The licence is derived from the plan you select — never from a service." },
-    { name: "licence_preview", label: "Licence (from plan)", type: "derived", deriveFrom: "plan_id", help: "Auto-filled from the selected plan. Override it on the subscription after creation if needed." },
+    { name: "business_id", label: "Customer business", type: "select", optionSource: "businesses", help: "Only active businesses that can hold a subscription are listed." },
+    { name: "plan_id", label: "Plan", type: "select", optionSource: "plans", help: "The customer access entitlement is derived from the plan you select — never from a service." },
+    { name: "licence_preview", label: "Access entitlement (from plan)", type: "derived", deriveFrom: "plan_id", help: "A subscription is the billing agreement; the plan creates the customer access entitlement." },
     { name: "billing_interval", label: "Billing Interval", type: "select", options: ["MONTHLY", "QUARTERLY", "ANNUAL", "NONE"] },
     { name: "quantity", label: "Quantity (licences)", type: "number", help: "Number of licences/seats. Used by the licences-sold report." },
     { name: "start_date", label: "Start Date", type: "date" },
@@ -171,7 +174,7 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "auto_renew", label: "Auto Renew", type: "boolean" },
   ],
   renewals: [
-    { name: "subscription_id", label: "Subscription ID", type: "text" },
+    { name: "subscription_id", label: "Subscription", type: "select", optionSource: "subscriptions" },
     { name: "renewal_due_date", label: "Renewal Due Date", type: "date" },
     { name: "status", label: "Status", type: "select", options: ["UPCOMING", "DUE", "OVERDUE", "RENEWED", "SKIPPED"] },
   ],
@@ -183,9 +186,9 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
     { name: "percentage", label: "Percentage", type: "number" },
     { name: "fixed_amount", label: "Fixed Amount", type: "number" },
     { name: "applies_to", label: "Applies To", type: "select", options: ["INITIAL_LICENSE", "RENEWAL", "ADDON", "IMPLEMENTATION", "CUSTOM"] },
-    { name: "product_id", label: "Product ID", type: "text" },
-    { name: "plan_id", label: "Plan ID", type: "text" },
-    { name: "addon_id", label: "Add-on ID", type: "text" },
+    { name: "product_id", label: "Product", type: "select", optionSource: "products" },
+    { name: "plan_id", label: "Plan", type: "select", optionSource: "plans" },
+    { name: "addon_id", label: "Add-on", type: "select", optionSource: "addons" },
     { name: "effective_from", label: "Effective From", type: "date" },
     { name: "active", label: "Active", type: "boolean" },
     { name: "commission_trigger", label: "Commission Trigger", type: "select", options: ["PAYMENT_CONFIRMED", "SUBSCRIPTION_ACTIVATED", "CUSTOMER_GO_LIVE", "CUSTOM"], help: "CUSTOM means the plan only categorises earnings — its rate comes from the signed Commission Schedule and nothing is booked automatically." },
@@ -193,11 +196,11 @@ const CREATE_FIELDS: Record<SectionKey, FieldConfig[]> = {
   ],
   commissions: [],
   payouts: [
-    { name: "partner_id", label: "Partner ID", type: "text" },
+    { name: "partner_id", label: "Partner", type: "select", optionSource: "partners" },
     { name: "commission_ids", label: "Commission IDs (comma-separated)", type: "textarea" },
   ],
   receipts: [
-    { name: "payment_id", label: "Payment ID", type: "text" },
+    { name: "payment_id", label: "Payment", type: "select", optionSource: "payments" },
   ],
   licences_sold: [],
 }
@@ -277,6 +280,18 @@ const ACTIONS: Record<SectionKey, { name: string; label: string }[]> = {
   licences_sold: [],
 }
 
+const BULK_ACTIONS: Partial<Record<SectionKey, string[]>> = {
+  products: ["set_active", "set_inactive"],
+  plans: ["set_active", "set_inactive"],
+  addons: ["set_active", "set_inactive"],
+  invoices: ["issue", "cancel"],
+  payments: ["confirm", "reverse"],
+  subscriptions: ["activate", "suspend", "cancel_subscription", "renew"],
+  renewals: ["refresh"],
+  commissions: ["approve", "cancel", "reverse"],
+  payouts: ["approve", "mark_paid"],
+}
+
 function quoteActionOptions(row: Row): { name: string; label: string }[] {
   const status = String(row.status || "DRAFT").toUpperCase()
   if (status === "DRAFT") return [{ name: "send", label: "Send to partner" }]
@@ -334,6 +349,40 @@ interface PartnerLeadOption {
   protectionStatus?: string
   industry?: string
   businessType?: string
+}
+
+const DISPLAY_COLUMNS: Partial<Record<SectionKey, string[]>> = {
+  products: ["name", "code", "product_family", "status"],
+  plans: ["name", "code", "billing_type", "billing_interval", "base_price", "active"],
+  addons: ["name", "code", "pricing_type", "default_price", "recurring", "active"],
+  quotes: ["quote_number", "customer", "partner_lead", "status", "quote_origin", "currency", "total_amount", "valid_until"],
+  invoices: ["invoice_number", "customer", "status", "currency", "total_amount", "balance_due", "due_date"],
+  payments: ["payment_reference", "customer", "invoice", "status", "payment_method", "currency", "amount", "created_at"],
+  subscriptions: ["customer", "plan", "status", "billing_interval", "quantity", "current_period_end", "renewal_date"],
+  renewals: ["subscription", "customer", "status", "renewal_due_date"],
+  commission_plans: ["name", "partner_type", "commission_basis", "percentage", "fixed_amount", "applies_to", "active"],
+  commissions: ["partner", "customer", "status", "commission_amount", "created_at"],
+  payouts: ["payout_reference", "partner", "status", "amount", "payment_method", "paid_at"],
+  receipts: ["receipt_number", "customer", "issued_at"],
+}
+
+const COLUMN_LABELS: Record<string, string> = {
+  customer: "Customer business",
+  partner: "Partner",
+  partner_lead: "Partner lead",
+  invoice: "Invoice",
+  subscription: "Subscription",
+  quote_origin: "Origin",
+  base_price: "Price",
+  default_price: "Default price",
+  commission_amount: "Commission",
+  fixed_amount: "Fixed amount",
+  current_period_end: "Period ends",
+  renewal_date: "Renewal date",
+  renewal_due_date: "Renewal due",
+  created_at: "Created",
+  issued_at: "Issued",
+  paid_at: "Paid",
 }
 
 interface TaxRateOption {
@@ -443,6 +492,71 @@ function Dialog({
   )
 }
 
+function SearchableSelect({
+  value,
+  options,
+  onChange,
+  placeholder = "Search and select…",
+}: {
+  value: string
+  options: Option[]
+  onChange: (value: string) => void
+  placeholder?: string
+}) {
+  const selected = options.find((option) => option.value === value)
+  const [query, setQuery] = useState(selected?.label || "")
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) setQuery(selected?.label || "")
+  }, [open, selected?.label])
+
+  const normalizedQuery = query.trim().toLowerCase()
+  const filtered = options
+    .filter((option) => !normalizedQuery || `${option.label} ${option.value}`.toLowerCase().includes(normalizedQuery))
+    .slice(0, 100)
+
+  return (
+    <div className="relative">
+      <input
+        value={query}
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setOpen(true)
+          if (!event.target.value) onChange("")
+        }}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder}
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        autoComplete="off"
+      />
+      {open && (
+        <div className="absolute z-40 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-border bg-popover p-1 text-sm shadow-lg">
+          {filtered.length === 0 ? (
+            <p className="px-2 py-2 text-xs text-muted-foreground">No matching records.</p>
+          ) : filtered.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`block w-full rounded px-2 py-2 text-left hover:bg-muted ${option.value === value ? "bg-muted font-medium" : ""}`}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option.value)
+                setQuery(option.label)
+                setOpen(false)
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+          {options.length > 100 && <p className="px-2 py-2 text-[11px] text-muted-foreground">Refine your search to see more than the first 100 matches.</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function defaultFormValues(fields: FieldConfig[]): Record<string, string> {
   const out: Record<string, string> = {}
   for (const f of fields) {
@@ -497,6 +611,7 @@ export default function CommercialSectionPage() {
   const [businesses, setBusinesses] = useState<BusinessOption[]>([])
   const [plans, setPlans] = useState<PlanOption[]>([])
   const [partnerLeads, setPartnerLeads] = useState<PartnerLeadOption[]>([])
+  const [referenceOptions, setReferenceOptions] = useState<Partial<Record<OptionSource, Option[]>>>({})
   const [quoteCatalog, setQuoteCatalog] = useState<QuoteCatalogItem[]>([])
   const [quoteItems, setQuoteItems] = useState<QuoteLine[]>([])
   const [quoteTemplateSelection, setQuoteTemplateSelection] = useState("")
@@ -517,10 +632,20 @@ export default function CommercialSectionPage() {
   const [actionReason, setActionReason] = useState("")
   const [waiveReason, setWaiveReason] = useState("")
   const [working, setWorking] = useState(false)
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkAction, setBulkAction] = useState("")
 
-  const fields = resource ? CREATE_FIELDS[resource] : []
+  const fields = useMemo(() => resource ? CREATE_FIELDS[resource] : [], [resource])
   const createAction = resource ? CREATE_ACTION[resource] : null
   const actions = resource ? ACTIONS[resource] : []
+
+  const optionSources = useMemo(
+    () => Array.from(new Set(fields.map((field) => field.optionSource).filter((source): source is OptionSource => Boolean(source)))),
+    [fields],
+  )
 
   const needsBusinesses = fields.some((f) => f.optionSource === "businesses") || resource === "quotes"
   const needsPlans = fields.some((f) => f.optionSource === "plans")
@@ -591,6 +716,51 @@ export default function CommercialSectionPage() {
       cancelled = true
     }
   }, [needsPartnerLeads])
+
+  // Load searchable database-backed references used by the create forms.
+  // Labels are deliberately composed from names plus a short status/value so
+  // a long list never forces an admin to identify a record from an ID alone.
+  useEffect(() => {
+    const sources = optionSources.filter((source) => !["businesses", "plans", "partner_leads"].includes(source))
+    if (sources.length === 0) return
+    let cancelled = false
+
+    async function loadReferences() {
+      const next: Partial<Record<OptionSource, Option[]>> = {}
+      await Promise.all(sources.map(async (source) => {
+        try {
+          if (source === "partners") {
+            const response = await fetch("/api/admin/partners")
+            const payload = await response.json() as { partners?: Row[] }
+            next[source] = (payload.partners || []).map((partner) => ({
+              value: String(partner.id),
+              label: `${String(partner.display_name || partner.business_name || "Unnamed partner")} · ${String(partner.partner_id || partner.id).slice(0, 14)}`,
+            }))
+            return
+          }
+
+          const response = await fetch(`/api/admin/finance/commercial/${source}`)
+          const payload = await response.json() as ApiResponse
+          const records = Array.isArray(payload.data) ? payload.data : []
+          next[source] = records.map((row) => {
+            const business = row.businesses && typeof row.businesses === "object" ? row.businesses as Row : null
+            const plan = row.plans && typeof row.plans === "object" ? row.plans as Row : null
+            const customer = String(business?.business_name || row.business_id || "Unnamed customer")
+            if (source === "invoices") return { value: String(row.id), label: `${String(row.invoice_number || row.id)} · ${customer} · ${enumLabel(String(row.status || ""))}` }
+            if (source === "subscriptions") return { value: String(row.id), label: `${customer} · ${String(plan?.name || row.plan_id || "No plan")} · ${enumLabel(String(row.status || ""))}` }
+            if (source === "payments") return { value: String(row.id), label: `${String(row.payment_reference || row.id)} · ${customer} · ${formatMoneyIn(Number(row.amount), String(row.currency || "NGN"))}` }
+            return { value: String(row.id), label: `${String(row.name || row.code || row.id)}${row.code ? ` · ${String(row.code)}` : ""}` }
+          })
+        } catch {
+          // Keep the form usable; the field will show an empty searchable list.
+        }
+      }))
+      if (!cancelled) setReferenceOptions((previous) => ({ ...previous, ...next }))
+    }
+
+    void loadReferences()
+    return () => { cancelled = true }
+  }, [optionSources])
 
   // Quotes use the same live commercial catalogue as the normal quotation
   // screen, so plans, products, services and add-ons can all become lines.
@@ -700,9 +870,36 @@ export default function CommercialSectionPage() {
     [partnerOnly, rows],
   )
 
+  const filteredRows = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return visibleRows
+    return visibleRows.filter((row) => JSON.stringify(row).toLowerCase().includes(query))
+  }, [search, visibleRows])
+
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  const pagedRows = useMemo(
+    () => filteredRows.slice((page - 1) * pageSize, page * pageSize),
+    [filteredRows, page, pageSize],
+  )
+  const rowKey = (row: Row) => String(row.id || row.quote_number || row.invoice_number || row.payment_reference || "")
+  const pageRowIds = pagedRows.map(rowKey).filter(Boolean)
+  const allPageSelected = pageRowIds.length > 0 && pageRowIds.every((id) => selectedIds.has(id))
+  const bulkOptions = (BULK_ACTIONS[resource || "products"] || []).filter((name) => actions.some((action) => action.name === name))
+
+  useEffect(() => {
+    setPage(1)
+    setSelectedIds(new Set())
+    setBulkAction("")
+  }, [resource, partnerOnly, search, pageSize])
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount)
+  }, [page, pageCount])
+
   const columns = useMemo(() => {
+    const configured = resource ? DISPLAY_COLUMNS[resource] : undefined
+    if (configured?.length) return configured
     if (!visibleRows.length) return []
-    if (resource === "quotes") return ["quote_number", "quote_origin", "status", "partner_lead_id", "business_id", "currency", "total_amount", "valid_until"]
     const first = visibleRows[0]
     return Object.keys(first).filter((k) => {
       const v = first[k]
@@ -828,6 +1025,50 @@ export default function CommercialSectionPage() {
     }
   }
 
+  function toggleRowSelection(id: string) {
+    setSelectedIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function togglePageSelection() {
+    setSelectedIds((previous) => {
+      const next = new Set(previous)
+      if (allPageSelected) pageRowIds.forEach((id) => next.delete(id))
+      else pageRowIds.forEach((id) => next.add(id))
+      return next
+    })
+  }
+
+  async function runBulkAction() {
+    if (!resource || !bulkAction || selectedIds.size === 0) return
+    setWorking(true)
+    setMessage("")
+    const ids = Array.from(selectedIds)
+    let failed = 0
+    try {
+      for (const id of ids) {
+        const response = await fetch(`/api/admin/finance/commercial/${resource}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: bulkAction, data: { id } }),
+        })
+        if (!response.ok) failed += 1
+      }
+      setMessage(failed === 0 ? `${ids.length} record${ids.length === 1 ? "" : "s"} updated.` : `${ids.length - failed} updated; ${failed} failed.`)
+      setSelectedIds(new Set())
+      setBulkAction("")
+      await refreshList()
+    } catch {
+      setMessage("Bulk action failed")
+    } finally {
+      setWorking(false)
+    }
+  }
+
   function openAction(row: Row, actionName?: string) {
     setSelectedRow(row)
     setSelectedAction(actionName || (actions.length ? actions[0].name : ""))
@@ -864,6 +1105,39 @@ export default function CommercialSectionPage() {
   }
 
   function renderCell(row: Row, key: string) {
+    const relation = (name: string): Row | null => {
+      const value = row[name]
+      if (!value || typeof value !== "object") return null
+      return (Array.isArray(value) ? value[0] : value) as Row
+    }
+    if (key === "customer") {
+      const business = relation("businesses")
+      return <span className="font-medium">{String(business?.business_name || row.business_name || row.business_id || "Unnamed customer")}</span>
+    }
+    if (key === "partner") {
+      const partner = relation("partners")
+      return <span className="font-medium">{String(partner?.display_name || partner?.business_name || row.partner_id || "Unassigned partner")}</span>
+    }
+    if (key === "partner_lead") {
+      const lead = relation("partner_leads")
+      return <span>{String(lead?.business_name || row.partner_lead_id || "—")}</span>
+    }
+    if (key === "invoice") {
+      const invoice = relation("invoices")
+      return <span>{String(invoice?.invoice_number || row.invoice_id || "Unallocated")}</span>
+    }
+    if (key === "plan") {
+      const plan = relation("plans")
+      return <span>{String(plan?.name || row.plan_id || "No plan")}</span>
+    }
+    if (key === "subscription") {
+      const subscription = relation("subscriptions")
+      const subscriptionBusinesses = subscription?.businesses
+      const subscriptionBusiness = subscriptionBusinesses && typeof subscriptionBusinesses === "object"
+        ? (Array.isArray(subscriptionBusinesses) ? subscriptionBusinesses[0] : subscriptionBusinesses) as Row
+        : null
+      return <span>{String(subscriptionBusiness?.business_name || subscription?.id || row.subscription_id || "—")}</span>
+    }
     const v = row[key]
     if (v === null || v === undefined) return <span className="text-muted-foreground">—</span>
     if (key === "id") return <span className="font-mono text-xs">{String(v)}</span>
@@ -872,8 +1146,13 @@ export default function CommercialSectionPage() {
       return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${partnerRequest ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-700"}`}>{partnerRequest ? "Partner request" : "Direct quote"}</span>
     }
     if (typeof v === "boolean") return v ? "Yes" : "No"
+    if (["status", "billing_type", "billing_interval", "pricing_type", "commission_basis", "applies_to", "payment_method"].includes(key)) return enumLabel(String(v))
     if (["amount", "total_amount", "subtotal", "discount_amount", "tax_amount", "balance_due", "base_price", "default_price", "commission_amount", "basis_amount"].includes(key)) {
       return formatMoneyIn(Number(v), typeof row.currency === "string" ? row.currency : "NGN")
+    }
+    if (["created_at", "updated_at", "issued_at", "paid_at", "issue_date", "due_date", "current_period_end", "renewal_date", "renewal_due_date", "valid_until"].includes(key)) {
+      const date = new Date(String(v))
+      return Number.isNaN(date.getTime()) ? String(v) : date.toLocaleDateString()
     }
     return String(v)
   }
@@ -895,6 +1174,7 @@ export default function CommercialSectionPage() {
         label: `${lead.businessName} · ${lead.contactName}${lead.partnerName ? ` · ${lead.partnerName}` : lead.partnerCode ? ` · ${lead.partnerCode}` : ""}`,
       }))
     }
+    if (f.optionSource) return referenceOptions[f.optionSource] || []
     return (f.options || []).map((o) => ({ value: o, label: o }))
   }
 
@@ -927,6 +1207,20 @@ export default function CommercialSectionPage() {
     }
     if (f.type === "select") {
       const opts = optionsFor(f)
+      if (f.optionSource) {
+        return (
+          <SearchableSelect
+            value={value}
+            options={opts}
+            onChange={(nextValue) => f.name === "plan_id" && resource === "quotes"
+              ? selectQuotePlan(nextValue)
+              : f.name === "partner_lead_id" && resource === "quotes"
+              ? selectPartnerLead(nextValue)
+              : setFormValues((prev) => ({ ...prev, [f.name]: nextValue }))}
+            placeholder={f.optionSource === "businesses" ? "Search customer business…" : `Search ${f.label.toLowerCase()}…`}
+          />
+        )
+      }
       return (
         <select
           id={f.name}
@@ -1068,28 +1362,32 @@ export default function CommercialSectionPage() {
           <p className="py-8 text-center text-sm text-muted-foreground">Failed to load report.</p>
         ) : (
           <div className="space-y-6">
+            <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-950">
+              <p className="font-semibold">How subscriptions and entitlements relate</p>
+              <p className="mt-1 text-xs leading-5">A subscription is the customer&apos;s billing agreement. A licence is the access entitlement issued from that subscription&apos;s plan. This ledger reconciles the entitlements currently issued, including waived ones; it is not a second sales pipeline.</p>
+            </div>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Licences Sold (businesses)</CardTitle>
+                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Entitled businesses</CardTitle>
                 </CardHeader>
                 <CardContent><p className="text-2xl font-bold">{report.distinct_businesses}</p></CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Quantity</CardTitle>
+                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Entitled quantity</CardTitle>
                 </CardHeader>
                 <CardContent><p className="text-2xl font-bold">{report.total_quantity}</p></CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Billed</CardTitle>
+                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Subscription-backed</CardTitle>
                 </CardHeader>
                 <CardContent><p className="text-2xl font-bold text-emerald-600">{report.billed_count}</p></CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Waived</CardTitle>
+                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Waived by Finance</CardTitle>
                 </CardHeader>
                 <CardContent><p className="text-2xl font-bold text-purple-600">{report.waived_count}</p></CardContent>
               </Card>
@@ -1127,7 +1425,7 @@ export default function CommercialSectionPage() {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">All Granted Licences</CardTitle>
+                <CardTitle className="text-sm font-medium">Issued access entitlements</CardTitle>
               </CardHeader>
               <CardContent>
                 {report.rows.length === 0 ? (
@@ -1138,7 +1436,7 @@ export default function CommercialSectionPage() {
                       <thead>
                         <tr className="border-b text-left text-muted-foreground">
                           <th className="px-3 py-2 font-medium">Business</th>
-                          <th className="px-3 py-2 font-medium">Licence</th>
+                          <th className="px-3 py-2 font-medium">Access entitlement</th>
                           <th className="px-3 py-2 font-medium">Plan</th>
                           <th className="px-3 py-2 font-medium text-right">Qty</th>
                           <th className="px-3 py-2 font-medium">Status</th>
@@ -1226,18 +1524,15 @@ export default function CommercialSectionPage() {
                       <div key={index} className="grid grid-cols-1 gap-2 rounded-md border border-border bg-background p-3 md:grid-cols-12 md:items-start">
                         <div className="md:col-span-5 space-y-1">
                           <label className="text-xs font-medium">Catalogue item</label>
-                          <select
+                          <SearchableSelect
                             value={item.reference_id || ""}
-                            onChange={(e) => pickQuoteCatalogItem(index, e.target.value)}
-                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          >
-                            <option value="">Custom line / choose item…</option>
-                            {quoteCatalog.map((catalogItem) => (
-                              <option key={`${catalogItem.item_type}-${catalogItem.id}`} value={catalogItem.id}>
-                                {catalogItem.name} · {enumLabel(catalogItem.item_type)} · {formatMoneyIn(catalogItem.price, catalogItem.currency)}
-                              </option>
-                            ))}
-                          </select>
+                            options={quoteCatalog.map((catalogItem) => ({
+                              value: catalogItem.id,
+                              label: `${catalogItem.name} · ${enumLabel(catalogItem.item_type)} · ${formatMoneyIn(catalogItem.price, catalogItem.currency)}`,
+                            }))}
+                            onChange={(value) => pickQuoteCatalogItem(index, value)}
+                            placeholder="Search catalogue item…"
+                          />
                           <textarea
                             rows={2}
                             value={item.description}
@@ -1308,29 +1603,67 @@ export default function CommercialSectionPage() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">{TITLES[resource]} List</CardTitle>
+          <CardTitle className="text-sm font-medium">{TITLES[resource]} records</CardTitle>
         </CardHeader>
         <CardContent>
-          {visibleRows.length === 0 && !loading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">{partnerOnly ? "No partner-backed quotes found." : "No records found."}</p>
+          <div className="mb-4 flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative w-full lg:max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={`Search ${TITLES[resource].toLowerCase()} by name, status, reference or customer…`}
+                className="w-full rounded-md border border-input bg-background py-2 pl-9 pr-3 text-sm"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>{filteredRows.length} matching · page {page} of {pageCount}</span>
+              <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} className="rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground">
+                {[25, 50, 100].map((size) => <option key={size} value={size}>{size} per page</option>)}
+              </select>
+            </div>
+          </div>
+
+          {selectedIds.size > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-blue-200 bg-blue-50/70 p-3 text-sm text-blue-950">
+              <span className="font-medium">{selectedIds.size} selected</span>
+              {bulkOptions.length > 0 ? (
+                <>
+                  <select value={bulkAction} onChange={(event) => setBulkAction(event.target.value)} className="rounded-md border border-blue-200 bg-background px-2 py-1.5 text-xs">
+                    <option value="">Choose bulk action…</option>
+                    {bulkOptions.map((action) => <option key={action} value={action}>{enumLabel(action)}</option>)}
+                  </select>
+                  <Button size="sm" disabled={!bulkAction || working} onClick={() => void runBulkAction()}>Apply</Button>
+                </>
+              ) : <span className="text-xs text-blue-800">Select a record action below to work on one record at a time.</span>}
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+            </div>
+          )}
+
+          {filteredRows.length === 0 && !loading ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">{partnerOnly ? "No partner-backed quotes found." : search ? "No records match your search." : "No records found."}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-muted-foreground">
-                    {columns.slice(0, 8).map((c) => (
-                      <th key={c} className="whitespace-nowrap px-3 py-2 font-medium capitalize">
-                        {enumLabel(c)}
+                    <th className="w-10 px-3 py-2">
+                      <input type="checkbox" aria-label="Select all records on this page" checked={allPageSelected} onChange={togglePageSelection} className="h-4 w-4 rounded border-input" />
+                    </th>
+                    {columns.map((c) => (
+                      <th key={c} className="whitespace-nowrap px-3 py-2 font-medium">
+                        {COLUMN_LABELS[c] || enumLabel(c)}
                       </th>
                     ))}
                     {actions.length > 0 && <th className="px-3 py-2 font-medium">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRows.map((row) => (
-                    <tr key={String(row.id ?? Math.random())} className="border-b last:border-0 hover:bg-muted/50">
-                      {columns.slice(0, 8).map((c) => (
-                        <td key={c} className="whitespace-nowrap px-3 py-2">
+                  {pagedRows.map((row) => (
+                    <tr key={rowKey(row)} className="border-b last:border-0 hover:bg-muted/50">
+                      <td className="px-3 py-2"><input type="checkbox" aria-label={`Select ${String(row.quote_number || row.invoice_number || row.payment_reference || row.id || "record")}`} checked={selectedIds.has(rowKey(row))} onChange={() => toggleRowSelection(rowKey(row))} className="h-4 w-4 rounded border-input" /></td>
+                      {columns.map((c) => (
+                        <td key={c} className="max-w-[260px] whitespace-nowrap px-3 py-2">
                           {renderCell(row, c)}
                         </td>
                       ))}
@@ -1376,6 +1709,15 @@ export default function CommercialSectionPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {filteredRows.length > 0 && (
+            <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+              <span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredRows.length)} of {filteredRows.length}</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronLeft className="h-4 w-4" /> Previous</Button>
+                <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>Next <ChevronRight className="h-4 w-4" /></Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -1455,14 +1797,12 @@ export default function CommercialSectionPage() {
           {selectedAction === "attach_business" ? (
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Customer business</label>
-              <select
+              <SearchableSelect
                 value={actionBusinessId}
-                onChange={(e) => setActionBusinessId(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Select customer business…</option>
-                {businesses.map((business) => <option key={business.id} value={business.id}>{business.businessName}</option>)}
-              </select>
+                options={businesses.map((business) => ({ value: business.id, label: `${business.businessName} · ${business.status || "ACTIVE"}` }))}
+                onChange={setActionBusinessId}
+                placeholder="Search customer business…"
+              />
               <p className="text-xs text-muted-foreground">This links the accepted partner quote to the customer record so it can be converted into an invoice.</p>
             </div>
           ) : selectedAction === "create_business" ? (

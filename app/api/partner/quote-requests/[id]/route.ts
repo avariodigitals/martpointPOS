@@ -3,6 +3,8 @@ import { getPartnerSession, authorizePartner } from "@/lib/partner-auth"
 import { getPartnerQuoteRequestForPartner } from "@/lib/partner-quote-requests"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { fulfillAcceptedPartnerQuote } from "@/lib/partner-quote-fulfillment"
+import { notifyAllAdmins } from "@/lib/admin-notifications"
 
 export const dynamic = "force-dynamic"
 
@@ -57,6 +59,43 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       metadata: { partnerId: auth.partner!.id, quoteId: quote.id, action },
     },
   )
+
+  if (action === "accept") {
+    const fulfillment = await fulfillAcceptedPartnerQuote(String(quote.id), {
+      type: "PARTNER",
+      id: auth.user!.id,
+      name: auth.user!.fullName,
+    })
+    if (!fulfillment.ok) {
+      return NextResponse.json({
+        error: `Quote accepted, but automatic invoicing needs attention: ${fulfillment.error || "invoice creation failed"}`,
+        status: nextStatus,
+        invoicePending: true,
+      }, { status: 500 })
+    }
+
+    await notifyAllAdmins({
+      type: "PARTNER_QUOTE_ACCEPTED_INVOICE_CREATED",
+      title: "Partner accepted quote — invoice created",
+      message: `Quote ${quote.quote_number} was accepted and invoice ${String(fulfillment.invoice?.invoice_number || "created")} was issued automatically.`,
+      deep_link: "/admin/partners/quotes?tab=conversion",
+      source_type: "partner_quote_request",
+      source_id: id,
+      roles: ["Admin", "Finance", "Sales"],
+    })
+
+    return NextResponse.json({
+      success: true,
+      status: nextStatus,
+      invoice: fulfillment.invoice ? {
+        id: fulfillment.invoice.id,
+        invoiceNumber: fulfillment.invoice.invoice_number,
+        total: fulfillment.invoice.total_amount,
+        currency: fulfillment.invoice.currency,
+        emailSent: fulfillment.invoiceEmail?.ok ?? false,
+      } : null,
+    })
+  }
 
   return NextResponse.json({ success: true, status: nextStatus })
 }

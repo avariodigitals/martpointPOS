@@ -6,7 +6,7 @@ import Link from "next/link"
 import { getPartnerSession, authorizePartner, canPartnerAccessBusiness } from "@/lib/partner-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, RefreshCw, Receipt } from "lucide-react"
+import { ArrowLeft, Info, Landmark, RefreshCw, Receipt } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 import { PaymentProofForm } from "./payment-proof-form"
 
@@ -71,7 +71,7 @@ export default async function CustomerFinancePage({
     const [invoicesRes, paymentsRes, subscriptionsRes] = await Promise.all([
       supabase
         .from("invoices")
-        .select("id, invoice_number, issue_date, due_date, total_amount, amount_paid, balance_due, status, currency")
+        .select("id, invoice_number, issue_date, due_date, total_amount, amount_paid, balance_due, status, currency, payment_terms, bank_details, notes_public")
         .eq("business_id", businessId)
         .order("created_at", { ascending: false }),
       supabase
@@ -167,15 +167,54 @@ export default async function CustomerFinancePage({
                           </td>
                         </tr>
                       )}
-                      {canSubmitProof && inv.balance_due > 0 && ["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(inv.status) && (
+                      {inv.balance_due > 0 && ["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(inv.status) && (
                         <tr className="border-t border-border">
-                          <td colSpan={6} className="px-4 py-2"><PaymentProofForm businessId={businessId} invoiceId={inv.id} balance={Number(inv.balance_due)} currency={inv.currency || "NGN"} /></td>
-                        </tr>
-                      )}
-                      {!canSubmitProof && inv.balance_due > 0 && ["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(inv.status) && (
-                        <tr className="border-t border-border">
-                          <td colSpan={6} className="px-4 py-2 text-xs text-amber-700 bg-amber-50">
-                            Your partner user role cannot submit payment proof. Ask the partner owner or manager to upload the transfer receipt, or update your partner role.
+                          <td colSpan={6} className="px-4 py-3">
+                            <div className="rounded-md border border-blue-200 bg-blue-50/60 p-3 space-y-3">
+                              <div className="flex items-start gap-2">
+                                <Landmark className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+                                <div>
+                                  <p className="text-sm font-semibold text-blue-950">Payment instructions</p>
+                                  <p className="mt-1 text-xs text-blue-900">
+                                    Pay the outstanding balance using the details below, then upload a clear transfer receipt or payment confirmation. Finance will verify the proof before marking the invoice as paid.
+                                  </p>
+                                </div>
+                              </div>
+                              {(inv.bank_details || inv.payment_terms || inv.notes_public) ? (
+                                <div className="grid gap-2 text-xs md:grid-cols-3">
+                                  {inv.bank_details && (
+                                    <div className="rounded-md border border-blue-200 bg-background p-2">
+                                      <p className="mb-1 font-semibold text-foreground">Bank / account details</p>
+                                      <p className="whitespace-pre-line text-muted-foreground">{inv.bank_details}</p>
+                                    </div>
+                                  )}
+                                  {inv.payment_terms && (
+                                    <div className="rounded-md border border-blue-200 bg-background p-2">
+                                      <p className="mb-1 font-semibold text-foreground">Payment terms</p>
+                                      <p className="whitespace-pre-line text-muted-foreground">{inv.payment_terms}</p>
+                                    </div>
+                                  )}
+                                  {inv.notes_public && (
+                                    <div className="rounded-md border border-blue-200 bg-background p-2">
+                                      <p className="mb-1 font-semibold text-foreground">Additional notes</p>
+                                      <p className="whitespace-pre-line text-muted-foreground">{inv.notes_public}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                                  <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                                  Payment instructions have not been configured yet. Contact MartPoint Finance before making the transfer.
+                                </p>
+                              )}
+                              {canSubmitProof ? (
+                                <PaymentProofForm businessId={businessId} invoiceId={inv.id} balance={Number(inv.balance_due)} currency={inv.currency || "NGN"} />
+                              ) : (
+                                <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">
+                                  Your partner user role cannot submit payment proof. Ask the partner owner or manager to upload the transfer receipt, or update your partner role.
+                                </p>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       )}

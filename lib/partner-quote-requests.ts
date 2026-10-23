@@ -271,7 +271,7 @@ export async function listPartnerQuoteRequests(partnerId: string): Promise<Recor
   if (!isSupabaseConfigured()) return []
   const { data } = await supabase
     .from("partner_quote_requests")
-    .select("*, partner_leads(business_name, contact_name, status)")
+    .select("*, partner_leads(business_name, contact_name, status), quotes:quote_id(status)")
     .eq("partner_id", partnerId)
     .order("created_at", { ascending: false })
   return (data || []) as Record<string, unknown>[]
@@ -312,17 +312,24 @@ export async function getPartnerQuoteRequestForPartner(
   }
 
   let accountNumber = ""
+  let invoice: Record<string, unknown> | null = null
   if (quote) {
     const { data: settings } = await supabase.from("settings").select("data").eq("id", 1).maybeSingle()
     const settingsData = (settings?.data as Record<string, unknown> | null) || null
     const general = (settingsData?.general as Record<string, unknown> | null) || null
     accountNumber = typeof general?.accountNumber === "string" ? general.accountNumber : ""
+    const { data: invoiceRow } = await supabase
+      .from("invoices")
+      .select("id, invoice_number, status, total_amount, currency, due_date, invoice_email_sent_at")
+      .eq("quote_id", quote.id)
+      .maybeSingle()
+    invoice = (invoiceRow as Record<string, unknown> | null) || null
   }
 
   return {
     request: request as Record<string, unknown>,
     lead,
-    quote: quote ? { ...(quote as Record<string, unknown>), account_number: accountNumber } : null,
+    quote: quote ? { ...(quote as Record<string, unknown>), account_number: accountNumber, invoice } : null,
   }
 }
 

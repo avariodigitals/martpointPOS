@@ -86,6 +86,9 @@ export default async function PartnerQuotesPage({ searchParams }: { searchParams
               {requests.map((r) => {
                 const lead = r.partner_leads as Record<string, unknown> | null
                 const status = r.status as QuoteRequestStatus
+                const linkedQuote = r.quotes as Record<string, unknown> | null
+                const quoteStatus = String(linkedQuote?.status || "")
+                const displayStatus = ["ACCEPTED", "CONVERTED"].includes(quoteStatus) ? quoteStatus : status
                 return (
                   <div key={r.id as string} className="p-4 rounded-xl border border-border bg-background">
                     <div className="flex items-start justify-between gap-3">
@@ -103,17 +106,17 @@ export default async function PartnerQuotesPage({ searchParams }: { searchParams
                         </p>
                       </div>
                       <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-medium ${
-                        status === "ISSUED" ? "bg-green-100 text-green-700"
-                        : status === "DECLINED" || status === "EXPIRED" ? "bg-red-100 text-red-700"
+                        displayStatus === "ISSUED" || displayStatus === "ACCEPTED" || displayStatus === "CONVERTED" ? "bg-green-100 text-green-700"
+                        : displayStatus === "DECLINED" || displayStatus === "EXPIRED" ? "bg-red-100 text-red-700"
                         : "bg-blue-100 text-blue-700"
                       }`}>
-                        {QUOTE_REQUEST_STATUS_LABELS[status] || status}
+                        {displayStatus === "CONVERTED" ? "INVOICE CREATED" : displayStatus === "ACCEPTED" ? "ACCEPTED" : QUOTE_REQUEST_STATUS_LABELS[status] || status}
                       </span>
                     </div>
-                    {status === "ISSUED" && typeof r.issued_quote_ref === "string" && r.issued_quote_ref && (
+                    {["ISSUED", "ACCEPTED", "CONVERTED"].includes(String(displayStatus)) && typeof r.issued_quote_ref === "string" && r.issued_quote_ref && (
                       <div className="mt-3">
                         <Link href={`/partner/quotes/${r.id as string}`}>
-                          <Button size="sm" variant="outline">View, accept or download quote</Button>
+                          <Button size="sm" variant="outline">{displayStatus === "CONVERTED" ? "View invoice status" : displayStatus === "ACCEPTED" ? "View accepted quote" : "View, accept or download quote"}</Button>
                         </Link>
                       </div>
                     )}

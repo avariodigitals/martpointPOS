@@ -22,7 +22,7 @@ function relativeTime(value: string) {
   return `${Math.floor(seconds / 86400)}d ago`
 }
 
-export function PortalNotificationBell({ endpoint }: { endpoint: string }) {
+export function PortalNotificationBell({ endpoint, variant = "dark" }: { endpoint: string; variant?: "dark" | "light" }) {
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<PortalNotification[]>([])
   const [unread, setUnread] = useState(0)
@@ -83,10 +83,14 @@ export function PortalNotificationBell({ endpoint }: { endpoint: string }) {
         onClick={() => setOpen((value) => !value)}
         aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
         aria-expanded={open}
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white/85 transition hover:bg-white/20 hover:text-white"
+        className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition ${
+          variant === "light"
+            ? "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+            : "border-white/15 bg-white/10 text-white/85 hover:bg-white/20 hover:text-white"
+        }`}
       >
         <Bell className="h-4 w-4" />
-        {unread > 0 && <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-[#0A0F1C]">{unread > 99 ? "99+" : unread}</span>}
+        {unread > 0 && <span className={`absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ${variant === "light" ? "ring-2 ring-white" : "ring-2 ring-[#0A0F1C]"}`}>{unread > 99 ? "99+" : unread}</span>}
       </button>
 
       {open && <div className="absolute right-0 top-11 z-[80] w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-[0_24px_70px_rgba(15,23,42,0.25)]">

@@ -20,11 +20,13 @@ export default async function CreatorPortalLayout({
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <PortalHeader
-          title="Creator Portal"
-          subtitle={creator.fullName}
           userName={creator.fullName}
           userMeta={creator.levelLabel || "Starter"}
           profileHref="/creator/profile"
+          walletHref="/creator/earnings"
+          walletLabel="Earnings & Rewards"
+          logoutEndpoint="/api/creator/logout"
+          loginPath="/creator/login"
           quickLinks={[
             { href: "/creator", label: "Overview" },
             { href: "/creator/challenges", label: "Challenges" },

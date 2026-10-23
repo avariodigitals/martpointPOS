@@ -476,27 +476,46 @@ export default async function ControlCentrePage({
 
         <SectionCard
           title="Financial Snapshot"
-          description={`Revenue, outstanding, renewals and commission for ${period}`}
+          description={`What we received, what customers owe us, and what we owe for ${period}`}
           href="/admin/finance/commercial"
           icon={Receipt}
         >
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-muted-foreground">Revenue Collected</p>
+              <p className="text-xs text-muted-foreground">Cash Received</p>
               <p className="text-lg font-semibold">{fmtCurrency(financial.revenueCollected)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Outstanding</p>
+              <p className="text-xs text-muted-foreground">Customers Owe Us</p>
               <p className="text-lg font-semibold">{fmtCurrency(financial.outstanding)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Tax Payable</p>
+              <p className="text-lg font-semibold">{fmtCurrency(financial.taxPayable)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Commission Payable</p>
+              <p className="text-lg font-semibold">{fmtCurrency(financial.commissionPayable)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Renewals</p>
               <p className="text-lg font-semibold">{fmtNumber(financial.renewals)}</p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Commission</p>
-              <p className="text-lg font-semibold">{fmtCurrency(financial.commission)}</p>
-            </div>
+          </div>
+          <div className="border-t pt-3">
+            <p className="text-xs font-medium mb-2">Cash received by category</p>
+            {financial.revenueByCategory.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No confirmed receipts in this period.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {financial.revenueByCategory.slice(0, 6).map((row) => (
+                  <div key={row.category} className="flex items-center justify-between gap-3 text-xs">
+                    <span className="truncate">{row.category}</span>
+                    <span className="font-semibold tabular-nums">{fmtCurrency(row.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap gap-3 pt-2">
             <Link href="/admin/finance/commercial/payments" className="text-xs text-retail hover:underline">

@@ -71,6 +71,11 @@ export async function PATCH(
       sip_call_sid,
       sip_cost_cents,
       webrtc_room,
+      selected_department,
+      follow_up_status,
+      follow_up_notes,
+      follow_up_at,
+      agent_user_id,
     } = body
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -81,6 +86,11 @@ export async function PATCH(
     if (sip_call_sid !== undefined) updates.sip_call_sid = sip_call_sid
     if (sip_cost_cents !== undefined) updates.sip_cost_cents = sip_cost_cents
     if (webrtc_room !== undefined) updates.webrtc_room = webrtc_room
+    if (selected_department !== undefined) updates.selected_department = selected_department
+    if (["new", "assigned", "contacted", "resolved"].includes(String(follow_up_status))) updates.follow_up_status = follow_up_status
+    if (follow_up_notes !== undefined) updates.follow_up_notes = follow_up_notes
+    if (follow_up_at !== undefined) updates.follow_up_at = follow_up_at
+    if (agent_user_id !== undefined) updates.agent_user_id = agent_user_id
 
     const { data, error } = await supabase
       .from("azera_calls")
@@ -93,16 +103,19 @@ export async function PATCH(
 
     // Log status change event
     const now = new Date().toISOString()
-    const eventType = status === "answered" ? "answered" : status === "ended" ? "ended" : status
-
-    await supabase.from("azera_call_events").insert({
-      call_id: id,
-      event_type: eventType,
-      actor_type: "agent",
-      actor_id: session.userId,
-      metadata: { status, duration_seconds },
-      created_at: now,
-    })
+    if (status) {
+      const eventType = status === "answered" ? "answered" : status === "ended" ? "ended" : status
+      if (["ringing", "answered", "ended", "missed", "failed", "busy"].includes(eventType)) {
+        await supabase.from("azera_call_events").insert({
+          call_id: id,
+          event_type: eventType,
+          actor_type: "agent",
+          actor_id: session.userId,
+          metadata: { status, duration_seconds },
+          created_at: now,
+        })
+      }
+    }
 
     return ok(data)
   } catch (e) {

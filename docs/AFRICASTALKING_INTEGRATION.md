@@ -29,10 +29,13 @@ Airtime callback: https://<production-domain>/api/africastalking/airtime/events
 
 For Voice, the callback returns XML and either plays the configured greeting,
 collects a department choice, or forwards an inbound call to the configured
-mobile/SIP number. The events endpoint updates `azera_calls` and adds an audit
-row. For SMS, inbound messages are filed into an Azera SMS conversation. USSD
-currently provides a safe support/callback menu and Airtime stores the delivery
-payload for later reconciliation.
+mobile/SIP number. The events endpoint reconciles each destination attempt, so
+busy/no-answer/failure can fall through to the next configured destination. The
+recording endpoint copies voicemail audio into the private `azera-voicemails`
+bucket when the provider recording URL is downloadable. For SMS, inbound
+messages are filed into an Azera SMS conversation. USSD currently provides a
+safe support/callback menu and Airtime stores the delivery payload for later
+reconciliation.
 
 ## Admin settings
 
@@ -42,10 +45,14 @@ In Admin → Azera → Settings → Phone Calls:
 2. Enter the API key and username for outbound calls.
 3. Enter the Africa's Talking virtual number.
 4. Enter the mobile/SIP destination(s) that should answer calls.
-5. Set the Voice greeting and No-answer greeting.
-6. To route by department, enable the department menu and enter one department
-   per line using `Department name | +234number,+234fallback`. Callers are
-   asked to press 1–9 in the same order as the lines.
+5. Set the main, connecting, and no-answer greetings.
+6. Set the timezone, weekly hours, and closed dates if the business should use
+   after-hours handling.
+7. To route by department, enable the department menu and add rows with an
+   explicit digit, department name, primary destination, and optional fallback.
+   Digits 1–8 are available; 9 repeats the menu.
+8. Enable voicemail if missed calls should leave a message. The admin voicemail
+   endpoint returns short-lived signed links only for authenticated Azera users.
 
 The department menu is optional. If disabled, the general `Answer calls on`
 numbers are dialled directly. If enabled, the department numbers are used for
@@ -53,6 +60,20 @@ the selected option. Keep one primary number per department where possible;
 several destinations can still increase spend. The callback uses sequential
 dialling so the next destination is attempted after the previous one, rather
 than ringing every destination at the same time.
+
+The `Dial` XML supports sequential routing and optional `ringbackTone`. Africa's
+Talking does not expose a documented ring-timeout attribute in the installed
+Voice XML builder; `maxDuration` is a connected-call limit, not a ringing limit.
+The application therefore does not send an unsupported `timeout` attribute.
+Provider event callbacks remain the source of truth for busy, rejected,
+no-answer, and failed attempts.
+
+Audio URLs are optional and must be HTTPS URLs reachable by Africa's Talking.
+Use WAV or MP3 files only. A URL can be used for the main, connecting,
+no-answer, after-hours, or ringback audio; the UI still uses text-to-speech when
+no audio URL is configured. The settings screen can upload, preview, replace,
+or remove these audio references. The application does not create synthetic
+promotional audio or expose voicemail files publicly.
 
 ## Sales softphones
 
@@ -75,9 +96,26 @@ call to a normal mobile line. If Africa's Talking provisions a SIP trunk to a
 PBX instead, the number callback is configured as `trunk:HOST_OR_IP`; that is
 a separate PBX deployment and is not required for individual softphones.
 
-The migrations `124_africastalking_webhooks.sql` and
-`125_africastalking_voice_ivr.sql` must be applied before saving
-the new per-business Voice routing fields or receiving callbacks.
+The migrations `124_africastalking_webhooks.sql`,
+`125_africastalking_voice_ivr.sql`, and
+`126_africastalking_voice_workflows.sql` must be applied before saving the new
+per-business Voice routing fields or receiving callbacks. Migration 126 creates
+attempt, voicemail, and dedupe storage and a private voicemail bucket.
+If an older installation reports that `ai_voice` is missing, apply
+`127_ensure_azera_ai_voice_settings.sql` as well; it repairs the skipped AI
+voice columns and reloads the PostgREST schema cache.
+
+Configure these exact callback URLs in the Africa's Talking dashboard:
+
+```text
+Voice callback:   https://<production-domain>/api/africastalking/voice/callback?secret=<secret>
+Voice events:     https://<production-domain>/api/africastalking/voice/events?secret=<secret>
+Voice recording:  https://<production-domain>/api/africastalking/voice/recording?secret=<secret>
+```
+
+Use the public `www` production hostname if that is the hostname Africa's
+Talking reaches without a redirect. The callback secret is server-only; it is
+safe to include it in the provider dashboard URL but never in client-side code.
 
 ## Smoke test
 

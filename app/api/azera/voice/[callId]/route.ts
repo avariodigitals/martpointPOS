@@ -2,9 +2,7 @@ import { NextResponse } from "next/server"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { readSettings } from "@/lib/settings"
-
-type VoiceSettings = { openai?: { apiKey?: string } }
+import { getAiVoiceProvider } from "@/lib/ai-voice"
 
 function ok<T>(data: T) {
   return NextResponse.json({ success: true, data })
@@ -57,23 +55,23 @@ export async function POST(
       .eq("business_id", call.business_id)
       .single()
 
+    const providerId = String(settings?.ai_voice_provider || "openai")
+    const provider = await getAiVoiceProvider(providerId)
+    if (!provider) return err(`${providerId} is not configured for AI voice`, 503)
+
     // 1. Speech-to-Text via OpenAI Whisper (if audio provided)
     let customerText = transcript
     if (audioFile && !customerText) {
       try {
-        const settingsData = await readSettings()
-        const openaiKey =
-          (settingsData as VoiceSettings)?.openai?.apiKey || process.env.OPENAI_API_KEY
-        if (!openaiKey) {
-          return err("OpenAI API key not configured for STT")
-        }
-
-        const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        const transcriptionForm = new FormData()
+        transcriptionForm.append("file", audioFile)
+        transcriptionForm.append("model", provider.sttModel)
+        const whisperRes = await fetch(`${provider.baseUrl}/audio/transcriptions`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${openaiKey}`,
+            Authorization: `Bearer ${provider.apiKey}`,
           },
-          body: formData, // formData already has 'audio' and 'model'
+          body: transcriptionForm,
         })
 
         if (!whisperRes.ok) {
@@ -107,13 +105,6 @@ export async function POST(
       .eq("id", callId)
 
     // 2. AI Brain via OpenAI GPT
-    const settingsData = await readSettings()
-    const openaiKey =
-      (settingsData as VoiceSettings)?.openai?.apiKey || process.env.OPENAI_API_KEY
-    if (!openaiKey) {
-      return err("OpenAI API key not configured for AI responses")
-    }
-
     // Get knowledge base articles
     const { data: kb } = await supabase
       .from("azera_knowledge")
@@ -139,14 +130,14 @@ If the customer asks to speak to an agent, say "transfer_to_agent".`
       }
     }
 
-    const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    const gptRes = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${openaiKey}`,
+        Authorization: `Bearer ${provider.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: provider.chatModel,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: customerText },
@@ -199,15 +190,15 @@ If the customer asks to speak to an agent, say "transfer_to_agent".`
     // 3. Text-to-Speech via OpenAI TTS
     let audioUrl: string | null = null
     try {
-      const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
+      const ttsRes = await fetch(`${provider.baseUrl}/audio/speech`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${openaiKey}`,
+          Authorization: `Bearer ${provider.apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "tts-1",
-          voice: "alloy", // neutral voice, works well for Nigerian English
+          model: provider.ttsModel,
+          voice: settings?.ai_voice || "alloy",
           input: aiText,
         }),
       })

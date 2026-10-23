@@ -4,6 +4,7 @@ import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { getAiProviderStatus } from "@/lib/ai-chat"
+import { normalizeVoiceDestination } from "@/lib/africastalking"
 
 async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession()
@@ -88,9 +89,24 @@ export async function PATCH(request: Request) {
       africas_talking_phone_number,
       africas_talking_forward_numbers,
       voice_greeting,
+      voice_connecting_greeting,
       voice_no_answer_greeting,
+      voice_after_hours_greeting,
+      voice_after_hours_destination,
+      voice_timezone,
+      voice_weekly_schedule,
+      voice_closed_dates,
+      voice_menu_retry_limit,
       voice_menu_enabled,
       voice_departments,
+      voice_voicemail_enabled,
+      voice_voicemail_max_seconds,
+      voice_voicemail_retention_days,
+      voice_greeting_audio_url,
+      voice_connecting_audio_url,
+      voice_no_answer_audio_url,
+      voice_after_hours_audio_url,
+      voice_waiting_audio_url,
       messenger_page_id,
       instagram_account_id,
       google_place_id,
@@ -122,17 +138,62 @@ export async function PATCH(request: Request) {
     if (africas_talking_phone_number !== undefined) updates.africas_talking_phone_number = africas_talking_phone_number
     if (africas_talking_forward_numbers !== undefined) {
       updates.africas_talking_forward_numbers = Array.isArray(africas_talking_forward_numbers)
-        ? africas_talking_forward_numbers
+        ? africas_talking_forward_numbers.map((value) => normalizeVoiceDestination(value)).filter(Boolean)
         : String(africas_talking_forward_numbers)
             .split(",")
-            .map((value) => value.trim())
+            .map((value) => normalizeVoiceDestination(value))
             .filter(Boolean)
     }
     if (voice_greeting !== undefined) updates.voice_greeting = String(voice_greeting).trim()
+    if (voice_connecting_greeting !== undefined) updates.voice_connecting_greeting = String(voice_connecting_greeting).trim()
     if (voice_no_answer_greeting !== undefined) updates.voice_no_answer_greeting = String(voice_no_answer_greeting).trim()
+    if (voice_after_hours_greeting !== undefined) updates.voice_after_hours_greeting = String(voice_after_hours_greeting).trim()
+    if (voice_after_hours_destination !== undefined) updates.voice_after_hours_destination = String(voice_after_hours_destination || "").trim() || null
+    if (voice_timezone !== undefined) updates.voice_timezone = String(voice_timezone || "Africa/Lagos").trim() || "Africa/Lagos"
+    if (voice_weekly_schedule !== undefined && voice_weekly_schedule && typeof voice_weekly_schedule === "object") updates.voice_weekly_schedule = voice_weekly_schedule
+    if (voice_closed_dates !== undefined) updates.voice_closed_dates = Array.isArray(voice_closed_dates) ? voice_closed_dates : []
+    if (voice_menu_retry_limit !== undefined) updates.voice_menu_retry_limit = Math.min(3, Math.max(0, Number(voice_menu_retry_limit) || 1))
     if (voice_menu_enabled !== undefined) updates.voice_menu_enabled = Boolean(voice_menu_enabled)
     if (voice_departments !== undefined) {
-      updates.voice_departments = Array.isArray(voice_departments) ? voice_departments : []
+      if (!Array.isArray(voice_departments)) throw new Error("voice_departments must be an array")
+      const usedDigits = new Set<number>()
+      updates.voice_departments = voice_departments.map((department) => {
+        const item = department as Record<string, unknown>
+        const digit = Number(item.digit)
+        const label = String(item.label || "").trim()
+        const primary = normalizeVoiceDestination(item.primary || "")
+        const fallback = (Array.isArray(item.fallback) ? item.fallback : [])
+          .map((value) => normalizeVoiceDestination(value))
+          .filter((value) => value && value !== primary)
+        if (!Number.isInteger(digit) || digit < 1 || digit > 8 || usedDigits.has(digit)) throw new Error("Department digits must be unique numbers from 1 to 8")
+        if (!label || !primary) throw new Error("Each department needs a name and primary destination")
+        usedDigits.add(digit)
+        return {
+          digit,
+          key: String(item.key || label.toLowerCase().replace(/[^a-z0-9]+/g, "-")).replace(/^-|-$/g, ""),
+          label,
+          primary,
+          fallback,
+          numbers: [primary, ...fallback],
+          enabled: item.enabled !== false,
+        }
+      })
+    }
+    if (voice_voicemail_enabled !== undefined) updates.voice_voicemail_enabled = Boolean(voice_voicemail_enabled)
+    if (voice_voicemail_max_seconds !== undefined) updates.voice_voicemail_max_seconds = Math.min(300, Math.max(15, Number(voice_voicemail_max_seconds) || 60))
+    if (voice_voicemail_retention_days !== undefined) updates.voice_voicemail_retention_days = Math.min(3650, Math.max(1, Number(voice_voicemail_retention_days) || 90))
+    for (const [key, value] of Object.entries({
+      voice_greeting_audio_url,
+      voice_connecting_audio_url,
+      voice_no_answer_audio_url,
+      voice_after_hours_audio_url,
+      voice_waiting_audio_url,
+    })) {
+      if (value !== undefined) {
+        const audioUrl = String(value || "").trim()
+        if (audioUrl && !/^https:\/\//i.test(audioUrl)) throw new Error("Audio URLs must use HTTPS")
+        updates[key] = audioUrl || null
+      }
     }
     if (messenger_page_id !== undefined) updates.messenger_page_id = messenger_page_id
     if (instagram_account_id !== undefined) updates.instagram_account_id = instagram_account_id

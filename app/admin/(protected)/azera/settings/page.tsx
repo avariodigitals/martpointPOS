@@ -8,7 +8,15 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, MessageCircle, Save as SaveIcon } from "lucide-react"
+import { Loader2, Save, MessageCircle, Save as SaveIcon, Plus, Trash2 } from "lucide-react"
+
+type VoiceDepartmentForm = {
+  digit: string
+  label: string
+  primary: string
+  fallback: string
+  enabled: boolean
+}
 
 interface AzeraSettings {
   widget_enabled: boolean
@@ -29,9 +37,24 @@ interface AzeraSettings {
   africas_talking_phone_number: string | null
   africas_talking_forward_numbers: string
   voice_greeting: string
+  voice_connecting_greeting: string
   voice_no_answer_greeting: string
+  voice_after_hours_greeting: string
+  voice_after_hours_destination: string
+  voice_timezone: string
+  voice_weekly_schedule: string
+  voice_closed_dates: string
+  voice_menu_retry_limit: number
   voice_menu_enabled: boolean
-  voice_departments: string
+  voice_departments: VoiceDepartmentForm[]
+  voice_voicemail_enabled: boolean
+  voice_voicemail_max_seconds: number
+  voice_voicemail_retention_days: number
+  voice_greeting_audio_url: string
+  voice_connecting_audio_url: string
+  voice_no_answer_audio_url: string
+  voice_after_hours_audio_url: string
+  voice_waiting_audio_url: string
   africas_talking_api_key: string | null
   africas_talking_username: string | null
   twilio_account_sid: string | null
@@ -48,6 +71,7 @@ export default function AzeraSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
+  const [voiceProviderCheck, setVoiceProviderCheck] = useState("")
 
   // Local form state
   const [form, setForm] = useState<AzeraSettings>({
@@ -65,10 +89,25 @@ export default function AzeraSettingsPage() {
     sip_from_number: null,
     africas_talking_phone_number: null,
     africas_talking_forward_numbers: "",
-    voice_greeting: "Welcome to MartPoint. Please hold while we connect you.",
+    voice_greeting: "Welcome to MartPoint, the business management software built for Nigerian businesses. Manage your sales, inventory, customer payments, and online store—all in one place. For sales, pricing, or to book a demo, press 1. For technical support, press 2. For billing, renewals, or onboarding, press 3. To hear these options again, press 9.",
+    voice_connecting_greeting: "Please hold while we connect you.",
     voice_no_answer_greeting: "We are unable to answer right now. Please try again later.",
+    voice_after_hours_greeting: "Thank you for calling MartPoint. Our office is currently closed. Our opening hours are Monday to Friday, 9 a.m. to 5 p.m., West Africa Time.",
+    voice_after_hours_destination: "",
+    voice_timezone: "Africa/Lagos",
+    voice_weekly_schedule: "Mon | 09:00-17:00\nTue | 09:00-17:00\nWed | 09:00-17:00\nThu | 09:00-17:00\nFri | 09:00-17:00",
+    voice_closed_dates: "",
+    voice_menu_retry_limit: 1,
     voice_menu_enabled: false,
-    voice_departments: "",
+    voice_departments: [],
+    voice_voicemail_enabled: false,
+    voice_voicemail_max_seconds: 60,
+    voice_voicemail_retention_days: 90,
+    voice_greeting_audio_url: "",
+    voice_connecting_audio_url: "",
+    voice_no_answer_audio_url: "",
+    voice_after_hours_audio_url: "",
+    voice_waiting_audio_url: "",
     africas_talking_api_key: null,
     africas_talking_username: null,
     twilio_account_sid: null,
@@ -94,11 +133,22 @@ export default function AzeraSettingsPage() {
           africas_talking_forward_numbers: Array.isArray(settings.africas_talking_forward_numbers)
             ? settings.africas_talking_forward_numbers.join(", ")
             : settings.africas_talking_forward_numbers || "",
-          voice_departments: Array.isArray(settings.voice_departments)
-            ? settings.voice_departments
-                .map((department: { label?: string; numbers?: string[] }) => `${department.label || ""} | ${(department.numbers || []).join(", ")}`)
+          voice_weekly_schedule: settings.voice_weekly_schedule
+            ? Object.entries(settings.voice_weekly_schedule as Record<string, { open?: string; close?: string } | null>)
+                .filter(([, value]) => value)
+                .map(([day, value]) => `${day.slice(0, 1).toUpperCase()}${day.slice(1)} | ${value?.open || ""}-${value?.close || ""}`)
                 .join("\n")
-            : "",
+            : current.voice_weekly_schedule,
+          voice_closed_dates: Array.isArray(settings.voice_closed_dates) ? settings.voice_closed_dates.join(", ") : current.voice_closed_dates,
+          voice_departments: Array.isArray(settings.voice_departments)
+            ? settings.voice_departments.map((department: { digit?: number; label?: string; primary?: string; fallback?: string[]; numbers?: string[]; enabled?: boolean }, index: number) => ({
+                digit: String(department.digit || index + 1),
+                label: department.label || "",
+                primary: department.primary || department.numbers?.[0] || "",
+                fallback: Array.isArray(department.fallback) ? department.fallback.join(", ") : (department.numbers || []).slice(1).join(", "),
+                enabled: department.enabled !== false,
+              }))
+            : [],
         }
       })
     } catch {
@@ -114,10 +164,67 @@ export default function AzeraSettingsPage() {
     void loadSettings()
   }, [])
 
+  async function uploadAudio(key: "voice_greeting_audio_url" | "voice_connecting_audio_url" | "voice_no_answer_audio_url" | "voice_after_hours_audio_url" | "voice_waiting_audio_url", file: File) {
+    const body = new FormData()
+    body.append("business_id", "1")
+    body.append("file", file)
+    const res = await fetch("/api/azera/voice-audio", { method: "POST", body })
+    const json = await res.json()
+    if (!res.ok || !json.url) {
+      setMessage(json.error || "Audio upload failed")
+      return
+    }
+    setForm((current) => ({ ...current, [key]: json.url }))
+    setMessage("Audio uploaded. Save settings to activate it.")
+  }
+
+  async function checkVoiceProvider() {
+    setVoiceProviderCheck("Checking provider…")
+    try {
+      const provider = encodeURIComponent(form.ai_voice_provider || "openai")
+      const res = await fetch(`/api/azera/voice/provider-check?business_id=1&provider=${provider}`)
+      const json = await res.json()
+      setVoiceProviderCheck(json.message || json.error || "Provider check failed")
+    } catch {
+      setVoiceProviderCheck("Provider check failed")
+    }
+  }
+
   async function saveSettings() {
     setSaving(true)
     setMessage("")
     try {
+      const seenDigits = new Set<number>()
+      const departments = form.voice_departments
+        .filter((department) => department.label.trim() || department.primary.trim() || department.fallback.trim())
+        .map((department) => {
+          const digit = Number(department.digit)
+          if (!Number.isInteger(digit) || digit < 1 || digit > 8 || seenDigits.has(digit)) throw new Error("Department digits must be unique numbers from 1 to 8. Digit 9 repeats the menu.")
+          seenDigits.add(digit)
+          const primary = department.primary.trim()
+          const fallback = department.fallback.split(",").map((value) => value.trim()).filter(Boolean)
+          if (!department.label.trim() || !primary) throw new Error("Each enabled department needs a name and primary destination.")
+          return {
+            digit,
+            key: department.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+            label: department.label.trim(),
+            primary,
+            fallback,
+            numbers: [primary, ...fallback],
+            enabled: department.enabled,
+          }
+        })
+      const weeklySchedule: Record<string, { open: string; close: string } | null> = {}
+      for (const line of form.voice_weekly_schedule.split("\n").map((value) => value.trim()).filter(Boolean)) {
+        const [rawDay, rawHours] = line.split("|").map((value) => value.trim())
+        if (!rawDay || !rawHours) throw new Error("Business hours must use one line per day, such as Mon | 09:00-17:00.")
+        const [open, close] = rawHours.split("-").map((value) => value.trim())
+        const day = rawDay.slice(0, 3).toLowerCase()
+        if (!["mon", "tue", "wed", "thu", "fri", "sat", "sun"].includes(day) || !/^\d{2}:\d{2}$/.test(open || "") || !/^\d{2}:\d{2}$/.test(close || "")) throw new Error("Business hours contain an invalid day or time.")
+        weeklySchedule[day] = { open, close }
+      }
+      for (const day of ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]) if (!weeklySchedule[day]) weeklySchedule[day] = null
+
       const res = await fetch("/api/azera/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -128,22 +235,9 @@ export default function AzeraSettingsPage() {
             .split(",")
             .map((value) => value.trim())
             .filter(Boolean),
-          voice_departments: form.voice_departments
-            .split("\n")
-            .map((line) => {
-              const [rawLabel, rawNumbers] = line.split("|")
-              const label = (rawLabel || "").trim()
-              const numbers = (rawNumbers || "")
-                .split(",")
-                .map((value) => value.trim())
-                .filter(Boolean)
-              return {
-                key: label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
-                label,
-                numbers,
-              }
-            })
-            .filter((department) => department.label && department.numbers.length),
+          voice_departments: departments,
+          voice_weekly_schedule: weeklySchedule,
+          voice_closed_dates: form.voice_closed_dates.split(",").map((value) => value.trim()).filter(Boolean),
         }),
       })
       const json = await res.json()
@@ -153,8 +247,8 @@ export default function AzeraSettingsPage() {
       } else {
         setMessage(json.error || "Failed to save settings")
       }
-    } catch {
-      setMessage("Failed to save settings")
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to save settings")
     } finally {
       setSaving(false)
     }
@@ -323,8 +417,7 @@ export default function AzeraSettingsPage() {
                 Enable AI voice answering
               </label>
               <p className="text-xs text-muted-foreground">
-                AI answers phone calls using OpenAI Whisper + GPT + TTS.
-                Transfers to human agent when needed.
+                AI uses the selected provider for speech-to-text, chat, and text-to-speech when that provider exposes OpenAI-compatible voice endpoints. Transfers to a human agent when needed.
               </p>
             </div>
             <div className="space-y-2">
@@ -352,7 +445,22 @@ export default function AzeraSettingsPage() {
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="openai">OpenAI (Whisper + GPT + TTS)</option>
+                <option value="groq">Groq (OpenAI-compatible endpoint)</option>
+                <option value="gemini">Gemini (OpenAI-compatible endpoint)</option>
+                <option value="mistral">Mistral (OpenAI-compatible endpoint)</option>
+                <option value="openrouter">OpenRouter (OpenAI-compatible endpoint)</option>
+                <option value="xai">xAI (OpenAI-compatible endpoint)</option>
+                <option value="custom">Custom OpenAI-compatible provider</option>
               </select>
+              <div className="flex items-center gap-3">
+                <Button type="button" variant="outline" size="sm" onClick={() => void checkVoiceProvider()}>
+                  Check selected provider
+                </Button>
+                {voiceProviderCheck && <span className="text-xs text-muted-foreground">{voiceProviderCheck}</span>}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The selected provider must support <code>/audio/transcriptions</code>, <code>/chat/completions</code>, and <code>/audio/speech</code>. OpenAI is the currently configured provider in this installation.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -548,17 +656,27 @@ export default function AzeraSettingsPage() {
                     </p>
                   </div>
                   <div className="space-y-2 pt-2 border-t border-border/50">
-                    <label className="text-xs font-medium">Voice greeting</label>
+                    <label className="text-xs font-medium">Main greeting and menu</label>
                     <textarea
                       value={form.voice_greeting}
                       onChange={(e) => setForm({ ...form, voice_greeting: e.target.value })}
                       rows={2}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      placeholder="Welcome to MartPoint. Please hold while we connect you."
+                      placeholder="Welcome to MartPoint... Press 1 for Sales."
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium">No-answer greeting</label>
+                    <label className="text-xs font-medium">Connecting greeting</label>
+                    <textarea
+                      value={form.voice_connecting_greeting}
+                      onChange={(e) => setForm({ ...form, voice_connecting_greeting: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="Please hold while we connect you."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">No-answer / voicemail greeting</label>
                     <textarea
                       value={form.voice_no_answer_greeting}
                       onChange={(e) => setForm({ ...form, voice_no_answer_greeting: e.target.value })}
@@ -575,26 +693,132 @@ export default function AzeraSettingsPage() {
                         onChange={(e) => setForm({ ...form, voice_menu_enabled: e.target.checked })}
                         className="rounded border-retail text-retail focus:ring-retail"
                       />
-                      Enable department menu (caller presses 1–9)
+                      Enable department menu (caller presses 1–8; 9 repeats)
                     </label>
-                    <textarea
-                      value={form.voice_departments}
-                      onChange={(e) => setForm({ ...form, voice_departments: e.target.value })}
-                      rows={4}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-                      placeholder={"Support | +2348012345678\nSales | +2348098765432\nAccounts | +2348077777777"}
-                    />
+                    <div className="space-y-2">
+                      {form.voice_departments.map((department, index) => (
+                        <div key={`${department.digit}-${index}`} className="rounded-md border border-border/60 p-3 space-y-2">
+                          <div className="grid gap-2 md:grid-cols-[64px_1fr_1fr]">
+                            <input
+                              value={department.digit}
+                              onChange={(e) => setForm({ ...form, voice_departments: form.voice_departments.map((item, itemIndex) => itemIndex === index ? { ...item, digit: e.target.value } : item) })}
+                              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              inputMode="numeric"
+                              aria-label="Keypad digit"
+                              placeholder="1"
+                            />
+                            <input
+                              value={department.label}
+                              onChange={(e) => setForm({ ...form, voice_departments: form.voice_departments.map((item, itemIndex) => itemIndex === index ? { ...item, label: e.target.value } : item) })}
+                              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="Sales / demos"
+                              aria-label="Department name"
+                            />
+                            <input
+                              value={department.primary}
+                              onChange={(e) => setForm({ ...form, voice_departments: form.voice_departments.map((item, itemIndex) => itemIndex === index ? { ...item, primary: e.target.value } : item) })}
+                              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="Primary phone or SIP destination"
+                              aria-label="Primary destination"
+                            />
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <input
+                              value={department.fallback}
+                              onChange={(e) => setForm({ ...form, voice_departments: form.voice_departments.map((item, itemIndex) => itemIndex === index ? { ...item, fallback: e.target.value } : item) })}
+                              className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="Fallback number or SIP destination (optional; comma-separated)"
+                              aria-label="Fallback destinations"
+                            />
+                            <label className="flex items-center gap-1 text-xs whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={department.enabled}
+                                onChange={(e) => setForm({ ...form, voice_departments: form.voice_departments.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: e.target.checked } : item) })}
+                              />
+                              Enabled
+                            </label>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => setForm({ ...form, voice_departments: form.voice_departments.filter((_, itemIndex) => itemIndex !== index) })} aria-label="Remove department">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      <Button type="button" variant="outline" size="sm" onClick={() => setForm({ ...form, voice_departments: [...form.voice_departments, { digit: String(Math.min(8, form.voice_departments.length + 1)), label: "", primary: "", fallback: "", enabled: true }] })}>
+                        <Plus className="w-4 h-4 mr-1" /> Add department
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      One department per line: <code>Department name | +234number</code> or <code>Department name | agent@account.sip.africastalking.com</code>. The first line is option 1, the second is option 2, and so on. Use one primary destination to minimize call charges.
+                      Use international phone numbers or Africa&apos;s Talking SIP destinations. Digit 9 is reserved for repeating the menu. The primary destination is tried before its optional fallback.
                     </p>
                     <p className="text-xs text-muted-foreground">
                       For sales softphones, request/map SIP destinations with Africa&apos;s Talking and configure each agent in Zoiper, Linphone, or another SIP app using the credentials they provide.
                     </p>
                   </div>
+                  <div className="grid gap-3 md:grid-cols-2 pt-2 border-t border-border/50">
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">Timezone</label>
+                      <input value={form.voice_timezone} onChange={(e) => setForm({ ...form, voice_timezone: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Africa/Lagos" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">After-hours destination (optional)</label>
+                      <input value={form.voice_after_hours_destination} onChange={(e) => setForm({ ...form, voice_after_hours_destination: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="+234... or agent@account.sip.africastalking.com" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">Weekly hours</label>
+                    <textarea value={form.voice_weekly_schedule} onChange={(e) => setForm({ ...form, voice_weekly_schedule: e.target.value })} rows={4} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono" placeholder="Mon | 09:00-17:00" />
+                    <p className="text-xs text-muted-foreground">One line per day, for example <code>Mon | 09:00-17:00</code>. Omitted days are closed. Timezone is applied on the server.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">Closed dates</label>
+                    <input value={form.voice_closed_dates} onChange={(e) => setForm({ ...form, voice_closed_dates: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="2026-12-25, 2026-12-26" />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3 pt-2 border-t border-border/50">
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">Menu retries</label>
+                      <input type="number" min={0} max={3} value={form.voice_menu_retry_limit} onChange={(e) => setForm({ ...form, voice_menu_retry_limit: Number(e.target.value) })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">Voicemail max seconds</label>
+                      <input type="number" min={15} max={300} value={form.voice_voicemail_max_seconds} onChange={(e) => setForm({ ...form, voice_voicemail_max_seconds: Number(e.target.value) })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">Retention days</label>
+                      <input type="number" min={1} max={3650} value={form.voice_voicemail_retention_days} onChange={(e) => setForm({ ...form, voice_voicemail_retention_days: Number(e.target.value) })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input type="checkbox" checked={form.voice_voicemail_enabled} onChange={(e) => setForm({ ...form, voice_voicemail_enabled: e.target.checked })} className="rounded border-retail text-retail focus:ring-retail" />
+                    Enable voicemail when no destination answers
+                  </label>
+                  <div className="space-y-2 pt-2 border-t border-border/50">
+                    <label className="text-xs font-medium">Optional audio URLs</label>
+                    <p className="text-xs text-muted-foreground">Use HTTPS WAV or MP3 URLs reachable by Africa&apos;s Talking. Leave blank to use text-to-speech.</p>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {([
+                        ["voice_greeting_audio_url", "Main greeting audio"],
+                        ["voice_connecting_audio_url", "Connecting audio"],
+                        ["voice_no_answer_audio_url", "No-answer audio"],
+                        ["voice_after_hours_audio_url", "After-hours audio"],
+                        ["voice_waiting_audio_url", "Waiting / ringback audio"],
+                      ] as const).map(([key, label]) => (
+                        <div key={key} className="space-y-1">
+                          <input value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder={`${label} (https://...)`} aria-label={label} />
+                          <div className="flex items-center gap-2">
+                            <input type="file" accept="audio/wav,audio/mpeg,audio/mp3" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadAudio(key, file) }} className="min-w-0 flex-1 text-xs" aria-label={`Upload ${label}`} />
+                            {form[key] && <button type="button" className="text-xs text-destructive hover:underline" onClick={() => setForm({ ...form, [key]: "" })}>Remove</button>}
+                          </div>
+                          {form[key] && <audio controls preload="none" src={form[key]} className="w-full h-8" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
                     <p className="font-medium text-foreground">Africa&apos;s Talking callback paths</p>
                     <p className="mt-1">Voice callback: <code>/api/africastalking/voice/callback</code></p>
                     <p>Voice events: <code>/api/africastalking/voice/events</code></p>
+                    <p>Voice recording: <code>/api/africastalking/voice/recording</code></p>
                     <p>SMS: <code>/api/africastalking/sms</code> · USSD: <code>/api/africastalking/ussd</code></p>
                     <p>Airtime: <code>/api/africastalking/airtime/events</code></p>
                   </div>

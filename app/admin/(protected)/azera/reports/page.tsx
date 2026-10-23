@@ -34,6 +34,10 @@ interface CallRecord {
   customer_name: string | null
   customer_phone: string | null
   sip_cost_cents: number | null
+  selected_department: string | null
+  follow_up_status: "new" | "assigned" | "contacted" | "resolved"
+  follow_up_notes: string | null
+  follow_up_at: string | null
   started_at: string | null
   answered_at: string | null
   ended_at: string | null
@@ -120,6 +124,8 @@ export default function AzeraCallReportsPage() {
   }, [])
 
   useEffect(() => {
+    // These calls synchronize the report with filter changes and external data.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadCalls()
     loadRecordings()
   }, [loadCalls, loadRecordings])
@@ -157,6 +163,15 @@ export default function AzeraCallReportsPage() {
     const m = Math.floor(sec / 60)
     const s = sec % 60
     return `${m}:${s < 10 ? "0" : ""}${s}`
+  }
+
+  async function updateFollowUp(callId: string, followUpStatus: CallRecord["follow_up_status"]) {
+    const res = await fetch(`/api/azera/calls/${callId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ follow_up_status: followUpStatus }),
+    })
+    if (res.ok) setCalls((current) => current.map((call) => call.id === callId ? { ...call, follow_up_status: followUpStatus } : call))
   }
 
   return (
@@ -303,6 +318,7 @@ export default function AzeraCallReportsPage() {
                     <th className="px-4 py-2 text-left">Status</th>
                     <th className="px-4 py-2 text-left">Duration</th>
                     <th className="px-4 py-2 text-left">Cost</th>
+                    <th className="px-4 py-2 text-left">Follow-up</th>
                     <th className="px-4 py-2 text-left">Date</th>
                     <th className="px-4 py-2 text-left"></th>
                   </tr>
@@ -344,6 +360,18 @@ export default function AzeraCallReportsPage() {
                         {c.sip_cost_cents !== null
                           ? `₦${(c.sip_cost_cents / 100).toFixed(2)}`
                           : "—"}
+                      </td>
+                      <td className="px-4 py-2">
+                        <select
+                          value={c.follow_up_status || "new"}
+                          onChange={(e) => void updateFollowUp(c.id, e.target.value as CallRecord["follow_up_status"])}
+                          className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                        >
+                          <option value="new">New</option>
+                          <option value="assigned">Assigned</option>
+                          <option value="contacted">Contacted</option>
+                          <option value="resolved">Resolved</option>
+                        </select>
                       </td>
                       <td className="px-4 py-2 text-xs font-mono text-muted-foreground">
                         {c.created_at ? new Date(c.created_at).toLocaleDateString() : "—"}

@@ -38,6 +38,15 @@ export async function GET(request: Request) {
         *,
         azera_call_events (
           id, event_type, actor_type, metadata, created_at
+        ),
+        azera_call_attempts (
+          id, department_key, destination, attempt_number, status, provider_state,
+          error_message, started_at, answered_at, ended_at, duration_seconds, created_at
+        ),
+        azera_voicemails (
+          id, department_key, caller_phone, recording_reference, recording_path,
+          duration_seconds, status, assigned_user_id, notes, follow_up_at,
+          retention_expires_at, created_at, updated_at
         )
       `)
       .order("created_at", { ascending: false })

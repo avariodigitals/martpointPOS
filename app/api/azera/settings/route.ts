@@ -165,7 +165,7 @@ export async function PATCH(request: Request) {
         const fallback = (Array.isArray(item.fallback) ? item.fallback : [])
           .map((value) => normalizeVoiceDestination(value))
           .filter((value) => value && value !== primary)
-        if (!Number.isInteger(digit) || digit < 1 || digit > 8 || usedDigits.has(digit)) throw new Error("Department digits must be unique numbers from 1 to 8")
+        if (!Number.isInteger(digit) || digit < 1 || digit > 8 || usedDigits.has(digit)) throw new Error("Department digits must be unique numbers from 1 to 8. Digit 9 is reserved to repeat the menu.")
         if (!label || !primary) throw new Error("Each department needs a name and primary destination")
         usedDigits.add(digit)
         return {

@@ -18,6 +18,14 @@ type VoiceDepartmentForm = {
   enabled: boolean
 }
 
+function firstAvailableDepartmentDigit(departments: VoiceDepartmentForm[]): number | null {
+  const used = new Set(departments.map((department) => Number(department.digit)).filter((digit) => Number.isInteger(digit)))
+  for (let digit = 1; digit <= 8; digit += 1) {
+    if (!used.has(digit)) return digit
+  }
+  return null
+}
+
 interface AzeraSettings {
   widget_enabled: boolean
   widget_title: string
@@ -140,15 +148,24 @@ export default function AzeraSettingsPage() {
                 .join("\n")
             : current.voice_weekly_schedule,
           voice_closed_dates: Array.isArray(settings.voice_closed_dates) ? settings.voice_closed_dates.join(", ") : current.voice_closed_dates,
-          voice_departments: Array.isArray(settings.voice_departments)
-            ? settings.voice_departments.map((department: { digit?: number; label?: string; primary?: string; fallback?: string[]; numbers?: string[]; enabled?: boolean }, index: number) => ({
-                digit: String(department.digit || index + 1),
+          voice_departments: (() => {
+            if (!Array.isArray(settings.voice_departments)) return []
+            const usedDigits = new Set<number>()
+            return settings.voice_departments.map((department: { digit?: number; label?: string; primary?: string; fallback?: string[]; numbers?: string[]; enabled?: boolean }, index: number) => {
+              const requestedDigit = Number(department.digit || index + 1)
+              const digit = Number.isInteger(requestedDigit) && requestedDigit >= 1 && requestedDigit <= 8 && !usedDigits.has(requestedDigit)
+                ? requestedDigit
+                : Array.from({ length: 8 }, (_, offset) => offset + 1).find((candidate) => !usedDigits.has(candidate)) || ""
+              if (digit) usedDigits.add(Number(digit))
+              return {
+                digit: String(digit),
                 label: department.label || "",
                 primary: department.primary || department.numbers?.[0] || "",
                 fallback: Array.isArray(department.fallback) ? department.fallback.join(", ") : (department.numbers || []).slice(1).join(", "),
                 enabled: department.enabled !== false,
-              }))
-            : [],
+              }
+            })
+          })(),
         }
       })
     } catch {
@@ -744,7 +761,16 @@ export default function AzeraSettingsPage() {
                           </div>
                         </div>
                       ))}
-                      <Button type="button" variant="outline" size="sm" onClick={() => setForm({ ...form, voice_departments: [...form.voice_departments, { digit: String(Math.min(8, form.voice_departments.length + 1)), label: "", primary: "", fallback: "", enabled: true }] })}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!firstAvailableDepartmentDigit(form.voice_departments)}
+                        onClick={() => {
+                          const digit = firstAvailableDepartmentDigit(form.voice_departments)
+                          if (digit) setForm({ ...form, voice_departments: [...form.voice_departments, { digit: String(digit), label: "", primary: "", fallback: "", enabled: true }] })
+                        }}
+                      >
                         <Plus className="w-4 h-4 mr-1" /> Add department
                       </Button>
                     </div>

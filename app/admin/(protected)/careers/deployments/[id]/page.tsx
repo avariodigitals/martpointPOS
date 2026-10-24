@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Send, BellRing, Trash2 } from "lucide-react"
 import { DEPLOYMENT_STATUSES, ATTENDANCE_STATUSES } from "@/lib/careers"
-import { enumLabel } from "@/lib/utils"
+import { enumLabel, roleLabel } from "@/lib/utils"
 
 interface Deployment {
   id: string; name: string; reference_number: string; project_client: string | null
@@ -174,7 +174,7 @@ export default function DeploymentDetailPage() {
                       <Link href={`/admin/careers/talent-pool/${w.candidate_id}`} className="text-retail hover:underline">{w.candidate?.full_name}</Link>
                       <p className="text-xs text-muted-foreground font-mono">{w.candidate?.reference_number}</p>
                     </td>
-                    <td className="py-2 pr-3 text-xs">{w.role}{w.candidate_id === dep.team_lead_candidate_id ? " ★" : ""}</td>
+                    <td className="py-2 pr-3 text-xs">{roleLabel(w.role)}{w.candidate_id === dep.team_lead_candidate_id ? " ★" : ""}</td>
                     <td className="py-2 pr-3 text-xs">{enumLabel(w.candidate?.verification_status)}</td>
                     <td className="py-2 pr-3">
                       <select className={inputCls + " text-xs"} value={w.status}

@@ -4,6 +4,7 @@ import { PartnerSidebarNav } from "@/components/partner/partner-sidebar-nav"
 import { PortalSessionTimeoutWatcher } from "@/components/shared/portal-session-timeout-watcher"
 import { PortalHeader } from "@/components/shared/portal-header"
 import { partnerUserHasPermission } from "@/lib/partner-permissions"
+import { roleLabel } from "@/lib/utils"
 
 export default async function PartnerPortalLayout({
   children,
@@ -42,7 +43,7 @@ export default async function PartnerPortalLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         <PortalHeader
           userName={user.fullName}
-          userMeta={user.role.replace("PARTNER_", "")}
+          userMeta={roleLabel(user.role)}
           profileHref="/partner/profile"
           walletHref="/partner/commissions"
           walletLabel="Wallet & Earnings"

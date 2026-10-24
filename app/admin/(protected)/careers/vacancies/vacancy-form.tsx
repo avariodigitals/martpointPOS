@@ -14,7 +14,7 @@ import {
 } from "@/lib/careers"
 import type { TemplateVacancyPrefill } from "@/lib/careers-role-templates"
 import { LocationFields } from "@/components/location-fields"
-import { enumLabel } from "@/lib/utils"
+import { enumLabel, roleLabel } from "@/lib/utils"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-sm font-medium mb-1.5"
@@ -431,7 +431,7 @@ export function VacancyForm({
             <label className={labelCls}>Hiring manager</label>
             <select className={inputCls} value={f.hiring_manager_id} onChange={(e) => set("hiring_manager_id", e.target.value)}>
               <option value="">None</option>
-              {admins.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.role})</option>)}
+              {admins.map((a) => <option key={a.id} value={a.id}>{a.name} ({roleLabel(a.role)})</option>)}
             </select>
           </div>
           <div>

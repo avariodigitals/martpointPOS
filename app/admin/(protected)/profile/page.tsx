@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { ArrowRight, Mail, ShieldCheck, UserCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getSession, getUserById } from "@/lib/admin-auth"
+import { roleLabel } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
 
@@ -29,7 +30,7 @@ export default async function AdminProfilePage() {
               </span>
               <div>
                 <CardTitle className="text-xl">{session.name || session.username}</CardTitle>
-                <p className="mt-1 text-sm text-slate-500">{session.role} · {session.username}</p>
+                <p className="mt-1 text-sm text-slate-500">{roleLabel(session.role)} · {session.username}</p>
               </div>
             </div>
           </CardHeader>
@@ -44,7 +45,7 @@ export default async function AdminProfilePage() {
             </div>
             <div className="rounded-xl bg-slate-50 p-4 sm:col-span-2">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500"><ShieldCheck className="h-4 w-4" /> Access level</div>
-              <p className="mt-2 text-sm font-medium text-slate-900">{session.role}</p>
+              <p className="mt-2 text-sm font-medium text-slate-900">{roleLabel(session.role)}</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-500">Your access is governed by the Control Centre role assigned to this account.</p>
             </div>
           </CardContent>

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronDown, LogOut, UserCircle, Wallet } from "lucide-react"
 import { PortalNotificationBell } from "@/components/shared/portal-notification-bell"
+import { readableRoleText } from "@/lib/utils"
 
 interface PortalHeaderProps {
   userName: string
@@ -85,7 +86,7 @@ export function PortalHeader({
             </span>
             <span className="hidden max-w-36 text-left xl:block">
               <span className="block truncate text-xs font-semibold text-slate-800">{userName}</span>
-              {userMeta && <span className="block truncate text-[10px] uppercase tracking-wider text-slate-500">{userMeta}</span>}
+              {userMeta && <span className="block truncate text-[10px] text-slate-500">{readableRoleText(userMeta)}</span>}
             </span>
             <ChevronDown className={`hidden h-3.5 w-3.5 text-slate-400 transition xl:block ${menuOpen ? "rotate-180" : ""}`} />
             <UserCircle className="h-4 w-4 text-slate-400 xl:hidden" />

@@ -210,18 +210,24 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
 
   useEffect(() => {
     if (!agentOnline) return
+    let active = true
     async function pollCalls() {
-      const response = await fetch("/api/azera/calls?status=ringing", { cache: "no-store" })
-      if (!response.ok) return
-      const json = await response.json()
-      const calls = json.data || []
-      const next = calls.find((item: { direction?: string }) => item.direction === "inbound")
-      if (next && !incomingCall) setIncomingCall({ id: next.id, customer_name: next.customer_name })
+      try {
+        const response = await fetch("/api/azera/calls?status=ringing", { cache: "no-store" })
+        if (!response.ok || !active) return
+        const json = await response.json()
+        const calls = json.data || []
+        const next = calls.find((item: { direction?: string; call_type?: string }) => item.direction === "inbound" && item.call_type === "webrtc")
+        if (active && next && !incomingCall) {
+          setIncomingCall({ id: next.id, customer_name: next.customer_name })
+          playAgentAlert()
+        }
+      } catch { /* A later poll retries; never interrupt an active call. */ }
     }
     void pollCalls()
     const timer = window.setInterval(() => void pollCalls(), 5000)
-    return () => window.clearInterval(timer)
-  }, [agentOnline, incomingCall])
+    return () => { active = false; window.clearInterval(timer) }
+  }, [agentOnline, incomingCall, playAgentAlert])
 
   async function setPresence(online: boolean) {
     if (online && soundEnabled) primeAlertAudio()
@@ -233,14 +239,12 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
 
   async function acceptCall() {
     if (!incomingCall) return
-    await fetch(`/api/azera/calls/${encodeURIComponent(incomingCall.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "answered", answered_at: new Date().toISOString() }) })
     await call.answerCall()
   }
 
   async function endCall() {
     if (!incomingCall) return
-    call.endCall()
-    await fetch(`/api/azera/calls/${encodeURIComponent(incomingCall.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "ended", ended_at: new Date().toISOString() }) })
+    await call.endCall(call.state === "ringing")
     setIncomingCall(null)
   }
 
@@ -436,7 +440,7 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
       {(selected.waiting_for_agent || selected.escalation_reason) && <div className="space-y-2 border-t border-slate-100 pt-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Handoff</p><div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900"><p className="font-semibold">{selected.waiting_for_agent ? "Human handoff pending" : "Handoff recorded"}</p>{selected.queue && <p>Queue: {selected.queue.replaceAll("_", " ")}</p>}{selected.escalation_reason && <p>Reason: {selected.escalation_reason.replaceAll("_", " ")}</p>}</div></div>}
       <div className="space-y-2 border-t border-slate-100 pt-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Conversation</p><div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">AI assistant</span><span className={cn("rounded-full px-2 py-1 font-medium", selected.ai_enabled ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-500")}>{selected.ai_enabled ? "Active" : "Paused"}</span></div><div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">Ticket</span>{selected.ticket_id ? <a href={`/admin/support?id=${selected.ticket_id}`} className="font-semibold text-retail hover:underline">Open ticket</a> : <span className="text-slate-400">None</span>}</div><div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">Last activity</span><span className="text-slate-700">{time(selected.last_message_at)}</span></div></div></div> : <div className="flex h-full items-center justify-center text-center text-xs text-muted-foreground">Customer details and actions appear here.</div>}</aside>
     </div></Card>
-    {incomingCall && <AzeraCallUI state={call.state} isAgent customerName={incomingCall.customer_name || "Customer"} onAccept={() => void acceptCall()} onReject={() => void endCall()} onEnd={() => void endCall()} onToggleMute={call.toggleMute} isMuted={call.isMuted} />}
+    {incomingCall && <AzeraCallUI state={call.state} error={call.error} audioBlocked={call.audioBlocked} onResumeAudio={call.resumeAudio} isAgent customerName={incomingCall.customer_name || "Customer"} onAccept={() => void acceptCall()} onReject={() => void endCall()} onEnd={() => void endCall()} onToggleMute={call.toggleMute} isMuted={call.isMuted} />}
 
     {showTicket && selected && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"><div className="mb-4 flex items-start justify-between"><div><h2 className="text-base font-semibold text-slate-900">Create support ticket</h2><p className="mt-1 text-xs text-muted-foreground">Link this conversation to the support workflow.</p></div><button onClick={() => setShowTicket(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div><div className="space-y-3"><label className="block text-xs font-medium text-slate-700">Subject<input value={ticketSubject} onChange={(event) => setTicketSubject(event.target.value)} placeholder={`Follow up with ${selected.customer_name || "customer"}`} className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-retail focus:ring-4 focus:ring-retail/10" /></label><div className="grid grid-cols-2 gap-3"><label className="block text-xs font-medium text-slate-700">Priority<select value={ticketPriority} onChange={(event) => setTicketPriority(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"><option>NORMAL</option><option>HIGH</option><option>URGENT</option><option>LOW</option></select></label><label className="block text-xs font-medium text-slate-700">Category<select value={ticketCategory} onChange={(event) => setTicketCategory(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"><option>OTHER</option><option>SOFTWARE</option><option>POS</option><option>INVENTORY</option><option>LOGIN_ACCOUNT</option><option>BILLING</option></select></label></div><button onClick={() => void createTicket()} disabled={ticketSaving} className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0A0F1C] text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">{ticketSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ticket className="h-4 w-4" />} Create ticket</button></div></div></div>}
   </div>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Bell, Check, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { readableRoleText } from "@/lib/utils"
 
 type Notification = {
   id: string
@@ -29,7 +30,10 @@ export default function NotificationsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const markRead = async (id: string) => {
     setWorking(true)
@@ -93,10 +97,10 @@ export default function NotificationsPage() {
                 >
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium flex items-center gap-2">
-                      {n.title}
+                      {readableRoleText(n.title)}
                       {!n.is_read && <span className="w-2 h-2 rounded-full bg-retail" />}
                     </p>
-                    {n.message && <p className="text-xs text-muted-foreground">{n.message}</p>}
+                    {n.message && <p className="text-xs text-muted-foreground">{readableRoleText(n.message)}</p>}
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{n.type} · {new Date(n.created_at).toLocaleString()}</p>
                   </div>
                   <div className="flex items-center gap-2">

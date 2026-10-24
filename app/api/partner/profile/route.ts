@@ -5,6 +5,7 @@ import {
   getPartnerById,
 } from "@/lib/partner-auth"
 import {
+  updatePartnerUserEmail,
   submitPartnerProfileUpdateRequest,
   listPartnerProfileUpdateRequests,
 } from "@/lib/partner-service"
@@ -33,6 +34,18 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json()
+    let loginEmail: string | undefined
+    if (body.loginEmail !== undefined) {
+      const emailResult = await updatePartnerUserEmail(
+        session.partnerUserId,
+        session.partnerId,
+        String(body.loginEmail),
+        { id: session.partnerUserId, type: "PARTNER" },
+      )
+      if (!emailResult.ok) return NextResponse.json({ error: emailResult.error }, { status: 400 })
+      loginEmail = emailResult.email
+    }
+
     const allowedFields = [
       "publicEmail",
       "publicPhone",
@@ -48,19 +61,21 @@ export async function PATCH(request: Request) {
       if (body[field] !== undefined) changes[field] = body[field]
     }
 
-    if (Object.keys(changes).length === 0) {
+    if (Object.keys(changes).length === 0 && loginEmail === undefined) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
     }
 
-    const result = await submitPartnerProfileUpdateRequest(
-      session.partnerId,
-      session.partnerUserId,
-      changes
-    )
+    if (Object.keys(changes).length > 0) {
+      const result = await submitPartnerProfileUpdateRequest(
+        session.partnerId,
+        session.partnerUserId,
+        changes
+      )
 
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 })
+      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 })
+    }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, email: loginEmail })
   } catch {
     return NextResponse.json({ error: "Failed to submit update request" }, { status: 500 })
   }

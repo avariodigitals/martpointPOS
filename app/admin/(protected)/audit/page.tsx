@@ -4,7 +4,7 @@ import { useEffect, useState, ChangeEvent } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Command, Loader2 } from "lucide-react"
-import { enumLabel } from "@/lib/utils"
+import { enumLabel, readableRoleText } from "@/lib/utils"
 
 type AuditEvent = {
   id: string
@@ -39,7 +39,10 @@ export default function AuditPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const update = (field: keyof typeof filters) => (e: ChangeEvent<HTMLInputElement>) => {
     setFilters({ ...filters, [field]: e.target.value })
@@ -99,7 +102,7 @@ export default function AuditPage() {
                     <td className="p-3 font-medium">{enumLabel(e.action)}</td>
                     <td className="p-3">{e.entity_type} <span className="text-muted-foreground text-xs">{e.entity_id.slice(0, 8)}</span></td>
                     <td className="p-3 text-xs text-muted-foreground max-w-xs truncate">
-                      {e.metadata ? JSON.stringify(e.metadata) : "—"}
+                      {e.metadata ? JSON.stringify(e.metadata, (_key, value) => typeof value === "string" ? readableRoleText(value) : value) : "—"}
                     </td>
                   </tr>
                 ))

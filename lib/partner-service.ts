@@ -81,6 +81,12 @@ function now(): string {
   return new Date().toISOString()
 }
 
+function normalizePartnerEmail(value: string): string | null {
+  const email = value.trim().toLowerCase()
+  if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null
+  return email
+}
+
 const PARTNER_USER_STATUS_LABELS: Record<PartnerUserRecord["status"], string> = {
   INVITED: "Invited",
   ACTIVE: "Active",
@@ -524,6 +530,66 @@ export async function updatePartnerUserStatus(
   }
 
   return { ok: true }
+}
+
+/** Update the login email for a partner user, scoped to the owning partner. */
+export async function updatePartnerUserEmail(
+  partnerUserId: string,
+  partnerId: string,
+  nextEmail: string,
+  actor: { id: string; type: AuditContext["actorType"] },
+): Promise<{ ok: boolean; error?: string; email?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
+
+  const normalizedEmail = normalizePartnerEmail(nextEmail)
+  if (!normalizedEmail) return { ok: false, error: "Enter a valid email address" }
+
+  const { data: current, error: currentError } = await supabase
+    .from("partner_users")
+    .select("*")
+    .eq("id", partnerUserId)
+    .eq("partner_id", partnerId)
+    .maybeSingle()
+  if (currentError || !current) return { ok: false, error: "Partner user not found" }
+
+  const currentEmail = String(current.email || "").trim().toLowerCase()
+  if (currentEmail === normalizedEmail) return { ok: true, email: normalizedEmail }
+
+  const { data: existing } = await supabase
+    .from("partner_users")
+    .select("id")
+    .ilike("email", normalizedEmail)
+    .neq("id", partnerUserId)
+    .maybeSingle()
+  if (existing) return { ok: false, error: "A partner user with this email already exists" }
+
+  const updatedAt = now()
+  const { error: updateError } = await supabase
+    .from("partner_users")
+    .update({ email: normalizedEmail, updated_at: updatedAt })
+    .eq("id", partnerUserId)
+    .eq("partner_id", partnerId)
+  if (updateError) return { ok: false, error: "Failed to update login email" }
+
+  // Keep an unaccepted invitation aligned so a resend goes to the new address.
+  await supabase
+    .from("partner_invitations")
+    .update({ email: normalizedEmail, updated_at: updatedAt })
+    .eq("partner_user_id", partnerUserId)
+    .is("accepted_at", null)
+    .is("revoked_at", null)
+
+  await recordAudit(
+    { actorType: actor.type, actorId: actor.id },
+    {
+      action: AUDIT_ACTIONS.PARTNER_USER_EMAIL_UPDATED,
+      entityType: AUDIT_ENTITIES.PARTNER_USER,
+      entityId: partnerUserId,
+      metadata: { partnerId, previousEmail: currentEmail, newEmail: normalizedEmail },
+    },
+  )
+
+  return { ok: true, email: normalizedEmail }
 }
 
 /* ───────────────────────────  Partner data  ─────────────────────────── */

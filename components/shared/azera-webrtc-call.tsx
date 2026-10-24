@@ -1,427 +1,72 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import { Phone, PhoneOff, Mic, MicOff, FileAudio } from "lucide-react"
-
-const STUN_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-]
+import { Phone, PhoneOff, Mic, MicOff, X, Volume2 } from "lucide-react"
+import { BrowserCall, type CallSnapshot, type CallState } from "@/lib/azera-webrtc"
 
 interface UseWebRTCCallProps {
-  callId: string
-  enabled?: boolean
-  isAgent: boolean
-  authToken?: string | null
-  localStream?: MediaStream
-  remoteAudioEl?: HTMLAudioElement
-  onCallEnded?: () => void
-  onCallError?: (msg: string) => void
-  onStartRecording?: () => void
-  onStopRecording?: () => void
+  callId: string; enabled?: boolean; isAgent: boolean; authToken?: string | null;
+  localStream?: MediaStream; remoteAudioEl?: HTMLAudioElement;
+  onCallEnded?: () => void; onCallError?: (msg: string) => void;
+  onStartRecording?: () => void; onStopRecording?: () => void;
 }
 
-interface SignalingMessage {
-  id: string
-  event_type: string
-  actor_type: string
-  metadata: SignalingMetadata
-  created_at: string
-}
-
-interface SignalingMetadata {
-  sdp_type?: string
-  sdp?: string
-  candidate?: string
-  sdp_mid?: string | null
-  sdp_mline_index?: number | null
-}
-
-/**
- * useWebRTCCall — manages a browser-to-browser audio call via Supabase signaling.
- *
- * Returns:
- *   state: "idle" | "connecting" | "ringing" | "active" | "ended" | "error"
- *   localStream, remoteStream
- *   startCall() — create offer (caller)
- *   answerCall() — create answer (callee)
- *   endCall() — hang up
- *   toggleMute()
- */
-export function useWebRTCCall({
-  callId,
-  enabled = true,
-  isAgent,
-  authToken,
-  localStream,
-  remoteAudioEl,
-  onCallEnded,
-  onStartRecording,
-  onStopRecording,
-}: UseWebRTCCallProps) {
-  const pcRef = useRef<RTCPeerConnection | null>(null)
-  const localStreamRef = useRef<MediaStream | null>(localStream || null)
-  const remoteStreamRef = useRef<MediaStream | null>(null)
-  const [state, setState] = useState<"idle" | "connecting" | "ringing" | "active" | "ended" | "error">("idle")
-  const [error, setError] = useState<string | null>(null)
-  const [isMuted, setIsMuted] = useState(false)
-  const iceCandidatesRef = useRef<RTCIceCandidate[]>([])
-
-  const sendSignaling = useCallback(
-    async (msg: { event_type: string; metadata: SignalingMetadata }) => {
-      try {
-        const headers: HeadersInit = { "Content-Type": "application/json" }
-        if (authToken) headers["X-Azera-Chat-Token"] = authToken
-        await fetch(`/api/azera/calls/${encodeURIComponent(callId)}/signaling`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(msg.metadata),
-        })
-      } catch (e) {
-        console.error("[WebRTC] signaling send failed", e)
-      }
-    },
-    [authToken, callId]
-  )
-
-  const createPeerConnection = useCallback(() => {
-    const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS })
-
-    // Remote stream
-    pc.ontrack = (event) => {
-      remoteStreamRef.current = event.streams[0]
-      if (remoteAudioEl && event.track.kind === "audio") {
-        remoteAudioEl.srcObject = event.streams[0]
-        remoteAudioEl.play().catch(() => {})
-      }
+export function useWebRTCCall({ callId, enabled = true, isAgent, authToken, localStream,
+  remoteAudioEl, onCallEnded, onCallError, onStartRecording, onStopRecording }: UseWebRTCCallProps) {
+  const engine = useRef<BrowserCall | null>(null)
+  const [snapshot, setSnapshot] = useState<CallSnapshot>({ state: "idle", error: null, isMuted: false, audioBlocked: false })
+  useEffect(() => {
+    if (!enabled || !callId) return
+    const current = new BrowserCall({ callId, isAgent, authToken, localStream, remoteAudioEl, onChange: setSnapshot })
+    engine.current = current
+    // Strict Mode's setup/cleanup probe must not stop a real microphone or
+    // place two offers. Only the effect that survives the probe starts work.
+    queueMicrotask(() => { if (!current.disposed) void current.start() })
+    const close = () => current.dispose()
+    window.addEventListener("pagehide", close)
+    return () => {
+      window.removeEventListener("pagehide", close)
+      current.dispose()
+      if (engine.current === current) engine.current = null
     }
-
-    // ICE candidates -> send via signaling
-    pc.onicecandidate = (event) => {
-      if (!event.candidate) return
-      iceCandidatesRef.current.push(event.candidate)
-      sendSignaling({
-        event_type: "webrtc_ice_candidate",
-        metadata: {
-          sdp_type: "ice",
-          candidate: event.candidate.candidate,
-          sdp_mid: event.candidate.sdpMid,
-          sdp_mline_index: event.candidate.sdpMLineIndex,
-        },
-      })
-    }
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") {
-        setState("active")
-      } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        setState("error")
-        setError("Call connection lost")
-      }
-    }
-
-    pcRef.current = pc
-    return pc
-  }, [remoteAudioEl, sendSignaling])
-
-  const fetchSignaling = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/azera/calls/${encodeURIComponent(callId)}/signaling`, {
-        headers: authToken ? { "X-Azera-Chat-Token": authToken } : undefined,
-      })
-      const json = await res.json()
-      return (json.data || []) as SignalingMessage[]
-    } catch {
-      return []
-    }
-  }, [authToken, callId])
-
-  const startCall = useCallback(async () => {
-    if (!localStreamRef.current) {
-      try {
-        localStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true })
-      } catch {
-        setError("Microphone permission is required for this call")
-        setState("error")
-        return
-      }
-    }
-    setState("connecting")
-
-    const pc = createPeerConnection()
-
-    // Add local tracks
-    localStreamRef.current.getTracks().forEach((track) => {
-      pc.addTrack(track, localStreamRef.current!)
-    })
-
-    const offer = await pc.createOffer()
-    await pc.setLocalDescription(offer)
-
-    await sendSignaling({
-      event_type: "webrtc_offer",
-      metadata: { sdp_type: "offer", sdp: offer.sdp },
-    })
-
-    setState("ringing")
-  }, [createPeerConnection, sendSignaling])
-
-  const answerCall = useCallback(async () => {
-    if (!localStreamRef.current) {
-      try {
-        localStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true })
-      } catch {
-        setError("Microphone permission is required to answer this call")
-        setState("error")
-        return
-      }
-    }
-    setState("connecting")
-
-    const pc = createPeerConnection()
-
-    localStreamRef.current.getTracks().forEach((track) => {
-      pc.addTrack(track, localStreamRef.current!)
-    })
-
-    // Fetch pending offer from signaling
-    const messages = await fetchSignaling()
-    const offerMsg = messages.find((m) => m.event_type === "webrtc_offer")
-
-    if (offerMsg && offerMsg.metadata.sdp) {
-      const offer = new RTCSessionDescription({
-        type: "offer",
-        sdp: offerMsg.metadata.sdp,
-      })
-      await pc.setRemoteDescription(offer)
-
-      const answer = await pc.createAnswer()
-      await pc.setLocalDescription(answer)
-
-      await sendSignaling({
-        event_type: "webrtc_answer",
-        metadata: { sdp_type: "answer", sdp: answer.sdp },
-      })
-    }
-
-    // Apply any queued ICE candidates
-    for (const cand of iceCandidatesRef.current) {
-      try {
-        await pc.addIceCandidate(cand)
-      } catch {}
-    }
-
-    setState("ringing")
-  }, [createPeerConnection, fetchSignaling, sendSignaling])
-
-  const endCall = useCallback(() => {
-    pcRef.current?.close()
-    pcRef.current = null
-    localStreamRef.current?.getTracks().forEach((t) => t.stop())
-    localStreamRef.current = null
-    remoteStreamRef.current = null
-    setState("ended")
+  }, [authToken, callId, enabled, isAgent, localStream, remoteAudioEl])
+  useEffect(() => { if (snapshot.error) onCallError?.(snapshot.error) }, [snapshot.error, onCallError])
+  const endCall = useCallback(async (decline = false) => {
+    await engine.current?.end(decline)
     onCallEnded?.()
   }, [onCallEnded])
-
-  const toggleMute = useCallback(() => {
-    localStreamRef.current?.getAudioTracks().forEach((t) => {
-      t.enabled = !t.enabled
-      setIsMuted(!t.enabled)
-    })
-  }, [])
-
-  // Poll for incoming offer (callee side)
-  useEffect(() => {
-    if (!enabled || !callId || !isAgent && state !== "idle") return
-    if (!isAgent && state === "idle") {
-      const interval = setInterval(async () => {
-        const messages = await fetchSignaling()
-        const offerMsg = messages.find((m) => m.event_type === "webrtc_offer")
-        if (offerMsg && state === "idle") {
-          setState("ringing")
-        }
-      }, 2000)
-      return () => clearInterval(interval)
-    }
-  }, [callId, enabled, isAgent, state, fetchSignaling])
-
-  // Poll for answer (caller side)
-  useEffect(() => {
-    if (enabled && callId && state === "ringing") {
-      const interval = setInterval(async () => {
-        const messages = await fetchSignaling()
-        const answerMsg = messages.find((m) => m.event_type === "webrtc_answer")
-        if (answerMsg && answerMsg.metadata.sdp && pcRef.current) {
-          try {
-            const answer = new RTCSessionDescription({
-              type: "answer",
-              sdp: answerMsg.metadata.sdp,
-            })
-            await pcRef.current.setRemoteDescription(answer)
-            setState("active")
-          } catch (e) {
-            console.error("[WebRTC] setRemoteDescription failed", e)
-          }
-        }
-      }, 1500)
-      return () => clearInterval(interval)
-    }
-  }, [callId, enabled, state, fetchSignaling])
-
-  // Handle incoming ICE candidates
-  useEffect(() => {
-    if (!enabled || !callId || !pcRef.current) return
-    const interval = setInterval(async () => {
-      const messages = await fetchSignaling()
-      const iceMsgs = messages.filter((m) => m.event_type === "webrtc_ice_candidate")
-      for (const m of iceMsgs) {
-        const { candidate, sdp_mid, sdp_mline_index } = m.metadata
-        if (candidate && pcRef.current) {
-          try {
-            await pcRef.current.addIceCandidate({
-              candidate,
-              sdpMid: sdp_mid,
-              sdpMLineIndex: sdp_mline_index,
-            })
-          } catch {}
-        }
-      }
-    }, 1500)
-    return () => clearInterval(interval)
-  }, [callId, enabled, fetchSignaling])
-
-  return {
-    state,
-    error,
-    startCall,
-    answerCall,
-    endCall,
-    toggleMute,
-    onStartRecording,
-    onStopRecording,
-    isMuted,
-  }
+  return { ...snapshot, startCall: () => engine.current?.start(), answerCall: () => engine.current?.answer(),
+    endCall, toggleMute: () => engine.current?.toggleMute(), resumeAudio: () => engine.current?.resumeAudio(),
+    onStartRecording, onStopRecording }
 }
 
-/**
- * AzeraCallUI — visual call widget (ringing/active/ended states).
- */
-export function AzeraCallUI({
-  state,
-  isAgent = false,
-  outgoing = false,
-  customerName = "Customer",
-  onAccept,
-  onReject,
-  onEnd,
-  onToggleMute,
-  isMuted = false,
-  onStartRecording,
-  onStopRecording,
-  isRecording = false,
+export function AzeraCallUI({ state, outgoing = false, customerName = "Customer", error,
+  onAccept, onReject, onEnd, onToggleMute, isMuted = false, audioBlocked = false, onResumeAudio,
 }: {
-  state: "idle" | "connecting" | "ringing" | "active" | "ended" | "error"
-  isAgent?: boolean
-  outgoing?: boolean
-  customerName?: string
-  onAccept?: () => void
-  onReject?: () => void
-  onEnd?: () => void
-  onToggleMute?: () => void
-  isMuted?: boolean
-  onStartRecording?: () => void
-  onStopRecording?: () => void
-  isRecording?: boolean
+  state: CallState; isAgent?: boolean; outgoing?: boolean; customerName?: string; error?: string | null;
+  onAccept?: () => void; onReject?: () => void; onEnd?: () => void; onToggleMute?: () => void;
+  isMuted?: boolean; audioBlocked?: boolean; onResumeAudio?: () => void;
+  onStartRecording?: () => void; onStopRecording?: () => void; isRecording?: boolean;
 }) {
-  const isRinging = state === "ringing"
-  const isConnecting = state === "connecting"
-  const isActive = state === "active"
-  const isEnded = state === "ended"
-  const isError = state === "error"
-
   if (state === "idle") return null
-
+  const terminal = state === "ended" || state === "error"
   return (
-    <div className="fixed z-[60] top-24 left-1/2 -translate-x-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-border p-4 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
-      <div className="flex items-center gap-2">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-          isRinging ? "bg-blue-50 text-blue-600 animate-pulse" : "bg-retail text-white"
-        }`}>
-          <Phone className="w-5 h-5" />
+    <section role="region" aria-label="Support call" className="fixed inset-x-4 top-24 z-[100] mx-auto w-auto max-w-md rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-2xl">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600"><Phone className="h-5 w-5" /></span>
+        <div className="min-w-0 flex-1" aria-live="polite">
+          <p className="text-sm font-semibold">{state === "error" ? "Couldn’t connect the call" : state === "ended" ? "Call ended" : state === "active" ? "Call connected" : state === "ringing" ? outgoing ? "Calling our team" : "Incoming support call" : "Connecting your call"}</p>
+          <p className="truncate text-xs text-slate-500">{outgoing ? "MartPoint Support" : customerName}</p>
         </div>
-        <div>
-          <div className="font-semibold text-sm">
-            {isConnecting ? (outgoing ? "Starting call" : "Connecting") : isRinging ? (outgoing ? "Calling support" : "Incoming call") : isActive ? "Call active" : isError ? "Call error" : "Call ended"}
-          </div>
-          <div className="text-xs text-muted-foreground">{customerName}</div>
-        </div>
+        {terminal && <button onClick={onEnd} aria-label="Close call" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><X className="h-5 w-5" /></button>}
       </div>
-
-      {isRinging && !outgoing && (
-        <div className="flex gap-2">
-          <button
-            onClick={onAccept}
-            className="px-6 py-2 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition-colors"
-          >
-            Answer
-          </button>
-          <button
-            onClick={onReject}
-            className="px-6 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
-          >
-            Decline
-          </button>
-        </div>
-      )}
-
-      {(isConnecting || isRinging) && outgoing && (
-        <button
-          onClick={onReject}
-          className="rounded-lg bg-slate-900 px-6 py-2 font-medium text-white transition-colors hover:bg-slate-800"
-        >
-          Cancel call
-        </button>
-      )}
-
-      {isActive && (
-        <div className="flex gap-3">
-          <button
-            onClick={onToggleMute}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isMuted ? "bg-red-100 text-red-600" : "bg-retail text-white hover:bg-retail/90"
-            }`}
-          >
-            {isMuted ? <MicOff className="w-4 h-4 mr-1" /> : <Mic className="w-4 h-4 mr-1" />}
-            {isMuted ? "Unmute" : "Mute"}
-          </button>
-          {isAgent && (
-            <button
-              onClick={isRecording ? onStopRecording : onStartRecording}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isRecording ? "bg-red-100 text-red-600 animate-pulse" : "bg-retail text-white hover:bg-retail/90"
-              }`}
-            >
-              {isRecording ? <FileAudio className="w-4 h-4 mr-1" /> : <FileAudio className="w-4 h-4 mr-1" />}
-              {isRecording ? "Stop Recording" : "Record"}
-            </button>
-          )}
-          <button
-            onClick={onEnd}
-            className="px-6 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
-          >
-            <PhoneOff className="w-4 h-4 mr-1" /> Hang up
-          </button>
-        </div>
-      )}
-
-      {isEnded && (
-        <div className="text-xs text-muted-foreground">Call ended</div>
-      )}
-
-      {isError && (
-        <div className="text-xs text-red-500">Call error — please try again</div>
-      )}
-    </div>
+      {state === "error" && <p role="alert" className="mt-3 break-words text-sm leading-6 text-red-700">{error || "The call could not connect. Please try again or message us here."}</p>}
+      {audioBlocked && !terminal && <button onClick={onResumeAudio} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700"><Volume2 className="h-4 w-4" />Tap to hear the call</button>}
+      {!terminal && <div className="mt-4 flex flex-wrap gap-2">
+        {state === "ringing" && !outgoing && <button onClick={onAccept} className="min-h-11 flex-1 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700">Answer</button>}
+        {state === "active" && <button onClick={onToggleMute} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium">{isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}{isMuted ? "Unmute" : "Mute"}</button>}
+        <button onClick={state === "active" ? onEnd : onReject} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"><PhoneOff className="h-4 w-4" />{state === "active" ? "Hang up" : state === "ringing" && !outgoing ? "Decline" : "Cancel call"}</button>
+      </div>}
+    </section>
   )
 }

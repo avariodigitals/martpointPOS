@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Loader2, Save, Trash2, Users, Plus, User, Shield, Pencil } from "lucide-react"
 import { ALL_ROLES, ROLE_DESCRIPTIONS, type UserRole } from "@/lib/admin-types"
+import { roleLabel } from "@/lib/utils"
 
 type AdminUser = {
   id: string
@@ -250,7 +251,7 @@ export default function AdminUsersPage() {
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
                     {roles.map((r) => (
-                      <option key={r} value={r}>{r}</option>
+                      <option key={r} value={r}>{roleLabel(r)}</option>
                     ))}
                   </select>
                   <p className="text-xs text-muted-foreground mt-1">{ROLE_DESCRIPTIONS[form.role]}</p>
@@ -326,7 +327,7 @@ export default function AdminUsersPage() {
                 <div className="mt-3 flex items-center gap-2">
                   <Shield className="w-3.5 h-3.5 text-retail" />
                   <span className="text-xs font-medium text-retail bg-retail-soft px-2 py-0.5 rounded-full">
-                    {user.role}
+                    {roleLabel(user.role)}
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">

@@ -11,7 +11,7 @@ import {
 import { getPartnerDashboardMetrics } from "@/lib/partner-dashboard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BadgeCheck, ShieldAlert, Calendar, MapPin, Building2, User } from "lucide-react"
-import { enumLabel } from "@/lib/utils"
+import { enumLabel, roleLabel } from "@/lib/utils"
 
 function Metric({ value, label }: { value: number; label: string }) {
   return (
@@ -106,7 +106,7 @@ export default async function PartnerDashboardPage() {
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <User className="w-4 h-4" />
-              <span>{user.role.replace("PARTNER_", "")}</span>
+              <span>{roleLabel(user.role)}</span>
             </div>
             <div className="pt-2">
               <p className="text-xs font-medium mb-1">Organisation capabilities</p>

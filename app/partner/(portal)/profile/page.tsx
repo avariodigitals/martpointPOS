@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { requirePartnerSession, getPartnerById, authorizePartner } from "@/lib/partner-auth"
+import { requirePartnerSession, getPartnerById, getPartnerUserById, authorizePartner } from "@/lib/partner-auth"
 import { listPartnerProfileUpdateRequests } from "@/lib/partner-service"
 import { PartnerProfileForm } from "./profile-form"
 
@@ -15,10 +15,11 @@ export default async function PartnerProfilePage() {
     getPartnerById(session.partnerId),
     listPartnerProfileUpdateRequests(session.partnerId, "PENDING"),
   ])
+  const user = await getPartnerUserById(session.partnerUserId)
 
-  if (!partner) {
+  if (!partner || !user) {
     redirect("/partner")
   }
 
-  return <PartnerProfileForm partner={partner} pendingRequests={pendingRequests} />
+  return <PartnerProfileForm partner={partner} userEmail={user.email} pendingRequests={pendingRequests} />
 }

@@ -4,6 +4,7 @@ import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } f
 import { getSession } from "@/lib/admin-auth"
 import { sendEmail } from "@/lib/email"
 import { escapeHtml } from "@/lib/email-html"
+import { roleLabel } from "@/lib/utils"
 
 /* ─── GET ─── */
 export async function GET() {
@@ -37,8 +38,8 @@ export async function POST(request: Request) {
     const emailSent = await sendEmail({
       to: invitation.user.email,
       subject: "Your MartPoint Admin invitation",
-      text: `Hello ${invitation.user.name},\n\nYou have been invited to MartPoint Admin as ${invitation.user.role}.\n\nUsername: ${invitation.user.username}\n\nSet your password and activate your account here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
-      html: `<p>Hello ${escapeHtml(invitation.user.name)},</p><p>You have been invited to MartPoint Admin as <strong>${escapeHtml(invitation.user.role)}</strong>.</p><p><strong>Username:</strong> ${escapeHtml(invitation.user.username)}</p><p><a href="${inviteUrl}">Set your password and activate your account</a></p><p>This link expires in 48 hours.</p>`,
+      text: `Hello ${invitation.user.name},\n\nYou have been invited to MartPoint Admin as ${roleLabel(invitation.user.role)}.\n\nUsername: ${invitation.user.username}\n\nSet your password and activate your account here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
+      html: `<p>Hello ${escapeHtml(invitation.user.name)},</p><p>You have been invited to MartPoint Admin as <strong>${escapeHtml(roleLabel(invitation.user.role))}</strong>.</p><p><strong>Username:</strong> ${escapeHtml(invitation.user.username)}</p><p><a href="${inviteUrl}">Set your password and activate your account</a></p><p>This link expires in 48 hours.</p>`,
     })
     if (!emailSent) {
       return NextResponse.json({ error: "User was created, but the invitation email could not be sent." }, { status: 502 })

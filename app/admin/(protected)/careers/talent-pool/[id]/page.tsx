@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft } from "lucide-react"
 import { VERIFICATION_STATUSES, CANDIDATE_STATUSES, applicationStatusLabel } from "@/lib/careers"
-import { enumLabel } from "@/lib/utils"
+import { enumLabel, roleLabel } from "@/lib/utils"
 import { LocationFields } from "@/components/location-fields"
 
 interface Candidate {
@@ -213,7 +213,7 @@ export default function TalentPoolDetailPage() {
                 c.deployments.map((d) => (
                   <div key={d.id} className="text-sm flex items-center justify-between">
                     <span>{d.deployment?.name || "—"}</span>
-                    <span className="text-xs text-muted-foreground">{d.role} · {d.status} · {[d.deployment?.city, d.deployment?.state].filter(Boolean).join(", ")}</span>
+                    <span className="text-xs text-muted-foreground">{roleLabel(d.role)} · {d.status} · {[d.deployment?.city, d.deployment?.state].filter(Boolean).join(", ")}</span>
                   </div>
                 ))}
             </CardContent>

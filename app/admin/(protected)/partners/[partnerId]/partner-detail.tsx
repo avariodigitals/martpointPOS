@@ -13,7 +13,7 @@ import { LocationFields } from "@/components/location-fields"
 import { AgreementForm } from "../applications/[id]/agreement-form"
 import { PartnerAssignments } from "@/components/admin/partner-assessments/partner-assignments"
 import { PartnerStandingPanel } from "./standing-panel"
-import { enumLabel } from "@/lib/utils"
+import { enumLabel, roleLabel } from "@/lib/utils"
 
 const CAPABILITIES = Object.keys(ORG_CAPABILITY_LABELS) as PartnerOrgCapability[]
 
@@ -88,6 +88,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
 
   // Forms
   const [invite, setInvite] = useState({ fullName: "", email: "", role: "PARTNER_MANAGER" as PartnerUserRole })
+  const [userEmailEdits, setUserEmailEdits] = useState<Record<string, string>>({})
   const [capabilityToGrant, setCapabilityToGrant] = useState<PartnerOrgCapability>("REFERRALS")
   const [docType, setDocType] = useState("Certificate of Incorporation")
   const [businessQuery, setBusinessQuery] = useState("")
@@ -361,6 +362,18 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
     const data = await res.json()
     setMessage(data.success ? "Invitation sent." : data.error || "Failed to invite user.")
     if (data.success) { setInvite({ fullName: "", email: "", role: "PARTNER_MANAGER" }); fetchUsers() }
+  }
+
+  async function updatePartnerUserEmail(userId: string, currentEmail: string) {
+    const email = (userEmailEdits[userId] ?? currentEmail).trim()
+    const res = await fetch(`/api/admin/partners/${partnerId}/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    })
+    const data = await res.json()
+    setMessage(data.success ? "Partner login email updated." : data.error || "Failed to update login email.")
+    if (data.success) fetchUsers()
   }
 
   async function grantCapability() {
@@ -831,9 +844,21 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
               {(users || []).length === 0 ? <p className="text-sm text-muted-foreground">No users.</p> : (
                 <div className="space-y-2">
                   {users.map((u: Record<string, unknown>) => (
-                    <div key={u.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
-                      <span>{u.fullName as string} · {u.email as string} · {u.role as string}</span>
-                      <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{enumLabel(u.status as string)}</span>
+                    <div key={u.id as string} className="flex items-center justify-between gap-4 text-sm p-2 border-b border-border last:border-0">
+                      <div className="min-w-0 flex-1">
+                        <p>{u.fullName as string} · {roleLabel(u.role as string)}</p>
+                        <input
+                          type="email"
+                          value={userEmailEdits[u.id as string] ?? (u.email as string) ?? ""}
+                          onChange={(e) => setUserEmailEdits((prev) => ({ ...prev, [u.id as string]: e.target.value }))}
+                          className="mt-1 w-full max-w-sm rounded-md border border-input bg-background px-2 py-1 text-xs"
+                          aria-label={`Login email for ${u.fullName as string}`}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button size="sm" variant="outline" onClick={() => updatePartnerUserEmail(u.id as string, u.email as string)}>Save email</Button>
+                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{enumLabel(u.status as string)}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -848,7 +873,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                 <div className="space-y-2">
                   {invitations.filter((i: Record<string, unknown>) => !(i.accepted_at as string) && !(i.revoked_at as string)).map((i: Record<string, unknown>) => (
                     <div key={i.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
-                      <span>{(i.fullName as string) || (i.email as string)} · {i.role as string} · Expires {new Date(i.expires_at as string).toLocaleDateString()}</span>
+                      <span>{(i.fullName as string) || (i.email as string)} · {roleLabel(i.role as string)} · Expires {new Date(i.expires_at as string).toLocaleDateString()}</span>
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" onClick={() => router.refresh()}>Resend</Button>
                         <Button size="sm" variant="outline" onClick={() => router.refresh()}>Revoke</Button>

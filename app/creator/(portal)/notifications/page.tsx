@@ -3,6 +3,7 @@ import { requireCreatorSession } from "@/lib/creator-auth"
 import { listCreatorNotifications, markCreatorNotificationsRead } from "@/lib/creator-notifications"
 import { Card, CardContent } from "@/components/ui/card"
 import { Bell } from "lucide-react"
+import { readableRoleText } from "@/lib/utils"
 
 export default async function CreatorNotificationsPage() {
   const { creator } = await requireCreatorSession()
@@ -26,8 +27,8 @@ export default async function CreatorNotificationsPage() {
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-medium text-sm">{n.title}</p>
-                    {n.body && <p className="text-sm text-muted-foreground mt-1">{n.body}</p>}
+                    <p className="font-medium text-sm">{readableRoleText(n.title)}</p>
+                    {n.body && <p className="text-sm text-muted-foreground mt-1">{readableRoleText(n.body)}</p>}
                     {n.link && (
                       <Link href={n.link} className="text-xs text-retail hover:underline mt-1 inline-block">
                         View →

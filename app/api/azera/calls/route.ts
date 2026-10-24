@@ -53,6 +53,8 @@ export async function GET(request: Request) {
 
     if (businessId) query = query.eq("business_id", businessId)
     if (status) query = query.eq("status", status)
+    // Do not offer abandoned browser calls from earlier visits to staff.
+    if (status === "ringing") query = query.gte("created_at", new Date(Date.now() - 90_000).toISOString())
     if (agentId) query = query.eq("agent_user_id", agentId)
 
     const { data, error } = await query.limit(200)
@@ -94,6 +96,7 @@ export async function POST(request: Request) {
     const isPublicRequest = source === "public_site"
     let session: SessionPayload | null = null
     if (isPublicRequest) {
+      if (call_type !== "webrtc" || direction !== "inbound") return err("Invalid website call", 400)
       const claims = verifyConversationToken(tokenFromRequest(request, conversation_token))
       if (!claims || claims.conversationId !== conversation_id || claims.businessId !== business_id || claims.externalId !== customer_external_id) {
         return err("Conversation authorization required", 401)
@@ -107,6 +110,11 @@ export async function POST(request: Request) {
       if (conversationError || !conversation || !isConversationIdentityMatch(claims, conversation)) {
         return err("Conversation authorization required", 401)
       }
+      const { data: agents, error: presenceError } = await supabase.from("azera_agent_presence")
+        .select("user_id").eq("is_online", true)
+        .gte("last_seen_at", new Date(Date.now() - 90_000).toISOString()).limit(1)
+      if (presenceError) return err("Calling is temporarily unavailable. Please message us here instead.", 503)
+      if (!agents?.length) return err("Our team is unavailable for a live call right now. Please leave a message here and we’ll help you.", 409)
     } else {
       session = await requireSession()
       if (!session) return err("Forbidden", 403)

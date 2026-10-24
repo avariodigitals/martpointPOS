@@ -15,7 +15,7 @@ import type { LeadEmailRecord } from "@/lib/lead-email-outbound"
 import { ONBOARDING_STAGES } from "@/lib/businesses"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
 import { LocationFields } from "@/components/location-fields"
-import { enumLabel } from "@/lib/utils"
+import { enumLabel, roleLabel } from "@/lib/utils"
 
 interface Props {
   business: Business
@@ -924,7 +924,7 @@ export function BusinessDetail({
                   <Field label="Phone"><input className={inputCls} value={userForm.phone} onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })} /></Field>
                   <Field label="Role">
                     <select className={inputCls} value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
-                      {USER_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                      {USER_ROLES.map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
                     </select>
                   </Field>
                   <Field label="Branch">
@@ -948,7 +948,7 @@ export function BusinessDetail({
                     <div>
                       <p className="font-medium flex items-center gap-2">
                         {u.fullName}
-                        <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">{u.role}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">{roleLabel(u.role)}</span>
                         <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-medium ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>{enumLabel(u.status)}</span>
                       </p>
                       <p className="text-xs text-muted-foreground">{[u.email, u.phone].filter(Boolean).join(" · ") || "No contact info"}</p>

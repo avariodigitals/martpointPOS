@@ -11,7 +11,7 @@ import {
   type PartnerUserRole,
   partnerUserHasPermission,
 } from "@/lib/partner-permissions"
-import { enumLabel } from "@/lib/utils"
+import { enumLabel, roleLabel } from "@/lib/utils"
 
 interface PartnerUser {
   id: string
@@ -46,6 +46,7 @@ export function PartnerTeamClient({
   const router = useRouter()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ fullName: "", email: "", role: "PARTNER_MANAGER" as PartnerUserRole })
+  const [emailEdits, setEmailEdits] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
 
@@ -87,6 +88,22 @@ export function PartnerTeamClient({
     else setMessage(data.error || "Failed to update user.")
   }
 
+  async function updateEmail(user: PartnerUser) {
+    const email = (emailEdits[user.id] ?? user.email).trim()
+    const res = await fetch(`/api/partner/users/${user.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setMessage("Login email updated.")
+      router.refresh()
+    } else {
+      setMessage(data.error || "Failed to update login email.")
+    }
+  }
+
   async function resend(invitationId: string) {
     const res = await fetch(`/api/partner/invitations/${invitationId}`, { method: "PATCH" })
     const data = await res.json()
@@ -113,7 +130,7 @@ export function PartnerTeamClient({
         )}
       </div>
 
-      {message && <p className={`text-sm ${message.includes("sent") || message.includes("resent") || message.includes("revoked") ? "text-green-600" : "text-red-500"}`}>{message}</p>}
+      {message && <p className={`text-sm ${message.includes("sent") || message.includes("resent") || message.includes("revoked") || message.includes("updated") ? "text-green-600" : "text-red-500"}`}>{message}</p>}
 
       {showForm && canInvite && (
         <Card>
@@ -151,15 +168,25 @@ export function PartnerTeamClient({
           {users.length === 0 ? <p className="text-sm text-muted-foreground">No users yet.</p> : (
             <div className="space-y-2">
               {users.map((u) => (
-                <div key={u.id} className="flex items-center justify-between p-3 rounded-md border border-border bg-muted/10">
+                <div key={u.id} className="flex items-center justify-between gap-4 p-3 rounded-md border border-border bg-muted/10">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-retail-soft flex items-center justify-center text-retail font-bold text-sm"><User className="w-4 h-4" /></div>
                     <div>
                       <p className="text-sm font-medium">{u.fullName}</p>
-                      <p className="text-xs text-muted-foreground">{u.email} · {u.role.replace("PARTNER_", "")}</p>
+                      {canManage ? (
+                        <input
+                          type="email"
+                          value={emailEdits[u.id] ?? u.email}
+                          onChange={(e) => setEmailEdits((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                          className="w-full max-w-xs rounded-md border border-input bg-background px-2 py-1 text-xs"
+                          aria-label={`Login email for ${u.fullName}`}
+                        />
+                      ) : <p className="text-xs text-muted-foreground">{u.email} · {roleLabel(u.role)}</p>}
+                      {canManage && <p className="text-xs text-muted-foreground">{roleLabel(u.role)}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {canManage && <Button size="sm" variant="outline" onClick={() => updateEmail(u)}>Save email</Button>}
                     <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full font-medium ${u.status === "ACTIVE" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{enumLabel(u.status)}</span>
                     {canManage && u.status === "ACTIVE" && (
                       <Button size="sm" variant="outline" onClick={() => updateStatus(u.id, "SUSPENDED")}><UserX className="w-3.5 h-3.5" /></Button>
@@ -186,7 +213,7 @@ export function PartnerTeamClient({
                 <div key={i.id} className="flex items-center justify-between p-3 rounded-md border border-border bg-muted/10">
                   <div>
                     <p className="text-sm font-medium">{i.fullName || i.full_name || i.email}</p>
-                    <p className="text-xs text-muted-foreground">{i.email} · {i.role.replace("PARTNER_", "")} · Expires {new Date(i.expires_at).toLocaleDateString()}</p>
+                    <p className="text-xs text-muted-foreground">{i.email} · {roleLabel(i.role)} · Expires {new Date(i.expires_at).toLocaleDateString()}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {canInvite && (

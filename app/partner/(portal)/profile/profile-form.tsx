@@ -24,14 +24,17 @@ interface PartnerProfileFormProps {
     country: string
     partnerSince: string | null
   }
+  userEmail: string
   pendingRequests: Record<string, unknown>[]
 }
 
-export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileFormProps) {
+export function PartnerProfileForm({ partner, userEmail, pendingRequests }: PartnerProfileFormProps) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
+  const [savingEmail, setSavingEmail] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState("")
+  const [loginEmail, setLoginEmail] = useState(userEmail || "")
   const [form, setForm] = useState({
     displayName: partner.displayName || "",
     publicEmail: partner.publicEmail || "",
@@ -92,6 +95,27 @@ export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileF
     }
   }
 
+  async function submitLoginEmail() {
+    setSavingEmail(true)
+    setMessage("")
+    try {
+      const res = await fetch("/api/partner/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginEmail }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMessage("Login email updated. Use the new address the next time you sign in.")
+        router.refresh()
+      } else {
+        setMessage(data.error || "Failed to update login email.")
+      }
+    } finally {
+      setSavingEmail(false)
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
@@ -106,6 +130,29 @@ export function PartnerProfileForm({ partner, pendingRequests }: PartnerProfileF
           </div>
         )}
       </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-sm font-medium">Login Email</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">This is the email used to sign in to the Partner Portal. It is separate from your organisation&apos;s public contact email.</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className="block text-xs font-medium mb-1">Portal login email</label>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <Button onClick={submitLoginEmail} disabled={savingEmail || !loginEmail.trim()}>
+              {savingEmail ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Mail className="w-4 h-4 mr-2" />}
+              Update Login Email
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">You will remain signed in, but future logins and password resets will use the new address.</p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-sm font-medium">Approved Information</CardTitle></CardHeader>

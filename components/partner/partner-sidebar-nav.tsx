@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { PortalMobileNav } from "@/components/shared/portal-mobile-nav"
 import { PortalSidebar } from "@/components/shared/portal-sidebar"
+import { enumLabel, roleLabel } from "@/lib/utils"
 import { partnerUserHasPermission, type PartnerUserRole, type PartnerOrgCapability, type PartnerPermission } from "@/lib/partner-permissions"
 
 interface NavItem {
@@ -109,8 +110,8 @@ export function PartnerSidebarNav({
         meta={[partnerId]}
         sections={[{ items: visibleItems }]}
         userName={userName}
-        userMeta={userRole.replace("PARTNER_", "")}
-        footerNote={capabilities.length > 0 ? capabilities.join(" · ") : undefined}
+        userMeta={roleLabel(userRole)}
+        footerNote={capabilities.length > 0 ? capabilities.map(enumLabel).join(" · ") : undefined}
         onLogout={handleLogout}
         logoutLabel="Logout"
         storageKey="partner-nav"

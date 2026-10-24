@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { readableRoleText } from "@/lib/utils"
 import {
   ChevronDown,
   LogOut,
@@ -304,7 +305,7 @@ export function PortalSidebar({
             <div className="mb-3 px-3">
               <p className="truncate text-[13px] font-medium text-slate-800">{userName}</p>
               {userMeta && (
-                <p className="truncate text-[10px] normal-case tracking-wide text-slate-500">{userMeta}</p>
+                <p className="truncate text-[10px] normal-case tracking-wide text-slate-500">{readableRoleText(userMeta)}</p>
               )}
               {footerNote && <p className="mt-1 truncate text-[10px] text-slate-400">{footerNote}</p>}
             </div>

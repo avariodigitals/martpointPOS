@@ -223,7 +223,15 @@ export function AzeraChatWidget({
   }
 
   // Call state
-  const [activeCall, setActiveCall] = useState<{ id: string; type: "webrtc" } | null>(null)
+  const [activeCall, setActiveCall] = useState<{ id: string; type: "webrtc"; stream: MediaStream } | null>(null)
+  const [startingCall, setStartingCall] = useState(false)
+  const callStartingRef = useRef(false)
+  const callRequestVersion = useRef(0)
+  const callStreamRef = useRef<MediaStream | null>(null)
+  useEffect(() => () => {
+    callRequestVersion.current++
+    callStreamRef.current?.getTracks().forEach((track) => track.stop())
+  }, [])
   const [callError, setCallError] = useState<string | null>(null)
 
   const externalId =
@@ -559,14 +567,28 @@ export function AzeraChatWidget({
   } as CSSProperties
 
   async function requestCall() {
-    if (!businessId || !conversation?.id) return
+    if (!businessId || !conversation?.id || activeCall || callStartingRef.current) return
+    callStartingRef.current = true
+    setStartingCall(true)
     setCallError(null)
+    const version = callRequestVersion.current
+    const token = conversationTokenRef.current
+    let stream: MediaStream | null = null
     try {
+      const { requestCallMicrophone } = await import("@/lib/azera-webrtc")
+      // Do not ring staff or create call history until the visitor actually
+      // has a working microphone and has granted permission.
+      stream = await requestCallMicrophone()
+      if (version !== callRequestVersion.current) {
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
+      callStreamRef.current = stream
       const res = await fetch("/api/azera/calls", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(conversationTokenRef.current ? { "X-Azera-Chat-Token": conversationTokenRef.current } : {}),
+          ...(token ? { "X-Azera-Chat-Token": token } : {}),
         },
         body: JSON.stringify({
           business_id: conversation.business_id || businessId,
@@ -574,22 +596,38 @@ export function AzeraChatWidget({
           call_type: "webrtc",
           direction: "inbound",
           source,
-          conversation_token: conversationTokenRef.current,
+          conversation_token: token,
           customer_name: customerName || undefined,
           customer_external_id: externalId,
           webrtc_room: `azera-web-${conversation.id}`,
         }),
       })
       const json = await res.json()
+      if (version !== callRequestVersion.current) {
+        stream.getTracks().forEach((track) => track.stop())
+        if (json.success && json.data?.id) void fetch(`/api/azera/calls/${encodeURIComponent(json.data.id)}`, {
+          method: "PATCH", keepalive: true,
+          headers: { "Content-Type": "application/json", ...(token ? { "X-Azera-Chat-Token": token } : {}) },
+          body: JSON.stringify({ status: "ended" }),
+        }).catch(() => {})
+        return
+      }
       if (json.success && json.data) {
-        setActiveCall({ id: json.data.id, type: "webrtc" })
+        setActiveCall({ id: json.data.id, type: "webrtc", stream })
       } else {
+        stream.getTracks().forEach((track) => track.stop())
+        callStreamRef.current = null
         setCallError(res.status === 401 || res.status === 403
           ? "We couldn't securely connect the call. Please refresh the page and try again."
           : json.error || "We couldn't start the call right now. Please try again shortly.")
       }
-    } catch {
-      setCallError("We couldn't start the call right now. Please try again shortly.")
+    } catch (error) {
+      stream?.getTracks().forEach((track) => track.stop())
+      callStreamRef.current = null
+      if (version === callRequestVersion.current) setCallError(error instanceof Error ? error.message : "We couldn't start the call right now. Please try again shortly.")
+    } finally {
+      callStartingRef.current = false
+      if (version === callRequestVersion.current) setStartingCall(false)
     }
   }
 
@@ -1019,10 +1057,10 @@ export function AzeraChatWidget({
             <button
               type="button"
               onClick={requestCall}
-              disabled={loading || !conversation?.id}
+              disabled={loading || !conversation?.id || startingCall || Boolean(activeCall)}
               style={{ backgroundColor: brandColor, color: brandTextColor }}
               className="h-10 w-10 shrink-0 rounded-xl p-2.5 transition-opacity hover:brightness-90 disabled:opacity-50"
-              aria-label="Request call"
+              aria-label={startingCall ? "Starting call" : activeCall ? "Call in progress" : "Call our support team"}
             >
               <Phone className="h-4 w-4" />
             </button>
@@ -1040,7 +1078,12 @@ export function AzeraChatWidget({
           callId={activeCall.id}
           customerName={customerName || visitorProfile?.name || "You"}
           authToken={conversationToken}
-          onEnded={() => setActiveCall(null)}
+          localStream={activeCall.stream}
+          onEnded={() => {
+            callStreamRef.current?.getTracks().forEach((track) => track.stop())
+            callStreamRef.current = null
+            setActiveCall(null)
+          }}
         />
       )}
     </div>,

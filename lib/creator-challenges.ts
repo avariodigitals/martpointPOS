@@ -15,6 +15,7 @@
 
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { aiChat } from "./ai-chat"
 import { pushCreatorNotification, sendCreatorNotification } from "./creator-notifications"
 import type { CreatorRecord } from "./creators"
 
@@ -621,6 +622,65 @@ export function challengePolicy(challenge: ChallengeRow): ChallengePolicy {
   }
 }
 
+export interface AwardExpectation {
+  label: string
+  detail: string
+}
+
+/** Human-readable, creator-facing expectations derived from the award config. */
+export function awardExpectation(award: Pick<AwardRow, "award_type" | "scoring_config">): AwardExpectation {
+  const cfg = award.scoring_config ?? {}
+  const minViews = num(cfg.minViews, 0)
+  const minQualifiedOutcomes = Math.max(
+    num(cfg.minQualifiedOutcomes, 0),
+    num(cfg.minQualifiedLeads, 0),
+    num(cfg.minQualifiedDemos, 0),
+  )
+  const windowDays = num(cfg.measurementWindowDays, 7)
+
+  switch (award.award_type) {
+    case "REACH":
+      return {
+        label: "Verified reach expectation",
+        detail: minViews > 0
+          ? `At least ${minViews.toLocaleString()} verified views in the comparable ${windowDays}-day window; eligible entries then rank by verified reach.`
+          : `Highest verified reach in the comparable ${windowDays}-day window; no fixed view target has been published.`,
+      }
+    case "CONVERSION":
+      return {
+        label: "Qualified conversion expectation",
+        detail: minQualifiedOutcomes > 0
+          ? `At least ${minQualifiedOutcomes} MartPoint-verified qualified enquiry${minQualifiedOutcomes === 1 ? "" : "ies"}; qualified outcomes, not raw clicks or unqualified forms, decide this award.`
+          : "Only MartPoint-verified qualified enquiries count; raw clicks and unqualified forms do not decide this award.",
+      }
+    case "OVERALL": {
+      const judgeWeight = Math.round(num(cfg.judgeWeight, 60))
+      const performanceWeight = Math.round(num(cfg.performanceWeight, 40))
+      return {
+        label: "Overall performance expectation",
+        detail: `No single view target. Eligible entries are ranked using human judging (${judgeWeight}%) and verified performance (${performanceWeight}%).`,
+      }
+    }
+    case "RISING":
+      return {
+        label: "Rising creator expectation",
+        detail: minViews > 0
+          ? `At least ${minViews.toLocaleString()} verified views, then performance is compared with the creator's declared baseline.`
+          : "Performance is compared with the creator's declared baseline; minimums are published in the final rules.",
+      }
+    case "CREATIVE":
+      return {
+        label: "Creative quality expectation",
+        detail: "No performance floor. Human judges score originality, clarity, MartPoint accuracy and execution.",
+      }
+    default:
+      return {
+        label: "Award expectation",
+        detail: "The published challenge brief and award criteria determine eligibility and ranking.",
+      }
+  }
+}
+
 /** Latest metric snapshot per submission, preferring snapshots captured at or
  *  before the cutoff; verified flag + source are preserved. Never mutates. */
 export async function latestMetricsForSubmission(
@@ -721,7 +781,7 @@ export async function recordMetricSnapshot(
     capturedBy?: string | null
   },
 ) {
-  return supabase.from("creator_submission_metrics").insert({
+  const result = await supabase.from("creator_submission_metrics").insert({
     submission_id: submissionId,
     source: input.source,
     verified: input.verified,
@@ -738,6 +798,136 @@ export async function recordMetricSnapshot(
     signups: input.signups ?? null,
     conversions: input.conversions ?? null,
     captured_by: input.capturedBy ?? null,
+  })
+  if (!result.error) void reviewMetricIntegrity(submissionId)
+  return result
+}
+
+type IntegrityVerdict = {
+  status: "CLEAR" | "REVIEW" | "INSUFFICIENT_DATA"
+  confidence: number
+  reasons: string[]
+  evidenceNeeded: string[]
+  provider?: string
+}
+
+function parseIntegrityVerdict(raw: string, provider: string): IntegrityVerdict | null {
+  try {
+    const match = raw.match(/\{[\s\S]*\}/)
+    if (!match) return null
+    const parsed = JSON.parse(match[0]) as Record<string, unknown>
+    const status = parsed.status === "REVIEW" || parsed.status === "CLEAR" ? parsed.status : "INSUFFICIENT_DATA"
+    const confidence = Math.max(0, Math.min(1, Number(parsed.confidence) || 0))
+    const list = (value: unknown) => Array.isArray(value) ? value.filter((v): v is string => typeof v === "string").slice(0, 5) : []
+    return { status, confidence, reasons: list(parsed.reasons), evidenceNeeded: list(parsed.evidenceNeeded), provider }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Reviews a mature metric snapshot for suspicious metric/funnel mismatch.
+ * This never disqualifies a creator and never decides a winner: it raises a
+ * visible SUSPICIOUS_ENGAGEMENT flag for an authorised human reviewer.
+ */
+export async function reviewMetricIntegrity(submissionId: string): Promise<void> {
+  if (!isSupabaseConfigured()) return
+
+  const { data: submission } = await supabase
+    .from("creator_submissions")
+    .select("id, creator_id, challenge_id, published_at")
+    .eq("id", submissionId)
+    .maybeSingle()
+  if (!submission) return
+
+  const [{ data: challenge }, { data: snapshots }, { data: existingFlags }] = await Promise.all([
+    supabase.from("creator_challenges").select("id, name, status, scoring_config").eq("id", submission.challenge_id).maybeSingle(),
+    supabase.from("creator_submission_metrics").select("captured_at, verified, source, views, likes, comments, shares, saves, engagement_rate, clicks, leads, demo_bookings, signups, conversions").eq("submission_id", submissionId).order("captured_at", { ascending: false }).limit(8),
+    supabase.from("creator_flags").select("id").eq("submission_id", submissionId).eq("type", "SUSPICIOUS_ENGAGEMENT").in("status", ["OPEN", "UNDER_REVIEW"]),
+  ])
+  if (!challenge || !snapshots?.length || existingFlags?.length) return
+
+  const current = snapshots[0] as Record<string, unknown>
+  const previous = snapshots[1] as Record<string, unknown> | undefined
+  const views = num(current.views)
+  const engagement = num(current.likes) + num(current.comments) + num(current.shares) + num(current.saves)
+  const clicks = num(current.clicks)
+  const qualified = await qualifiedOutcomeCounts(submissionId)
+  const qualifiedOutcomes = qualified.leads + qualified.demos
+  const publishedAt = submission.published_at ? new Date(submission.published_at as string).getTime() : 0
+  const mature = !publishedAt || Date.now() - publishedAt >= 5 * 86400_000 || ["JUDGING", "COMPLETED"].includes(challenge.status as string)
+  if (!mature) return
+
+  const signals: string[] = []
+  if (views >= 1000 && engagement >= Math.max(100, views * 0.05) && clicks === 0 && qualifiedOutcomes === 0) {
+    signals.push("High verified reach and engagement with no tracked click or qualified outcome.")
+  }
+  if (previous) {
+    const previousViews = num(previous.views)
+    const engagementRate = views > 0 ? engagement / views : 0
+    if (previousViews >= 100 && views >= previousViews * 8 && engagementRate < 0.01 && clicks === 0) {
+      signals.push("Abrupt reach increase with unusually low engagement and no tracked click.")
+    }
+  }
+  if (clicks >= 50 && qualifiedOutcomes === 0 && num(current.leads) === 0 && num(current.demo_bookings) === 0) {
+    signals.push("Substantial tracked traffic with no qualified enquiry or demo outcome.")
+  }
+  if (signals.length === 0) return
+
+  let verdict: IntegrityVerdict = {
+    status: signals.length > 1 ? "REVIEW" : "INSUFFICIENT_DATA",
+    confidence: signals.length > 1 ? 0.65 : 0.4,
+    reasons: signals,
+    evidenceNeeded: ["Platform analytics export for the comparable measurement window", "Referral and qualified-lead review"],
+    provider: "deterministic integrity rules",
+  }
+
+  try {
+    const ai = await aiChat({
+      json: true,
+      temperature: 0,
+      maxTokens: 500,
+      timeoutMs: 3000,
+      messages: [
+        {
+          role: "system",
+          content: "You are a cautious creator-challenge integrity reviewer. Aggregate metrics can indicate a mismatch but cannot prove manipulation. Do not penalize low conversion alone, and do not decide disqualification or winners. Return JSON only with status CLEAR, REVIEW, or INSUFFICIENT_DATA; confidence from 0 to 1; reasons array; evidenceNeeded array.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            challenge: challenge.name,
+            signals,
+            currentSnapshot: current,
+            previousSnapshot: previous ?? null,
+            qualifiedOutcomes,
+            instruction: "Recommend REVIEW only when the observed pattern is materially inconsistent and needs human evidence. A high-view post with no conversion is not, by itself, proof of abuse.",
+          }),
+        },
+      ],
+    })
+    const parsed = parseIntegrityVerdict(ai.content, ai.provider)
+    if (parsed) verdict = parsed
+  } catch {
+    // Deterministic signals remain useful when no AI provider is configured.
+  }
+
+  if (verdict.status !== "REVIEW") return
+  await raiseFlag({
+    creatorId: submission.creator_id as string,
+    challengeId: submission.challenge_id as string,
+    submissionId,
+    type: "SUSPICIOUS_ENGAGEMENT",
+    severity: "MEDIUM",
+    description: `Integrity asterisk: ${verdict.reasons.join(" ")}`,
+    evidence: {
+      reviewSource: "AI_INTEGRITY_REVIEW",
+      provider: verdict.provider,
+      confidence: verdict.confidence,
+      reasons: verdict.reasons,
+      evidenceNeeded: verdict.evidenceNeeded,
+      qualifiedOutcomes,
+    },
   })
 }
 
@@ -866,6 +1056,8 @@ export interface AwardCandidate {
   baselineSource: "APPLICATION_UNVERIFIED" | null
   computedScore: number
   scoreBreakdown: Record<string, number>
+  thresholdMet: boolean
+  thresholdReasons: string[]
   metricsVerified: boolean
   judgeScore: number | null   // average human score (0-100) where applicable
   quarantined: boolean
@@ -963,6 +1155,11 @@ export async function computeAwardCandidates(
       qualifiedLeads: qualified.leads, qualifiedDemos: qualified.demos,
       followers, judgeScore, verified: metrics?.verified ?? refs.clicks + refs.leads > 0,
     })
+    const threshold = awardThresholdStatus(award.award_type, cfg, {
+      views, engagement, clicks, leads, demos, signups, conversions,
+      qualifiedLeads: qualified.leads, qualifiedDemos: qualified.demos,
+      followers, judgeScore, verified: metrics?.verified ?? false,
+    })
 
     candidates.push({
       creatorId: sub.creator_id,
@@ -979,6 +1176,8 @@ export async function computeAwardCandidates(
       baselineSource: followers != null ? "APPLICATION_UNVERIFIED" : null,
       computedScore: computed.total,
       scoreBreakdown: computed.breakdown,
+      thresholdMet: threshold.met,
+      thresholdReasons: threshold.reasons,
       metricsVerified: metrics?.verified ?? false,
       judgeScore,
       quarantined: sub.quarantined || fl.blocking,
@@ -990,9 +1189,9 @@ export async function computeAwardCandidates(
   const best = new Map<string, AwardCandidate>()
   for (const c of candidates) {
     const cur = best.get(c.creatorId)
-    if (!cur || c.computedScore > cur.computedScore) best.set(c.creatorId, c)
+    if (!cur || (c.thresholdMet && !cur.thresholdMet) || (c.thresholdMet === cur.thresholdMet && c.computedScore > cur.computedScore)) best.set(c.creatorId, c)
   }
-  return [...best.values()].sort((a, b) => b.computedScore - a.computedScore)
+  return [...best.values()].sort((a, b) => Number(b.thresholdMet) - Number(a.thresholdMet) || b.computedScore - a.computedScore)
 }
 
 interface ScoreInputs {
@@ -1010,6 +1209,31 @@ interface ScoreInputs {
   verified: boolean
 }
 
+function awardThresholdStatus(
+  type: AwardType,
+  cfg: Record<string, unknown>,
+  m: ScoreInputs,
+): { met: boolean; reasons: string[] } {
+  const reasons: string[] = []
+  const minViews = num(cfg.minViews, 0)
+  const minEngagement = num(cfg.minEngagement, 0)
+  const minQualifiedOutcomes = Math.max(
+    num(cfg.minQualifiedOutcomes, 0),
+    num(cfg.minQualifiedLeads, 0),
+    num(cfg.minQualifiedDemos, 0),
+  )
+  if ((type === "REACH" || type === "RISING") && minViews > 0 && m.views < minViews) {
+    reasons.push(`Requires at least ${minViews.toLocaleString()} verified views.`)
+  }
+  if (type === "CONVERSION" && minQualifiedOutcomes > 0 && m.qualifiedLeads + m.qualifiedDemos < minQualifiedOutcomes) {
+    reasons.push(`Requires at least ${minQualifiedOutcomes} MartPoint-verified qualified outcome${minQualifiedOutcomes === 1 ? "" : "s"}.`)
+  }
+  if (type === "RISING" && minEngagement > 0 && m.engagement < minEngagement) {
+    reasons.push(`Requires at least ${minEngagement.toLocaleString()} verified engagements.`)
+  }
+  return { met: reasons.length === 0, reasons }
+}
+
 function computeScore(
   type: AwardType,
   cfg: Record<string, unknown>,
@@ -1017,6 +1241,8 @@ function computeScore(
 ): { total: number; breakdown: Record<string, number> } {
   const w = (key: string, dflt: number) => num(cfg[key], dflt)
   const breakdown: Record<string, number> = {}
+  const threshold = awardThresholdStatus(type, cfg, m)
+  if (!threshold.met) return { total: 0, breakdown: { belowThreshold: 0 } }
 
   switch (type) {
     case "REACH": {
@@ -1040,12 +1266,6 @@ function computeScore(
       break
     }
     case "RISING": {
-      const minViews = num(cfg.minViews, 0)
-      const minEngagement = num(cfg.minEngagement, 0)
-      if (m.views < minViews || m.engagement < minEngagement) {
-        breakdown.belowThreshold = 0
-        break
-      }
       const engagementRate = m.views > 0 ? m.engagement / m.views : 0
       const relToFollowing = m.followers && m.followers > 0
         ? Math.min(m.views / m.followers, num(cfg.followerRatioCap, 10))
@@ -1081,6 +1301,15 @@ export async function finalizeAwardWinners(
   if (winners.length === 0) return { ok: false, error: "No winners selected" }
   if (winners.length > award.winners_count) {
     return { ok: false, error: `This award allows at most ${award.winners_count} winner${award.winners_count === 1 ? "" : "s"}.` }
+  }
+
+  const candidates = await computeAwardCandidates(challenge, award)
+  const candidateByCreator = new Map(candidates.map((candidate) => [candidate.creatorId, candidate]))
+  for (const winner of winners) {
+    const candidate = candidateByCreator.get(winner.creatorId)
+    if (!candidate || !candidate.thresholdMet) {
+      return { ok: false, error: `The selected winner does not meet the published ${awardExpectation(award).label.toLowerCase()}.` }
+    }
   }
 
   const { count: existingCount } = await supabase

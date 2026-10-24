@@ -23,7 +23,7 @@ interface Detail {
     minSubmissions: number; maxSubmissions: number | null
     rulesVersion: number; amended: boolean; leaderboardVisible: boolean
   }
-  awards: { id: string; type: string; title: string; description: string | null; winnersCount: number; cashNaira: number | null; nonCashReward: string | null; judgingCriteria: string | null }[]
+  awards: { id: string; type: string; title: string; description: string | null; winnersCount: number; cashNaira: number | null; nonCashReward: string | null; judgingCriteria: string | null; expectation: { label: string; detail: string } }[]
   brief: Record<string, unknown> | null
   resources: { linkId: string; required: boolean; resource: { id: string; name: string; description: string | null; category: string } | null }[]
   participant: { status: string; joinedAt: string; rulesVersionAccepted: number; acknowledgedVersion: number | null } | null
@@ -181,6 +181,7 @@ export default function CreatorChallengeDetailPage() {
                   {a.cashNaira ? `₦${a.cashNaira.toLocaleString()}` : ""}{a.cashNaira && a.nonCashReward ? " + " : ""}{a.nonCashReward ?? ""}
                   {" · "}{a.winnersCount} winner{a.winnersCount > 1 ? "s" : ""}
                 </p>
+                {a.expectation && <p className="text-xs text-muted-foreground mt-1"><span className="font-medium text-foreground">Expectation:</span> {a.expectation.detail}</p>}
                 {a.judgingCriteria && <p className="text-[11px] text-muted-foreground mt-1">{a.judgingCriteria}</p>}
               </div>
             ))}

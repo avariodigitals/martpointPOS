@@ -31,7 +31,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ token: str
     responses: round.responses,
     status: round.status,
     applicant: { fullName: applicant?.full_name || "there", reference: applicant?.reference_number || null },
-  })
+  }, { headers: { "Cache-Control": "no-store, max-age=0" } })
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {

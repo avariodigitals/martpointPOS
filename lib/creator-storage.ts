@@ -58,6 +58,15 @@ function sanitizeFilename(name: string): string {
   return base || "file"
 }
 
+function mimeTypeFromFilename(filename: string): string {
+  const extension = filename.toLowerCase().split(".").pop()
+  if (extension === "pdf") return "application/pdf"
+  if (extension === "png") return "image/png"
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg"
+  if (extension === "webp") return "image/webp"
+  return "application/octet-stream"
+}
+
 /** Upload a file to private storage, scoped by an arbitrary prefix. */
 export async function uploadCreatorFile(
   scope: string,
@@ -67,7 +76,13 @@ export async function uploadCreatorFile(
 ): Promise<{ ok: boolean; storagePath?: string; error?: string }> {
   if (!isSupabaseConfigured()) return { ok: false, error: "Storage not configured" }
 
-  const validation = validateCreatorFile({ type: mimeType, size: fileBytes.byteLength })
+  // Mobile browsers occasionally report a generic or empty MIME type. Use the
+  // allow-listed filename extension in that case so valid attachments are not
+  // rejected only because of the browser's metadata.
+  const resolvedMimeType = !mimeType || mimeType === "application/octet-stream"
+    ? mimeTypeFromFilename(filename)
+    : mimeType
+  const validation = validateCreatorFile({ type: resolvedMimeType, size: fileBytes.byteLength })
   if (validation) return { ok: false, error: validation }
 
   const safeScope = scope.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80)
@@ -75,7 +90,7 @@ export async function uploadCreatorFile(
   const storagePath = `${safeScope}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`
 
   const { error } = await supabase.storage.from(CREATOR_FILES_BUCKET).upload(storagePath, fileBytes, {
-    contentType: mimeType,
+    contentType: resolvedMimeType,
     upsert: false,
   })
   if (error) {

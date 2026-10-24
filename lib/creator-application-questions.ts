@@ -43,6 +43,17 @@ export type CreatorApplicationQuestionRound = {
   last_viewed_at: string | null
   view_count: number
   created_at: string
+  email_attempts?: CreatorQuestionEmailAttempt[]
+}
+
+export type CreatorQuestionEmailAttempt = {
+  id: string
+  kind: "INITIAL" | "REMINDER"
+  attempt_no: number
+  status: "SENT" | "FAILED"
+  error_message: string | null
+  provider_accepted_at: string | null
+  created_at: string
 }
 
 const TERMINAL_STATUSES = ["APPROVED", "REJECTED", "SUSPENDED"]
@@ -51,7 +62,10 @@ const REMINDER_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000
 const CLAIM_TIMEOUT_MS = 2 * 60 * 60 * 1000
 
 function siteUrl(origin?: string): string {
-  return (origin || process.env.NEXT_PUBLIC_SITE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
+  // Do not email a localhost or admin-origin link when the canonical public
+  // site URL is configured. The answer page is public and must be reachable
+  // from the applicant's email, regardless of where the admin is signed in.
+  return (process.env.NEXT_PUBLIC_SITE_URL || origin || "https://martpoint.com.ng").replace(/\/$/, "")
 }
 
 async function recordQuestionEmail(input: {
@@ -77,7 +91,22 @@ export async function listApplicationQuestionRounds(applicationId: string): Prom
   if (!isSupabaseConfigured()) return []
   const { data, error } = await supabase.from("creator_application_question_rounds").select("*")
     .eq("application_id", applicationId).order("created_at", { ascending: false })
-  return error ? [] : (data || []) as CreatorApplicationQuestionRound[]
+  if (error || !data?.length) return error ? [] : []
+
+  const roundIds = data.map((round) => round.id as string)
+  const { data: attempts } = await supabase.from("creator_application_question_emails")
+    .select("id, round_id, kind, attempt_no, status, error_message, provider_accepted_at, created_at")
+    .in("round_id", roundIds).order("created_at", { ascending: false })
+  const attemptsByRound = new Map<string, CreatorQuestionEmailAttempt[]>()
+  for (const attempt of attempts || []) {
+    const roundAttempts = attemptsByRound.get(attempt.round_id as string) || []
+    roundAttempts.push(attempt as CreatorQuestionEmailAttempt)
+    attemptsByRound.set(attempt.round_id as string, roundAttempts)
+  }
+  return data.map((round) => ({
+    ...(round as CreatorApplicationQuestionRound),
+    email_attempts: attemptsByRound.get(round.id as string) || [],
+  }))
 }
 
 /** Replace file-field answer arrays with signed URLs for admin viewing (URLs are short-lived). */
@@ -138,7 +167,7 @@ export async function sendApplicationQuestionRound(input: {
   }).select().single()
   if (error || !round) return { ok: false as const, error: "Could not save question round" }
 
-  const url = `${input.origin.replace(/\/$/, "")}/creator/questions/${token}`
+  const url = `${siteUrl(input.origin)}/creator/questions/${token}`
   const safeTitle = input.title.trim() || "Additional Questions"
   const questionCount = fields.length
   const sent = await sendEmail({

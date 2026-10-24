@@ -508,6 +508,14 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       if (action === "update") {
         const { id, items, ...updates } = data
         if (!id) return err("Quote ID required")
+        const { data: existingQuote, error: existingQuoteError } = await supabase
+          .from("quotes")
+          .select("id, quote_number, status")
+          .eq("id", id)
+          .maybeSingle()
+        if (existingQuoteError) return err(existingQuoteError.message, 500)
+        if (!existingQuote) return err("Quote not found", 404)
+        if (existingQuote.status !== "DRAFT") return err(`Quote ${existingQuote.quote_number} can no longer be edited because it has already been issued.`, 409)
         const allowed = ["currency", "valid_until", "notes_public", "notes_internal", "payment_terms", "bank_details", "template_industry", "plan_id"]
         const patch: Record<string, unknown> = { updated_at: now() }
         for (const key of allowed) {

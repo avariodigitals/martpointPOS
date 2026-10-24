@@ -12,7 +12,7 @@ import {
 } from "@/lib/creator-application-questions"
 import { supabase } from "@/lib/supabase"
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authorizeAdmin("creator.view")
   if (auth.denied) return auth.denied
   const { id } = await params
@@ -20,6 +20,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   return NextResponse.json({
     rounds: await Promise.all(rounds.map(withSignedAttachmentUrls)),
     samplePacks: CREATOR_SAMPLE_QUESTION_PACKS,
+    publicSiteUrl: (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, ""),
   })
 }
 

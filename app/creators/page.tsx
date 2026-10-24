@@ -23,6 +23,11 @@ import {
   Wallet,
 } from "lucide-react"
 
+type FeaturedAward = {
+  title: string
+  cash_amount_kobo: number | null
+}
+
 export const metadata: Metadata = {
   title: "Creator Network — Create. Influence. Earn.",
   description:
@@ -115,13 +120,21 @@ async function getFeaturedChallenge() {
   if (!isSupabaseConfigured()) return null
   const { data } = await supabase
     .from("creator_challenges")
-    .select("name, slug, description, theme, submission_deadline, status")
+    .select("id, name, slug, description, theme, submission_deadline, status, start_date, join_closes_at, min_submissions, max_submissions")
     .eq("featured", true)
     .in("status", ["ACTIVE", "SCHEDULED"])
     .order("start_date", { ascending: false })
     .limit(1)
     .maybeSingle()
-  return data
+  if (!data) return null
+
+  const { data: awards } = await supabase
+    .from("creator_challenge_awards")
+    .select("title, cash_amount_kobo")
+    .eq("challenge_id", data.id)
+    .order("sort_order", { ascending: true })
+
+  return { ...data, awards: (awards || []) as FeaturedAward[] }
 }
 
 export default async function CreatorsPage() {
@@ -188,8 +201,9 @@ export default async function CreatorsPage() {
         <section className="py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="rounded-2xl border-2 border-retail/40 bg-retail-soft/30 p-8 md:p-10">
-              <div className="flex items-center gap-2 text-retail font-semibold text-sm uppercase tracking-wider mb-3">
-                <Megaphone className="h-4 w-4" /> Featured Challenge
+              <div className="flex flex-wrap items-center gap-2 text-sm font-semibold uppercase tracking-wider mb-3">
+                <span className="inline-flex items-center gap-2 text-retail"><Megaphone className="h-4 w-4" /> Featured Challenge</span>
+                <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] text-blue-800">{featured.status === "ACTIVE" ? "Live now" : "Coming soon · Pilot 001"}</span>
               </div>
               <h3 className="text-2xl md:text-3xl font-bold mb-3">{featured.name}</h3>
               {featured.theme && (
@@ -198,21 +212,35 @@ export default async function CreatorsPage() {
               <p className="text-muted-foreground leading-relaxed max-w-3xl mb-4">
                 {featured.description}
               </p>
+              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm mb-6">
+                <span><strong>₦{(featured.awards.reduce((sum, award) => sum + (award.cash_amount_kobo || 0), 0) / 100).toLocaleString("en-NG")}</strong> prize pool</span>
+                <span><strong>{featured.awards.length}</strong> award categories</span>
+                <span>For approved, Creator Ready members</span>
+              </div>
               {featured.submission_deadline && (
                 <p className="text-sm font-medium mb-6">
-                  Submissions close:{" "}
+                  Planned submission deadline:{" "}
                   {new Date(featured.submission_deadline).toLocaleDateString("en-GB", {
                     day: "numeric",
                     month: "long",
                     year: "numeric",
                   })}
+                  <span className="text-muted-foreground font-normal"> (final dates are confirmed when the challenge goes live)</span>
                 </p>
               )}
-              <Button asChild>
-                <Link href="/creators/apply">
-                  Apply to participate <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button asChild>
+                  <Link href={`/creators/challenges/${featured.slug}`}>
+                    View challenge brief &amp; prizes <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/creators/application-status">Already applied? Check access</Link>
+                </Button>
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground">
+                Applying to the Creator Network is not the same as joining this challenge. Approved creators who complete onboarding will see it in their Creator Portal when the join window opens.
+              </p>
             </div>
           </div>
         </section>

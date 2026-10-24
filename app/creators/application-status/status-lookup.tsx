@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Loader2, Search, AlertCircle, CheckCircle2 } from "lucide-react"
 import { CaptchaField, type CaptchaState, type CaptchaFieldHandle } from "@/components/captcha-field"
@@ -103,6 +104,11 @@ export function CreatorStatusLookup() {
           <p className="text-xs text-muted-foreground pt-2 border-t border-border">
             This is a simplified status. Our team will contact you directly if your application progresses.
           </p>
+          {result.application.statusLabel.startsWith("Approved") && (
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs leading-relaxed text-green-900">
+              Your application is approved. Activate your Creator Portal account, complete onboarding, and reach Creator Ready status to unlock Pilot 001 when it opens. <Link href="/creator/login" className="font-semibold underline">Open Creator Login</Link>
+            </div>
+          )}
         </div>
       )}
     </div>

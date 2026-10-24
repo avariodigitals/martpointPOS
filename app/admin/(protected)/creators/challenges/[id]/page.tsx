@@ -426,18 +426,28 @@ function AwardsTab({ detail, id, reload, setMsg }: { detail: Detail; id: string;
       awardType: a.award_type, title: a.title, description: a.description ?? "",
       winnersCount: a.winners_count, cashAmountNaira: a.cash_amount_kobo != null ? a.cash_amount_kobo / 100 : (null as number | null),
       nonCashReward: a.non_cash_reward ?? "", judgingCriteria: a.judging_criteria ?? "",
+      scoringConfig: a.scoring_config ?? {},
+      minViews: a.scoring_config?.minViews != null ? Number(a.scoring_config.minViews) : ("" as number | ""),
+      minQualifiedOutcomes: a.scoring_config?.minQualifiedOutcomes != null ? Number(a.scoring_config.minQualifiedOutcomes) : ("" as number | ""),
     })),
   )
   const [saving, setSaving] = useState(false)
 
   const update = (i: number, k: string, v: unknown) => setAwards((arr) => arr.map((a, j) => (j === i ? { ...a, [k]: v } : a)))
-  const add = () => setAwards((arr) => [...arr, { awardType: "CUSTOM", title: "", description: "", winnersCount: 1, cashAmountNaira: null, nonCashReward: "", judgingCriteria: "" }])
+  const add = () => setAwards((arr) => [...arr, { awardType: "CUSTOM", title: "", description: "", winnersCount: 1, cashAmountNaira: null, nonCashReward: "", judgingCriteria: "", scoringConfig: {}, minViews: "" as number | "", minQualifiedOutcomes: "" as number | "" }])
 
   const save = async () => {
     setSaving(true)
     const res = await fetch(`/api/admin/creators/challenges/${id}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "replace_awards", awards: awards.filter((a) => a.title.trim()) }),
+      body: JSON.stringify({ action: "replace_awards", awards: awards.filter((a) => a.title.trim()).map((a) => ({
+        ...a,
+        scoringConfig: {
+          ...a.scoringConfig,
+          ...(a.minViews === "" ? {} : { minViews: Number(a.minViews) }),
+          ...(a.minQualifiedOutcomes === "" ? {} : { minQualifiedOutcomes: Number(a.minQualifiedOutcomes) }),
+        },
+      })) }),
     })
     const data = await res.json()
     setMsg(res.ok ? { kind: "ok", text: "Awards saved" } : { kind: "err", text: data.error })
@@ -470,6 +480,11 @@ function AwardsTab({ detail, id, reload, setMsg }: { detail: Detail; id: string;
               <input className={field} disabled={locked} value={a.description} onChange={(e) => update(i, "description", e.target.value)} /></label>
             <label className="md:col-span-4"><span className={lbl}>Judging criteria for this award</span>
               <input className={field} disabled={locked} value={a.judgingCriteria} onChange={(e) => update(i, "judgingCriteria", e.target.value)} placeholder="e.g. Quality: originality, clarity, MartPoint accuracy" /></label>
+            <label><span className={lbl}>Minimum verified views</span>
+              <input type="number" min={0} className={field} disabled={locked} value={a.minViews} onChange={(e) => update(i, "minViews", e.target.value === "" ? "" : Number(e.target.value))} placeholder="No fixed floor" /></label>
+            <label><span className={lbl}>Minimum qualified outcomes</span>
+              <input type="number" min={0} className={field} disabled={locked} value={a.minQualifiedOutcomes} onChange={(e) => update(i, "minQualifiedOutcomes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="No fixed floor" /></label>
+            <p className="md:col-span-2 self-end text-xs text-muted-foreground">Leave blank when this award has no hard numeric floor. Qualified outcomes are MartPoint-verified enquiries or demos, not raw clicks.</p>
             {!locked && (
               <div><Button size="sm" variant="ghost" onClick={() => setAwards((arr) => arr.filter((_, j) => j !== i))}>Remove</Button></div>
             )}
@@ -607,7 +622,7 @@ function SubmissionsTab({ detail, reload }: { detail: Detail; reload: () => void
 
 /* ═══ Judging ═══ */
 function JudgingTab({ detail, id }: { detail: Detail; id: string }) {
-  const [candidates, setCandidates] = useState<Record<string, { creatorId: string; creatorName: string; creatorCode: string; submissionId: string | null; submissionUrl: string | null; verifiedViews: number; clicks: number; leads: number; conversions: number; computedScore: number; scoreBreakdown: Record<string, number>; metricsVerified: boolean; judgeScore: number | null; quarantined: boolean; flagCount: number }[]>>({})
+  const [candidates, setCandidates] = useState<Record<string, { creatorId: string; creatorName: string; creatorCode: string; submissionId: string | null; submissionUrl: string | null; verifiedViews: number; clicks: number; leads: number; conversions: number; computedScore: number; scoreBreakdown: Record<string, number>; metricsVerified: boolean; judgeScore: number | null; quarantined: boolean; flagCount: number; thresholdMet: boolean; thresholdReasons: string[] }[]>>({})
   const [scores, setScores] = useState<{ id: string; award_id: string; creator_id: string; submission_id: string | null; criterion: string; score: number; judge_name: string | null; finalized: boolean }[]>([])
   const [loaded, setLoaded] = useState(false)
   const [criterion, setCriterion] = useState("Overall quality")
@@ -646,7 +661,7 @@ function JudgingTab({ detail, id }: { detail: Detail; id: string }) {
               <thead><tr className="border-b text-left text-muted-foreground text-xs">
                 <th className="px-4 py-2 font-medium">Creator</th><th className="px-4 py-2 font-medium">Views</th>
                 <th className="px-4 py-2 font-medium">Leads/Conv.</th><th className="px-4 py-2 font-medium">Computed</th>
-                <th className="px-4 py-2 font-medium">Judge score</th><th className="px-4 py-2 font-medium">Flags</th>
+                <th className="px-4 py-2 font-medium">Judge score</th><th className="px-4 py-2 font-medium">Status</th><th className="px-4 py-2 font-medium">Flags</th>
                 <th className="px-4 py-2 font-medium"></th>
               </tr></thead>
               <tbody>
@@ -662,13 +677,16 @@ function JudgingTab({ detail, id }: { detail: Detail; id: string }) {
                     <td className="px-4 py-2 text-xs font-medium">{cand.computedScore}</td>
                     <td className="px-4 py-2 text-xs">{cand.judgeScore != null ? cand.judgeScore.toFixed(1) : "—"}</td>
                     <td className="px-4 py-2 text-xs">
+                      {cand.thresholdMet ? <span className="text-green-700">Meets expectation</span> : <span className="text-red-600 font-medium" title={cand.thresholdReasons.join(" ")}>Below expectation</span>}
+                    </td>
+                    <td className="px-4 py-2 text-xs">
                       {cand.quarantined ? <span className="text-red-600 font-medium">Quarantined</span> : cand.flagCount > 0 ? <span className="text-amber-600">{cand.flagCount}</span> : "—"}
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-1">
                         <input type="number" min={0} max={100} className="w-16 rounded border border-input px-1.5 py-1 text-xs" placeholder="0-100"
                           id={`score-${a.id}-${cand.creatorId}`} />
-                        <Button size="sm" variant="outline" disabled={busy === `${a.id}:${cand.creatorId}`}
+                        <Button size="sm" variant="outline" disabled={!cand.thresholdMet || cand.quarantined || busy === `${a.id}:${cand.creatorId}`}
                           onClick={() => { const el = document.getElementById(`score-${a.id}-${cand.creatorId}`) as HTMLInputElement; if (el.value) saveScore(a.id, cand, Number(el.value)) }}>
                           {busy === `${a.id}:${cand.creatorId}` ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
                         </Button>
@@ -676,7 +694,7 @@ function JudgingTab({ detail, id }: { detail: Detail; id: string }) {
                     </td>
                   </tr>
                 ))}
-                {(candidates[a.id] ?? []).length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-muted-foreground text-xs">No approved submissions to judge yet.</td></tr>}
+                {(candidates[a.id] ?? []).length === 0 && <tr><td colSpan={8} className="px-4 py-6 text-center text-muted-foreground text-xs">No approved submissions to judge yet.</td></tr>}
               </tbody>
             </table>
           </CardContent>
@@ -689,7 +707,7 @@ function JudgingTab({ detail, id }: { detail: Detail; id: string }) {
 
 /* ═══ Winners ═══ */
 function WinnersTab({ detail, id, reload }: { detail: Detail; id: string; reload: () => void }) {
-  const [candidates, setCandidates] = useState<Record<string, { creatorId: string; creatorName: string; creatorCode: string; submissionId: string | null; computedScore: number; quarantined: boolean; flagCount: number; judgeScore: number | null }[]>>({})
+  const [candidates, setCandidates] = useState<Record<string, { creatorId: string; creatorName: string; creatorCode: string; submissionId: string | null; computedScore: number; quarantined: boolean; flagCount: number; judgeScore: number | null; thresholdMet: boolean; thresholdReasons: string[] }[]>>({})
   const [selected, setSelected] = useState<Record<string, { creatorId: string; submissionId: string | null; position: number }[]>>({})
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -752,14 +770,15 @@ function WinnersTab({ detail, id, reload }: { detail: Detail; id: string; reload
                   {(candidates[a.id] ?? []).slice(0, 15).map((cand) => {
                     const pick = picks.find((p) => p.creatorId === cand.creatorId)
                     return (
-                      <div key={cand.creatorId} className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${pick ? "border-retail bg-retail/5" : "border-input"} ${cand.quarantined ? "opacity-60" : ""}`}>
+                      <div key={cand.creatorId} className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${pick ? "border-retail bg-retail/5" : "border-input"} ${cand.quarantined || !cand.thresholdMet ? "opacity-60" : ""}`}>
                         <span>{cand.creatorName} <span className="font-mono text-xs text-muted-foreground">{cand.creatorCode}</span>
                           {cand.quarantined && <span className="ml-1 text-[10px] text-red-600 font-medium">FLAGGED</span>}
+                          {!cand.thresholdMet && <span className="ml-1 text-[10px] text-red-600 font-medium" title={cand.thresholdReasons.join(" ")}>BELOW EXPECTATION</span>}
                           {cand.flagCount > 0 && !cand.quarantined && <span className="ml-1 text-[10px] text-amber-600">{cand.flagCount} flag{cand.flagCount > 1 ? "s" : ""}</span>}
                         </span>
                         <span className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground">score {cand.computedScore}{cand.judgeScore != null ? ` · judged ${cand.judgeScore.toFixed(0)}` : ""}</span>
-                          <Button size="sm" variant={pick ? "default" : "outline"} disabled={cand.quarantined}
+                          <Button size="sm" variant={pick ? "default" : "outline"} disabled={cand.quarantined || !cand.thresholdMet}
                             onClick={() => setSelected((s) => {
                               const cur = s[a.id] ?? []
                               const next = pick ? cur.filter((p) => p.creatorId !== cand.creatorId)

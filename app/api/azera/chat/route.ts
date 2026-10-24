@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { aiChat, type AiChatMessage } from "@/lib/ai-chat"
+import { aiChat, aiChatStream, type AiChatMessage } from "@/lib/ai-chat"
 import { notifySupportAgents } from "@/lib/omnichannel-notifications"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { addMessage as addTicketMessage, createTicket } from "@/lib/support"
@@ -25,6 +25,10 @@ function ok<T>(data: T) {
 }
 function err(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status })
+}
+
+function sse(event: string, data: unknown): string {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
 }
 
 function requestedHuman(message: string): boolean {
@@ -135,6 +139,7 @@ export async function POST(request: Request) {
       store_phone,
       store_name,
       message,
+      stream: streamRequested = false,
     } = body
 
     if (!requestedBusinessId || !external_id || !message) {
@@ -320,8 +325,121 @@ export async function POST(request: Request) {
         ]
 
         if (!humanHandoff && !escalationReason) {
-          const result = await aiChat({ messages, temperature: 0.3, maxTokens: 500 })
-          aiReply = result.content || null
+          if (streamRequested) {
+            const encoder = new TextEncoder()
+            const conversation_token = issueConversationToken({
+              conversationId: conv.id as string,
+              businessId: business_id,
+              externalId: external_id,
+            })
+            const conversationSnapshot = { ...conv, last_message_at: new Date().toISOString() }
+            const stream = new ReadableStream<Uint8Array>({
+              start(controller) {
+                const emit = (event: string, data: unknown) => controller.enqueue(encoder.encode(sse(event, data)))
+                void (async () => {
+                  let streamedReply = ""
+                  try {
+                    emit("meta", {
+                      conversation: conversationSnapshot,
+                      conversation_token,
+                      customer_message: custMsg,
+                    })
+                    if (shouldAskTriage || isGreeting(message.trim())) {
+                      streamedReply = localFallbackReply(message.trim(), relevantKnowledge, shouldAskTriage)
+                      emit("delta", { text: streamedReply })
+                    } else {
+                      const result = await aiChatStream(
+                        { messages, temperature: 0.3, maxTokens: 350, timeoutMs: 8500 },
+                        (delta) => {
+                          streamedReply += delta
+                          emit("delta", { text: delta })
+                        },
+                      )
+                      if (!streamedReply.trim()) streamedReply = result.content || localFallbackReply(message.trim(), relevantKnowledge, shouldAskTriage)
+                    }
+                  } catch (streamError) {
+                    console.error("[Azera chat streaming AI error]", streamError)
+                    // If the provider already delivered useful text, keep and
+                    // save that partial answer rather than appending a second
+                    // unrelated fallback message. Only use the deterministic
+                    // fallback when no content reached the visitor.
+                    if (!streamedReply.trim()) {
+                      streamedReply = localFallbackReply(message.trim(), relevantKnowledge, shouldAskTriage)
+                      emit("delta", { text: streamedReply })
+                    }
+                  }
+
+                  const { data: streamedMessage, error: streamMessageError } = await supabase
+                    .from("azera_messages")
+                    .insert({
+                      conversation_id: conv.id,
+                      author_type: "ai",
+                      message: streamedReply,
+                      direction: "outbound",
+                      metadata: {
+                        knowledge_refs: relevantKnowledge.map((article) => ({
+                          id: article.id,
+                          title: article.title,
+                          source: article.source,
+                          category: article.category,
+                        })),
+                      },
+                      created_at: new Date().toISOString(),
+                    })
+                    .select()
+                    .single()
+
+                  if (streamMessageError || !streamedMessage) {
+                    emit("error", { message: "Your message was received, but the reply could not be saved." })
+                  } else {
+                    await supabase
+                      .from("azera_conversations")
+                      .update({
+                        last_message_at: new Date().toISOString(),
+                        knowledge_refs: relevantKnowledge.map((article) => ({ id: article.id, title: article.title, source: article.source })),
+                        updated_at: new Date().toISOString(),
+                      })
+                      .eq("id", conv.id)
+                    emit("done", {
+                      conversation: conversationSnapshot,
+                      conversation_token,
+                      customer_message: custMsg,
+                      ai_message: streamedMessage,
+                      sources: relevantKnowledge.map((article) => ({ id: article.id, title: article.title, category: article.category })),
+                    })
+                  }
+                  controller.close()
+                })().catch((streamError) => {
+                  console.error("[Azera chat stream finalization error]", streamError)
+                  try {
+                    emit("error", { message: "We received your message but could not finish the reply." })
+                    controller.close()
+                  } catch {
+                    // The visitor may have closed the connection already.
+                  }
+                })
+              },
+            })
+
+            return new Response(stream, {
+              headers: {
+                "Content-Type": "text/event-stream; charset=utf-8",
+                "Cache-Control": "no-cache, no-transform",
+                Connection: "keep-alive",
+                "X-Accel-Buffering": "no",
+              },
+            })
+          }
+
+          if (shouldAskTriage || isGreeting(message.trim())) {
+            aiReply = localFallbackReply(message.trim(), relevantKnowledge, shouldAskTriage)
+          } else {
+            // Public chat must never leave a visitor waiting on a provider that
+            // has stalled. The shared client tries configured fallbacks within
+            // this total budget, then the deterministic reply below takes over.
+            const result = await aiChat({ messages, temperature: 0.3, maxTokens: 350, timeoutMs: 8500 })
+            aiReply = result.content || null
+          }
         }
       } catch (aiErr) {
         console.error("[Azera chat AI error]", aiErr)
@@ -507,6 +625,7 @@ export async function POST(request: Request) {
       conversation_token,
       customer_message: custMsg,
       ai_message: aiMsg,
+      sources: relevantKnowledge.map((article) => ({ id: article.id, title: article.title, category: article.category })),
     })
   } catch (err_) {
     console.error("[Azera chat error]", err_)

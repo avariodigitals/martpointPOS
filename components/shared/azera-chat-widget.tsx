@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type CSSProperties } from "react"
 import dynamic from "next/dynamic"
 import { Send, MessageCircle, X, Loader2, Phone, Minus } from "lucide-react"
 
@@ -34,6 +34,7 @@ interface ChatMessage {
   message: string
   direction: "inbound" | "outbound"
   created_at: string
+  sources?: Array<{ id?: string; title: string; category?: string | null }>
 }
 
 interface Conversation {
@@ -52,6 +53,16 @@ interface VisitorProfile {
   name: string
   email?: string
   phone?: string
+}
+
+interface StreamPayload {
+  conversation_token?: string
+  conversation?: Conversation
+  customer_message?: { id: string }
+  ai_message?: { id: string; message: string; created_at: string }
+  sources?: Array<{ id?: string; title: string; category?: string | null }>
+  text?: string
+  message?: string
 }
 
 function MartPointBubbleIcon({ className = "h-7 w-7" }: { className?: string }) {
@@ -123,9 +134,11 @@ export function AzeraChatWidget({
   const [ratingError, setRatingError] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({})
+  const [showProfileForm, setShowProfileForm] = useState(false)
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [slowReply, setSlowReply] = useState(false)
+  const [delayedReply, setDelayedReply] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [conversation, setConversation] = useState<Conversation | null>(null)
   const [chatTimerStartedAt, setChatTimerStartedAt] = useState<number | null>(null)
@@ -146,10 +159,37 @@ export function AzeraChatWidget({
   })
   const [profileDraft, setProfileDraft] = useState<VisitorProfile>({ name: customerName || "", email: "", phone: "" })
   const [connected, setConnected] = useState(false)
+  const [viewportMetrics, setViewportMetrics] = useState({ height: 0, keyboardInset: 0 })
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const previousMessageIds = useRef<Set<string>>(new Set())
   const conversationTokenRef = useRef<string | null>(conversationToken)
+
+  // iOS Safari keeps the layout viewport at the full device height while the
+  // keyboard reduces the visual viewport. Track both values so the panel and
+  // its form stay above the keyboard instead of being covered by it.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const visualViewport = window.visualViewport
+    const updateViewportMetrics = () => {
+      const height = visualViewport?.height || window.innerHeight
+      const top = visualViewport?.offsetTop || 0
+      const keyboardInset = visualViewport
+        ? Math.max(0, window.innerHeight - height - top)
+        : 0
+      setViewportMetrics({ height, keyboardInset })
+    }
+
+    updateViewportMetrics()
+    visualViewport?.addEventListener("resize", updateViewportMetrics)
+    visualViewport?.addEventListener("scroll", updateViewportMetrics)
+    window.addEventListener("resize", updateViewportMetrics)
+    return () => {
+      visualViewport?.removeEventListener("resize", updateViewportMetrics)
+      visualViewport?.removeEventListener("scroll", updateViewportMetrics)
+      window.removeEventListener("resize", updateViewportMetrics)
+    }
+  }, [])
 
   function rememberConversationToken(token: string) {
     conversationTokenRef.current = token
@@ -189,7 +229,9 @@ export function AzeraChatWidget({
           return id
         })()
       : "")
-  const needsVisitorProfile = source === "public_site" && !visitorProfile
+  // Visitors should be able to ask a question immediately. Contact details
+  // are offered in the conversation instead of blocking the first message.
+  const needsVisitorProfile = source === "public_site" && !visitorProfile && showProfileForm
 
   useEffect(() => {
     if (!open || chatTimerStartedAt === null) return
@@ -216,6 +258,7 @@ export function AzeraChatWidget({
     }
     localStorage.setItem("azera_visitor_profile", JSON.stringify(profile))
     setVisitorProfile(profile)
+    setShowProfileForm(false)
     setSendError(null)
     setConnected(true)
     setMessages((previous) => previous.length > 0 ? previous : [{
@@ -266,12 +309,19 @@ export function AzeraChatWidget({
       }
       if (data.messages) {
         setMessages(
-          data.messages.map((m: ChatMessage) => ({
+          data.messages.map((m: ChatMessage & { metadata?: Record<string, unknown> }) => ({
             id: m.id,
             author_type: m.author_type,
             message: m.message,
             direction: m.direction,
             created_at: m.created_at,
+            sources: Array.isArray(m.metadata?.knowledge_refs)
+              ? (m.metadata.knowledge_refs as Array<{ id?: string; title?: string; category?: string | null }>).filter((source) => Boolean(source.title)).map((source) => ({
+                id: source.id,
+                title: source.title as string,
+                category: source.category,
+              }))
+              : undefined,
           }))
         )
       }
@@ -301,7 +351,12 @@ export function AzeraChatWidget({
     setInput("")
     setSendError(null)
     setLoading(true)
+    setSlowReply(false)
+    setDelayedReply(false)
     const slowReplyTimer = window.setTimeout(() => setSlowReply(true), 4500)
+    const delayedReplyTimer = window.setTimeout(() => setDelayedReply(true), 8500)
+    const requestController = new AbortController()
+    const requestTimeout = window.setTimeout(() => requestController.abort(), 20000)
 
     // Optimistically add customer message
     const tempId = "temp_" + Date.now()
@@ -317,6 +372,7 @@ export function AzeraChatWidget({
           "Content-Type": "application/json",
           ...(token ? { "X-Azera-Chat-Token": token } : {}),
         },
+        signal: requestController.signal,
         body: JSON.stringify({
           business_id: businessId,
           external_id: messageExternalId,
@@ -324,11 +380,105 @@ export function AzeraChatWidget({
           customer_email: visitorProfile?.email || undefined,
           customer_phone: visitorProfile?.phone || undefined,
           source,
+          stream: true,
           message: text,
         }),
       })
 
     let sentExternalId = externalId
+    let streamedAssistantId: string | null = null
+
+    const readStreamingReply = async (response: Response) => {
+      if (!response.body) throw new Error("The chat stream was unavailable. Please try again.")
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      let completed = false
+
+      const consumeBlock = (block: string) => {
+        let event = "message"
+        const dataLines: string[] = []
+        for (const line of block.split("\n")) {
+          if (line.startsWith("event:")) event = line.slice(6).trim()
+          if (line.startsWith("data:")) dataLines.push(line.slice(5).trim())
+        }
+        if (!dataLines.length) return
+        const payload = JSON.parse(dataLines.join("\n")) as StreamPayload
+
+        if (event === "meta") {
+          if (payload.conversation_token) rememberConversationToken(payload.conversation_token)
+          if (payload.conversation) setConversation(payload.conversation)
+          const customerMessage = payload.customer_message
+          if (customerMessage) {
+            setMessages((previous) => previous.map((item) => item.id === tempId
+              ? { ...item, id: customerMessage.id }
+              : item))
+          }
+        }
+
+        if (event === "delta" && payload.text) {
+          const createdAt = new Date().toISOString()
+          if (!streamedAssistantId) {
+            streamedAssistantId = `stream_${Date.now()}`
+            setMessages((previous) => [...previous, {
+              id: streamedAssistantId as string,
+              author_type: "ai",
+              message: String(payload.text),
+              direction: "outbound",
+              created_at: createdAt,
+            }])
+          } else {
+            setMessages((previous) => previous.map((item) => item.id === streamedAssistantId
+              ? { ...item, message: `${item.message}${String(payload.text)}` }
+              : item))
+          }
+          window.requestAnimationFrame(scrollToBottom)
+        }
+
+        if (event === "done") {
+          completed = true
+          if (payload.conversation_token) rememberConversationToken(payload.conversation_token)
+          if (payload.conversation) setConversation(payload.conversation)
+          const customerMessage = payload.customer_message
+          if (customerMessage) {
+            setMessages((previous) => previous.map((item) => item.id === tempId
+              ? { ...item, id: customerMessage.id }
+              : item))
+          }
+          const aiMessage = payload.ai_message
+          if (aiMessage) {
+            const sources = Array.isArray(payload.sources) ? payload.sources : undefined
+            setMessages((previous) => {
+              const assistantMessage = {
+                id: aiMessage.id,
+                author_type: "ai" as const,
+                message: aiMessage.message,
+                direction: "outbound" as const,
+                created_at: aiMessage.created_at,
+                sources,
+              }
+              return streamedAssistantId
+                ? previous.map((item) => item.id === streamedAssistantId ? assistantMessage : item)
+                : [...previous, assistantMessage]
+            })
+          }
+        }
+
+        if (event === "error") throw new Error(payload.message || "The assistant could not finish the reply.")
+      }
+
+      while (true) {
+        const { value, done } = await reader.read()
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
+        const blocks = buffer.split("\n\n")
+        buffer = blocks.pop() || ""
+        blocks.forEach(consumeBlock)
+        if (done) break
+      }
+      if (buffer.trim()) consumeBlock(buffer)
+      if (!completed) throw new Error("The assistant connection ended before the reply was complete.")
+    }
+
     try {
       let messageExternalId = externalId
       let res = await postChatMessage(messageExternalId, conversationTokenRef.current)
@@ -344,6 +494,11 @@ export function AzeraChatWidget({
         }
       }
       sentExternalId = messageExternalId
+      const contentType = res.headers.get("content-type") || ""
+      if (contentType.includes("text/event-stream")) {
+        await readStreamingReply(res)
+        return
+      }
       const json = await res.json()
       if (!res.ok || !json.success) {
         throw new Error(json.error || "We could not send your message. Please try again.")
@@ -369,6 +524,7 @@ export function AzeraChatWidget({
               message: json.data.ai_message.message,
               direction: "outbound",
               created_at: json.data.ai_message.created_at,
+              sources: Array.isArray(json.data.sources) ? json.data.sources : undefined,
             },
           ])
           setLoading(false)
@@ -377,13 +533,21 @@ export function AzeraChatWidget({
         }
       }
     } catch (error) {
-      setMessages((prev) => prev.filter((message) => message.id !== tempId))
-      setSendError(error instanceof Error ? error.message : "We could not send your message. Please try again.")
+      const timedOut = error instanceof DOMException && error.name === "AbortError"
+      if (!timedOut) {
+        setMessages((prev) => prev.filter((message) => message.id !== tempId))
+      }
+      setSendError(timedOut
+        ? "We may have received your message, but the reply is taking longer than expected. Please keep the chat open and try again shortly."
+        : error instanceof Error ? error.message : "We could not send your message. Please try again.")
       return
     } finally {
       setLoading(false)
       window.clearTimeout(slowReplyTimer)
+      window.clearTimeout(delayedReplyTimer)
+      window.clearTimeout(requestTimeout)
       setSlowReply(false)
+      setDelayedReply(false)
       scrollToBottom()
     }
 
@@ -392,6 +556,11 @@ export function AzeraChatWidget({
     await loadMessages(businessId, sentExternalId, conversationTokenRef.current)
     scrollToBottom()
   }
+
+  const panelStyle = {
+    "--azera-viewport-height": viewportMetrics.height ? `${viewportMetrics.height}px` : "100dvh",
+    "--azera-keyboard-inset": `${viewportMetrics.keyboardInset}px`,
+  } as CSSProperties
 
   async function requestCall() {
     if (!businessId || !conversation?.id) return
@@ -571,10 +740,12 @@ export function AzeraChatWidget({
       {/* Chat panel */}
       {open && (
         <div
+          style={panelStyle}
           className={cn(
-            "pointer-events-auto fixed z-50 flex h-[min(680px,calc(100dvh-1.5rem))] w-[min(420px,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_65px_rgba(15,23,42,0.24)]",
-            "bottom-3 sm:bottom-6",
-            position === "bottom-right" ? "right-2 sm:right-6" : "left-2 sm:left-6",
+            "pointer-events-auto fixed z-50 flex min-h-0 w-full flex-col overflow-hidden rounded-t-[1.5rem] border border-slate-200 bg-white shadow-[0_24px_65px_rgba(15,23,42,0.24)]",
+            "bottom-[var(--azera-keyboard-inset)] left-0 h-[min(760px,calc(var(--azera-viewport-height,100dvh)-0.5rem))] max-h-[var(--azera-viewport-height,100dvh)]",
+            "sm:bottom-6 sm:left-auto sm:right-auto sm:h-[min(680px,calc(100dvh-1.5rem))] sm:w-[min(420px,calc(100vw-1rem))] sm:rounded-2xl",
+            position === "bottom-right" ? "right-0 sm:right-6" : "left-0 sm:left-6",
           )}
           role="dialog"
           aria-label={title}
@@ -671,29 +842,29 @@ export function AzeraChatWidget({
                 <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-[1.35rem] bg-white/20 shadow-lg ring-1 ring-white/30 backdrop-blur-sm">
                   <MartPointBubbleIcon className="h-9 w-9" />
                 </div>
-                <p className="relative mt-4 text-xl font-bold tracking-tight">Welcome to MartPoint Support</p>
+                <p className="relative mt-4 text-lg font-bold tracking-tight sm:text-xl">Welcome to MartPoint Support</p>
                 <p className="relative mx-auto mt-2 max-w-[18rem] text-sm leading-relaxed opacity-80">
                   Our sales team is ready to help with setup, pricing, and everyday questions.
                 </p>
               </div>
 
-              <div className="px-5 py-5">
+              <div className="px-5 py-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
                 <p className="text-base font-bold text-slate-900">Let’s get you connected</p>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">Add your details so our team can reply with the right context.</p>
                 <div className="mt-4 space-y-2.5">
                   <label className="block">
-                    <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Your name</span>
-                    <input value={profileDraft.name} onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Enter your name" autoComplete="name" className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
+                    <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:text-xs">Your name</span>
+                    <input value={profileDraft.name} onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))} onFocus={(event) => { const field = event.currentTarget; window.setTimeout(() => field.scrollIntoView({ block: "center", behavior: "smooth" }), 250) }} placeholder="Enter your name" autoComplete="name" className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-base text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 sm:h-11 sm:text-sm" />
                   </label>
                   <label className="block">
-                    <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Email address <span className="font-normal normal-case tracking-normal text-slate-400">(or use phone below)</span></span>
-                    <input value={profileDraft.email || ""} onChange={(event) => setProfileDraft((current) => ({ ...current, email: event.target.value }))} placeholder="Enter your email address" type="email" autoComplete="email" className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
+                    <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:text-xs">Email address <span className="font-normal normal-case tracking-normal text-slate-400">(or use phone below)</span></span>
+                    <input value={profileDraft.email || ""} onChange={(event) => setProfileDraft((current) => ({ ...current, email: event.target.value }))} onFocus={(event) => { const field = event.currentTarget; window.setTimeout(() => field.scrollIntoView({ block: "center", behavior: "smooth" }), 250) }} placeholder="Enter your email address" type="email" autoComplete="email" className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-base text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 sm:h-11 sm:text-sm" />
                   </label>
                   <label className="block">
-                    <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Phone <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>
-                    <input value={profileDraft.phone || ""} onChange={(event) => setProfileDraft((current) => ({ ...current, phone: event.target.value }))} placeholder="Add a phone number" type="tel" autoComplete="tel" className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
+                    <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:text-xs">Phone <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>
+                    <input value={profileDraft.phone || ""} onChange={(event) => setProfileDraft((current) => ({ ...current, phone: event.target.value }))} onFocus={(event) => { const field = event.currentTarget; window.setTimeout(() => field.scrollIntoView({ block: "center", behavior: "smooth" }), 250) }} placeholder="Add a phone number" type="tel" autoComplete="tel" className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-base text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 sm:h-11 sm:text-sm" />
                   </label>
-                  <button type="submit" style={{ backgroundColor: brandColor, color: brandTextColor }} className="mt-1 h-11 w-full rounded-xl px-3 text-sm font-bold shadow-[0_8px_18px_rgba(15,23,42,0.14)] transition hover:-translate-y-0.5 hover:brightness-95">Start chatting</button>
+                  <button type="submit" style={{ backgroundColor: brandColor, color: brandTextColor }} className="mt-1 h-12 w-full rounded-xl px-3 text-base font-bold shadow-[0_8px_18px_rgba(15,23,42,0.14)] transition hover:-translate-y-0.5 hover:brightness-95 sm:h-11 sm:text-sm">Start chatting</button>
                 </div>
                 <p className="mt-3 text-center text-xs text-slate-500">Private and secure. We’ll only use this to help with your conversation.</p>
               </div>
@@ -732,6 +903,19 @@ export function AzeraChatWidget({
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+            {!needsVisitorProfile && source === "public_site" && !visitorProfile && messages.length > 0 && !showProfileForm && (
+              <div className="mx-auto max-w-[94%] rounded-2xl border border-blue-100 bg-blue-50/80 px-3.5 py-3 text-center text-xs leading-5 text-blue-900">
+                <p className="font-semibold">Want our team to follow up?</p>
+                <p className="mt-0.5 text-blue-800/80">Add your contact details so we can continue the conversation with context.</p>
+                <button
+                  type="button"
+                  onClick={() => setShowProfileForm(true)}
+                  className="mt-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm ring-1 ring-blue-200 transition hover:bg-blue-100"
+                >
+                  Add contact details
+                </button>
               </div>
             )}
             {!needsVisitorProfile && messages.map((m) => {
@@ -775,6 +959,16 @@ export function AzeraChatWidget({
                       {isExpanded ? "Show less" : "Show more"}
                     </button>
                   )}
+                  {m.author_type === "ai" && m.sources && m.sources.length > 0 && (
+                    <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] leading-4 text-slate-500">
+                      <span className="font-semibold text-slate-600">Based on:</span>{" "}
+                      {m.sources.slice(0, 2).map((source, index) => (
+                        <span key={source.id || source.title}>
+                          {index > 0 ? "; " : ""}{source.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div className="mt-1 flex items-center justify-between gap-3 text-[10px] leading-4 opacity-60">
                     <span>{new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                     {isCustomer && <span>Delivered</span>}
@@ -801,8 +995,12 @@ export function AzeraChatWidget({
               </div>
             )}
             {!needsVisitorProfile && loading && (
-              <div className="mr-auto flex w-fit max-w-[94%] items-center gap-2 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3.5 py-2.5 text-sm leading-5 text-slate-700 shadow-sm">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> {slowReply ? "Azera is taking a little longer…" : "Azera is thinking…"}
+              <div className="mr-auto flex max-w-[94%] items-start gap-2 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3.5 py-2.5 text-sm leading-5 text-slate-700 shadow-sm">
+                <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />
+                <div>
+                  <p>{delayedReply ? "This is taking longer than usual…" : slowReply ? "Preparing your reply…" : "Sending your message…"}</p>
+                  {delayedReply && <p className="mt-0.5 text-xs leading-4 text-slate-500">We’re still processing it. Please keep this chat open for a moment.</p>}
+                </div>
               </div>
             )}
             {sendError && !needsVisitorProfile && (

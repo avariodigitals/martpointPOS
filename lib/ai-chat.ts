@@ -19,6 +19,8 @@ export interface AiChatOptions {
   temperature?: number
   maxTokens?: number
   json?: boolean
+  /** Maximum total time allowed for provider attempts, in milliseconds. */
+  timeoutMs?: number
 }
 
 export interface AiChatResult {
@@ -26,6 +28,8 @@ export interface AiChatResult {
   model: string
   provider: string
 }
+
+export type AiChatDeltaHandler = (delta: string) => void | Promise<void>
 
 interface ProviderConfig {
   name: string
@@ -121,7 +125,11 @@ async function complete(
   const OpenAI = (await import("openai")).default
   if (!provider.apiKey) throw new Error(`${provider.name} API key not configured`)
 
-  const client = new OpenAI({ apiKey: provider.apiKey, ...(provider.baseUrl ? { baseURL: provider.baseUrl } : {}) })
+  const client = new OpenAI({
+    apiKey: provider.apiKey,
+    ...(provider.baseUrl ? { baseURL: provider.baseUrl } : {}),
+    timeout: Math.max(1000, opts.timeoutMs ?? 12000),
+  })
   const model = provider.model || opts.model || OPENAI_BASE_MODEL
   const completion = await client.chat.completions.create({
     model,
@@ -137,18 +145,98 @@ async function complete(
   }
 }
 
+async function streamComplete(
+  provider: ProviderConfig,
+  opts: AiChatOptions,
+  onDelta: AiChatDeltaHandler,
+): Promise<AiChatResult> {
+  const OpenAI = (await import("openai")).default
+  if (!provider.apiKey) throw new Error(`${provider.name} API key not configured`)
+
+  const client = new OpenAI({
+    apiKey: provider.apiKey,
+    ...(provider.baseUrl ? { baseURL: provider.baseUrl } : {}),
+    timeout: Math.max(1000, opts.timeoutMs ?? 12000),
+  })
+  const model = provider.model || opts.model || OPENAI_BASE_MODEL
+  const completion = await client.chat.completions.create({
+    model,
+    messages: opts.messages,
+    temperature: opts.temperature ?? 0.3,
+    max_tokens: opts.maxTokens ?? 1600,
+    stream: true,
+    ...(opts.json ? { response_format: { type: "json_object" as const } } : {}),
+  })
+
+  let content = ""
+  for await (const chunk of completion) {
+    const delta = chunk.choices[0]?.delta?.content || ""
+    if (!delta) continue
+    content += delta
+    await onDelta(delta)
+  }
+
+  return {
+    content: content.trim(),
+    model,
+    provider: provider.name,
+  }
+}
+
 export async function aiChat(opts: AiChatOptions): Promise<AiChatResult> {
   const providers = await getProviderCandidates()
   if (!providers.length) throw new Error("No AI provider key configured")
 
+  const totalTimeoutMs = Math.max(1000, opts.timeoutMs ?? 15000)
+  const deadline = Date.now() + totalTimeoutMs
   const failures: string[] = []
   for (const provider of providers) {
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) break
     try {
-      return await complete(provider, opts)
+      return await complete(provider, { ...opts, timeoutMs: remainingMs })
     } catch (error) {
       failures.push(`${provider.name}: ${error instanceof Error ? error.message : "request failed"}`)
     }
   }
 
-  throw new Error(failures.join("; "))
+  throw new Error(failures.join("; ") || "AI response timed out")
+}
+
+/**
+ * Stream the first configured provider that can answer. A provider is only
+ * retried when it fails before emitting any content; once content is visible
+ * to a visitor, switching providers could duplicate part of the answer.
+ */
+export async function aiChatStream(
+  opts: AiChatOptions,
+  onDelta: AiChatDeltaHandler,
+): Promise<AiChatResult> {
+  const providers = await getProviderCandidates()
+  if (!providers.length) throw new Error("No AI provider key configured")
+
+  const totalTimeoutMs = Math.max(1000, opts.timeoutMs ?? 15000)
+  const deadline = Date.now() + totalTimeoutMs
+  const failures: string[] = []
+  let emittedContent = false
+
+  for (const provider of providers) {
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) break
+    try {
+      return await streamComplete(
+        provider,
+        { ...opts, timeoutMs: remainingMs },
+        async (delta) => {
+          emittedContent = true
+          await onDelta(delta)
+        },
+      )
+    } catch (error) {
+      if (emittedContent) throw error
+      failures.push(`${provider.name}: ${error instanceof Error ? error.message : "request failed"}`)
+    }
+  }
+
+  throw new Error(failures.join("; ") || "AI response timed out")
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +9,11 @@ import { CheckCircle2, Loader2, Paperclip, X } from "lucide-react"
 
 const FILE_ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp"
 const MAX_FILE_BYTES = 5 * 1024 * 1024
+const MAX_FILES_PER_FIELD = 5
+const ALLOWED_FILE_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"])
+const ALLOWED_FILE_EXTENSIONS = /\.(pdf|png|jpe?g|webp)$/i
+
+export const dynamic = "force-dynamic"
 
 function formatSize(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
@@ -28,7 +33,7 @@ export default function CreatorApplicationQuestionsPage() {
   const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/creator/questions/${token}`)
+    fetch(`/api/creator/questions/${token}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (data.error) setError(data.error)
@@ -56,18 +61,24 @@ export default function CreatorApplicationQuestionsPage() {
     const errors: string[] = []
     for (const file of Array.from(incoming)) {
       if (file.size > MAX_FILE_BYTES) errors.push(`${file.name} is larger than 5 MB`)
-      else picked.push(file)
+      else if ((file.type && !ALLOWED_FILE_TYPES.has(file.type)) || !ALLOWED_FILE_EXTENSIONS.test(file.name)) {
+        errors.push(`${file.name} is not supported — use PDF, PNG, JPG or WEBP`)
+      } else picked.push(file)
     }
-    setFiles((c) => {
-      const merged = [...(c[name] || [])]
-      for (const f of picked) if (!merged.some((m) => m.name === f.name && m.size === f.size)) merged.push(f)
-      return { ...c, [name]: merged.slice(0, 5) }
-    })
+    const merged = [...(files[name] || [])]
+    for (const file of picked) if (!merged.some((current) => current.name === file.name && current.size === file.size)) merged.push(file)
+    if (merged.length > MAX_FILES_PER_FIELD) errors.push(`Choose up to ${MAX_FILES_PER_FIELD} files for this question`)
+    setFiles((c) => ({ ...c, [name]: merged.slice(0, MAX_FILES_PER_FIELD) }))
     setFileErrors((c) => ({ ...c, [name]: errors.join("; ") }))
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    const attachmentError = Object.values(fileErrors).find(Boolean)
+    if (attachmentError) {
+      setError(attachmentError)
+      return
+    }
     setSaving(true)
     setError("")
     try {
@@ -136,6 +147,7 @@ export default function CreatorApplicationQuestionsPage() {
           </select>
         ) : field.type === "file" ? (
           <div className="rounded-md border border-dashed border-input bg-background px-3 py-3 space-y-2">
+            <p className="text-xs text-muted-foreground">PDF, PNG, JPG or WEBP · max 5 MB each · up to 5 files</p>
             <input
               type="file" multiple accept={FILE_ACCEPT}
               onChange={(e) => { addFiles(field.name, e.target.files); e.target.value = "" }}
@@ -144,9 +156,9 @@ export default function CreatorApplicationQuestionsPage() {
             {(files[field.name] || []).length > 0 && (
               <ul className="space-y-1">
                 {files[field.name].map((f, i) => (
-                  <li key={`${f.name}-${i}`} className="flex items-center gap-2 text-xs bg-muted rounded px-2 py-1">
+                  <li key={`${f.name}-${i}`} className="flex min-w-0 items-center gap-2 rounded bg-muted px-2 py-1 text-xs">
                     <Paperclip className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate flex-1">{f.name}</span>
+                    <span className="min-w-0 flex-1 break-all">{f.name}</span>
                     <span className="text-muted-foreground shrink-0">{formatSize(f.size)}</span>
                     <button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles((c) => ({ ...c, [field.name]: (c[field.name] || []).filter((_, j) => j !== i) }))} className="text-muted-foreground hover:text-foreground">
                       <X className="w-3.5 h-3.5" />

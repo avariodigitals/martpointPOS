@@ -4,6 +4,34 @@ import { getPartnerSession } from "./partner-auth"
 import { sendEmail, REPLY_TO } from "./email"
 import { brandedEmailHtml, escapeHtml } from "./email-templates"
 
+const DEFAULT_PARTNER_PORTAL_PATH = "/partner/quotes"
+
+/** Email clients require an absolute URL. Never emit a relative portal path
+ * (or an invalid configured base such as `http://`) into an href. */
+function partnerPublicUrl(link?: string | null): string {
+  const value = link?.trim() || DEFAULT_PARTNER_PORTAL_PATH
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const absolute = new URL(value)
+      if (absolute.hostname) return absolute.toString()
+    } catch {
+      // Fall through to the safe portal URL below.
+    }
+  }
+
+  const configured = process.env.NEXT_PUBLIC_BASE_URL?.trim() || "https://martpoint.com.ng"
+  let base = "https://martpoint.com.ng"
+  try {
+    const parsed = new URL(configured)
+    if (["http:", "https:"].includes(parsed.protocol) && parsed.hostname) base = parsed.origin
+  } catch {
+    // Keep the known public domain if deployment configuration is malformed.
+  }
+
+  const path = value.startsWith("/") ? value : DEFAULT_PARTNER_PORTAL_PATH
+  return new URL(path, `${base}/`).toString()
+}
+
 async function pushPartnerInAppNotification(input: {
   partnerId: string
   type: string
@@ -68,15 +96,16 @@ export async function notifyPartnerCustomerEvent(
   const recipients = Array.from(new Set(((data || []) as { email?: string | null }[]).map((row) => row.email?.trim()).filter(Boolean) as string[]))
   if (recipients.length === 0) return
 
+  const emailLink = partnerPublicUrl(input.link || "/partner/customers")
   const linkBlock = input.link
-    ? `\n\nOpen the partner portal: ${input.link}`
+    ? `\n\nOpen the partner portal: ${emailLink}`
     : ""
   const text = `${input.title}\n\nCustomer: ${input.businessName}\n\n${input.body}${linkBlock}`
   const html = brandedEmailHtml(
     `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">${escapeHtml(input.title)}</p>
      <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 8px;"><strong>Customer:</strong> ${escapeHtml(input.businessName)}</p>
      <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;">${escapeHtml(input.body).replace(/\n/g, "<br />")}</p>
-     ${input.link ? `<p style="font-size:14px;line-height:1.6;margin:0;"><a href="${escapeHtml(input.link)}" style="color:#0057FF;">Open the partner portal</a></p>` : ""}`,
+     ${input.link ? `<p style="font-size:14px;line-height:1.6;margin:0;"><a href="${escapeHtml(emailLink)}" style="color:#0057FF;">Open the partner portal</a></p>` : ""}`,
     { eyebrow: "Partner Operations", title: input.title, signoff: "MartPoint Partner Operations" }
   )
 
@@ -99,9 +128,7 @@ export async function notifyPartnerLeadReceived(
   const title = "New customer lead received"
   const body = `${input.businessName} · ${input.contactName} submitted a ${productLabel(input.productInterest)} enquiry through your public MartPoint partner profile.`
   const link = input.link || `/partner/leads/${input.leadId}`
-  const emailLink = link.startsWith("http")
-    ? link
-    : `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}${link}`
+  const emailLink = partnerPublicUrl(link)
   await pushPartnerInAppNotification({ partnerId, type: "LEAD_RECEIVED", title, body, link })
 
   const { data } = await supabase
@@ -141,9 +168,7 @@ export async function notifyPartnerLeadUpdated(
   const fields = input.updatedFields.length > 0 ? input.updatedFields.join(", ") : "customer details"
   const body = `MartPoint updated ${fields} for ${input.businessName}. Any issued quote totals and commercial terms remain unchanged.`
   const link = input.link || `/partner/leads/${input.leadId}`
-  const emailLink = link.startsWith("http")
-    ? link
-    : `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}${link}`
+  const emailLink = partnerPublicUrl(link)
 
   await pushPartnerInAppNotification({ partnerId, type: "LEAD_UPDATED", title, body, link })
 
@@ -192,13 +217,14 @@ export async function notifyPartnerQuoteIssued(
   const recipients = Array.from(new Set(((data || []) as { email?: string | null }[]).map((row) => row.email?.trim()).filter(Boolean) as string[]))
   if (recipients.length === 0) return
 
-  const linkBlock = input.link ? `\n\nOpen Partner Quotes: ${input.link}` : ""
+  const emailLink = partnerPublicUrl(input.link || DEFAULT_PARTNER_PORTAL_PATH)
+  const linkBlock = `\n\nOpen Partner Quotes: ${emailLink}`
   const text = `A MartPoint quotation is ready for your partner opportunity.\n\nQuote: ${input.quoteNumber}\nTotal: ${input.currency} ${input.total.toLocaleString()}${linkBlock}`
   const html = brandedEmailHtml(
     `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Your MartPoint quote is ready</p>
      <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 8px;"><strong>Quote:</strong> ${escapeHtml(input.quoteNumber)}</p>
      <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;"><strong>Total:</strong> ${escapeHtml(input.currency)} ${input.total.toLocaleString()}</p>
-     ${input.link ? `<p style="font-size:14px;line-height:1.6;margin:0;"><a href="${escapeHtml(input.link)}" style="color:#0057FF;">Open Partner Quotes</a></p>` : ""}`,
+     <p style="font-size:14px;line-height:1.6;margin:0;"><a href="${escapeHtml(emailLink)}" style="color:#0057FF;">Open Partner Quotes</a></p>`,
     { eyebrow: "Partner Quotes", title: "Your MartPoint quote is ready", signoff: "MartPoint Sales" },
   )
   await sendEmail({ to: recipients, subject: `MartPoint Quote ${input.quoteNumber} is ready`, text, html, replyTo: REPLY_TO.partners })
@@ -229,9 +255,7 @@ export async function notifyPartnerInvoiceCreated(
   const recipients = Array.from(new Set(((data || []) as { email?: string | null }[]).map((row) => row.email?.trim()).filter(Boolean) as string[]))
   if (recipients.length === 0) return
 
-  const emailLink = link.startsWith("http")
-    ? link
-    : `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}${link}`
+  const emailLink = partnerPublicUrl(link)
   const text = `${title}\n\n${body}\n\nOpen Partner Quotes: ${emailLink}`
   const html = brandedEmailHtml(
     `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">${escapeHtml(title)}</p>
@@ -266,14 +290,15 @@ export async function notifyPartnerPaymentRejected(
   const recipients = Array.from(new Set(((data || []) as { email?: string | null }[]).map((row) => row.email?.trim()).filter(Boolean) as string[]))
   if (recipients.length === 0) return
 
-  const linkBlock = input.link ? `\n\nOpen customer Finance: ${input.link}` : ""
+  const emailLink = input.link ? partnerPublicUrl(input.link) : ""
+  const linkBlock = emailLink ? `\n\nOpen customer Finance: ${emailLink}` : ""
   const text = `A payment proof was not accepted by MartPoint Finance.\n\nReference: ${input.paymentReference}\nAmount: ${input.currency} ${input.amount.toLocaleString()}\nReason: ${input.reason}${linkBlock}`
   const html = brandedEmailHtml(
     `<p style="font-size:18px;font-weight:600;margin:0 0 16px;">Payment proof needs correction</p>
      <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 8px;"><strong>Reference:</strong> ${escapeHtml(input.paymentReference)}</p>
      <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 8px;"><strong>Amount:</strong> ${escapeHtml(input.currency)} ${input.amount.toLocaleString()}</p>
      <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;"><strong>Finance note:</strong> ${escapeHtml(input.reason)}</p>
-     ${input.link ? `<p style="font-size:14px;line-height:1.6;margin:0;"><a href="${escapeHtml(input.link)}" style="color:#0057FF;">Open customer Finance</a></p>` : ""}`,
+     ${emailLink ? `<p style="font-size:14px;line-height:1.6;margin:0;"><a href="${escapeHtml(emailLink)}" style="color:#0057FF;">Open customer Finance</a></p>` : ""}`,
     { eyebrow: "Payment Verification", title: "Payment proof needs correction", signoff: "MartPoint Finance" },
   )
   await sendEmail({ to: recipients, subject: `Payment proof rejected — ${input.paymentReference}`, text, html, replyTo: REPLY_TO.partners })

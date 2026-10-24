@@ -60,9 +60,16 @@ type FinanceQuote = {
   partner_lead_id?: string | null
   partner_quote_request_id?: string | null
   business_id?: string | null
+  plan_id?: string | null
   currency: string
   total_amount: number
   valid_until?: string | null
+  notes_public?: string | null
+  notes_internal?: string | null
+  payment_terms?: string | null
+  bank_details?: string | null
+  template_industry?: string | null
+  quote_items?: Array<QuoteLine & { id?: string }>
   created_at: string
   updated_at?: string
   businesses?: { business_name?: string } | null
@@ -147,6 +154,7 @@ export default function PartnerQuotesPage() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([])
   const [taxRates, setTaxRates] = useState<{ name: string; rate: number }[]>([])
   const [bankDetails, setBankDetails] = useState("")
+  const [defaultBankDetails, setDefaultBankDetails] = useState("")
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
   const [quoteActionId, setQuoteActionId] = useState<string | null>(null)
@@ -215,7 +223,9 @@ export default function PartnerQuotesPage() {
       ]
       setCatalog(rows.sort((a, b) => a.name.localeCompare(b.name)))
       setTaxRates((quotationData.taxRates || []).map((t: Record<string, unknown>) => ({ name: String(t.name), rate: Number(t.rate) || 0 })))
-      setBankDetails(String(settingsData.general?.accountNumber || ""))
+      const configuredBankDetails = String(settingsData.general?.accountNumber || "")
+      setBankDetails(configuredBankDetails)
+      setDefaultBankDetails(configuredBankDetails)
     } catch {
       setMessage("Some quote data could not be loaded. Refresh and try again.")
     } finally {
@@ -277,12 +287,41 @@ export default function PartnerQuotesPage() {
     const request = requests.find((r) => r.id === requestId)
     setSelectedRequestId(requestId)
     if (!request) return
-    const planId = request.plan_id || plans.find((p) => p.name === request.plan_name)?.id || ""
-    setForm((prev) => ({ ...prev, planId }))
+    const existingQuote = request.quote_id ? quotes.find((quote) => quote.id === request.quote_id) : null
+    const planId = existingQuote?.plan_id || request.plan_id || plans.find((p) => p.name === request.plan_name)?.id || ""
     const industry = request.partner_leads?.industry || request.partner_leads?.business_type || ""
-    applyTemplate(industry)
+    const templateIndustry = existingQuote?.template_industry || industry
+    const template = resolveQuoteTemplate(templateIndustry || null)
+    setForm({
+      planId,
+      currency: existingQuote?.currency || "NGN",
+      validUntil: existingQuote?.valid_until ? existingQuote.valid_until.slice(0, 10) : datePlus(14),
+      templateIndustry,
+      publicNotes: existingQuote?.notes_public ?? template.publicNotes,
+      paymentTerms: existingQuote?.payment_terms ?? template.paymentTerms,
+      internalNotes: existingQuote?.notes_internal || "",
+    })
+    setBankDetails(existingQuote?.bank_details ?? defaultBankDetails)
+
+    const savedLines = (existingQuote?.quote_items || []).map((line) => ({
+      item_type: line.item_type || "CUSTOM",
+      reference_id: line.reference_id || null,
+      description: line.description || "",
+      quantity: Number(line.quantity) || 0,
+      unit_price: Number(line.unit_price) || 0,
+      discount: Number(line.discount) || 0,
+      tax: Number(line.tax) || 0,
+      tax_rate: line.tax_rate == null ? null : Number(line.tax_rate),
+    } satisfies QuoteLine))
+    if (savedLines.length) {
+      setLines(savedLines)
+      return
+    }
+
     const plan = plans.find((p) => p.id === planId)
-    if (plan) setLines((prev) => [{ ...emptyLine(), item_type: "PLAN", reference_id: plan.id, description: plan.name, quantity: 1, unit_price: Number(plan.base_price) || 0 }, ...prev.filter((line) => line.description.trim())])
+    setLines(plan
+      ? [{ ...emptyLine(), item_type: "PLAN", reference_id: plan.id, description: plan.name, quantity: 1, unit_price: Number(plan.base_price) || 0 }]
+      : [emptyLine()])
   }
 
   function updateLine(index: number, patch: Partial<QuoteLine>) {
@@ -316,6 +355,7 @@ export default function PartnerQuotesPage() {
     if (!form.planId) return setMessage("Select an active plan.")
     const validLines = lines.filter((line) => line.description.trim())
     if (!validLines.length) return setMessage("Add at least one quote line.")
+    const editing = Boolean(selectedRequest.quote_id)
     setWorking(true)
     setMessage("")
     try {
@@ -350,7 +390,9 @@ export default function PartnerQuotesPage() {
         if (!issuedData.success) return setMessage(`Quote ${quoteNumber} was created, but it was not issued: ${issuedData.error || "review the request"}`)
         setMessage(`Quote ${quoteNumber} created and issued.`)
       } else {
-        setMessage(`Quote ${quoteNumber || ""} created as a draft. Use Issue from the request list when ready.`)
+        setMessage(editing
+          ? `Quote ${quoteNumber || ""} updated and saved as a draft.`
+          : `Quote ${quoteNumber || ""} created as a draft. Use Issue from the request list when ready.`)
       }
       await loadWorkspace()
       switchTab("requests")
@@ -458,7 +500,7 @@ export default function PartnerQuotesPage() {
                       </div>
                       <div className="flex flex-wrap gap-2 lg:max-w-md lg:justify-end">
                         {open && <Button size="sm" variant="outline" onClick={() => decide(request.id, "UNDER_REVIEW")} disabled={working}><Clock3 className="mr-1 h-3.5 w-3.5" /> Reviewing</Button>}
-                        {open && <Button size="sm" onClick={() => { chooseRequest(request.id); switchTab("create") }}><ArrowRight className="mr-1 h-3.5 w-3.5" /> Create quote</Button>}
+                        {open && <Button size="sm" onClick={() => { chooseRequest(request.id); switchTab("create") }}><ArrowRight className="mr-1 h-3.5 w-3.5" /> {request.quote_id ? "Edit quote" : "Create quote"}</Button>}
                         {open && request.issued_quote_ref && <Button size="sm" variant="outline" onClick={() => decide(request.id, "ISSUED", request.issued_quote_ref || "")} disabled={working}><Send className="mr-1 h-3.5 w-3.5" /> Issue</Button>}
                         {open && <Button size="sm" variant="outline" onClick={() => decide(request.id, "DECLINED")} disabled={working}><X className="mr-1 h-3.5 w-3.5" /> Decline</Button>}
                       </div>
@@ -479,7 +521,7 @@ export default function PartnerQuotesPage() {
                 <option value="">Select an open partner quote request</option>
                 {openRequests.map((request) => <option key={request.id} value={request.id}>{requestLabel(request)}</option>)}
               </select>
-              {selectedRequest && <div className="rounded-md bg-muted/40 p-3 text-sm"><strong>{selectedRequest.partner_leads?.business_name || "Opportunity"}</strong><span className="text-muted-foreground"> · {selectedRequest.partner_leads?.contact_name || "Contact not supplied"} · {selectedRequest.partner_leads?.email || "No email"}</span><br /><span className="text-xs text-muted-foreground">The quote will remain lead-backed until the customer accepts it. No customer business is created here.</span></div>}
+              {selectedRequest && <div className="rounded-md bg-muted/40 p-3 text-sm"><strong>{selectedRequest.partner_leads?.business_name || "Opportunity"}</strong><span className="text-muted-foreground"> · {selectedRequest.partner_leads?.contact_name || "Contact not supplied"} · {selectedRequest.partner_leads?.email || "No email"}</span><br /><span className="text-xs text-muted-foreground">{selectedRequest.quote_id ? "You are editing the saved draft. Changes update the same quote reference and partner request." : "The quote will remain lead-backed until the customer accepts it. No customer business is created here."}</span></div>}
             </CardContent>
           </Card>
 
@@ -511,7 +553,7 @@ export default function PartnerQuotesPage() {
             </CardContent>
           </Card>
 
-          <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={() => switchTab("requests")}>Cancel</Button><Button type="submit" variant="outline" disabled={working || !selectedRequestId}><FileText className="mr-1 h-4 w-4" /> Save draft</Button><Button type="button" onClick={() => void createQuote(true)} disabled={working || !selectedRequestId}><CheckCircle2 className="mr-1 h-4 w-4" /> Create & issue quote</Button></div>
+          <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={() => switchTab("requests")}>Cancel</Button><Button type="submit" variant="outline" disabled={working || !selectedRequestId}><FileText className="mr-1 h-4 w-4" /> {selectedRequest?.quote_id ? "Save changes" : "Save draft"}</Button><Button type="button" onClick={() => void createQuote(true)} disabled={working || !selectedRequestId}><CheckCircle2 className="mr-1 h-4 w-4" /> {selectedRequest?.quote_id ? "Save & issue quote" : "Create & issue quote"}</Button></div>
         </form>
       ) : tab === "issued" ? (
         <Card>

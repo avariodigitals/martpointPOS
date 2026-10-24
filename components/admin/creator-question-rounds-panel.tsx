@@ -35,6 +35,17 @@ interface Round {
   first_viewed_at: string | null
   last_viewed_at: string | null
   view_count: number
+  email_attempts?: EmailAttempt[]
+}
+
+interface EmailAttempt {
+  id: string
+  kind: "INITIAL" | "REMINDER"
+  attempt_no: number
+  status: "SENT" | "FAILED"
+  error_message: string | null
+  provider_accepted_at: string | null
+  created_at: string
 }
 
 interface SamplePack { key: string; title: string; description: string; fields: RoundField[] }
@@ -72,6 +83,7 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
   const [loading, setLoading] = useState(true)
   const [rounds, setRounds] = useState<Round[]>([])
   const [samplePacks, setSamplePacks] = useState<SamplePack[]>([])
+  const [publicSiteUrl, setPublicSiteUrl] = useState("")
   const [composing, setComposing] = useState(false)
   const [title, setTitle] = useState("Additional Questions")
   const [draftFields, setDraftFields] = useState<DraftField[]>([newDraftField()])
@@ -81,7 +93,7 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   async function copyAnswerLink(round: Round) {
-    const url = `${window.location.origin}/creator/questions/${round.token}`
+    const url = `${publicSiteUrl || window.location.origin}/creator/questions/${round.token}`
     try {
       await navigator.clipboard.writeText(url)
       setCopiedId(round.id)
@@ -97,6 +109,7 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
       .then((d) => {
         setRounds(d.rounds || [])
         setSamplePacks(d.samplePacks || [])
+        setPublicSiteUrl(d.publicSiteUrl || "")
       })
       .finally(() => setLoading(false))
   }, [applicationId])
@@ -187,7 +200,7 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
         <ul className="space-y-1">
           {items.map((a, i) => a.url ? (
             <li key={i}>
-              <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-xs text-retail hover:underline inline-flex items-center gap-1">
+              <a href={a.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 max-w-full items-start gap-1 break-all text-xs text-retail hover:underline">
                 <Paperclip className="w-3 h-3" /> {a.name} {a.size ? `(${a.size >= 1048576 ? `${(a.size / 1048576).toFixed(1)} MB` : `${Math.round(a.size / 1024)} KB`})` : ""}
               </a>
             </li>
@@ -219,7 +232,9 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
           <p className="text-sm text-muted-foreground">No questions sent yet. Ask follow-ups before the interview — applicants can attach screenshots and documents.</p>
         )}
 
-        {rounds.map((round) => (
+        {rounds.map((round) => {
+          const latestEmailAttempt = round.email_attempts?.[0]
+          return (
           <div key={round.id} className="rounded-lg border p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium">{round.title}</p>
@@ -232,33 +247,53 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
             </p>
             {round.status === "Sent" && (
               <div className="space-y-2 border-t pt-2">
-                <p className="text-xs text-muted-foreground">
-                  Awaiting the applicant&apos;s answers — they will appear on this card as soon as they submit.
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Delivery: {round.initial_email_status === "SENT" ? "provider accepted" : round.initial_email_status === "FAILED" ? "failed — send again or copy the link" : "pending"}
-                  {round.first_viewed_at ? ` · link opened ${round.view_count || 1} time${(round.view_count || 1) === 1 ? "" : "s"}` : " · link not opened yet"}
-                  {` · reminders ${round.reminder_count || 0}/10`}
-                  {round.next_reminder_at ? ` · next ${new Date(round.next_reminder_at).toLocaleDateString("en-GB")}` : ""}
-                </p>
+                <p className="text-xs text-muted-foreground">Waiting for the applicant to complete the questions.</p>
+                <div className="grid gap-2 rounded-md bg-muted/40 p-2 text-[11px] text-muted-foreground sm:grid-cols-2">
+                  <p className="min-w-0 break-words">
+                    <span className="font-semibold text-foreground">Email:</span>{" "}
+                    {round.initial_email_status === "SENT" ? "accepted by email provider" : round.initial_email_status === "FAILED" ? "failed — share the link" : "pending"}
+                  </p>
+                  <p className="min-w-0 break-words">
+                    <span className="font-semibold text-foreground">Link:</span>{" "}
+                    {round.first_viewed_at ? `opened ${round.view_count || 1} time${(round.view_count || 1) === 1 ? "" : "s"}` : "not opened yet"}
+                  </p>
+                  <p className="min-w-0 break-words">
+                    <span className="font-semibold text-foreground">Reminders:</span>{" "}{round.reminder_count || 0} of 10
+                  </p>
+                  {round.next_reminder_at && (
+                    <p className="min-w-0 break-words"><span className="font-semibold text-foreground">Next:</span>{" "}{new Date(round.next_reminder_at).toLocaleDateString("en-GB")}</p>
+                  )}
+                </div>
+                {latestEmailAttempt?.status === "FAILED" && (
+                  <p className="break-words text-[11px] leading-4 text-amber-700">
+                    The latest email attempt failed. Share the link directly or try a reminder.
+                  </p>
+                )}
                 <Button size="sm" variant="ghost" className="h-auto p-0 text-xs font-semibold uppercase text-muted-foreground" onClick={() => setOpenSent((c) => ({ ...c, [round.id]: !c[round.id] }))}>
                   {openSent[round.id] ? "Hide" : "Show"} questions sent ({round.fields.length})
                 </Button>
                 {openSent[round.id] && (
-                  <ul className="space-y-1 list-disc pl-4 text-xs">
-                    {round.fields.map((f) => <li key={f.name}>{f.label}{f.required ? " · required" : ""}</li>)}
+                  <ul className="min-w-0 space-y-2 list-disc pl-4 text-xs">
+                    {round.fields.map((f) => (
+                      <li key={f.name} className="min-w-0 break-words">
+                        <span>{f.label}{f.required ? " · required" : ""}</span>
+                        {f.type === "file" && <span className="block text-[11px] text-muted-foreground">File upload · PDF, PNG, JPG or WEBP · max 5 MB each</span>}
+                      </li>
+                    ))}
                   </ul>
                 )}
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" disabled={!!busy || (round.reminder_count || 0) >= 10} onClick={() => sendReminder(round.id)}>
+                <div className="grid gap-2 sm:grid-cols-[auto_auto]">
+                  <Button size="sm" variant="outline" className="w-full sm:w-auto" disabled={!!busy || (round.reminder_count || 0) >= 10} onClick={() => sendReminder(round.id)}>
                     {busy === round.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
                     Send reminder
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => copyAnswerLink(round)}>
+                  <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => copyAnswerLink(round)}>
                     <Send className="w-3.5 h-3.5 mr-1" />
-                    {copiedId === round.id ? "Link copied" : "Copy answer link"}
+                    {copiedId === round.id ? "Link copied" : "Copy link"}
                   </Button>
-                  <p className="text-[11px] text-muted-foreground">For WhatsApp/email if the applicant did not get the message.</p>
+                  <p className="min-w-0 break-words text-[11px] leading-4 text-muted-foreground sm:col-span-2">
+                    Share the link by WhatsApp or email if the original message was missed.
+                  </p>
                 </div>
               </div>
             )}
@@ -278,7 +313,8 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
               </Button>
             )}
           </div>
-        ))}
+          )
+        })}
 
         {composing && (
           <div className="rounded-lg border p-3 space-y-3">

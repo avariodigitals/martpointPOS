@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase"
 import {
   getChallenge, listAwards, getCurrentBrief, listChallengeResources,
   getParticipant, checkEligibility, latestMetricsForSubmission,
-  referralCountsForSubmission,
+  referralCountsForSubmission, awardExpectation,
 } from "@/lib/creator-challenges"
 
 export const dynamic = "force-dynamic"
@@ -120,6 +120,7 @@ export async function GET(_req: Request, { params }: Params) {
       winnersCount: a.winners_count,
       cashNaira: a.cash_amount_kobo != null ? a.cash_amount_kobo / 100 : null,
       nonCashReward: a.non_cash_reward, judgingCriteria: a.judging_criteria,
+      expectation: awardExpectation(a),
     })),
     brief: brief?.sections ?? null,
     resources: resources.map((r) => {

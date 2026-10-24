@@ -53,6 +53,8 @@ Content does **not** require the creator to personally own a MartPoint-powered b
 
 ## 5. Awards — ₦400,000 pool
 
+The three performance-led winner lenses are **Overall**, **Conversion** and **Reach**. Creative and Rising remain separate awards with their own clearly stated rules, so a creator is never judged against an unstated or mixed standard.
+
 | # (precedence) | Title | Type | Winners | Cash | Basis |
 |---|---|---|---|---|---|
 | 1 | Overall Creator | OVERALL | 1 | ₦150,000 | Judges 60% + verified performance 40% |
@@ -68,11 +70,17 @@ Content does **not** require the creator to personally own a MartPoint-powered b
 ```json
 {
   "metricWindowDays": 7,
-  "maxCashAwardsPerCreator": 1
+  "maxCashAwardsPerCreator": 1,
+  "integrityReview": {
+    "enabled": true,
+    "matureAfterDays": 5
+  }
 }
 ```
 
 - **Comparable measurement window:** performance awards rank each submission on the metric snapshot nearest to `published_at + 7 days`, bounded by `performance_cutoff` — never simple lifetime views at a common cutoff.
+- **Published floors:** Reach requires at least **1,000 verified views** in the comparable 7-day window; Conversion requires at least **1 MartPoint-verified qualified outcome**; Rising requires at least **500 verified views** and is compared with the creator's baseline. Overall uses **human judging 60% + verified performance 40%**. Creative has **no performance floor** and is judge-only.
+- **What counts as conversion:** qualified MartPoint enquiries/demos linked to the creator's tracking attribution. Raw clicks, raw form submissions and unqualified traffic cannot satisfy the Conversion floor.
 - **Award stacking:** max 1 cash award per creator. If a creator tops multiple cash-award rankings, the higher-precedence award stands and the next-ranked eligible candidate takes the other. Rankings are preserved in the computed candidate list for audit; the block message names the held award.
 
 ## 7. Rising Creator baseline
@@ -95,6 +103,8 @@ Content does **not** require the creator to personally own a MartPoint-powered b
 - Duplicate URL rejected system-wide (normalised unique index)
 - Not-joined, ineligible platform, malformed URL, outside window → rejected at submission
 - Referral/click anomalies, self-referral spikes, evidence mismatch → flagged for review
+- Mature metric snapshots with an unusual reach/engagement/funnel mismatch are marked with an **Integrity asterisk** (`SUSPICIOUS_ENGAGEMENT`) for authorised human review. Low conversion alone is not fraud and does not trigger disqualification.
+- AI may summarise the mismatch and request evidence (platform analytics export, referral review), but it cannot disqualify a creator, select a winner or convert a suspicion into a final decision.
 - HIGH/CRITICAL open flags quarantine a submission from winner finalisation
 - Content-availability check available per submission (admin action, HEAD request — no aggressive scraping)
 

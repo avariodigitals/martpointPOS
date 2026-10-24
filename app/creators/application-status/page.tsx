@@ -19,6 +19,9 @@ export default function CreatorApplicationStatusPage() {
           <p className="text-muted-foreground text-sm">
             Enter your application reference (MCA-…) and the email you applied with.
           </p>
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            Already applied for the Creator Network? You do not need to apply again for Pilot 001. If approved, activate your Creator Portal account and complete onboarding; the challenge will appear there when its join window opens.
+          </p>
         </div>
         <CreatorStatusLookup />
       </main>

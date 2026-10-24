@@ -256,12 +256,25 @@ export async function getAfricaVoiceConfig(businessId: string | null) {
   let row: Record<string, unknown> = {}
 
   if (businessId && isSupabaseConfigured()) {
-    const { data } = await supabase
+    const voiceSettingsColumns = "africas_talking_phone_number, africas_talking_forward_numbers, ai_voice_enabled, voice_greeting, voice_connecting_greeting, voice_no_answer_greeting, voice_busy_greeting, voice_after_hours_greeting, voice_after_hours_destination, voice_timezone, voice_weekly_schedule, voice_closed_dates, voice_menu_retry_limit, voice_menu_enabled, voice_departments, voice_voicemail_enabled, voice_voicemail_max_seconds, voice_voicemail_retention_days, voice_greeting_audio_url, voice_connecting_audio_url, voice_no_answer_audio_url, voice_after_hours_audio_url, voice_waiting_audio_url"
+    const { data, error } = await supabase
       .from("azera_settings")
-      .select("africas_talking_phone_number, africas_talking_forward_numbers, ai_voice_enabled, voice_greeting, voice_connecting_greeting, voice_no_answer_greeting, voice_after_hours_greeting, voice_after_hours_destination, voice_timezone, voice_weekly_schedule, voice_closed_dates, voice_menu_retry_limit, voice_menu_enabled, voice_departments, voice_voicemail_enabled, voice_voicemail_max_seconds, voice_voicemail_retention_days, voice_greeting_audio_url, voice_connecting_audio_url, voice_no_answer_audio_url, voice_after_hours_audio_url, voice_waiting_audio_url")
+      .select(voiceSettingsColumns)
       .eq("business_id", businessId)
       .maybeSingle()
-    row = (data as Record<string, unknown> | null) || {}
+    if (error) {
+      // Keep Voice working during the short window before migration 128 is
+      // applied; the busy greeting then uses its safe built-in default.
+      console.error("[Africa's Talking voice settings query error]", error)
+      const { data: legacyData } = await supabase
+        .from("azera_settings")
+        .select(voiceSettingsColumns.replace(", voice_busy_greeting", ""))
+        .eq("business_id", businessId)
+        .maybeSingle()
+      row = (legacyData as Record<string, unknown> | null) || {}
+    } else {
+      row = (data as Record<string, unknown> | null) || {}
+    }
   }
 
   const configuredForward = Array.isArray(row.africas_talking_forward_numbers)
@@ -282,7 +295,8 @@ export async function getAfricaVoiceConfig(businessId: string | null) {
     greeting: String(row.voice_greeting || "Welcome to MartPoint. Please hold while we connect you."),
     connectingGreeting: String(row.voice_connecting_greeting || "Please hold while we connect you."),
     noAnswerGreeting: String(row.voice_no_answer_greeting || "We are unable to answer right now. Please try again later."),
-    afterHoursGreeting: String(row.voice_after_hours_greeting || "Thank you for calling MartPoint. Our office is currently closed. Please try again during our opening hours."),
+    busyGreeting: String(row.voice_busy_greeting || "All our care agents are currently busy. Please try again later."),
+    afterHoursGreeting: String(row.voice_after_hours_greeting || "Our office is currently closed. Please hold while I direct you to our after-hours support team."),
     afterHoursDestination: normalizeVoiceDestination(row.voice_after_hours_destination),
     timezone: String(row.voice_timezone || "Africa/Lagos"),
     weeklySchedule: (row.voice_weekly_schedule || DEFAULT_VOICE_SCHEDULE) as AfricaVoiceSchedule,

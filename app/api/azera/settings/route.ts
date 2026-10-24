@@ -91,6 +91,7 @@ export async function PATCH(request: Request) {
       voice_greeting,
       voice_connecting_greeting,
       voice_no_answer_greeting,
+      voice_busy_greeting,
       voice_after_hours_greeting,
       voice_after_hours_destination,
       voice_timezone,
@@ -147,6 +148,7 @@ export async function PATCH(request: Request) {
     if (voice_greeting !== undefined) updates.voice_greeting = String(voice_greeting).trim()
     if (voice_connecting_greeting !== undefined) updates.voice_connecting_greeting = String(voice_connecting_greeting).trim()
     if (voice_no_answer_greeting !== undefined) updates.voice_no_answer_greeting = String(voice_no_answer_greeting).trim()
+    if (voice_busy_greeting !== undefined) updates.voice_busy_greeting = String(voice_busy_greeting).trim()
     if (voice_after_hours_greeting !== undefined) updates.voice_after_hours_greeting = String(voice_after_hours_greeting).trim()
     if (voice_after_hours_destination !== undefined) updates.voice_after_hours_destination = String(voice_after_hours_destination || "").trim() || null
     if (voice_timezone !== undefined) updates.voice_timezone = String(voice_timezone || "Africa/Lagos").trim() || "Africa/Lagos"

@@ -47,6 +47,7 @@ interface AzeraSettings {
   voice_greeting: string
   voice_connecting_greeting: string
   voice_no_answer_greeting: string
+  voice_busy_greeting: string
   voice_after_hours_greeting: string
   voice_after_hours_destination: string
   voice_timezone: string
@@ -100,7 +101,8 @@ export default function AzeraSettingsPage() {
     voice_greeting: "Welcome to MartPoint, the business management software built for Nigerian businesses. Manage your sales, inventory, customer payments, and online store—all in one place. For sales, pricing, or to book a demo, press 1. For technical support, press 2. For billing, renewals, or onboarding, press 3. To hear these options again, press 9.",
     voice_connecting_greeting: "Please hold while we connect you.",
     voice_no_answer_greeting: "We are unable to answer right now. Please try again later.",
-    voice_after_hours_greeting: "Thank you for calling MartPoint. Our office is currently closed. Our opening hours are Monday to Friday, 9 a.m. to 5 p.m., West Africa Time.",
+    voice_busy_greeting: "All our care agents are currently busy. Please try again later.",
+    voice_after_hours_greeting: "Our office is currently closed. Please hold while I direct you to our after-hours support team.",
     voice_after_hours_destination: "",
     voice_timezone: "Africa/Lagos",
     voice_weekly_schedule: "Mon | 09:00-17:00\nTue | 09:00-17:00\nWed | 09:00-17:00\nThu | 09:00-17:00\nFri | 09:00-17:00",
@@ -703,6 +705,17 @@ export default function AzeraSettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <label className="text-xs font-medium">All agents busy greeting</label>
+                    <textarea
+                      value={form.voice_busy_greeting}
+                      onChange={(e) => setForm({ ...form, voice_busy_greeting: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="All our care agents are currently busy. Please try again later."
+                    />
+                    <p className="text-xs text-muted-foreground">Used when every destination in the selected department is already handling another call.</p>
+                  </div>
+                  <div className="space-y-2">
                     <label className="flex items-center gap-2 cursor-pointer text-sm">
                       <input
                         type="checkbox"
@@ -790,6 +803,16 @@ export default function AzeraSettingsPage() {
                       <label className="text-xs font-medium">After-hours destination (optional)</label>
                       <input value={form.voice_after_hours_destination} onChange={(e) => setForm({ ...form, voice_after_hours_destination: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="+234... or agent@account.sip.africastalking.com" />
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">After-hours greeting</label>
+                    <textarea
+                      value={form.voice_after_hours_greeting}
+                      onChange={(e) => setForm({ ...form, voice_after_hours_greeting: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="Our office is currently closed. Please hold while I direct you to our after-hours support team."
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium">Weekly hours</label>

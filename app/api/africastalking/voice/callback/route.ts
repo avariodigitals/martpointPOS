@@ -6,6 +6,7 @@ import {
   getAfricaVoiceConfig,
   isVoiceBusinessOpen,
   normalizePhone,
+  normalizeVoiceDestination,
   pick,
   readAfricaRequest,
   resolveAfricaBusinessId,
@@ -94,6 +95,44 @@ async function recordAttempts(
       created_at: now,
     })),
   )
+}
+
+async function destinationsAreBusy(businessId: string, destinations: string[]): Promise<boolean> {
+  const routeDestinations = [...new Set(destinations.map(normalizeVoiceDestination).filter(Boolean))]
+  if (!routeDestinations.length) return false
+
+  const { data, error } = await supabase
+    .from("azera_call_attempts")
+    .select("destination")
+    .eq("business_id", businessId)
+    .in("status", ["dialing", "ringing", "answered"])
+    .is("ended_at", null)
+
+  if (error) {
+    // A failed availability check must not prevent the provider from trying
+    // the configured route.
+    console.error("[Africa's Talking busy-route check error]", error)
+    return false
+  }
+
+  const busyDestinations = new Set((data || []).map((row) => normalizeVoiceDestination(row.destination)).filter(Boolean))
+  return routeDestinations.every((destination) => busyDestinations.has(destination))
+}
+
+async function markCallBusy(callId: string, now: string) {
+  await supabase.from("azera_calls").update({
+    status: "busy",
+    final_outcome: "busy",
+    ended_at: now,
+    updated_at: now,
+  }).eq("id", callId)
+  await supabase.from("azera_call_events").insert({
+    call_id: callId,
+    event_type: "busy",
+    actor_type: "system",
+    metadata: { reason: "All configured call destinations are busy" },
+    created_at: now,
+  })
 }
 
 function menuPrompt(
@@ -231,6 +270,11 @@ export async function POST(request: Request) {
 
       const department = departments.find((item) => item.digit === digit)
       if (department) {
+        if (await destinationsAreBusy(businessId, department.numbers)) {
+          await markCallBusy(callId, now)
+          await finishAfricaWebhookEvent(webhookEventId, "processed")
+          return voiceXml(voicemailOrEnd(request, config, config.busyGreeting))
+        }
         await recordAttempts(callId, businessId, department.key, department.numbers, now)
         await supabase.from("azera_calls").update({ selected_department: department.key, updated_at: now }).eq("id", callId)
         await supabase.from("azera_call_events").insert({
@@ -246,6 +290,12 @@ export async function POST(request: Request) {
           dialAction(department.numbers, config.phoneNumber || destination, config.waitingAudioUrl),
         ])
       }
+    }
+
+    if (await destinationsAreBusy(businessId, config.forwardNumbers)) {
+      await markCallBusy(callId, now)
+      await finishAfricaWebhookEvent(webhookEventId, "processed")
+      return voiceXml(voicemailOrEnd(request, config, config.busyGreeting))
     }
 
     await recordAttempts(callId, businessId, null, config.forwardNumbers, now)

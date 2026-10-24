@@ -25,12 +25,12 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
   if (!quote) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-        Sales has marked this request as issued, but the Finance quote document is not linked yet. Please ask MartPoint Admin to create the Finance quote and issue it using its quote number.
+        Finance is preparing or revising your quote. We’ll notify you when it is ready to view, download and accept.
       </div>
     )
   }
 
-  const accountNumber = String(quote.account_number || "")
+  const accountNumber = String(quote.bank_details ?? quote.account_number ?? "")
   const invoice = (quote.invoice || null) as {
     invoice_number?: string
     status?: string
@@ -96,7 +96,7 @@ export function PartnerQuoteViewer({ requestId, lead, quote }: { requestId: stri
       const res = await fetch(`/api/partner/quote-requests/${requestId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, quoteUpdatedAt: quote?.updated_at }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) setMessage(data.error || "Unable to update the quote")

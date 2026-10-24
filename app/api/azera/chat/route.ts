@@ -6,6 +6,7 @@ import { sendEmail, REPLY_TO } from "@/lib/email"
 import { addMessage as addTicketMessage, createTicket } from "@/lib/support"
 import { isConversationIdentityMatch, resolveChatBusinessId, type ChatSource } from "@/lib/azera-identity"
 import { issueConversationToken, tokenFromRequest, verifyConversationToken } from "@/lib/azera-public-auth"
+import { AZERA_CUSTOMER_REPLY_STYLE, visitorChatRecord } from "@/lib/azera-visitor-presentation"
 
 type AiSettings = { ai_prompt?: string | null } | null
 type KnowledgeArticle = {
@@ -332,7 +333,7 @@ export async function POST(request: Request) {
               businessId: business_id,
               externalId: external_id,
             })
-            const conversationSnapshot = { ...conv, last_message_at: new Date().toISOString() }
+            const conversationSnapshot = visitorChatRecord({ ...conv, last_message_at: new Date().toISOString() })
             const stream = new ReadableStream<Uint8Array>({
               start(controller) {
                 const emit = (event: string, data: unknown) => controller.enqueue(encoder.encode(sse(event, data)))
@@ -342,7 +343,7 @@ export async function POST(request: Request) {
                     emit("meta", {
                       conversation: conversationSnapshot,
                       conversation_token,
-                      customer_message: custMsg,
+                      customer_message: custMsg ? visitorChatRecord(custMsg) : null,
                     })
                     if (shouldAskTriage || isGreeting(message.trim())) {
                       streamedReply = localFallbackReply(message.trim(), relevantKnowledge, shouldAskTriage)
@@ -403,9 +404,8 @@ export async function POST(request: Request) {
                     emit("done", {
                       conversation: conversationSnapshot,
                       conversation_token,
-                      customer_message: custMsg,
-                      ai_message: streamedMessage,
-                      sources: relevantKnowledge.map((article) => ({ id: article.id, title: article.title, category: article.category })),
+                      customer_message: custMsg ? visitorChatRecord(custMsg) : null,
+                      ai_message: visitorChatRecord(streamedMessage),
                     })
                   }
                   controller.close()
@@ -621,11 +621,10 @@ export async function POST(request: Request) {
     })
 
     return ok({
-      conversation: { ...conv, last_message_at: new Date().toISOString() },
+      conversation: visitorChatRecord({ ...conv, last_message_at: new Date().toISOString() }),
       conversation_token,
-      customer_message: custMsg,
-      ai_message: aiMsg,
-      sources: relevantKnowledge.map((article) => ({ id: article.id, title: article.title, category: article.category })),
+      customer_message: custMsg ? visitorChatRecord(custMsg) : null,
+      ai_message: aiMsg ? visitorChatRecord(aiMsg) : null,
     })
   } catch (err_) {
     console.error("[Azera chat error]", err_)
@@ -658,5 +657,6 @@ function buildSystemPrompt(settings: AiSettings, kb: KnowledgeArticle[], source:
     p += "\nNo approved reference article matched this question. Do not invent MartPoint-specific facts. Acknowledge the gap in one sentence, offer to connect the appropriate specialist, and ask one question that can help narrow the request. Do not say the specialist has been contacted unless the backend confirms a handoff.\n"
   }
 
+  p += `\nCustomer-facing reply style: ${AZERA_CUSTOMER_REPLY_STYLE}\n`
   return p
 }

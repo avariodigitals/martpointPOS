@@ -36,6 +36,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const quote = result.quote
+  if (body.quoteUpdatedAt && body.quoteUpdatedAt !== quote.updated_at) {
+    return NextResponse.json({ error: "This quote has been updated. Refresh to review the latest terms before responding." }, { status: 409 })
+  }
   if (action === "accept" && !["SENT", "ACCEPTED"].includes(String(quote.status))) {
     return NextResponse.json({ error: "This quote is no longer available for acceptance" }, { status: 400 })
   }
@@ -44,11 +47,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const nextStatus = action === "accept" ? "ACCEPTED" : "DECLINED"
-  const { error } = await supabase
+  let responseUpdate = supabase
     .from("quotes")
     .update({ status: nextStatus, updated_at: new Date().toISOString() })
     .eq("id", quote.id)
+    .eq("status", quote.status)
+  if (quote.updated_at) responseUpdate = responseUpdate.eq("updated_at", quote.updated_at)
+  const { data: respondedQuote, error } = await responseUpdate
+    .select("id")
+    .maybeSingle()
   if (error) return NextResponse.json({ error: "Failed to update quote" }, { status: 500 })
+  if (!respondedQuote) return NextResponse.json({ error: "This quote has changed or is being revised. Refresh before responding." }, { status: 409 })
 
   await recordAudit(
     { actorType: "PARTNER", actorId: auth.user!.id, actorName: auth.user!.fullName },

@@ -1,0 +1,59 @@
+.panel {
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: min(420px, calc(100vw - 48px));
+  height: min(680px, calc(100dvh - 48px));
+  bottom: 24px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  background: white;
+  box-shadow: 0 24px 65px rgb(15 23 42 / 24%);
+  pointer-events: auto;
+}
+
+.panel[data-position="bottom-right"] { right: 24px; }
+.panel[data-position="bottom-left"] { left: 24px; }
+
+.panel > header,
+.panel > footer,
+.composer {
+  flex-shrink: 0;
+}
+
+.scrollArea {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-block: 16px;
+}
+
+@media (max-width: 639px) {
+  .panel {
+    --panel-bottom-gap: max(12px, env(safe-area-inset-bottom, 0px));
+    --panel-height: min(640px, calc(var(--azera-viewport-height, 100dvh) * 0.86), calc(var(--azera-viewport-height, 100dvh) - env(safe-area-inset-top, 0px) - var(--panel-bottom-gap) - 12px));
+    width: min(420px, calc(var(--azera-viewport-width, 100vw) - 24px));
+    height: var(--panel-height);
+    top: calc(var(--azera-viewport-top, 0px) + var(--azera-viewport-height, 100dvh) - var(--panel-height) - var(--panel-bottom-gap));
+    bottom: auto;
+    border-radius: 20px;
+  }
+
+  .panel[data-position="bottom-right"] {
+    left: calc(var(--azera-viewport-left, 0px) + var(--azera-viewport-width, 100vw) - min(420px, calc(var(--azera-viewport-width, 100vw) - 24px)) - 12px);
+    right: auto;
+  }
+
+  .panel[data-position="bottom-left"] {
+    left: calc(var(--azera-viewport-left, 0px) + 12px);
+    right: auto;
+  }
+
+  .composer textarea,
+  .panel input {
+    /* Prevent Safari's input-focus zoom without disabling pinch zoom. */
+    font-size: 16px;
+  }
+}

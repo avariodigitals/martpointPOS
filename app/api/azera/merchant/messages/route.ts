@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { isConversationIdentityMatch, resolveChatBusinessId } from "@/lib/azera-identity"
 import { issueConversationToken, tokenFromRequest, verifyConversationToken } from "@/lib/azera-public-auth"
+import { visitorChatRecord } from "@/lib/azera-visitor-presentation"
 
 function ok<T>(data: T) {
   return NextResponse.json({ success: true, data })
@@ -104,13 +105,14 @@ export async function GET(request: Request) {
       const safeMessage = metadata?.escalation_reason === "no_approved_knowledge"
         ? { ...message, message: "I want to make sure you receive accurate MartPoint information. I’ve sent this to a specialist who can help. Is your question about sales, a technical issue, or how to use MartPoint?" }
         : message
-      if (!message.attachment_path) return safeMessage
+      const visitorMessage = visitorChatRecord(safeMessage)
+      if (!message.attachment_path) return visitorMessage
       const { data: signed } = await supabase.storage.from("azera-chat-attachments").createSignedUrl(message.attachment_path, 3600)
-      return { ...safeMessage, attachment_url: signed?.signedUrl || null }
+      return { ...visitorMessage, attachment_url: signed?.signedUrl || null }
     }))
 
     return ok({
-      conversation: { ...conv, queue_position: queuePosition },
+      conversation: visitorChatRecord({ ...conv, queue_position: queuePosition }),
       conversation_token: tokenFromRequest(request) || issueConversationToken({ conversationId: conv.id, businessId: conv.business_id, externalId: conv.external_id }),
       messages: enrichedMessages,
     })

@@ -42,6 +42,7 @@ import { getPublicSiteSettings } from "@/lib/settings"
 import { resolveQuoteTemplate } from "@/lib/quote-templates"
 import { notifyPartnerQuoteIssued } from "@/lib/partner-notifications"
 import { notifyAllAdmins } from "@/lib/admin-notifications"
+import { reopenPartnerQuoteForRevision } from "@/lib/partner-quote-revision"
 
 type Action = string
 
@@ -359,7 +360,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
     const body = await request.json()
     const { action, data } = body as { action: Action; data: any }
     if (!action) return err("Missing action")
-    if (!requireActionPerm(resource, action, actor.role)) return err("Forbidden", 403)
+    if (!requireActionPerm(resource, resource === "quotes" && action === "revise" ? "update" : action, actor.role)) return err("Forbidden", 403)
 
     if (resource === "products") {
       if (action === "create") {
@@ -421,6 +422,13 @@ export async function POST(request: Request, props: { params: Promise<{ resource
     }
 
     if (resource === "quotes") {
+      if (action === "revise") {
+        if (!data?.id) return err("Quote ID required")
+        const revision = await reopenPartnerQuoteForRevision(data.id, actor.id)
+        if (!revision.ok) return err(revision.error || "Could not reopen quote", revision.status || 409)
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: revision.quote?.quote_number, detail: "Quote reopened as a draft for correction. Partner notified; reissue when ready." })
+        return ok(revision.quote)
+      }
       if (action === "create") {
         const quoteNumber = await nextQuoteNumber()
         const { items, ...fields } = data
@@ -521,8 +529,9 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         for (const key of allowed) {
           if (key in updates) patch[key] = updates[key]
         }
-        const { data: q, error } = await supabase.from("quotes").update(patch).eq("id", id).select().single()
+        const { data: q, error } = await supabase.from("quotes").update(patch).eq("id", id).eq("status", "DRAFT").select().maybeSingle()
         if (error) return err(error.message, 500)
+        if (!q) return err("The quote is no longer a draft. Refresh before editing.", 409)
         if (Array.isArray(items)) {
           const { error: deleteError } = await supabase.from("quote_items").delete().eq("quote_id", id)
           if (deleteError) return err(deleteError.message, 500)
@@ -589,21 +598,22 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       }
       if (action === "send") {
         const { id } = data
-        const { data: q, error } = await supabase.from("quotes").update({ status: "SENT", updated_at: now() }).eq("id", id).select().single()
+        const { data: q, error } = await supabase.from("quotes").update({ status: "SENT", updated_at: now() }).eq("id", id).in("status", ["DRAFT", "SENT"]).select().maybeSingle()
         if (error) return err(error.message, 500)
+        if (!q) return err("Only a draft or unanswered issued quote can be sent.", 409)
         if (q?.partner_lead_id) {
           await supabase
             .from("partner_quote_requests")
             .update({ status: "ISSUED", issued_quote_ref: q.quote_number, decided_by: actor.id, decided_at: now(), decision_reason: "Finance quote sent", updated_at: now() })
-            .eq("partner_lead_id", q.partner_lead_id)
-            .in("status", ["SUBMITTED", "UNDER_REVIEW"])
+            .eq("quote_id", q.id)
+            .in("status", ["SUBMITTED", "UNDER_REVIEW", "ISSUED"])
         }
         if (q?.partner_id) {
           await notifyPartnerQuoteIssued(q.partner_id as string, {
             quoteNumber: q.quote_number as string,
             total: Number(q.total_amount) || 0,
             currency: (q.currency as string) || "NGN",
-            link: "/partner/quotes",
+            link: q.partner_quote_request_id ? `/partner/quotes/${q.partner_quote_request_id}` : "/partner/quotes",
           }).catch((notifyError) => console.error("[quotes.send] partner email", notifyError))
         }
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_SENT", "QUOTE", id)
@@ -612,8 +622,9 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       }
       if (action === "accept") {
         const { id } = data
-        const { data: q, error } = await supabase.from("quotes").update({ status: "ACCEPTED", updated_at: now() }).eq("id", id).select().single()
+        const { data: q, error } = await supabase.from("quotes").update({ status: "ACCEPTED", updated_at: now() }).eq("id", id).in("status", ["SENT", "ACCEPTED"]).select().maybeSingle()
         if (error) return err(error.message, 500)
+        if (!q) return err("Only an issued quote can be accepted. This quote may be under revision.", 409)
         await logFinanceAudit("ADMIN", actor.id, "QUOTE_ACCEPTED", "QUOTE", id)
         await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: q.quote_number, detail: "Accepted quote is ready for customer conversion and invoicing." })
         return ok(q)

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, CheckCircle2, Clock3, FileText, Loader2, Plus, Receipt, Send, Trash2, X } from "lucide-react"
+import { ArrowRight, CheckCircle2, Clock3, FileText, Loader2, Pencil, Plus, Receipt, Send, Trash2, X } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 import { formatMoney } from "@/lib/money-format"
 import { quoteTemplateOptions, resolveQuoteTemplate } from "@/lib/quote-templates"
@@ -173,7 +173,12 @@ export default function PartnerQuotesPage() {
   const [lines, setLines] = useState<QuoteLine[]>([emptyLine()])
 
   const selectedRequest = requests.find((r) => r.id === selectedRequestId) || null
-  const openRequests = requests.filter((r) => ["SUBMITTED", "UNDER_REVIEW"].includes(r.status))
+  const selectedQuote = quotes.find((quote) => quote.id === selectedRequest?.quote_id)
+  const openRequests = requests.filter((request) => {
+    const quote = quotes.find((q) => q.id === request.quote_id)
+    return ["SUBMITTED", "UNDER_REVIEW", "ISSUED"].includes(request.status)
+      && (quote ? quote.status === "DRAFT" : request.status !== "ISSUED")
+  })
   const totals = useMemo(() => lines.reduce((acc, line) => {
     const net = Math.max(0, (Number(line.quantity) || 0) * (Number(line.unit_price) || 0) - (Number(line.discount) || 0))
     const tax = line.tax_rate == null ? Number(line.tax) || 0 : net * (Number(line.tax_rate) || 0) / 100
@@ -252,6 +257,35 @@ export default function PartnerQuotesPage() {
   ), [partnerQuotes, invoices])
   const invoiceByQuoteId = useMemo(() => new Map(invoices.filter((invoice) => invoice.quote_id).map((invoice) => [invoice.quote_id as string, invoice])), [invoices])
 
+  async function reviseQuote(quote: FinanceQuote) {
+    const request = requestForQuote(quote)
+    if (!request) return setMessage("The linked partner request could not be found. Refresh and try again.")
+    setQuoteActionId(quote.id)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/finance/commercial/quotes", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "revise", data: { id: quote.id } }),
+      })
+      const result = await res.json()
+      if (!res.ok || !result.success) {
+        setMessage(result.error || "Could not reopen this quote.")
+        await loadWorkspace()
+        return
+      }
+      const draft = { ...quote, ...result.data } as FinanceQuote
+      setQuotes((current) => current.map((q) => q.id === quote.id ? draft : q))
+      setRequests((current) => current.map((r) => r.id === request.id ? { ...r, status: "UNDER_REVIEW" } : r))
+      chooseRequest(request.id, draft)
+      switchTab("create")
+      setMessage(`Editing ${quote.quote_number}. The partner has been notified that it is being revised. Save and issue when ready.`)
+    } catch {
+      setMessage("Could not reopen this quote. Refresh to check its latest status before retrying.")
+    } finally {
+      setQuoteActionId(null)
+    }
+  }
+
   async function runQuoteAction(quote: FinanceQuote, action: "send" | "convert") {
     setQuoteActionId(quote.id)
     setMessage("")
@@ -283,11 +317,16 @@ export default function PartnerQuotesPage() {
     setForm((prev) => ({ ...prev, templateIndustry: industry, publicNotes: template.publicNotes, paymentTerms: template.paymentTerms, ...(keepPlan ? {} : { planId: "" }) }))
   }
 
-  function chooseRequest(requestId: string) {
+  function chooseRequest(requestId: string, quoteOverride?: FinanceQuote) {
     const request = requests.find((r) => r.id === requestId)
     setSelectedRequestId(requestId)
     if (!request) return
-    const existingQuote = request.quote_id ? quotes.find((quote) => quote.id === request.quote_id) : null
+    const existingQuote = quoteOverride || (request.quote_id ? quotes.find((quote) => quote.id === request.quote_id) : null)
+    if (request.quote_id && !existingQuote) {
+      setSelectedRequestId("")
+      setMessage("The existing quote could not be loaded. Refresh before editing to avoid replacing its saved details.")
+      return
+    }
     const planId = existingQuote?.plan_id || request.plan_id || plans.find((p) => p.name === request.plan_name)?.id || ""
     const industry = request.partner_leads?.industry || request.partner_leads?.business_type || ""
     const templateIndustry = existingQuote?.template_industry || industry
@@ -385,10 +424,10 @@ export default function PartnerQuotesPage() {
       if (!data.success) return setMessage(data.error || "Quote could not be created.")
       const quoteNumber = data.data?.quote_number || selectedRequest.quote_number
       if (issueNow && quoteNumber) {
-        const issued = await fetch("/api/admin/partner-quote-requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ quoteRequestId: selectedRequest.id, decision: "ISSUED", issuedQuoteRef: quoteNumber, decisionReason: decisionNotes[selectedRequest.id] || "Created and issued from Partner Quotes." }) })
+        const issued = await fetch("/api/admin/finance/commercial/quotes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send", data: { id: data.data?.id || selectedRequest.quote_id } }) })
         const issuedData = await issued.json()
         if (!issuedData.success) return setMessage(`Quote ${quoteNumber} was created, but it was not issued: ${issuedData.error || "review the request"}`)
-        setMessage(`Quote ${quoteNumber} created and issued.`)
+        setMessage(`Quote ${quoteNumber} saved and issued. Partner notification sent.`)
       } else {
         setMessage(editing
           ? `Quote ${quoteNumber || ""} updated and saved as a draft.`
@@ -437,6 +476,11 @@ export default function PartnerQuotesPage() {
                 </div>
                 <div className="flex flex-wrap gap-2 lg:justify-end">
                   {mode === "issued" && (
+                    <Button size="sm" onClick={() => void reviseQuote(quote)} disabled={actionBusy || !request || Boolean(invoice)}>
+                      {actionBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Pencil className="mr-1 h-3.5 w-3.5" />} Edit / revise quote
+                    </Button>
+                  )}
+                  {mode === "issued" && (
                     <Button size="sm" variant="outline" onClick={() => void runQuoteAction(quote, "send")} disabled={actionBusy}>
                       {actionBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />} Send again
                     </Button>
@@ -468,7 +512,7 @@ export default function PartnerQuotesPage() {
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><FileText className="h-5 w-5" /> Partner Quotes</h2>
           <p className="text-muted-foreground">Review partner requests, create the Finance quote, and issue it from one workspace.</p>
         </div>
-        <Button onClick={() => { setSelectedRequestId(openRequests[0]?.id || ""); switchTab("create") }}><Plus className="mr-1 h-4 w-4" /> Create quote</Button>
+        <Button onClick={() => { chooseRequest(openRequests[0]?.id || ""); switchTab("create") }}><Plus className="mr-1 h-4 w-4" /> Create quote</Button>
       </div>
 
       {message && <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">{message}</p>}
@@ -488,11 +532,14 @@ export default function PartnerQuotesPage() {
             {requests.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No partner quote requests yet.</p> : (
               <div className="space-y-3">
                 {requests.map((request) => {
-                  const open = ["SUBMITTED", "UNDER_REVIEW"].includes(request.status)
+                  const linkedQuote = quotes.find((quote) => quote.id === request.quote_id)
+                  const open = ["SUBMITTED", "UNDER_REVIEW"].includes(request.status) && (!linkedQuote || linkedQuote.status === "DRAFT")
+                  const revising = request.status === "ISSUED" && linkedQuote?.status === "DRAFT"
+                  const displayStatus = revising ? "UNDER_REVIEW" : linkedQuote?.status === "SENT" ? "ISSUED" : ["ACCEPTED", "CONVERTED"].includes(linkedQuote?.status || "") ? linkedQuote!.status : request.status
                   return <div key={request.id} className="rounded-lg border border-border p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{request.partner_leads?.business_name || "Opportunity"}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${statusClass(request.status)}`}>{enumLabel(request.status)}</span></div>
+                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{request.partner_leads?.business_name || "Opportunity"}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${statusClass(displayStatus)}`}>{enumLabel(displayStatus)}</span></div>
                         <p className="text-sm text-muted-foreground">{request.partners?.business_name || request.partners?.partner_id || "Partner"} · {request.plan_name || "Plan pending"} · {new Date(request.created_at).toLocaleDateString()}</p>
                         <p className="text-xs text-muted-foreground">{[request.locations, request.users_estimate ? `${request.users_estimate} users` : null, request.services_requested].filter(Boolean).join(" · ") || "No extra requirements"}</p>
                         {request.issued_quote_ref && <p className="text-xs font-mono text-emerald-700">Quote: {request.issued_quote_ref}</p>}
@@ -500,8 +547,9 @@ export default function PartnerQuotesPage() {
                       </div>
                       <div className="flex flex-wrap gap-2 lg:max-w-md lg:justify-end">
                         {open && <Button size="sm" variant="outline" onClick={() => decide(request.id, "UNDER_REVIEW")} disabled={working}><Clock3 className="mr-1 h-3.5 w-3.5" /> Reviewing</Button>}
-                        {open && <Button size="sm" onClick={() => { chooseRequest(request.id); switchTab("create") }}><ArrowRight className="mr-1 h-3.5 w-3.5" /> {request.quote_id ? "Edit quote" : "Create quote"}</Button>}
-                        {open && request.issued_quote_ref && <Button size="sm" variant="outline" onClick={() => decide(request.id, "ISSUED", request.issued_quote_ref || "")} disabled={working}><Send className="mr-1 h-3.5 w-3.5" /> Issue</Button>}
+                        {(open || revising) && <Button size="sm" onClick={() => { chooseRequest(request.id); switchTab("create") }}><ArrowRight className="mr-1 h-3.5 w-3.5" /> {request.quote_id ? "Edit quote" : "Create quote"}</Button>}
+                        {linkedQuote?.status === "SENT" && <Button size="sm" onClick={() => void reviseQuote(linkedQuote)} disabled={quoteActionId === linkedQuote.id}><Pencil className="mr-1 h-3.5 w-3.5" /> Edit / revise quote</Button>}
+                        {open && request.issued_quote_ref && linkedQuote && <Button size="sm" variant="outline" onClick={() => void runQuoteAction(linkedQuote, "send")} disabled={working || quoteActionId === linkedQuote.id}><Send className="mr-1 h-3.5 w-3.5" /> Issue</Button>}
                         {open && <Button size="sm" variant="outline" onClick={() => decide(request.id, "DECLINED")} disabled={working}><X className="mr-1 h-3.5 w-3.5" /> Decline</Button>}
                       </div>
                     </div>
@@ -515,7 +563,7 @@ export default function PartnerQuotesPage() {
       ) : tab === "create" ? (
         <form onSubmit={(e) => { e.preventDefault(); void createQuote(false) }} className="space-y-6">
           <Card>
-            <CardHeader><CardTitle className="text-sm font-medium">1. Link the request</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-medium">{selectedQuote ? `Edit quote ${selectedQuote.quote_number}` : "1. Link the request"}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <select value={selectedRequestId} onChange={(e) => chooseRequest(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                 <option value="">Select an open partner quote request</option>
@@ -535,7 +583,7 @@ export default function PartnerQuotesPage() {
               <label className="space-y-1.5 text-sm md:col-span-2"><span className="font-medium">Payment terms</span><textarea rows={3} value={form.paymentTerms} onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2" /></label>
               <label className="space-y-1.5 text-sm md:col-span-2"><span className="font-medium">Public notes</span><textarea rows={4} value={form.publicNotes} onChange={(e) => setForm({ ...form, publicNotes: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2" /></label>
               <label className="space-y-1.5 text-sm md:col-span-2"><span className="font-medium">Internal notes</span><textarea rows={2} value={form.internalNotes} onChange={(e) => setForm({ ...form, internalNotes: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2" /></label>
-              <div className="rounded-md border border-blue-200 bg-blue-50/60 p-3 text-xs text-blue-900 md:col-span-2"><strong>Payment account shown on quote:</strong><br />{bankDetails || "No bank account configured in Site Settings."}</div>
+              <label className="space-y-1.5 text-sm md:col-span-2"><span className="font-medium">Payment account shown on quote</span><textarea rows={3} value={bankDetails} onChange={(event) => setBankDetails(event.target.value)} placeholder="Bank name, account name and account number" className="w-full rounded-md border border-input bg-background px-3 py-2" /></label>
             </CardContent>
           </Card>
 
@@ -557,7 +605,7 @@ export default function PartnerQuotesPage() {
         </form>
       ) : tab === "issued" ? (
         <Card>
-          <CardHeader><CardTitle className="text-sm font-medium">Issued quotes awaiting partner response</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm font-medium">Issued quotes awaiting partner response</CardTitle><p className="text-sm text-muted-foreground">Edit / revise reopens the quote as a draft and pauses partner acceptance. The partner is notified when you reopen it and when you issue the updated quote.</p></CardHeader>
           <CardContent>{renderQuoteList(issuedQuotes, "No issued partner quotes are waiting for a response.", "issued")}</CardContent>
         </Card>
       ) : tab === "accepted" ? (

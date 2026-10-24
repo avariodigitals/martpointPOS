@@ -1,8 +1,11 @@
 "use client"
 
 import { useEffect, useRef, useState, type CSSProperties } from "react"
+import { createPortal } from "react-dom"
+import Image from "next/image"
 import dynamic from "next/dynamic"
-import { Send, MessageCircle, X, Loader2, Phone, Minus } from "lucide-react"
+import { Send, MessageCircle, X, Phone, Minus } from "lucide-react"
+import styles from "./azera-chat-widget.module.css"
 
 const AzeraCallController = dynamic(
   () => import("@/components/shared/azera-call-controller").then((module) => module.AzeraCallController),
@@ -34,7 +37,6 @@ interface ChatMessage {
   message: string
   direction: "inbound" | "outbound"
   created_at: string
-  sources?: Array<{ id?: string; title: string; category?: string | null }>
 }
 
 interface Conversation {
@@ -60,12 +62,11 @@ interface StreamPayload {
   conversation?: Conversation
   customer_message?: { id: string }
   ai_message?: { id: string; message: string; created_at: string }
-  sources?: Array<{ id?: string; title: string; category?: string | null }>
   text?: string
   message?: string
 }
 
-function MartPointBubbleIcon({ className = "h-7 w-7" }: { className?: string }) {
+function MartPointBubbleIcon({ className = "h-7 w-7", dotColor = "#2563EB" }: { className?: string; dotColor?: string }) {
   return (
     <svg
       viewBox="0 0 64 64"
@@ -74,17 +75,22 @@ function MartPointBubbleIcon({ className = "h-7 w-7" }: { className?: string }) 
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path
-        d="M8 14.5C8 9.8 12.2 7 18 7h18c7.2 0 12 3.8 12 9.5S43.2 26 36 26H23l-8.5 8.5V26.2C10.4 24.8 8 20.4 8 14.5Z"
-        fill="currentColor"
-      />
-      <path
-        d="M24 24h18c7.2 0 12 3.8 12 9.5S49.2 43 42 43H31l-7.5 8v-8.3C19.2 41.1 17 37 17 33.5c0-1.5.3-2.8.9-4"
-        fill="currentColor"
-        fillOpacity="0.72"
-      />
+      <path d="M20 6h24c9 0 15 6 15 15v18c0 9-6 15-15 15H27L17 61V53C10 51 5 46 5 39V21C5 12 11 6 20 6Z" fill="currentColor" />
+      <g fill={dotColor}><circle cx="20" cy="28" r="4"/><circle cx="32" cy="28" r="4"/><circle cx="44" cy="28" r="4"/></g>
     </svg>
   )
+}
+
+// Scroll only the contact form, never the page behind the fixed chat panel.
+function revealProfileField(field: HTMLInputElement) {
+  requestAnimationFrame(() => {
+    const form = field.closest("form")
+    if (!form || document.activeElement !== field) return
+    const bounds = form.getBoundingClientRect()
+    const inputBounds = field.getBoundingClientRect()
+    if (inputBounds.bottom > bounds.bottom - 16) form.scrollTop += inputBounds.bottom - bounds.bottom + 16
+    else if (inputBounds.top < bounds.top + 16) form.scrollTop -= bounds.top - inputBounds.top + 16
+  })
 }
 
 function getReadableTextColor(color: string): "#0f172a" | "#ffffff" {
@@ -137,8 +143,7 @@ export function AzeraChatWidget({
   const [showProfileForm, setShowProfileForm] = useState(false)
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
-  const [slowReply, setSlowReply] = useState(false)
-  const [delayedReply, setDelayedReply] = useState(false)
+  const [receivingReply, setReceivingReply] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [conversation, setConversation] = useState<Conversation | null>(null)
   const [chatTimerStartedAt, setChatTimerStartedAt] = useState<number | null>(null)
@@ -159,7 +164,7 @@ export function AzeraChatWidget({
   })
   const [profileDraft, setProfileDraft] = useState<VisitorProfile>({ name: customerName || "", email: "", phone: "" })
   const [connected, setConnected] = useState(false)
-  const [viewportMetrics, setViewportMetrics] = useState({ height: 0, keyboardInset: 0 })
+  const [viewportMetrics, setViewportMetrics] = useState({ height: 0, width: 0, top: 0, left: 0 })
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const previousMessageIds = useRef<Set<string>>(new Set())
@@ -173,11 +178,13 @@ export function AzeraChatWidget({
     const visualViewport = window.visualViewport
     const updateViewportMetrics = () => {
       const height = visualViewport?.height || window.innerHeight
-      const top = visualViewport?.offsetTop || 0
-      const keyboardInset = visualViewport
-        ? Math.max(0, window.innerHeight - height - top)
-        : 0
-      setViewportMetrics({ height, keyboardInset })
+      setViewportMetrics({
+        height,
+        width: visualViewport?.width || window.innerWidth,
+        top: visualViewport?.offsetTop || 0,
+        left: visualViewport?.offsetLeft || 0,
+      })
+      if (document.activeElement instanceof HTMLInputElement) revealProfileField(document.activeElement)
     }
 
     updateViewportMetrics()
@@ -242,7 +249,9 @@ export function AzeraChatWidget({
   }, [open, chatTimerStartedAt])
 
   useEffect(() => {
-    if (open && !needsVisitorProfile) inputRef.current?.focus()
+    if (open && !needsVisitorProfile && window.matchMedia("(min-width: 640px) and (pointer: fine)").matches) {
+      inputRef.current?.focus({ preventScroll: true })
+    }
   }, [open, needsVisitorProfile])
 
   function saveVisitorProfile(event: React.FormEvent) {
@@ -309,19 +318,12 @@ export function AzeraChatWidget({
       }
       if (data.messages) {
         setMessages(
-          data.messages.map((m: ChatMessage & { metadata?: Record<string, unknown> }) => ({
+          data.messages.map((m: ChatMessage) => ({
             id: m.id,
             author_type: m.author_type,
             message: m.message,
             direction: m.direction,
             created_at: m.created_at,
-            sources: Array.isArray(m.metadata?.knowledge_refs)
-              ? (m.metadata.knowledge_refs as Array<{ id?: string; title?: string; category?: string | null }>).filter((source) => Boolean(source.title)).map((source) => ({
-                id: source.id,
-                title: source.title as string,
-                category: source.category,
-              }))
-              : undefined,
           }))
         )
       }
@@ -351,10 +353,7 @@ export function AzeraChatWidget({
     setInput("")
     setSendError(null)
     setLoading(true)
-    setSlowReply(false)
-    setDelayedReply(false)
-    const slowReplyTimer = window.setTimeout(() => setSlowReply(true), 4500)
-    const delayedReplyTimer = window.setTimeout(() => setDelayedReply(true), 8500)
+    setReceivingReply(false)
     const requestController = new AbortController()
     const requestTimeout = window.setTimeout(() => requestController.abort(), 20000)
 
@@ -417,6 +416,7 @@ export function AzeraChatWidget({
         }
 
         if (event === "delta" && payload.text) {
+          setReceivingReply(true)
           const createdAt = new Date().toISOString()
           if (!streamedAssistantId) {
             streamedAssistantId = `stream_${Date.now()}`
@@ -447,7 +447,6 @@ export function AzeraChatWidget({
           }
           const aiMessage = payload.ai_message
           if (aiMessage) {
-            const sources = Array.isArray(payload.sources) ? payload.sources : undefined
             setMessages((previous) => {
               const assistantMessage = {
                 id: aiMessage.id,
@@ -455,7 +454,6 @@ export function AzeraChatWidget({
                 message: aiMessage.message,
                 direction: "outbound" as const,
                 created_at: aiMessage.created_at,
-                sources,
               }
               return streamedAssistantId
                 ? previous.map((item) => item.id === streamedAssistantId ? assistantMessage : item)
@@ -524,7 +522,6 @@ export function AzeraChatWidget({
               message: json.data.ai_message.message,
               direction: "outbound",
               created_at: json.data.ai_message.created_at,
-              sources: Array.isArray(json.data.sources) ? json.data.sources : undefined,
             },
           ])
           setLoading(false)
@@ -543,11 +540,8 @@ export function AzeraChatWidget({
       return
     } finally {
       setLoading(false)
-      window.clearTimeout(slowReplyTimer)
-      window.clearTimeout(delayedReplyTimer)
+      setReceivingReply(false)
       window.clearTimeout(requestTimeout)
-      setSlowReply(false)
-      setDelayedReply(false)
       scrollToBottom()
     }
 
@@ -559,7 +553,9 @@ export function AzeraChatWidget({
 
   const panelStyle = {
     "--azera-viewport-height": viewportMetrics.height ? `${viewportMetrics.height}px` : "100dvh",
-    "--azera-keyboard-inset": `${viewportMetrics.keyboardInset}px`,
+    "--azera-viewport-width": viewportMetrics.width ? `${viewportMetrics.width}px` : "100vw",
+    "--azera-viewport-top": `${viewportMetrics.top}px`,
+    "--azera-viewport-left": `${viewportMetrics.left}px`,
   } as CSSProperties
 
   async function requestCall() {
@@ -713,7 +709,11 @@ export function AzeraChatWidget({
     }
   }
 
-  return (
+  // Attach to the document so transformed site sections cannot move or clip
+  // this fixed panel. Wait for viewport measurement to keep SSR deterministic.
+  if (!viewportMetrics.width) return null
+
+  return createPortal(
     <div className="pointer-events-none fixed inset-0 z-[70]">
       {/* Chat button */}
       {!open && (
@@ -723,17 +723,13 @@ export function AzeraChatWidget({
             color: brandColor,
           }}
           className={cn(
-            "pointer-events-auto group fixed bottom-5 flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-[0_12px_32px_rgba(15,23,42,0.22)] ring-1 ring-slate-200 transition-all duration-300 hover:-translate-y-1 hover:scale-105 active:scale-95 sm:bottom-6 sm:h-[4.25rem] sm:w-[4.25rem]",
+            "pointer-events-auto group fixed bottom-[max(16px,env(safe-area-inset-bottom))] flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-[0_8px_24px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 transition-transform hover:-translate-y-1 active:scale-95 sm:bottom-6 sm:h-16 sm:w-16",
             position === "bottom-right" ? "right-4 sm:right-6" : "left-4 sm:left-6",
           )}
           aria-label="Open Azera chat"
           aria-expanded={false}
         >
-          <span className="absolute inset-0 rounded-full border-2 border-current opacity-20 transition-opacity group-hover:opacity-40" aria-hidden="true" />
-          <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm sm:h-12 sm:w-12" style={{ backgroundColor: brandColor, color: brandTextColor }}>
-            <MartPointBubbleIcon className="h-7 w-7 transition-transform group-hover:rotate-6" />
-          </span>
-          <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" aria-label="Online" />
+          <Image src="/azera/chat-icon.svg" width={52} height={52} alt="" unoptimized className="h-12 w-12 sm:h-[3.25rem] sm:w-[3.25rem]" />
         </button>
       )}
 
@@ -741,19 +737,15 @@ export function AzeraChatWidget({
       {open && (
         <div
           style={panelStyle}
-          className={cn(
-            "pointer-events-auto fixed z-50 flex min-h-0 w-full flex-col overflow-hidden rounded-t-[1.5rem] border border-slate-200 bg-white shadow-[0_24px_65px_rgba(15,23,42,0.24)]",
-            "bottom-[var(--azera-keyboard-inset)] left-0 h-[min(760px,calc(var(--azera-viewport-height,100dvh)-0.5rem))] max-h-[var(--azera-viewport-height,100dvh)]",
-            "sm:bottom-6 sm:left-auto sm:right-auto sm:h-[min(680px,calc(100dvh-1.5rem))] sm:w-[min(420px,calc(100vw-1rem))] sm:rounded-2xl",
-            position === "bottom-right" ? "right-0 sm:right-6" : "left-0 sm:left-6",
-          )}
+          className={styles.panel}
+          data-position={position}
           role="dialog"
           aria-label={title}
         >
           {/* Header */}
-          <div style={{ backgroundColor: brandColor, color: brandTextColor }} className="flex items-center gap-3 px-4 py-3.5">
+          <header style={{ backgroundColor: brandColor, color: brandTextColor }} className="flex items-center gap-3 px-4 py-3">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/25">
-              <MartPointBubbleIcon className="h-5 w-5" />
+              <MartPointBubbleIcon className="h-5 w-5" dotColor={brandColor} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="truncate text-sm font-bold tracking-tight">{title}</div>
@@ -773,7 +765,7 @@ export function AzeraChatWidget({
               <X className="h-4 w-4" />
               </button>
             </div>
-          </div>
+          </header>
 
           {showEndConfirmation && (
             <section className="flex min-h-0 flex-1 flex-col items-center justify-center bg-white px-6 py-8 text-center">
@@ -829,9 +821,9 @@ export function AzeraChatWidget({
           )}
 
           {needsVisitorProfile && !showRating && !showEndConfirmation && (
-            <form onSubmit={saveVisitorProfile} className="min-h-0 flex-1 overflow-y-auto bg-slate-50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <form onSubmit={saveVisitorProfile} className={cn(styles.scrollArea, "min-h-0 flex-1 overflow-y-auto bg-slate-50")}>
               <div
-                className="relative overflow-hidden px-5 pb-7 pt-8 text-center"
+                className="relative overflow-hidden px-5 py-4 text-center sm:py-6"
                 style={{
                   background: `linear-gradient(145deg, ${brandColor} 0%, ${brandColor} 62%, #0f172a 145%)`,
                   color: brandTextColor,
@@ -839,10 +831,10 @@ export function AzeraChatWidget({
               >
                 <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full border-[18px] border-white/10" />
                 <div className="pointer-events-none absolute -bottom-20 -left-12 h-44 w-44 rounded-full border-[24px] border-white/10" />
-                <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-[1.35rem] bg-white/20 shadow-lg ring-1 ring-white/30 backdrop-blur-sm">
-                  <MartPointBubbleIcon className="h-9 w-9" />
+                <div className="relative mx-auto hidden h-12 w-12 items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/30 sm:flex">
+                  <MartPointBubbleIcon className="h-9 w-9" dotColor={brandColor} />
                 </div>
-                <p className="relative mt-4 text-lg font-bold tracking-tight sm:text-xl">Welcome to MartPoint Support</p>
+                <p className="relative text-base font-semibold sm:mt-3 sm:text-lg">Welcome to MartPoint Support</p>
                 <p className="relative mx-auto mt-2 max-w-[18rem] text-sm leading-relaxed opacity-80">
                   Our sales team is ready to help with setup, pricing, and everyday questions.
                 </p>
@@ -854,15 +846,15 @@ export function AzeraChatWidget({
                 <div className="mt-4 space-y-2.5">
                   <label className="block">
                     <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:text-xs">Your name</span>
-                    <input value={profileDraft.name} onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))} onFocus={(event) => { const field = event.currentTarget; window.setTimeout(() => field.scrollIntoView({ block: "center", behavior: "smooth" }), 250) }} placeholder="Enter your name" autoComplete="name" className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-base text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 sm:h-11 sm:text-sm" />
+                    <input value={profileDraft.name} onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))} onFocus={(event) => revealProfileField(event.currentTarget)} placeholder="Enter your name" autoComplete="name" className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-base text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 sm:h-11 sm:text-sm" />
                   </label>
                   <label className="block">
                     <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:text-xs">Email address <span className="font-normal normal-case tracking-normal text-slate-400">(or use phone below)</span></span>
-                    <input value={profileDraft.email || ""} onChange={(event) => setProfileDraft((current) => ({ ...current, email: event.target.value }))} onFocus={(event) => { const field = event.currentTarget; window.setTimeout(() => field.scrollIntoView({ block: "center", behavior: "smooth" }), 250) }} placeholder="Enter your email address" type="email" autoComplete="email" className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-base text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 sm:h-11 sm:text-sm" />
+                    <input value={profileDraft.email || ""} onChange={(event) => setProfileDraft((current) => ({ ...current, email: event.target.value }))} onFocus={(event) => revealProfileField(event.currentTarget)} placeholder="Enter your email address" type="email" autoComplete="email" className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-base text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 sm:h-11 sm:text-sm" />
                   </label>
                   <label className="block">
                     <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-600 sm:text-xs">Phone <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>
-                    <input value={profileDraft.phone || ""} onChange={(event) => setProfileDraft((current) => ({ ...current, phone: event.target.value }))} onFocus={(event) => { const field = event.currentTarget; window.setTimeout(() => field.scrollIntoView({ block: "center", behavior: "smooth" }), 250) }} placeholder="Add a phone number" type="tel" autoComplete="tel" className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-base text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 sm:h-11 sm:text-sm" />
+                    <input value={profileDraft.phone || ""} onChange={(event) => setProfileDraft((current) => ({ ...current, phone: event.target.value }))} onFocus={(event) => revealProfileField(event.currentTarget)} placeholder="Add a phone number" type="tel" autoComplete="tel" className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-base text-slate-900 outline-none placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 sm:h-11 sm:text-sm" />
                   </label>
                   <button type="submit" style={{ backgroundColor: brandColor, color: brandTextColor }} className="mt-1 h-12 w-full rounded-xl px-3 text-base font-bold shadow-[0_8px_18px_rgba(15,23,42,0.14)] transition hover:-translate-y-0.5 hover:brightness-95 sm:h-11 sm:text-sm">Start chatting</button>
                 </div>
@@ -872,7 +864,7 @@ export function AzeraChatWidget({
           )}
 
           {/* Messages */}
-          <div ref={scrollRef} aria-live="polite" className={cn("min-h-0 flex-1 space-y-3 overflow-y-auto scroll-py-2 bg-slate-50 p-4 sm:p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", (needsVisitorProfile || showRating || showEndConfirmation) && "hidden")}>
+          <div ref={scrollRef} aria-live="polite" className={cn(styles.scrollArea, "min-h-0 flex-1 space-y-3 overflow-y-auto scroll-py-2 bg-slate-50 p-4 sm:p-5", (needsVisitorProfile || showRating || showEndConfirmation) && "hidden")}>
             {!needsVisitorProfile && conversation?.status === "closed" && conversation.last_message_at && (
               <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <p className="text-sm font-bold text-slate-900">Welcome back</p>
@@ -959,16 +951,6 @@ export function AzeraChatWidget({
                       {isExpanded ? "Show less" : "Show more"}
                     </button>
                   )}
-                  {m.author_type === "ai" && m.sources && m.sources.length > 0 && (
-                    <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] leading-4 text-slate-500">
-                      <span className="font-semibold text-slate-600">Based on:</span>{" "}
-                      {m.sources.slice(0, 2).map((source, index) => (
-                        <span key={source.id || source.title}>
-                          {index > 0 ? "; " : ""}{source.title}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                   <div className="mt-1 flex items-center justify-between gap-3 text-[10px] leading-4 opacity-60">
                     <span>{new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                     {isCustomer && <span>Delivered</span>}
@@ -994,13 +976,11 @@ export function AzeraChatWidget({
                 <span> — a specialist will join as soon as possible.</span>
               </div>
             )}
-            {!needsVisitorProfile && loading && (
-              <div className="mr-auto flex max-w-[94%] items-start gap-2 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3.5 py-2.5 text-sm leading-5 text-slate-700 shadow-sm">
-                <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />
-                <div>
-                  <p>{delayedReply ? "This is taking longer than usual…" : slowReply ? "Preparing your reply…" : "Sending your message…"}</p>
-                  {delayedReply && <p className="mt-0.5 text-xs leading-4 text-slate-500">We’re still processing it. Please keep this chat open for a moment.</p>}
-                </div>
+            {!needsVisitorProfile && loading && !receivingReply && (
+              <div role="status" aria-label="Waiting for reply" className="mr-auto flex w-fit items-center gap-1.5 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-slate-400 motion-safe:animate-bounce" />
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-slate-400 motion-safe:animate-bounce [animation-delay:150ms]" />
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-slate-400 motion-safe:animate-bounce [animation-delay:300ms]" />
               </div>
             )}
             {sendError && !needsVisitorProfile && (
@@ -1011,7 +991,7 @@ export function AzeraChatWidget({
           </div>
 
           {/* Input */}
-          <form onSubmit={sendMessage} className={cn("flex gap-2 border-t border-slate-200 bg-white p-3", (needsVisitorProfile || showRating || showEndConfirmation) && "hidden")}>
+          <form onSubmit={sendMessage} className={cn(styles.composer, "flex gap-2 border-t border-slate-200 bg-white p-3", (needsVisitorProfile || showRating || showEndConfirmation) && "hidden")}>
             <textarea
               ref={inputRef}
               value={input}
@@ -1019,7 +999,7 @@ export function AzeraChatWidget({
               disabled={needsVisitorProfile}
               placeholder="Type a message…"
               rows={1}
-              className="min-h-10 flex-1 resize-none rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10"
+              className="min-h-10 min-w-0 flex-1 resize-none rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-base text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 sm:text-sm"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault()
@@ -1041,16 +1021,16 @@ export function AzeraChatWidget({
               onClick={requestCall}
               disabled={loading || !conversation?.id}
               style={{ backgroundColor: brandColor, color: brandTextColor }}
-              className="h-10 w-10 rounded-xl p-2.5 transition-opacity hover:brightness-90 disabled:opacity-50"
+              className="h-10 w-10 shrink-0 rounded-xl p-2.5 transition-opacity hover:brightness-90 disabled:opacity-50"
               aria-label="Request call"
             >
               <Phone className="h-4 w-4" />
             </button>
           </form>
           {callError && <p className="border-t border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{callError}</p>}
-          <div className="border-t border-slate-100 bg-white px-3 py-2 text-center text-[11px] text-slate-400">
+          <footer className="border-t border-slate-100 bg-white px-3 py-2 text-center text-[11px] text-slate-400">
             Secured by <a href="https://www.avariodigitals.com" target="_blank" rel="noreferrer" className="font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-blue-600">Avario</a>
-          </div>
+          </footer>
         </div>
       )}
 
@@ -1063,7 +1043,8 @@ export function AzeraChatWidget({
           onEnded={() => setActiveCall(null)}
         />
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }
 

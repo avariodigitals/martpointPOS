@@ -274,7 +274,13 @@ export async function listPartnerQuoteRequests(partnerId: string): Promise<Recor
     .select("*, partner_leads(business_name, contact_name, status), quotes:quote_id(status)")
     .eq("partner_id", partnerId)
     .order("created_at", { ascending: false })
-  return (data || []) as Record<string, unknown>[]
+  return (data || []).map((request) => {
+    const value = request.quotes as { status?: string } | { status?: string }[] | null
+    const quote = Array.isArray(value) ? value[0] : value
+    return request.status === "ISSUED" && quote?.status === "DRAFT"
+      ? { ...request, status: "UNDER_REVIEW", decision_reason: "Your quote is being revised. We will notify you when it is ready." }
+      : request
+  }) as Record<string, unknown>[]
 }
 
 /** Load one request and its issued Finance quote, if Sales has linked one. */
@@ -309,6 +315,12 @@ export async function getPartnerQuoteRequestForPartner(
     (quote.partner_lead_id && quote.partner_lead_id !== request.partner_lead_id)
   )) {
     return { request: request as Record<string, unknown>, lead, quote: null }
+  }
+
+  // Draft terms are working documents, including withdrawn issued quotes.
+  // Existing email links must not expose changes before Finance reissues them.
+  if (quote?.status === "DRAFT") {
+    return { request: { ...request, status: "UNDER_REVIEW" }, lead, quote: null }
   }
 
   let accountNumber = ""

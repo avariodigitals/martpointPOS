@@ -15,7 +15,7 @@ beforeEach(() => {
   mocks.fetch.mockResolvedValue(new Response('{"id":"test-only-provider-id"}', { status: 200 }))
   vi.stubGlobal("fetch", mocks.fetch)
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals() })
 describe("Explicit access-email recipient boundary", () => {
   it("keeps the log route but never appends internal route recipients", async () => {
     await sendEmail({ to: "chosen@example.test", subject: "Test", text: "Test", route: "onboarding_access", useRouteRecipients: false })

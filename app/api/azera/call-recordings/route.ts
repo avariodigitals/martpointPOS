@@ -41,7 +41,13 @@ export async function GET(request: Request) {
 
     if (error) return err(error.message, 500)
 
-    return ok(data || [])
+    const recordings = await Promise.all((data || []).map(async (recording) => {
+      if (recording.retention_expires_at && Date.parse(recording.retention_expires_at) < Date.now()) return { ...recording, recording_url: null, expired: true }
+      if (!recording.recording_path) return { ...recording, recording_url: /^https:\/\//.test(recording.recording_url) ? recording.recording_url : null }
+      const { data: signed } = await supabase.storage.from("call-recordings").createSignedUrl(recording.recording_path, 300)
+      return { ...recording, recording_url: signed?.signedUrl || null }
+    }))
+    return ok(recordings)
   } catch (e) {
     return err(String(e), 500)
   }
@@ -64,11 +70,16 @@ export async function POST(request: Request) {
       file_size_bytes,
       mime_type = "audio/wav",
       recording_type = "manual",
+      consent_confirmed,
     } = body
 
     if (!call_id || !business_id || !recording_url) {
       return err("call_id, business_id and recording_url are required")
     }
+    if (consent_confirmed !== true) return err("Confirm that the participants consented to recording.")
+    if (typeof recording_url !== "string" || !/^https:\/\//.test(recording_url)) return err("Use a secure recording URL.")
+    const { data: call } = await supabase.from("azera_calls").select("id").eq("id", call_id).eq("business_id", business_id).maybeSingle()
+    if (!call) return err("The recording must belong to the selected call and business.", 404)
 
     const { data, error } = await supabase
       .from("azera_call_recordings")
@@ -81,6 +92,8 @@ export async function POST(request: Request) {
         file_size_bytes,
         mime_type,
         recording_type,
+        consent_confirmed_at: new Date().toISOString(),
+        retention_expires_at: new Date(Date.now() + 90 * 86_400_000).toISOString(),
         created_at: new Date().toISOString(),
       })
       .select()

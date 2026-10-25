@@ -167,6 +167,7 @@ export default function IntegrationsPage() {
             {input("API Key", whatsapp.apiKey, (v) => setWhatsapp({ ...whatsapp, apiKey: v }), "password")}
             {input("Base URL", whatsapp.baseUrl, (v) => setWhatsapp({ ...whatsapp, baseUrl: v }))}
             {input("Webhook Secret", whatsapp.webhookSecret, (v) => setWhatsapp({ ...whatsapp, webhookSecret: v }), "password")}
+            <p className="text-xs text-muted-foreground">In the 360dialog Hub, point the channel webhook at /api/webhooks/whatsapp and configure an x-webhook-secret header with this same secret. Map the business number in Azera Settings. Both Cloud-style and legacy webhook payloads are supported.</p>
             {input("Business Phone Number", whatsapp.phoneNumber, (v) => setWhatsapp({ ...whatsapp, phoneNumber: v }))}
             <div>
               {input("Lead Keywords (comma-separated)", whatsapp.leadKeywords, (v) => setWhatsapp({ ...whatsapp, leadKeywords: v }))}

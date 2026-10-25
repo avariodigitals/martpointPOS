@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { CreatorContentModal } from "@/components/admin/creator-content-modal"
 import {
-  Loader2, Plus, ArrowUp, ArrowDown, Pencil, ListChecks,
+  Loader2, Plus, ArrowUp, ArrowDown, Pencil, ListChecks, Eye,
 } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 
@@ -38,7 +39,7 @@ interface Question {
   feedback: string | null
 }
 
-const TYPES = ["ARTICLE", "VIDEO", "GUIDE", "LINK", "ASSESSMENT"]
+const TYPES = ["ARTICLE", "VIDEO", "GUIDE", "LINK", "DOWNLOAD", "ASSESSMENT"]
 const CATEGORIES = ["GETTING_STARTED", "MARTPOINT_101", "SELLING_INVENTORY", "BUSINESS_MANAGEMENT", "DIGITAL_COMMERCE", "BUSINESS_TYPE", "OTHER"]
 const STATUSES = ["DRAFT", "PUBLISHED", "ARCHIVED"]
 
@@ -55,6 +56,7 @@ export default function AdminLearningPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("")
   const [editing, setEditing] = useState<string | null>(null) // id or "new"
+  const [viewing, setViewing] = useState<LearningItem | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null)
@@ -263,7 +265,8 @@ export default function AdminLearningPage() {
                     </td>
                     <td className="p-3">
                       <div className="flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => openEdit(it)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="sm" variant="outline" onClick={() => setViewing(it)} title="View content"><Eye className="w-3.5 h-3.5 mr-1" /> View</Button>
+                        <Button size="sm" variant="outline" onClick={() => openEdit(it)} title="Edit content"><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
                         {it.type === "ASSESSMENT" && (
                           <Button size="sm" variant="outline" onClick={() => openQuestions(it.id)} title="Edit questions">
                             <ListChecks className="w-3.5 h-3.5" />
@@ -280,12 +283,8 @@ export default function AdminLearningPage() {
       )}
 
       {editing && (
-        <Card>
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">{editing === "new" ? "New content" : "Edit content"}</h3>
-              <Button variant="ghost" size="sm" onClick={() => { setEditing(null); setQuestionsFor(null) }}>Close</Button>
-            </div>
+        <CreatorContentModal title={editing === "new" ? "New content" : "Edit content"} onClose={() => { setEditing(null); setQuestionsFor(null) }} wide>
+          <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-3">
               <label className="space-y-1 md:col-span-2"><span className="text-xs text-muted-foreground">Title</span>
                 <input className={field} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
@@ -311,8 +310,8 @@ export default function AdminLearningPage() {
                     <input className={field} type="number" value={form.durationSeconds} onChange={(e) => setForm({ ...form, durationSeconds: e.target.value })} /></label>
                 </>
               )}
-              {form.type === "LINK" && (
-                <label className="space-y-1 md:col-span-3"><span className="text-xs text-muted-foreground">External URL (e.g. /help-centre/article-slug)</span>
+              {(form.type === "LINK" || form.type === "DOWNLOAD") && (
+                <label className="space-y-1 md:col-span-3"><span className="text-xs text-muted-foreground">External URL (e.g. /creator-resources/guide.pdf)</span>
                   <input className={field} value={form.externalUrl} onChange={(e) => setForm({ ...form, externalUrl: e.target.value })} /></label>
               )}
               {form.type === "ASSESSMENT" && (
@@ -338,17 +337,13 @@ export default function AdminLearningPage() {
               <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}</Button>
               {msg && <p className={`text-sm ${msg.kind === "ok" ? "text-green-600" : "text-destructive"}`}>{msg.text}</p>}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CreatorContentModal>
       )}
 
       {questionsFor && (
-        <Card>
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Assessment questions</h3>
-              <Button variant="ghost" size="sm" onClick={() => setQuestionsFor(null)}>Close</Button>
-            </div>
+        <CreatorContentModal title="Assessment questions" onClose={() => setQuestionsFor(null)} wide>
+          <div className="space-y-4">
             {questions.map((q, qi) => (
               <div key={qi} className="rounded-md border p-4 space-y-3">
                 <div className="flex gap-3">
@@ -421,8 +416,30 @@ export default function AdminLearningPage() {
                 {savingQuestions ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save questions"}
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CreatorContentModal>
+      )}
+
+      {viewing && (
+        <CreatorContentModal title={viewing.title} onClose={() => setViewing(null)}>
+          <div className="space-y-4 text-sm">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-muted px-2.5 py-1">{enumLabel(viewing.type)}</span>
+              <span className="rounded-full bg-muted px-2.5 py-1">{enumLabel(viewing.category)}</span>
+              <span className={`rounded-full px-2.5 py-1 ${viewing.status === "PUBLISHED" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>{enumLabel(viewing.status)}</span>
+            </div>
+            {viewing.description && <p className="text-muted-foreground">{viewing.description}</p>}
+            {viewing.body && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Content</p><pre className="whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-xs">{viewing.body}</pre></div>}
+            {viewing.videoUrl && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Video URL</p><a className="break-all text-primary underline" href={viewing.videoUrl} target="_blank" rel="noreferrer">{viewing.videoUrl}</a></div>}
+            {viewing.externalUrl && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Resource URL</p><a className="break-all text-primary underline" href={viewing.externalUrl} target="_blank" rel="noreferrer">{viewing.externalUrl}</a></div>}
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              {viewing.required && <span>Required</span>}
+              {viewing.isOnboardingStep && <span>Onboarding step{viewing.onboardingOrder != null ? ` #${viewing.onboardingOrder}` : ""}</span>}
+              {viewing.durationSeconds != null && <span>{Math.ceil(viewing.durationSeconds / 60)} min</span>}
+              {viewing.questionCount > 0 && <span>{viewing.questionCount} questions</span>}
+            </div>
+          </div>
+        </CreatorContentModal>
       )}
     </div>
   )

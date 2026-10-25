@@ -1,0 +1,2 @@
+# Preserve generated PDF assets as binary files; do not normalize their bytes.
+*.pdf binary

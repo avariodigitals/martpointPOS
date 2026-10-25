@@ -18,13 +18,18 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("azera_agent_presence")
-    .select("user_id, queues, is_online, last_seen_at")
+    .select("user_id, queues, is_online, last_seen_at, users(name,role,status)")
     .eq("is_online", true)
+    .gte("last_seen_at", new Date(Date.now() - 90_000).toISOString())
 
   if (error) return NextResponse.json({ error: "Failed to load agent presence" }, { status: 500 })
-  const online = data || []
+  const online = (data || []).flatMap(row => {
+    const user = Array.isArray(row.users) ? row.users[0] : row.users
+    return user?.status === "ACTIVE" && hasPermission(user.role as UserRole, "azera") ? [{ user_id: row.user_id, name: user.name, queues: row.queues, is_online: row.is_online, last_seen_at: row.last_seen_at }] : []
+  })
   const own = await supabase.from("azera_agent_presence").select("user_id, queues, is_online, last_seen_at").eq("user_id", current.userId).maybeSingle()
-  return NextResponse.json({ agent: own.data || null, online })
+  const agent = own.data ? { ...own.data, is_online: own.data.is_online && Date.parse(own.data.last_seen_at) > Date.now() - 90_000 } : null
+  return NextResponse.json({ userId: current.userId, agent, online }, { headers: { "Cache-Control": "no-store" } })
 }
 
 export async function POST(request: Request) {
@@ -45,6 +50,11 @@ export async function POST(request: Request) {
       .select("user_id, queues, is_online, last_seen_at")
       .single()
     if (error) return NextResponse.json({ error: "Could not update agent presence" }, { status: 500 })
+    if (isOnline) {
+      const { data: waiting } = await supabase.from("azera_conversations").select("id").is("assigned_admin_user_id", null)
+        .eq("waiting_for_agent", true).neq("status", "closed").in("queue", safeQueues).order("last_message_at", { ascending: true }).limit(20)
+      for (const conversation of waiting || []) await supabase.rpc("azera_assign_waiting_conversation", { p_conversation_id: conversation.id })
+    }
     return NextResponse.json({ agent: data })
   } catch {
     return NextResponse.json({ error: "Could not update agent presence" }, { status: 400 })

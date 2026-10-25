@@ -1,55 +1,99 @@
-"use client"
+"use client";
+import Link from "next/link";
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { useSearchParams } from "next/navigation"
-import dynamic from "next/dynamic"
-import { Bot, CheckCircle2, Inbox, Loader2, MessageCircle, RefreshCw, Search, Send, Share2, Ticket, UserRound, Users, Volume2, X } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
-import { useWebRTCCall, AzeraCallUI } from "@/components/shared/azera-webrtc-call"
-import { mergeInboxMessages } from "@/lib/omnichannel-state"
-import { OmnichannelDetails } from "@/components/admin/omnichannel-details"
-import type { OutboundContact } from "@/components/admin/azera-outbound-call"
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
+import {
+  Bot,
+  CheckCircle2,
+  Inbox,
+  Loader2,
+  MessageCircle,
+  RefreshCw,
+  Search,
+  Send,
+  Share2,
+  Ticket,
+  UserRound,
+  Users,
+  Volume2,
+  X,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import {
+  useWebRTCCall,
+  AzeraCallUI,
+} from "@/components/shared/azera-webrtc-call";
+import {
+  mergeInboxMessages,
+  messageDeliveryLabel,
+} from "@/lib/omnichannel-state";
+import { OmnichannelDetails } from "@/components/admin/omnichannel-details";
+import { ContactCentreReadiness } from "@/components/admin/contact-centre-readiness";
+import { ConversationRouting } from "@/components/admin/conversation-routing";
+import type { OutboundContact } from "@/components/admin/azera-outbound-call";
 
-const AzeraOutboundCall = dynamic(() => import("@/components/admin/azera-outbound-call").then((module) => module.AzeraOutboundCall), { ssr: false })
+const AzeraOutboundCall = dynamic(
+  () =>
+    import("@/components/admin/azera-outbound-call").then(
+      (module) => module.AzeraOutboundCall,
+    ),
+  { ssr: false },
+);
 
-type Channel = "all" | "website" | "whatsapp" | "messenger" | "instagram"
-type Status = "all" | "open" | "assigned" | "closed"
+type Channel = "all" | "website" | "whatsapp" | "messenger" | "instagram";
+type Status = "all" | "open" | "assigned" | "closed";
 
 interface Conversation {
-  id: string
-  business_id: string
-  channel: string
-  external_id: string
-  customer_name: string | null
-  customer_phone: string | null
-  status: string
-  assigned_admin_user_id: string | null
-  ticket_id: string | null
-  ai_enabled: boolean
-  queue: "sales" | "support" | "customer_support"
-  triage_state: string
-  waiting_for_agent: boolean
-  handoff_summary: string | null
-  escalation_reason: string | null
-  knowledge_refs: Array<{ id?: string; title?: string; source?: string }>
-  last_message_at: string
-  last_message: { message: string; author_type: string; created_at: string } | null
-  unread_count: number
+  id: string;
+  business_id: string;
+  channel: string;
+  external_id: string;
+  customer_name: string | null;
+  customer_phone: string | null;
+  status: string;
+  assigned_admin_user_id: string | null;
+  ticket_id: string | null;
+  ai_enabled: boolean;
+  queue: "sales" | "support" | "customer_support";
+  triage_state: string;
+  waiting_for_agent: boolean;
+  handoff_summary: string | null;
+  escalation_reason: string | null;
+  knowledge_refs: Array<{ id?: string; title?: string; source?: string }>;
+  last_message_at: string;
+  last_message: {
+    message: string;
+    author_type: string;
+    created_at: string;
+  } | null;
+  unread_count: number;
 }
 
 interface Message {
-  id: string
-  author_type: "customer" | "agent" | "ai" | "system"
-  author_id?: string | null
-  message: string
-  direction: "inbound" | "outbound"
-  created_at: string
-  message_type?: string
-  attachment_url?: string | null
-  attachment_name?: string | null
-  attachment_mime?: string | null
-  metadata?: Record<string, unknown>
+  id: string;
+  author_type: "customer" | "agent" | "ai" | "system";
+  author_id?: string | null;
+  message: string;
+  direction: "inbound" | "outbound";
+  created_at: string;
+  message_type?: string;
+  attachment_url?: string | null;
+  attachment_name?: string | null;
+  attachment_mime?: string | null;
+  metadata?: Record<string, unknown>;
+  delivery_status?: string;
+  delivery_error?: string | null;
 }
 
 const channels: Array<{ value: Channel; label: string; color: string }> = [
@@ -58,444 +102,1305 @@ const channels: Array<{ value: Channel; label: string; color: string }> = [
   { value: "whatsapp", label: "WhatsApp", color: "bg-emerald-600" },
   { value: "messenger", label: "Messenger", color: "bg-[#1877F2]" },
   { value: "instagram", label: "Instagram", color: "bg-[#C13584]" },
-]
+];
 
-const channelIcon: Record<string, typeof MessageCircle> = { website: MessageCircle, whatsapp: MessageCircle, messenger: MessageCircle, instagram: Share2 }
+const channelIcon: Record<string, typeof MessageCircle> = {
+  website: MessageCircle,
+  whatsapp: MessageCircle,
+  messenger: MessageCircle,
+  instagram: Share2,
+};
 
 function initials(name: string | null, fallback: string) {
-  const value = (name || fallback).trim()
-  const parts = value.split(/\s+/).filter(Boolean)
-  return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : value.slice(0, 2)).toUpperCase()
+  const value = (name || fallback).trim();
+  const parts = value.split(/\s+/).filter(Boolean);
+  return (
+    parts.length > 1
+      ? parts[0][0] + parts[parts.length - 1][0]
+      : value.slice(0, 2)
+  ).toUpperCase();
 }
 
 function time(value: string | null | undefined) {
-  if (!value) return ""
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function channelLabel(value: string) {
-  return channels.find((item) => item.value === value)?.label || value
+  return channels.find((item) => item.value === value)?.label || value;
 }
 
 function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
-  const searchParams = useSearchParams()
-  const requestedConversation = searchParams.get("conversation")
-  const [conversations, setConversations] = useState<Conversation[]>([])
-  const [selected, setSelected] = useState<Conversation | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [channelFilter, setChannelFilter] = useState<Channel>(channel)
-  const [status, setStatus] = useState<Status>("all")
-  const [query, setQuery] = useState("")
-  const [input, setInput] = useState("")
-  const [loading, setLoading] = useState(true)
-  const [loadingMessages, setLoadingMessages] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState("")
-  const [syncError, setSyncError] = useState(false)
-  const activeConversationId = useRef<string | null>(null)
-  const messageCache = useRef(new Map<string, Message[]>())
-  const messageRequests = useRef(new Set<string>())
-  const conversationRequest = useRef(0)
-  const drafts = useRef(new Map<string, string>())
-  const messageViewport = useRef<HTMLDivElement | null>(null)
-  const followMessages = useRef(true)
-  const [showTicket, setShowTicket] = useState(false)
-  const [ticketSubject, setTicketSubject] = useState("")
-  const [ticketPriority, setTicketPriority] = useState("NORMAL")
-  const [ticketCategory, setTicketCategory] = useState("OTHER")
-  const [ticketSaving, setTicketSaving] = useState(false)
-  const [agentOnline, setAgentOnline] = useState(false)
-  const [agentQueues, setAgentQueues] = useState<string[]>(["customer_support"])
-  const [soundReady, setSoundReady] = useState(false)
-  const [soundEnabled, setSoundEnabled] = useState(false)
-  const storedPreferences = useRef<Record<string, unknown>>({})
-  const [incomingCall, setIncomingCall] = useState<{ id: string; customer_name?: string | null } | null>(null)
-  const [outboundContact, setOutboundContact] = useState<OutboundContact | null>(null)
-  const knownActivity = useRef(new Map<string, string>())
-  const alertAudio = useRef<AudioContext | null>(null)
-  const call = useWebRTCCall({ callId: incomingCall?.id || "", enabled: Boolean(incomingCall), isAgent: true, onCallEnded: () => setIncomingCall(null) })
+  const searchParams = useSearchParams();
+  const requestedConversation = searchParams.get("conversation");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selected, setSelected] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [channelFilter, setChannelFilter] = useState<Channel>(channel);
+  const [status, setStatus] = useState<Status>("all");
+  const [query, setQuery] = useState("");
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [syncError, setSyncError] = useState(false);
+  const activeConversationId = useRef<string | null>(null);
+  const messageCache = useRef(new Map<string, Message[]>());
+  const messageRequests = useRef(new Set<string>());
+  const conversationRequest = useRef(0);
+  const drafts = useRef(new Map<string, string>());
+  const messageViewport = useRef<HTMLDivElement | null>(null);
+  const followMessages = useRef(true);
+  const [showTicket, setShowTicket] = useState(false);
+  const [ticketSubject, setTicketSubject] = useState("");
+  const [ticketPriority, setTicketPriority] = useState("NORMAL");
+  const [ticketCategory, setTicketCategory] = useState("OTHER");
+  const [ticketSaving, setTicketSaving] = useState(false);
+  const [agentOnline, setAgentOnline] = useState(false);
+  const [currentAgentId, setCurrentAgentId] = useState<string | null>(null);
+  const [agentQueues, setAgentQueues] = useState<string[]>([
+    "customer_support",
+  ]);
+  const [soundReady, setSoundReady] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const storedPreferences = useRef<Record<string, unknown>>({});
+  const [incomingCall, setIncomingCall] = useState<{
+    id: string;
+    customer_name?: string | null;
+  } | null>(null);
+  const [outboundContact, setOutboundContact] =
+    useState<OutboundContact | null>(null);
+  const knownActivity = useRef(new Map<string, string>());
+  const alertAudio = useRef<AudioContext | null>(null);
+  const call = useWebRTCCall({
+    callId: incomingCall?.id || "",
+    enabled: Boolean(incomingCall),
+    isAgent: true,
+    onCallEnded: () => setIncomingCall(null),
+  });
 
   const primeAlertAudio = useCallback(() => {
-    if (typeof window === "undefined") return
+    if (typeof window === "undefined") return;
     try {
-      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-      if (!AudioContextClass) return
-      if (!alertAudio.current) alertAudio.current = new AudioContextClass()
-      if (alertAudio.current.state === "suspended") void alertAudio.current.resume()
-      setSoundReady(true)
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AudioContextClass) return;
+      if (!alertAudio.current) alertAudio.current = new AudioContextClass();
+      if (alertAudio.current.state === "suspended")
+        void alertAudio.current.resume();
+      setSoundReady(true);
     } catch {
-      setSoundReady(false)
+      setSoundReady(false);
     }
-  }, [])
+  }, []);
 
   const playAgentAlert = useCallback(() => {
-    if (!soundEnabled) return
-    primeAlertAudio()
-    const context = alertAudio.current
-    if (!context || context.state === "suspended") return
+    if (!soundEnabled) return;
+    primeAlertAudio();
+    const context = alertAudio.current;
+    if (!context || context.state === "suspended") return;
     try {
-      const now = context.currentTime
-      const oscillator = context.createOscillator()
-      const gain = context.createGain()
-      oscillator.type = "sine"
-      oscillator.frequency.setValueAtTime(880, now)
-      oscillator.frequency.setValueAtTime(1040, now + 0.11)
-      gain.gain.setValueAtTime(0.0001, now)
-      gain.gain.exponentialRampToValueAtTime(0.11, now + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.34)
-      oscillator.connect(gain).connect(context.destination)
-      oscillator.start(now)
-      oscillator.stop(now + 0.36)
+      const now = context.currentTime;
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, now);
+      oscillator.frequency.setValueAtTime(1040, now + 0.11);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.11, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.34);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start(now);
+      oscillator.stop(now + 0.36);
     } catch {
       // Waiting count and unread state remain the fallback if audio is blocked.
     }
-  }, [primeAlertAudio, soundEnabled])
+  }, [primeAlertAudio, soundEnabled]);
 
   useEffect(() => {
-    let active = true
+    let active = true;
     async function loadSoundPreference() {
       try {
-        const response = await fetch("/api/admin/user-preferences", { cache: "no-store" })
-        if (!response.ok || !active) return
-        const json = await response.json()
-        const preferences = (json.preferences && typeof json.preferences === "object" ? json.preferences : {}) as Record<string, unknown>
-        storedPreferences.current = preferences
-        setSoundEnabled(Boolean(preferences.omnichannelSound))
+        const response = await fetch("/api/admin/user-preferences", {
+          cache: "no-store",
+        });
+        if (!response.ok || !active) return;
+        const json = await response.json();
+        const preferences = (
+          json.preferences && typeof json.preferences === "object"
+            ? json.preferences
+            : {}
+        ) as Record<string, unknown>;
+        storedPreferences.current = preferences;
+        setSoundEnabled(Boolean(preferences.omnichannelSound));
       } catch {
         // Audio remains opt-in for this session when preferences cannot load.
       }
     }
-    void loadSoundPreference()
-    return () => { active = false }
-  }, [])
+    void loadSoundPreference();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function toggleSound() {
     // Browsers still require one user gesture to resume an AudioContext after login.
     if (soundEnabled && !soundReady) {
-      primeAlertAudio()
-      return
+      primeAlertAudio();
+      return;
     }
 
-    const next = !soundEnabled
-    setSoundEnabled(next)
+    const next = !soundEnabled;
+    setSoundEnabled(next);
     if (!next) {
-      alertAudio.current?.close()
-      alertAudio.current = null
-      setSoundReady(false)
+      alertAudio.current?.close();
+      alertAudio.current = null;
+      setSoundReady(false);
     } else {
-      primeAlertAudio()
+      primeAlertAudio();
     }
 
-    const preferences = { ...storedPreferences.current, omnichannelSound: next }
-    storedPreferences.current = preferences
+    const preferences = {
+      ...storedPreferences.current,
+      omnichannelSound: next,
+    };
+    storedPreferences.current = preferences;
     try {
       await fetch("/api/admin/user-preferences", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ preferences }),
-      })
+      });
     } catch {
       // Keep the session setting even if persistence is temporarily unavailable.
     }
   }
 
   useEffect(() => {
-    let active = true
+    let active = true;
     async function loadPresence() {
-      const response = await fetch("/api/azera/presence", { cache: "no-store" })
-      if (!response.ok || !active) return
-      const json = await response.json()
-      setAgentOnline(Boolean(json.agent?.is_online))
-      if (Array.isArray(json.agent?.queues) && json.agent.queues.length) setAgentQueues(json.agent.queues)
+      const response = await fetch("/api/azera/presence", {
+        cache: "no-store",
+      });
+      if (!response.ok || !active) return;
+      const json = await response.json();
+      setAgentOnline(Boolean(json.agent?.is_online));
+      setCurrentAgentId(json.userId || json.agent?.user_id || null);
+      if (Array.isArray(json.agent?.queues) && json.agent.queues.length)
+        setAgentQueues(json.agent.queues);
     }
-    void loadPresence()
-    const timer = window.setInterval(() => void loadPresence(), 30000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [])
+    void loadPresence();
+    const timer = window.setInterval(() => void loadPresence(), 30000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
-    if (!agentOnline) return
-    const heartbeat = () => void fetch("/api/azera/presence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ online: true, queues: agentQueues }) })
-    heartbeat()
-    const timer = window.setInterval(heartbeat, 30000)
-    return () => window.clearInterval(timer)
-  }, [agentOnline, agentQueues])
+    if (!agentOnline) return;
+    const heartbeat = () =>
+      void fetch("/api/azera/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ online: true, queues: agentQueues }),
+      });
+    heartbeat();
+    const timer = window.setInterval(heartbeat, 30000);
+    return () => window.clearInterval(timer);
+  }, [agentOnline, agentQueues]);
 
   useEffect(() => {
-    if (!agentOnline || outboundContact) return
-    let active = true
+    if (!agentOnline || outboundContact) return;
+    let active = true;
     async function pollCalls() {
       try {
-        const response = await fetch("/api/azera/calls?status=ringing", { cache: "no-store" })
-        if (!response.ok || !active) return
-        const json = await response.json()
-        const calls = json.data || []
-        const next = calls.find((item: { direction?: string; call_type?: string }) => item.direction === "inbound" && item.call_type === "webrtc")
+        const response = await fetch("/api/azera/calls?status=ringing", {
+          cache: "no-store",
+        });
+        if (!response.ok || !active) return;
+        const json = await response.json();
+        const calls = json.data || [];
+        const next = calls.find(
+          (item: { direction?: string; call_type?: string }) =>
+            item.direction === "inbound" && item.call_type === "webrtc",
+        );
         if (active && next && !incomingCall) {
-          setIncomingCall({ id: next.id, customer_name: next.customer_name })
-          playAgentAlert()
+          setIncomingCall({ id: next.id, customer_name: next.customer_name });
+          playAgentAlert();
         }
-      } catch { /* A later poll retries; never interrupt an active call. */ }
+      } catch {
+        /* A later poll retries; never interrupt an active call. */
+      }
     }
-    void pollCalls()
-    const timer = window.setInterval(() => void pollCalls(), 5000)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [agentOnline, incomingCall, outboundContact, playAgentAlert])
+    void pollCalls();
+    const timer = window.setInterval(() => void pollCalls(), 5000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [agentOnline, incomingCall, outboundContact, playAgentAlert]);
 
   async function setPresence(online: boolean) {
-    if (online && soundEnabled) primeAlertAudio()
-    const response = await fetch("/api/azera/presence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ online, queues: agentQueues }) })
-    const json = await response.json()
-    if (!response.ok) throw new Error(json.error || "Could not update agent status")
-    setAgentOnline(Boolean(json.agent?.is_online))
+    if (online && soundEnabled) primeAlertAudio();
+    const response = await fetch("/api/azera/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ online, queues: agentQueues }),
+    });
+    const json = await response.json();
+    if (!response.ok)
+      throw new Error(json.error || "Could not update agent status");
+    setAgentOnline(Boolean(json.agent?.is_online));
   }
 
   async function acceptCall() {
-    if (!incomingCall) return
-    await call.answerCall()
+    if (!incomingCall) return;
+    await call.answerCall();
   }
 
   async function endCall() {
-    if (!incomingCall) return
-    await call.endCall(call.state === "ringing")
-    setIncomingCall(null)
+    if (!incomingCall) return;
+    await call.endCall(call.state === "ringing");
+    setIncomingCall(null);
   }
 
   const markConversationRead = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`/api/azera/conversations/${encodeURIComponent(id)}/read`, { method: "POST" })
-      if (!response.ok) return
-      setConversations((current) => current.map((item) => item.id === id ? { ...item, unread_count: 0 } : item))
-      setSelected((current) => current?.id === id ? { ...current, unread_count: 0 } : current)
+      const response = await fetch(
+        `/api/azera/conversations/${encodeURIComponent(id)}/read`,
+        { method: "POST" },
+      );
+      if (!response.ok) return;
+      setConversations((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, unread_count: 0 } : item,
+        ),
+      );
+      setSelected((current) =>
+        current?.id === id ? { ...current, unread_count: 0 } : current,
+      );
     } catch {
       // The next refresh will retry; unread counts remain truthful if the API is unavailable.
     }
-  }, [])
+  }, []);
 
-  const loadMessages = useCallback(async (id: string, markRead = false) => {
-    if (messageRequests.current.has(id)) return
-    messageRequests.current.add(id)
-    if (!messageCache.current.has(id) && activeConversationId.current === id) setLoadingMessages(true)
-    try {
-      const response = await fetch(`/api/azera/conversations/${encodeURIComponent(id)}/messages?limit=100`, { cache: "no-store", signal: AbortSignal.timeout(10_000) })
-      const json = await response.json()
-      if (!response.ok) throw new Error(json.error || "Could not load messages")
-      const next = mergeInboxMessages(messageCache.current.get(id) || [], json.messages || [])
-      messageCache.current.set(id, next)
-      if (activeConversationId.current === id) { setMessages(next); setSyncError(false) }
-      if (markRead) void markConversationRead(id)
-    } catch {
-      if (activeConversationId.current === id) setSyncError(true)
-    } finally {
-      messageRequests.current.delete(id)
-      if (activeConversationId.current === id) setLoadingMessages(false)
-    }
-  }, [markConversationRead])
+  const loadMessages = useCallback(
+    async (id: string, markRead = false) => {
+      if (messageRequests.current.has(id)) return;
+      messageRequests.current.add(id);
+      if (!messageCache.current.has(id) && activeConversationId.current === id)
+        setLoadingMessages(true);
+      try {
+        const response = await fetch(
+          `/api/azera/conversations/${encodeURIComponent(id)}/messages?limit=100`,
+          { cache: "no-store", signal: AbortSignal.timeout(10_000) },
+        );
+        const json = await response.json();
+        if (!response.ok)
+          throw new Error(json.error || "Could not load messages");
+        const next = mergeInboxMessages(
+          messageCache.current.get(id) || [],
+          json.messages || [],
+        );
+        messageCache.current.set(id, next);
+        if (activeConversationId.current === id) {
+          setMessages(next);
+          setSyncError(false);
+        }
+        if (markRead) void markConversationRead(id);
+      } catch {
+        if (activeConversationId.current === id) setSyncError(true);
+      } finally {
+        messageRequests.current.delete(id);
+        if (activeConversationId.current === id) setLoadingMessages(false);
+      }
+    },
+    [markConversationRead],
+  );
 
-  const activateConversation = useCallback((conversation: Conversation) => {
-    const changed = activeConversationId.current !== conversation.id
-    activeConversationId.current = conversation.id
-    setSelected(conversation)
-    if (!changed) return
-    followMessages.current = true
-    setMessages(messageCache.current.get(conversation.id) || [])
-    setLoadingMessages(!messageCache.current.has(conversation.id))
-    setInput(drafts.current.get(conversation.id) || "")
-    setSyncError(false)
-    void loadMessages(conversation.id, true)
-  }, [loadMessages])
+  const activateConversation = useCallback(
+    (conversation: Conversation) => {
+      const changed = activeConversationId.current !== conversation.id;
+      activeConversationId.current = conversation.id;
+      setSelected(conversation);
+      if (!changed) return;
+      followMessages.current = true;
+      setMessages(messageCache.current.get(conversation.id) || []);
+      setLoadingMessages(!messageCache.current.has(conversation.id));
+      setInput(drafts.current.get(conversation.id) || "");
+      setSyncError(false);
+      void loadMessages(conversation.id, true);
+    },
+    [loadMessages],
+  );
 
   useLayoutEffect(() => {
-    if (followMessages.current && messageViewport.current) messageViewport.current.scrollTop = messageViewport.current.scrollHeight
-  }, [messages])
+    if (followMessages.current && messageViewport.current)
+      messageViewport.current.scrollTop = messageViewport.current.scrollHeight;
+  }, [messages]);
 
   const loadConversations = useCallback(async () => {
-    const requestId = ++conversationRequest.current
+    const requestId = ++conversationRequest.current;
     try {
-      const params = new URLSearchParams()
-      if (channelFilter !== "all") params.set("channel", channelFilter)
-      if (status !== "all") params.set("status", status)
-      const response = await fetch(`/api/azera/conversations?${params}`, { cache: "no-store", signal: AbortSignal.timeout(10_000) })
-      const json = await response.json()
-      if (!response.ok) throw new Error(json.error || "Could not load conversations")
-      if (requestId !== conversationRequest.current) return
-      const next = (json.conversations || []) as Conversation[]
-      let shouldAlert = false
+      const params = new URLSearchParams();
+      if (channelFilter !== "all") params.set("channel", channelFilter);
+      if (status !== "all") params.set("status", status);
+      const response = await fetch(`/api/azera/conversations?${params}`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(10_000),
+      });
+      const json = await response.json();
+      if (!response.ok)
+        throw new Error(json.error || "Could not load conversations");
+      if (requestId !== conversationRequest.current) return;
+      const next = (json.conversations || []) as Conversation[];
+      let shouldAlert = false;
       for (const item of next) {
-        const activity = `${item.last_message_at}:${item.last_message?.author_type || ""}:${item.waiting_for_agent ? "waiting" : ""}`
-        const previous = knownActivity.current.get(item.id)
-        if (previous && previous !== activity && (item.last_message?.author_type === "customer" || item.waiting_for_agent)) shouldAlert = true
-        knownActivity.current.set(item.id, activity)
+        const activity = `${item.last_message_at}:${item.last_message?.author_type || ""}:${item.waiting_for_agent ? "waiting" : ""}`;
+        const previous = knownActivity.current.get(item.id);
+        if (
+          previous &&
+          previous !== activity &&
+          (item.last_message?.author_type === "customer" ||
+            item.waiting_for_agent)
+        )
+          shouldAlert = true;
+        knownActivity.current.set(item.id, activity);
       }
-      if (shouldAlert) playAgentAlert()
-      setConversations((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next)
-      const nextSelected = next.find((item) => item.id === activeConversationId.current)
-        || next.find((item) => item.id === requestedConversation) || next[0] || null
-      if (nextSelected) activateConversation(nextSelected)
-      else { activeConversationId.current = null; setSelected(null) }
+      if (shouldAlert) playAgentAlert();
+      setConversations((current) =>
+        JSON.stringify(current) === JSON.stringify(next) ? current : next,
+      );
+      const nextSelected =
+        next.find((item) => item.id === activeConversationId.current) ||
+        next.find((item) => item.id === requestedConversation) ||
+        next[0] ||
+        null;
+      if (nextSelected) activateConversation(nextSelected);
+      else {
+        activeConversationId.current = null;
+        setSelected(null);
+      }
     } catch (err) {
-      if (requestId === conversationRequest.current) setError(err instanceof Error ? err.message : "Could not load conversations")
+      if (requestId === conversationRequest.current)
+        setError(
+          err instanceof Error ? err.message : "Could not load conversations",
+        );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [activateConversation, channelFilter, playAgentAlert, requestedConversation, status])
+  }, [
+    activateConversation,
+    channelFilter,
+    playAgentAlert,
+    requestedConversation,
+    status,
+  ]);
 
   useEffect(() => {
     // The request owns its loading/error state; this effect only starts the fetch.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadConversations()
-  }, [loadConversations])
+    void loadConversations();
+  }, [loadConversations]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => void loadConversations(), 5000)
-    return () => window.clearInterval(interval)
-  }, [loadConversations])
+    const interval = window.setInterval(() => void loadConversations(), 5000);
+    return () => window.clearInterval(interval);
+  }, [loadConversations]);
 
   function selectConversation(conversation: Conversation) {
-    activateConversation({ ...conversation, unread_count: 0 })
-    setConversations((current) => current.map((item) => item.id === conversation.id ? { ...item, unread_count: 0 } : item))
+    activateConversation({ ...conversation, unread_count: 0 });
+    setConversations((current) =>
+      current.map((item) =>
+        item.id === conversation.id ? { ...item, unread_count: 0 } : item,
+      ),
+    );
   }
 
   useEffect(() => {
-    const selectedId = selected?.id
-    if (!selectedId) return
-    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void loadMessages(selectedId) }, 2000)
-    return () => window.clearInterval(timer)
-  }, [loadMessages, selected?.id])
+    const selectedId = selected?.id;
+    if (!selectedId) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadMessages(selectedId);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [loadMessages, selected?.id]);
 
   const filtered = useMemo(() => {
-    const term = query.trim().toLowerCase()
-    if (!term) return conversations
-    return conversations.filter((item) => [item.customer_name, item.external_id, item.last_message?.message].filter(Boolean).some((value) => value!.toLowerCase().includes(term)))
-  }, [conversations, query])
+    const term = query.trim().toLowerCase();
+    if (!term) return conversations;
+    return conversations.filter((item) =>
+      [item.customer_name, item.external_id, item.last_message?.message]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(term)),
+    );
+  }, [conversations, query]);
 
-  const stats = useMemo(() => ({
-    open: conversations.filter((item) => item.status === "open").length,
-    mine: conversations.filter((item) => item.assigned_admin_user_id).length,
-    unread: conversations.reduce((sum, item) => sum + (item.unread_count || 0), 0),
-    waiting: conversations.filter((item) => item.waiting_for_agent).length,
-  }), [conversations])
+  const stats = useMemo(
+    () => ({
+      open: conversations.filter((item) => item.status === "open").length,
+      mine: conversations.filter(
+        (item) =>
+          currentAgentId && item.assigned_admin_user_id === currentAgentId,
+      ).length,
+      unread: conversations.reduce(
+        (sum, item) => sum + (item.unread_count || 0),
+        0,
+      ),
+      waiting: conversations.filter((item) => item.waiting_for_agent).length,
+    }),
+    [conversations, currentAgentId],
+  );
 
   async function updateConversation(updates: Record<string, unknown>) {
-    if (!selected) return
-    const response = await fetch(`/api/azera/conversations/${encodeURIComponent(selected.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) })
-    const json = await response.json()
-    if (!response.ok) throw new Error(json.error || "Could not update conversation")
-    setSelected(json.conversation)
-    await loadConversations()
+    if (!selected) return;
+    const response = await fetch(
+      `/api/azera/conversations/${encodeURIComponent(selected.id)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      },
+    );
+    const json = await response.json();
+    if (!response.ok)
+      throw new Error(json.error || "Could not update conversation");
+    setSelected(json.conversation);
+    await loadConversations();
   }
 
   async function sendReply() {
-    if (!input.trim() || !selected || sending || selected.status === "closed") return
-    const text = input.trim()
-    const conversationId = selected.id
-    drafts.current.delete(conversationId)
-    setInput("")
-    setSending(true)
-    const optimistic: Message = { id: `optimistic-${crypto.randomUUID()}`, author_type: "agent", message: text, direction: "outbound", created_at: new Date().toISOString() }
-    followMessages.current = true
-    const pending = [...(messageCache.current.get(conversationId) || []), optimistic]
-    messageCache.current.set(conversationId, pending)
-    setMessages(pending)
+    if (!input.trim() || !selected || sending || selected.status === "closed")
+      return;
+    const text = input.trim();
+    const conversationId = selected.id;
+    drafts.current.delete(conversationId);
+    setInput("");
+    setSending(true);
+    const optimistic: Message = {
+      id: `optimistic-${crypto.randomUUID()}`,
+      author_type: "agent",
+      message: text,
+      direction: "outbound",
+      delivery_status: "pending",
+      created_at: new Date().toISOString(),
+    };
+    followMessages.current = true;
+    const pending = [
+      ...(messageCache.current.get(conversationId) || []),
+      optimistic,
+    ];
+    messageCache.current.set(conversationId, pending);
+    setMessages(pending);
+    let confirmedSend = false;
     try {
-      const response = await fetch(`/api/azera/conversations/${encodeURIComponent(conversationId)}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text, author_type: "agent", direction: "outbound", metadata: { client_message_id: optimistic.id } }) })
-      const json = await response.json()
-      if (!response.ok) throw new Error(json.error || "Could not send reply")
-      const withoutPending = (messageCache.current.get(conversationId) || []).filter((item) => item.id !== optimistic.id)
-      const confirmed = mergeInboxMessages(withoutPending, [json.message])
-      messageCache.current.set(conversationId, confirmed)
-      if (activeConversationId.current === conversationId) setMessages(confirmed)
-      await loadConversations()
+      const response = await fetch(
+        `/api/azera/conversations/${encodeURIComponent(conversationId)}/messages`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: text,
+            author_type: "agent",
+            direction: "outbound",
+            metadata: { client_message_id: optimistic.id },
+          }),
+        },
+      );
+      const json = await response.json();
+      if (!json.message) throw new Error(json.error || "Could not send reply");
+      confirmedSend = true;
+      const withoutPending = (
+        messageCache.current.get(conversationId) || []
+      ).filter((item) => item.id !== optimistic.id);
+      const confirmed = mergeInboxMessages(withoutPending, [json.message]);
+      messageCache.current.set(conversationId, confirmed);
+      if (activeConversationId.current === conversationId)
+        setMessages(confirmed);
+      if (!response.ok)
+        setError(
+          json.error ||
+            "This message could not be delivered. See its delivery status before retrying.",
+        );
+      else if (json.warning) setError(json.warning);
+      await loadConversations();
     } catch (err) {
-      const remaining = (messageCache.current.get(conversationId) || []).filter((item) => item.id !== optimistic.id)
-      messageCache.current.set(conversationId, remaining)
-      if (!drafts.current.get(conversationId)) drafts.current.set(conversationId, text)
-      if (activeConversationId.current === conversationId) {
-        setMessages(remaining)
-        setInput(drafts.current.get(conversationId) || "")
+      if (confirmedSend) {
+        setError(
+          "Reply saved. The conversation list could not refresh; do not send the reply again.",
+        );
+        return;
       }
-      setError(err instanceof Error ? err.message : "Could not send reply")
+      const remaining = (messageCache.current.get(conversationId) || []).filter(
+        (item) => item.id !== optimistic.id,
+      );
+      messageCache.current.set(conversationId, remaining);
+      if (!drafts.current.get(conversationId))
+        drafts.current.set(conversationId, text);
+      if (activeConversationId.current === conversationId) {
+        setMessages(remaining);
+        setInput(drafts.current.get(conversationId) || "");
+      }
+      setError(err instanceof Error ? err.message : "Could not send reply");
     } finally {
-      setSending(false)
+      setSending(false);
+    }
+  }
+
+  async function retryMessage(message: Message) {
+    if (!selected || sending) return;
+    const uncertain = message.delivery_status === "unknown";
+    if (
+      uncertain &&
+      !window.confirm(
+        "The provider may already have sent this message. Have you checked its inbox and confirmed that a retry will not duplicate it?",
+      )
+    )
+      return;
+    setSending(true);
+    try {
+      const response = await fetch(
+        `/api/azera/conversations/${encodeURIComponent(selected.id)}/messages`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            retry_message_id: message.id,
+            confirm_uncertain_retry: uncertain,
+          }),
+        },
+      );
+      const json = await response.json();
+      if (!response.ok) setError(json.error || "Could not retry message");
+      else if (json.warning) setError(json.warning);
+      await loadMessages(selected.id);
+    } catch {
+      setError(
+        "Could not confirm the retry. Check the provider inbox before trying again.",
+      );
+    } finally {
+      setSending(false);
     }
   }
 
   async function requestUpload() {
-    if (!selected || selected.status === "closed") return
+    if (!selected || selected.status === "closed") return;
     try {
-      const response = await fetch(`/api/azera/conversations/${encodeURIComponent(selected.id)}/messages`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "Please upload the file or screenshot needed to help resolve this request.", message_type: "file_request", metadata: { requested_by: "support" } }),
-      })
-      const json = await response.json()
-      if (!response.ok) throw new Error(json.error || "Could not request a file")
-      await loadMessages(selected.id)
-      await loadConversations()
-    } catch (err) { setError(err instanceof Error ? err.message : "Could not request a file") }
+      const response = await fetch(
+        `/api/azera/conversations/${encodeURIComponent(selected.id)}/messages`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message:
+              "Please upload the file or screenshot needed to help resolve this request.",
+            message_type: "file_request",
+            metadata: { requested_by: "support" },
+          }),
+        },
+      );
+      const json = await response.json();
+      if (!response.ok)
+        throw new Error(json.error || "Could not request a file");
+      await loadMessages(selected.id);
+      await loadConversations();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not request a file");
+    }
   }
 
   async function inviteTechnical() {
-    if (!selected) return
-    const response = await fetch(`/api/azera/conversations/${encodeURIComponent(selected.id)}/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) })
-    const json = await response.json()
-    if (!response.ok) setError(json.error || "Could not invite a technical agent")
+    if (!selected) return;
+    const response = await fetch(
+      `/api/azera/conversations/${encodeURIComponent(selected.id)}/invite`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+    );
+    const json = await response.json();
+    if (!response.ok)
+      setError(json.error || "Could not invite a technical agent");
   }
 
   async function createTicket() {
-    if (!selected || ticketSaving) return
-    setTicketSaving(true)
+    if (!selected || ticketSaving) return;
+    setTicketSaving(true);
     try {
-      const response = await fetch(`/api/admin/azera/conversations/${encodeURIComponent(selected.id)}/ticket`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subject: ticketSubject, category: ticketCategory, priority: ticketPriority }) })
-      const json = await response.json()
-      if (!response.ok) throw new Error(json.error || "Could not create ticket")
-      setSelected((current) => current ? { ...current, ticket_id: json.ticket.id } : current)
-      setShowTicket(false)
-      setTicketSubject("")
-      await loadConversations()
+      const response = await fetch(
+        `/api/admin/azera/conversations/${encodeURIComponent(selected.id)}/ticket`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject: ticketSubject,
+            category: ticketCategory,
+            priority: ticketPriority,
+          }),
+        },
+      );
+      const json = await response.json();
+      if (!response.ok)
+        throw new Error(json.error || "Could not create ticket");
+      setSelected((current) =>
+        current ? { ...current, ticket_id: json.ticket.id } : current,
+      );
+      setShowTicket(false);
+      setTicketSubject("");
+      await loadConversations();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create ticket")
+      setError(err instanceof Error ? err.message : "Could not create ticket");
     } finally {
-      setTicketSaving(false)
+      setTicketSaving(false);
     }
   }
 
   function attachmentPreview(message: Message) {
-    if (!message.attachment_url) return null
-    if (message.attachment_mime?.startsWith("audio/")) return <audio className="mt-2 max-w-full" controls src={message.attachment_url} />
-    return <a className="mt-2 block truncate font-semibold underline" href={message.attachment_url} target="_blank" rel="noreferrer">{message.attachment_name || "Open attachment"}</a>
+    return (
+      <>
+        {message.attachment_url &&
+          (message.attachment_mime?.startsWith("audio/") ? (
+            <audio
+              className="mt-2 max-w-full"
+              controls
+              src={message.attachment_url}
+            />
+          ) : (
+            <a
+              className="mt-2 block truncate font-semibold underline"
+              href={message.attachment_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {message.attachment_name || "Open attachment"}
+            </a>
+          ))}
+        {message.metadata?.provider_media_id ? (
+          <a
+            className="mt-2 block font-semibold underline"
+            href={`/api/azera/messages/${message.id}/media`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open customer attachment
+          </a>
+        ) : null}
+        {message.direction === "outbound" &&
+          message.author_type === "agent" && (
+            <div className="mt-2 border-t border-white/20 pt-1 text-xs">
+              <p>{messageDeliveryLabel(message.delivery_status)}</p>
+              {message.delivery_error &&
+                ["failed", "unknown"].includes(
+                  message.delivery_status || "",
+                ) && <p className="mt-1">{message.delivery_error}</p>}
+              {["failed", "unknown"].includes(
+                message.delivery_status || "",
+              ) && (
+                <button
+                  disabled={sending}
+                  onClick={() => void retryMessage(message)}
+                  className="mt-1 rounded bg-white/20 px-2 py-1 font-semibold hover:bg-white/30 disabled:opacity-50"
+                >
+                  {message.delivery_status === "unknown"
+                    ? "Check & retry"
+                    : "Retry sending"}
+                </button>
+              )}
+            </div>
+          )}
+      </>
+    );
   }
 
-  const Icon = selected ? channelIcon[selected.channel] || MessageCircle : Inbox
-  const contactMessage = [...messages].reverse().find((message) => message.author_type === "customer" && (message.metadata?.customer_email || message.metadata?.customer_phone))
-  const customerEmail = typeof contactMessage?.metadata?.customer_email === "string" ? contactMessage.metadata.customer_email : null
+  const Icon = selected
+    ? channelIcon[selected.channel] || MessageCircle
+    : Inbox;
+  const contactMessage = [...messages]
+    .reverse()
+    .find(
+      (message) =>
+        message.author_type === "customer" &&
+        (message.metadata?.customer_email || message.metadata?.customer_phone),
+    );
+  const customerEmail =
+    typeof contactMessage?.metadata?.customer_email === "string"
+      ? contactMessage.metadata.customer_email
+      : null;
 
-  return <div className="space-y-6">
-    <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div><div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-retail-soft text-retail"><Inbox className="h-4 w-4" /></span> Support workspace</div><h1 className="text-2xl font-bold tracking-tight text-slate-950">Omnichannel inbox</h1><p className="mt-1 max-w-2xl text-sm text-muted-foreground">AI triages each chat into Sales, Support, or Customer Support. Only explicitly enabled online agents receive waiting-chat alerts.</p></div><div className="flex flex-wrap items-center gap-2"><button onClick={() => void toggleSound()} className={cn("inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold shadow-sm", soundReady ? "border-emerald-200 bg-emerald-50 text-emerald-700" : soundEnabled ? "border-blue-200 bg-blue-50 text-blue-700" : "border-amber-200 bg-amber-50 text-amber-800")}><Volume2 className="h-4 w-4" />{soundReady ? "Sound on" : soundEnabled ? "Sound saved — enable" : "Enable sound"}</button><button onClick={() => void setPresence(!agentOnline)} className={cn("inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold shadow-sm", agentOnline ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border border-border bg-white text-slate-700 hover:bg-slate-50")}>{agentOnline ? "Agent online" : "Go online for chats"}</button><button onClick={() => void loadConversations()} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"><RefreshCw className="h-4 w-4" /> Refresh</button></div></header>
+  return (
+    <div className="space-y-6">
+      <ContactCentreReadiness />
+      <ConversationRouting
+        conversation={selected}
+        onUpdate={updateConversation}
+      />
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-retail-soft text-retail">
+              <Inbox className="h-4 w-4" />
+            </span>{" "}
+            Support workspace
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+            Omnichannel inbox
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Manage website and social conversations in one place. Go online to
+            answer calls and receive new-chat sound alerts.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-800" href="/admin/azera/calls">Live call workspace</Link>
+          <button
+            onClick={() => void toggleSound()}
+            className={cn(
+              "inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold shadow-sm",
+              soundReady
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : soundEnabled
+                  ? "border-blue-200 bg-blue-50 text-blue-700"
+                  : "border-amber-200 bg-amber-50 text-amber-800",
+            )}
+          >
+            <Volume2 className="h-4 w-4" />
+            {soundReady
+              ? "Sound on"
+              : soundEnabled
+                ? "Sound saved — enable"
+                : "Enable sound"}
+          </button>
+          <button
+            onClick={() => void setPresence(!agentOnline)}
+            className={cn(
+              "inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold shadow-sm",
+              agentOnline
+                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                : "border border-border bg-white text-slate-700 hover:bg-slate-50",
+            )}
+          >
+            {agentOnline ? "Agent online" : "Go online for chats"}
+          </button>
+          <button
+            onClick={() => void loadConversations()}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </button>
+        </div>
+      </header>
 
-    <div className="grid grid-cols-3 gap-3 md:grid-cols-7"><div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Open</p><p className="mt-1 text-2xl font-bold text-slate-900">{stats.open}</p></div><div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Waiting</p><p className="mt-1 text-2xl font-bold text-amber-600">{stats.waiting}</p></div><div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Assigned</p><p className="mt-1 text-2xl font-bold text-indigo-600">{stats.mine}</p></div><div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Unread</p><p className="mt-1 text-2xl font-bold text-red-600">{stats.unread}</p></div><div className="hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:block"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">AI enabled</p><p className="mt-1 text-2xl font-bold text-violet-600">{conversations.filter((item) => item.ai_enabled).length}</p></div><div className="hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:block"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tickets</p><p className="mt-1 text-2xl font-bold text-emerald-600">{conversations.filter((item) => item.ticket_id).length}</p></div><div className="hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:block"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Channels</p><p className="mt-1 text-2xl font-bold text-slate-900">{new Set(conversations.map((item) => item.channel)).size}</p></div></div>
+      <div className="grid grid-cols-3 gap-3 md:grid-cols-7">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Open
+          </p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{stats.open}</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Waiting
+          </p>
+          <p className="mt-1 text-2xl font-bold text-amber-600">
+            {stats.waiting}
+          </p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Assigned to me
+          </p>
+          <p className="mt-1 text-2xl font-bold text-indigo-600">
+            {stats.mine}
+          </p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Unread
+          </p>
+          <p className="mt-1 text-2xl font-bold text-red-600">{stats.unread}</p>
+        </div>
+        <div className="hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:block">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            AI enabled
+          </p>
+          <p className="mt-1 text-2xl font-bold text-violet-600">
+            {conversations.filter((item) => item.ai_enabled).length}
+          </p>
+        </div>
+        <div className="hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:block">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Tickets
+          </p>
+          <p className="mt-1 text-2xl font-bold text-emerald-600">
+            {conversations.filter((item) => item.ticket_id).length}
+          </p>
+        </div>
+        <div className="hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:block">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Channels
+          </p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">
+            {new Set(conversations.map((item) => item.channel)).size}
+          </p>
+        </div>
+      </div>
 
-    {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-    {selected?.waiting_for_agent && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900"><strong>Human handoff pending</strong>{selected.escalation_reason ? ` · ${selected.escalation_reason.replaceAll("_", " ")}` : ""}{selected.handoff_summary && <p className="mt-1 line-clamp-2">{selected.handoff_summary}</p>}</div>}
-    <Card className="overflow-hidden border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.06)] xl:flex xl:h-[calc(100dvh-18rem)] xl:min-h-[560px] xl:flex-col"><div className="shrink-0 border-b border-slate-200 bg-slate-50/80 p-3"><div className="flex flex-wrap gap-2">{channels.map((item) => <button key={item.value} onClick={() => setChannelFilter(item.value)} className={cn("rounded-full px-3 py-1.5 text-xs font-semibold transition", channelFilter === item.value ? `${item.color} text-white shadow-sm` : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100")}>{item.label}</button>)}<span className="mx-1 hidden h-6 w-px bg-slate-200 sm:block" /><select value={status} onChange={(event) => setStatus(event.target.value as Status)} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 outline-none"><option value="all">All statuses</option><option value="open">Open</option><option value="assigned">Assigned</option><option value="closed">Closed</option></select></div></div><div className="grid min-h-0 flex-1 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_280px] 2xl:grid-cols-[280px_minmax(0,1fr)_320px]">
-      <aside className="min-h-0 border-b border-slate-200 bg-slate-50/80 lg:border-b-0 lg:border-r"><div className="border-b border-slate-200 p-4"><div className="mb-3 flex items-center justify-between"><div><p className="text-sm font-semibold text-slate-900">Conversation queue</p><p className="text-xs text-muted-foreground">{filtered.length} visible</p></div><Users className="h-4 w-4 text-slate-400" /></div><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search customer or message" className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10" /></div></div><div className="h-full overflow-y-auto overscroll-contain p-2">{loading ? <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div> : filtered.length === 0 ? <div className="px-5 py-16 text-center"><Inbox className="mx-auto mb-3 h-8 w-8 text-slate-300" /><p className="text-sm font-medium text-slate-700">No conversations</p><p className="mt-1 text-xs text-muted-foreground">New customer messages will appear here.</p></div> : filtered.map((conversation) => { const active = selected?.id === conversation.id; const ChannelIcon = channelIcon[conversation.channel] || MessageCircle; return <button key={conversation.id} onClick={() => selectConversation(conversation)} className={cn("flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition", active ? "bg-white shadow-sm ring-1 ring-slate-200" : "hover:bg-white/80")}><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">{initials(conversation.customer_name, conversation.external_id)}</span><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2"><span className="truncate text-sm font-medium text-slate-800">{conversation.customer_name || conversation.external_id}</span><span className="shrink-0 text-[10px] text-slate-400">{time(conversation.last_message_at)}</span></span><span className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground"><ChannelIcon className="h-3 w-3" /> {channelLabel(conversation.channel)} {conversation.unread_count > 0 && <span className="rounded-full bg-red-500 px-1.5 text-[10px] text-white">{conversation.unread_count}</span>}</span><span className="mt-1 block truncate text-xs text-muted-foreground">{conversation.last_message?.message || "No messages yet"}</span></span></button> })}</div></aside>
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {selected?.waiting_for_agent && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+          <strong>Human handoff pending</strong>
+          {selected.escalation_reason
+            ? ` · ${selected.escalation_reason.replaceAll("_", " ")}`
+            : ""}
+          {selected.handoff_summary && (
+            <p className="mt-1 line-clamp-2">{selected.handoff_summary}</p>
+          )}
+        </div>
+      )}
+      <Card className="overflow-hidden border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.06)] xl:flex xl:h-[calc(100dvh-18rem)] xl:min-h-[560px] xl:flex-col">
+        <div className="shrink-0 border-b border-slate-200 bg-slate-50/80 p-3">
+          <div className="flex flex-wrap gap-2">
+            {channels.map((item) => (
+              <button
+                key={item.value}
+                onClick={() => setChannelFilter(item.value)}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                  channelFilter === item.value
+                    ? `${item.color} text-white shadow-sm`
+                    : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100",
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+            <span className="mx-1 hidden h-6 w-px bg-slate-200 sm:block" />
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as Status)}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 outline-none"
+            >
+              <option value="all">All statuses</option>
+              <option value="open">Open</option>
+              <option value="assigned">Assigned</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+        </div>
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_280px] 2xl:grid-cols-[280px_minmax(0,1fr)_320px]">
+          <aside className="min-h-0 border-b border-slate-200 bg-slate-50/80 lg:border-b-0 lg:border-r">
+            <div className="border-b border-slate-200 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Conversation queue
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {filtered.length} visible
+                  </p>
+                </div>
+                <Users className="h-4 w-4 text-slate-400" />
+              </div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search customer or message"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                />
+              </div>
+            </div>
+            <div className="h-full overflow-y-auto overscroll-contain p-2">
+              {loading ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="px-5 py-16 text-center">
+                  <Inbox className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+                  <p className="text-sm font-medium text-slate-700">
+                    No conversations
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    New customer messages will appear here.
+                  </p>
+                </div>
+              ) : (
+                filtered.map((conversation) => {
+                  const active = selected?.id === conversation.id;
+                  const ChannelIcon =
+                    channelIcon[conversation.channel] || MessageCircle;
+                  return (
+                    <button
+                      key={conversation.id}
+                      onClick={() => selectConversation(conversation)}
+                      className={cn(
+                        "flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition",
+                        active
+                          ? "bg-white shadow-sm ring-1 ring-slate-200"
+                          : "hover:bg-white/80",
+                      )}
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
+                        {initials(
+                          conversation.customer_name,
+                          conversation.external_id,
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-medium text-slate-800">
+                            {conversation.customer_name ||
+                              conversation.external_id}
+                          </span>
+                          <span className="shrink-0 text-[10px] text-slate-400">
+                            {time(conversation.last_message_at)}
+                          </span>
+                        </span>
+                        <span className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <ChannelIcon className="h-3 w-3" />{" "}
+                          {channelLabel(conversation.channel)}{" "}
+                          {conversation.unread_count > 0 && (
+                            <span className="rounded-full bg-red-500 px-1.5 text-[10px] text-white">
+                              {conversation.unread_count}
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">
+                          {conversation.last_message?.message ||
+                            "No messages yet"}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </aside>
 
-      <section className="flex min-h-0 min-w-0 flex-col bg-white lg:h-[560px] xl:h-auto">{!selected ? <div className="flex flex-1 flex-col items-center justify-center px-8 text-center"><Inbox className="mb-4 h-12 w-12 text-slate-300" /><h2 className="text-base font-semibold text-slate-900">Choose a conversation</h2><p className="mt-1 max-w-xs text-sm text-muted-foreground">Select a customer from the queue to reply, call, or create a support ticket.</p></div> : <><div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4"><div className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-retail-soft text-xs font-semibold text-retail">{initials(selected.customer_name, selected.external_id)}</span><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-slate-900">{selected.customer_name || selected.external_id}</h2><p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Icon className="h-3 w-3" /> {channelLabel(selected.channel)} · {selected.status}</p></div></div><div className="flex items-center gap-1.5"><button onClick={() => void updateConversation({ assigned_admin_user_id: "me", status: "assigned" })} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" title="Assign to me"><UserRound className="h-4 w-4" /></button><button onClick={() => void updateConversation({ ai_enabled: !selected.ai_enabled })} className={cn("rounded-lg border p-2", selected.ai_enabled ? "border-violet-200 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-400")} title={selected.ai_enabled ? "Azera is active" : "Azera is paused"}><Bot className="h-4 w-4" /></button><button onClick={() => void updateConversation({ status: selected.status === "closed" ? "open" : "closed" })} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50" title={selected.status === "closed" ? "Reopen" : "Close"}>{selected.status === "closed" ? <RefreshCw className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}</button></div></div><div ref={messageViewport} onScroll={(event) => { const node = event.currentTarget; followMessages.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80 }} aria-live="polite" aria-relevant="additions" className="min-h-[260px] min-w-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-slate-50/60 p-4">{loadingMessages ? <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div> : messages.length === 0 ? <div className="py-16 text-center text-sm text-muted-foreground">No messages in this conversation.</div> : messages.map((message) => <div key={message.id} className={cn("relative max-w-[72%] break-words rounded-xl px-3 py-2 text-[13px] leading-5", message.author_type === "ai" ? "border border-sky-200 bg-sky-50 text-sky-950 before:absolute before:bottom-0 before:left-[-7px] before:border-r-[8px] before:border-t-[8px] before:border-r-sky-50 before:border-t-transparent" : message.direction === "outbound" ? "ml-auto rounded-br-md bg-[#2563EB] text-white after:absolute after:right-[-7px] after:bottom-0 after:border-l-[8px] after:border-t-[8px] after:border-l-[#2563EB] after:border-t-transparent" : "rounded-bl-md border border-slate-200 bg-white text-slate-700 before:absolute before:bottom-0 before:left-[-7px] before:border-r-[8px] before:border-t-[8px] before:border-r-white before:border-t-transparent")}><div className="mb-0.5 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-wider opacity-60">{message.author_type === "ai" ? <Bot className="h-3 w-3" /> : message.author_type === "agent" ? <UserRound className="h-3 w-3" /> : null}<span>{message.author_type === "agent" ? "Agent" : message.author_type === "ai" ? "Azera" : message.author_type === "system" ? "System" : "Customer"}</span><span>{time(message.created_at)}</span></div>{message.message}{attachmentPreview(message)}</div>)}</div><div className="shrink-0 border-t border-slate-200 bg-white p-4"><div className="flex items-end gap-2"><textarea value={input} onChange={(event) => { setInput(event.target.value); if (selected) drafts.current.set(selected.id, event.target.value) }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendReply() } }} rows={2} disabled={selected.status === "closed"} placeholder={selected.status === "closed" ? "Conversation closed" : `Reply to ${selected.customer_name || "customer"}…`} className="min-h-11 flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10" /><button onClick={() => void sendReply()} disabled={!input.trim() || sending || selected.status === "closed"} className="flex h-11 shrink-0 items-center gap-2 rounded-xl bg-[#2563EB] px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-40"><Send className="h-4 w-4" />{sending ? "Sending" : "Send"}</button></div><p className="mt-2 text-[11px] text-muted-foreground">{syncError ? "Connection interrupted — retrying without losing your messages." : "Enter to send · Shift + Enter for a new line"}</p></div></>}</section>
+          <section className="flex min-h-0 min-w-0 flex-col bg-white lg:h-[560px] xl:h-auto">
+            {!selected ? (
+              <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
+                <Inbox className="mb-4 h-12 w-12 text-slate-300" />
+                <h2 className="text-base font-semibold text-slate-900">
+                  Choose a conversation
+                </h2>
+                <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+                  Select a customer from the queue to reply, call, or create a
+                  support ticket.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-retail-soft text-xs font-semibold text-retail">
+                      {initials(selected.customer_name, selected.external_id)}
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="truncate text-sm font-semibold text-slate-900">
+                        {selected.customer_name || selected.external_id}
+                      </h2>
+                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Icon className="h-3 w-3" />{" "}
+                        {channelLabel(selected.channel)} · {selected.status}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() =>
+                        void updateConversation({
+                          assigned_admin_user_id: "me",
+                          status: "assigned",
+                        })
+                      }
+                      className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
+                      title="Assign to me"
+                    >
+                      <UserRound className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() =>
+                        void updateConversation({
+                          ai_enabled: !selected.ai_enabled,
+                        })
+                      }
+                      className={cn(
+                        "rounded-lg border p-2",
+                        selected.ai_enabled
+                          ? "border-violet-200 bg-violet-50 text-violet-700"
+                          : "border-slate-200 text-slate-400",
+                      )}
+                      title={
+                        selected.ai_enabled
+                          ? "Azera is active"
+                          : "Azera is paused"
+                      }
+                    >
+                      <Bot className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() =>
+                        void updateConversation({
+                          status:
+                            selected.status === "closed" ? "open" : "closed",
+                        })
+                      }
+                      className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
+                      title={selected.status === "closed" ? "Reopen" : "Close"}
+                    >
+                      {selected.status === "closed" ? (
+                        <RefreshCw className="h-4 w-4" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div
+                  ref={messageViewport}
+                  onScroll={(event) => {
+                    const node = event.currentTarget;
+                    followMessages.current =
+                      node.scrollHeight - node.scrollTop - node.clientHeight <
+                      80;
+                  }}
+                  aria-live="polite"
+                  aria-relevant="additions"
+                  className="min-h-[260px] min-w-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-slate-50/60 p-4"
+                >
+                  {loadingMessages ? (
+                    <div className="flex justify-center py-16">
+                      <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="py-16 text-center text-sm text-muted-foreground">
+                      No messages in this conversation.
+                    </div>
+                  ) : (
+                    messages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={cn(
+                          "relative max-w-[72%] break-words rounded-xl px-3 py-2 text-[13px] leading-5",
+                          message.author_type === "ai"
+                            ? "border border-sky-200 bg-sky-50 text-sky-950 before:absolute before:bottom-0 before:left-[-7px] before:border-r-[8px] before:border-t-[8px] before:border-r-sky-50 before:border-t-transparent"
+                            : message.direction === "outbound"
+                              ? "ml-auto rounded-br-md bg-[#2563EB] text-white after:absolute after:right-[-7px] after:bottom-0 after:border-l-[8px] after:border-t-[8px] after:border-l-[#2563EB] after:border-t-transparent"
+                              : "rounded-bl-md border border-slate-200 bg-white text-slate-700 before:absolute before:bottom-0 before:left-[-7px] before:border-r-[8px] before:border-t-[8px] before:border-r-white before:border-t-transparent",
+                        )}
+                      >
+                        <div className="mb-0.5 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-wider opacity-60">
+                          {message.author_type === "ai" ? (
+                            <Bot className="h-3 w-3" />
+                          ) : message.author_type === "agent" ? (
+                            <UserRound className="h-3 w-3" />
+                          ) : null}
+                          <span>
+                            {message.author_type === "agent"
+                              ? "Agent"
+                              : message.author_type === "ai"
+                                ? "Azera"
+                                : message.author_type === "system"
+                                  ? "System"
+                                  : "Customer"}
+                          </span>
+                          <span>{time(message.created_at)}</span>
+                        </div>
+                        {message.message}
+                        {attachmentPreview(message)}
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="shrink-0 border-t border-slate-200 bg-white p-4">
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      value={input}
+                      onChange={(event) => {
+                        setInput(event.target.value);
+                        if (selected)
+                          drafts.current.set(selected.id, event.target.value);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void sendReply();
+                        }
+                      }}
+                      rows={2}
+                      disabled={selected.status === "closed"}
+                      placeholder={
+                        selected.status === "closed"
+                          ? "Conversation closed"
+                          : `Reply to ${selected.customer_name || "customer"}…`
+                      }
+                      className="min-h-11 flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                    />
+                    <button
+                      onClick={() => void sendReply()}
+                      disabled={
+                        !input.trim() || sending || selected.status === "closed"
+                      }
+                      className="flex h-11 shrink-0 items-center gap-2 rounded-xl bg-[#2563EB] px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-40"
+                    >
+                      <Send className="h-4 w-4" />
+                      {sending ? "Sending" : "Send"}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    {syncError
+                      ? "Connection interrupted — retrying without losing your messages."
+                      : "Enter to send · Shift + Enter for a new line"}
+                  </p>
+                </div>
+              </>
+            )}
+          </section>
 
-      <OmnichannelDetails conversation={selected} email={customerEmail} callBusy={Boolean(incomingCall || outboundContact)}
-        onCall={() => { if (selected?.customer_phone) setOutboundContact({ id: selected.id, name: selected.customer_name || "Customer", phone: selected.customer_phone }) }}
-        onTicket={() => setShowTicket(true)} onUpload={() => void requestUpload()} onInvite={() => void inviteTechnical()} />
+          <OmnichannelDetails
+            conversation={selected}
+            email={customerEmail}
+            callBusy={Boolean(incomingCall || outboundContact)}
+            onCall={() => {
+              if (selected?.customer_phone)
+                setOutboundContact({
+                  id: selected.id,
+                  name: selected.customer_name || "Customer",
+                  phone: selected.customer_phone,
+                });
+            }}
+            onTicket={() => setShowTicket(true)}
+            onUpload={() => void requestUpload()}
+            onInvite={() => void inviteTechnical()}
+          />
+        </div>
+      </Card>
+      {incomingCall && (
+        <AzeraCallUI
+          state={call.state}
+          error={call.error}
+          audioBlocked={call.audioBlocked}
+          onResumeAudio={call.resumeAudio}
+          isAgent
+          customerName={incomingCall.customer_name || "Customer"}
+          onAccept={() => void acceptCall()}
+          onReject={() => void endCall()}
+          onEnd={() => void endCall()}
+          onToggleMute={call.toggleMute}
+          isMuted={call.isMuted}
+        />
+      )}
+      {outboundContact && (
+        <AzeraOutboundCall
+          contact={outboundContact}
+          onClosed={() => setOutboundContact(null)}
+        />
+      )}
 
-
-    </div></Card>
-    {incomingCall && <AzeraCallUI state={call.state} error={call.error} audioBlocked={call.audioBlocked} onResumeAudio={call.resumeAudio} isAgent customerName={incomingCall.customer_name || "Customer"} onAccept={() => void acceptCall()} onReject={() => void endCall()} onEnd={() => void endCall()} onToggleMute={call.toggleMute} isMuted={call.isMuted} />}
-    {outboundContact && <AzeraOutboundCall contact={outboundContact} onClosed={() => setOutboundContact(null)} />}
-
-    {showTicket && selected && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"><div className="mb-4 flex items-start justify-between"><div><h2 className="text-base font-semibold text-slate-900">Create support ticket</h2><p className="mt-1 text-xs text-muted-foreground">Link this conversation to the support workflow.</p></div><button onClick={() => setShowTicket(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div><div className="space-y-3"><label className="block text-xs font-medium text-slate-700">Subject<input value={ticketSubject} onChange={(event) => setTicketSubject(event.target.value)} placeholder={`Follow up with ${selected.customer_name || "customer"}`} className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-retail focus:ring-4 focus:ring-retail/10" /></label><div className="grid grid-cols-2 gap-3"><label className="block text-xs font-medium text-slate-700">Priority<select value={ticketPriority} onChange={(event) => setTicketPriority(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"><option>NORMAL</option><option>HIGH</option><option>URGENT</option><option>LOW</option></select></label><label className="block text-xs font-medium text-slate-700">Category<select value={ticketCategory} onChange={(event) => setTicketCategory(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"><option>OTHER</option><option>SOFTWARE</option><option>POS</option><option>INVENTORY</option><option>LOGIN_ACCOUNT</option><option>BILLING</option></select></label></div><button onClick={() => void createTicket()} disabled={ticketSaving} className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0A0F1C] text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">{ticketSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ticket className="h-4 w-4" />} Create ticket</button></div></div></div>}
-  </div>
+      {showTicket && selected && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  Create support ticket
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Link this conversation to the support workflow.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowTicket(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="block text-xs font-medium text-slate-700">
+                Subject
+                <input
+                  value={ticketSubject}
+                  onChange={(event) => setTicketSubject(event.target.value)}
+                  placeholder={`Follow up with ${selected.customer_name || "customer"}`}
+                  className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-retail focus:ring-4 focus:ring-retail/10"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs font-medium text-slate-700">
+                  Priority
+                  <select
+                    value={ticketPriority}
+                    onChange={(event) => setTicketPriority(event.target.value)}
+                    className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                  >
+                    <option>NORMAL</option>
+                    <option>HIGH</option>
+                    <option>URGENT</option>
+                    <option>LOW</option>
+                  </select>
+                </label>
+                <label className="block text-xs font-medium text-slate-700">
+                  Category
+                  <select
+                    value={ticketCategory}
+                    onChange={(event) => setTicketCategory(event.target.value)}
+                    className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                  >
+                    <option>OTHER</option>
+                    <option>SOFTWARE</option>
+                    <option>POS</option>
+                    <option>INVENTORY</option>
+                    <option>LOGIN_ACCOUNT</option>
+                    <option>BILLING</option>
+                  </select>
+                </label>
+              </div>
+              <button
+                onClick={() => void createTicket()}
+                disabled={ticketSaving}
+                className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0A0F1C] text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                {ticketSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Ticket className="h-4 w-4" />
+                )}{" "}
+                Create ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function OmnichannelInbox(props: { channel?: Channel }) {
-  return <Suspense fallback={<div className="flex min-h-[420px] items-center justify-center text-sm text-muted-foreground">Loading support workspace…</div>}><OmnichannelInboxContent {...props} /></Suspense>
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[420px] items-center justify-center text-sm text-muted-foreground">
+          Loading support workspace…
+        </div>
+      }
+    >
+      <OmnichannelInboxContent {...props} />
+    </Suspense>
+  );
 }

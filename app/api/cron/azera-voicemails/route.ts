@@ -7,7 +7,7 @@ export const maxDuration = 60
 
 function isAuthorized(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return true
+  if (!cronSecret) return false
   const auth = request.headers.get("authorization")
   const provided = (auth?.startsWith("Bearer ") ? auth.slice(7) : null) || new URL(request.url).searchParams.get("secret")
   return provided === cronSecret

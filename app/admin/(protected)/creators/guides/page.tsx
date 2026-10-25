@@ -1,9 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Pencil, Trash2 } from "lucide-react"
+import { CreatorContentModal } from "@/components/admin/creator-content-modal"
+import { Loader2, Plus, Pencil, Trash2, Eye } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 
 interface Guide {
@@ -41,6 +42,7 @@ export default function AdminGuidesPage() {
   const [industries, setIndustries] = useState<Industry[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<string | null>(null)
+  const [viewing, setViewing] = useState<Guide | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null)
@@ -168,7 +170,8 @@ export default function AdminGuidesPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => openEdit(g)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="sm" variant="outline" onClick={() => setViewing(g)} title="View guide"><Eye className="w-3.5 h-3.5 mr-1" /> View</Button>
+                        <Button size="sm" variant="outline" onClick={() => openEdit(g)} title="Edit guide"><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
                         <Button size="sm" variant="outline" onClick={() => remove(g.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </td>
@@ -188,12 +191,8 @@ export default function AdminGuidesPage() {
       )}
 
       {editing && (
-        <Card>
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">{editing === "new" ? "New guide" : "Edit guide"}</h3>
-              <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>Close</Button>
-            </div>
+        <CreatorContentModal title={editing === "new" ? "New guide" : "Edit guide"} onClose={() => setEditing(null)} wide>
+          <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-3">
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Business type</span>
                 <select className={field} value={form.industrySlug} onChange={(e) => setForm({ ...form, industrySlug: e.target.value })}>
@@ -228,8 +227,35 @@ export default function AdminGuidesPage() {
                 <textarea rows={4} className={field} value={form.relatedLinks} onChange={(e) => setForm({ ...form, relatedLinks: e.target.value })} /></label>
             </div>
             <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}</Button>
-          </CardContent>
-        </Card>
+          </div>
+        </CreatorContentModal>
+      )}
+
+      {viewing && (
+        <CreatorContentModal title={viewing.title} onClose={() => setViewing(null)} wide>
+          <div className="space-y-5 text-sm">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-muted px-2.5 py-1">{industries.find((i) => i.slug === viewing.industrySlug)?.name || viewing.industrySlug}</span>
+              <span className={`rounded-full px-2.5 py-1 ${viewing.status === "PUBLISHED" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>{enumLabel(viewing.status)}</span>
+            </div>
+            {viewing.overview && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Overview</p><p>{viewing.overview}</p></div>}
+            {viewing.howHelps && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">How MartPoint helps</p><p>{viewing.howHelps}</p></div>}
+            <div className="grid gap-4 md:grid-cols-2">
+              {[
+                ["Common problems", viewing.commonProblems],
+                ["Relevant features", viewing.features],
+                ["Content angles", viewing.contentAngles],
+                ["Hooks", viewing.hooks],
+                ["Use cases", viewing.useCases],
+                ["Claims to avoid", viewing.claimsToAvoid],
+              ].map(([label, values]) => values.length > 0 && (
+                <div key={label as string}><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">{label as string}</p><ul className="list-disc space-y-1 pl-5">{(values as string[]).map((value) => <li key={value}>{value}</li>)}</ul></div>
+              ))}
+            </div>
+            {viewing.recommendedCta && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Recommended CTA</p><p>{viewing.recommendedCta}</p></div>}
+            {viewing.relatedLinks.length > 0 && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Related resources</p><ul className="list-disc space-y-1 pl-5">{viewing.relatedLinks.map((link) => <li key={`${link.label}-${link.url}`}><a className="text-primary underline" href={link.url} target="_blank" rel="noreferrer">{link.label || link.url}</a></li>)}</ul></div>}
+          </div>
+        </CreatorContentModal>
       )}
     </div>
   )

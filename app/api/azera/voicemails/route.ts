@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
   const safeData = await Promise.all((data || []).map(async (voicemail) => {
     let signedUrl: string | null = null
-    if (voicemail.recording_path) {
+    if (voicemail.recording_path && (!voicemail.retention_expires_at || Date.parse(voicemail.retention_expires_at) > Date.now())) {
       const signed = await supabase.storage.from("azera-voicemails").createSignedUrl(voicemail.recording_path, 900)
       signedUrl = signed.data?.signedUrl || null
     }

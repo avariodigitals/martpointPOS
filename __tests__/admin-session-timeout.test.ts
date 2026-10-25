@@ -5,7 +5,7 @@ import { signSession } from "@/lib/session-secret"
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }))
 
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => { vi.unstubAllEnvs() })
 
 describe("getSession during server rendering", () => {
   it("rejects an expired signed session without writing to read-only cookies", async () => {

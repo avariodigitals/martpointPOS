@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Pencil, Trash2 } from "lucide-react"
+import { CreatorContentModal } from "@/components/admin/creator-content-modal"
+import { Loader2, Plus, Pencil, Trash2, Eye } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 
 interface ResourceRow {
@@ -23,8 +24,9 @@ interface ResourceRow {
 }
 
 const CATEGORIES = [
-  "GETTING_STARTED", "BRAND_ASSETS", "LOGOS", "SCREENSHOTS", "PRODUCT_VIDEOS",
-  "FEATURE_GUIDES", "BUSINESS_GUIDES", "PLAYBOOK", "CHALLENGE_RESOURCES",
+  "GETTING_STARTED", "BRAND_ASSETS", "LOGOS", "PRODUCT_SCREENSHOTS", "PRODUCT_VIDEOS",
+  "FEATURE_GUIDES", "INDUSTRY_GUIDES", "BUSINESS_TYPE_GUIDES", "CONTENT_GUIDELINES",
+  "CONTENT_PLAYBOOK", "CHALLENGE_BRIEFS", "CHALLENGE_RESOURCES",
   "TEMPLATES", "PRODUCT_DESCRIPTIONS", "FAQ", "OTHER",
 ]
 const TYPES = ["FILE", "IMAGE", "VIDEO", "ARTICLE", "LINK"]
@@ -39,6 +41,7 @@ export default function AdminKitPage() {
   const [items, setItems] = useState<ResourceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<string | null>(null)
+  const [viewing, setViewing] = useState<ResourceRow | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
   const [file, setFile] = useState<File | null>(null)
   const [existingFilePath, setExistingFilePath] = useState<string | null>(null)
@@ -136,6 +139,7 @@ export default function AdminKitPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Creator Kit</h2>
           <p className="text-muted-foreground">Manage approved assets — logos, screenshots, videos, templates, playbooks.</p>
+          <p className="mt-1 text-xs text-amber-700">Creator-safe publishing only: do not upload internal admin, technical, security, customer or infrastructure documents.</p>
         </div>
         <Button onClick={openNew}><Plus className="w-4 h-4 mr-1" /> New resource</Button>
       </div>
@@ -182,7 +186,8 @@ export default function AdminKitPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => openEdit(it)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="sm" variant="outline" onClick={() => setViewing(it)} title="View resource"><Eye className="w-3.5 h-3.5 mr-1" /> View</Button>
+                        <Button size="sm" variant="outline" onClick={() => openEdit(it)} title="Edit resource"><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
                         <Button size="sm" variant="outline" onClick={() => remove(it.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </td>
@@ -195,12 +200,8 @@ export default function AdminKitPage() {
       )}
 
       {editing && (
-        <Card>
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">{editing === "new" ? "New resource" : "Edit resource"}</h3>
-              <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>Close</Button>
-            </div>
+        <CreatorContentModal title={editing === "new" ? "New resource" : "Edit resource"} onClose={() => setEditing(null)} wide>
+          <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1"><span className="text-xs text-muted-foreground">Name</span>
                 <input className={field} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
@@ -242,8 +243,26 @@ export default function AdminKitPage() {
               )}
             </div>
             <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}</Button>
-          </CardContent>
-        </Card>
+          </div>
+        </CreatorContentModal>
+      )}
+
+      {viewing && (
+        <CreatorContentModal title={viewing.name} onClose={() => setViewing(null)}>
+          <div className="space-y-4 text-sm">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-muted px-2.5 py-1">{enumLabel(viewing.category)}</span>
+              <span className="rounded-full bg-muted px-2.5 py-1">{enumLabel(viewing.resourceType)}</span>
+              <span className={`rounded-full px-2.5 py-1 ${viewing.active ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>{viewing.active ? "Active" : "Inactive"}</span>
+            </div>
+            {viewing.description && <p className="text-muted-foreground">{viewing.description}</p>}
+            {viewing.usageNotes && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Usage notes</p><p>{viewing.usageNotes}</p></div>}
+            {viewing.externalUrl && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">External URL</p><a className="break-all text-primary underline" href={viewing.externalUrl} target="_blank" rel="noreferrer">{viewing.externalUrl}</a></div>}
+            {viewing.filePath && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Uploaded file</p><p className="break-all">{viewing.filePath}</p></div>}
+            {viewing.version && <p className="text-xs text-muted-foreground">Version {viewing.version}</p>}
+            {viewing.body && <div><p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Article body</p><pre className="whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-xs">{viewing.body}</pre></div>}
+          </div>
+        </CreatorContentModal>
       )}
     </div>
   )

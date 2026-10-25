@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       sip_to_number: phone, webrtc_room: room, started_at: now, created_at: now, updated_at: now })
     if (error) return err("Could not prepare the call. Please try again.", 500)
     try {
-      await voiceApi(livekit).room.createRoom({ name: room, maxParticipants: 2, emptyTimeout: 90, departureTimeout: 15 })
+      await voiceApi(livekit).room.createRoom({ name: room, maxParticipants: 8, emptyTimeout: 90, departureTimeout: 15 })
       const token = new AccessToken(livekit.apiKey, livekit.apiSecret, { identity, name: session.name, ttl: 900 })
       token.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: false })
       await supabase.from("azera_call_events").insert({ call_id: id, event_type: "call_initiated", actor_type: "agent",

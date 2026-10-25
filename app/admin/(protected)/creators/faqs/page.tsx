@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Pencil, Trash2 } from "lucide-react"
+import { CreatorContentModal } from "@/components/admin/creator-content-modal"
+import { Loader2, Plus, Pencil, Trash2, Eye } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 
 interface Faq {
@@ -24,6 +25,7 @@ export default function AdminFaqsPage() {
   const [items, setItems] = useState<Faq[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<string | null>(null)
+  const [viewing, setViewing] = useState<Faq | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null)
@@ -122,7 +124,8 @@ export default function AdminFaqsPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => openEdit(f)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="sm" variant="outline" onClick={() => setViewing(f)} title="View FAQ"><Eye className="w-3.5 h-3.5 mr-1" /> View</Button>
+                        <Button size="sm" variant="outline" onClick={() => openEdit(f)} title="Edit FAQ"><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
                         <Button size="sm" variant="outline" onClick={() => remove(f.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </td>
@@ -135,12 +138,8 @@ export default function AdminFaqsPage() {
       )}
 
       {editing && (
-        <Card>
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">{editing === "new" ? "New FAQ" : "Edit FAQ"}</h3>
-              <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>Close</Button>
-            </div>
+        <CreatorContentModal title={editing === "new" ? "New FAQ" : "Edit FAQ"} onClose={() => setEditing(null)}>
+          <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-3">
               <label className="space-y-1 md:col-span-2"><span className="text-xs text-muted-foreground">Question</span>
                 <input className={field} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} /></label>
@@ -154,8 +153,20 @@ export default function AdminFaqsPage() {
                 <input className={field} type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} /></label>
             </div>
             <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}</Button>
-          </CardContent>
-        </Card>
+          </div>
+        </CreatorContentModal>
+      )}
+
+      {viewing && (
+        <CreatorContentModal title={viewing.question} onClose={() => setViewing(null)}>
+          <div className="space-y-4 text-sm">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-muted px-2.5 py-1">{enumLabel(viewing.category)}</span>
+              <span className={`rounded-full px-2.5 py-1 ${viewing.status === "PUBLISHED" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>{enumLabel(viewing.status)}</span>
+            </div>
+            <p className="whitespace-pre-wrap leading-6">{viewing.answer}</p>
+          </div>
+        </CreatorContentModal>
       )}
     </div>
   )

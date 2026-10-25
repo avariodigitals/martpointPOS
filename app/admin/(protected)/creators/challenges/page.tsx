@@ -32,6 +32,7 @@ const STATUS_CLASS: Record<string, string> = {
   SUBMISSION_CLOSED: "bg-amber-100 text-amber-700",
   JUDGING: "bg-purple-100 text-purple-700",
   COMPLETED: "bg-emerald-100 text-emerald-800",
+  DEACTIVATED: "bg-red-100 text-red-700",
   ARCHIVED: "bg-muted text-muted-foreground",
 }
 

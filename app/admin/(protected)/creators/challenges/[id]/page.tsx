@@ -102,6 +102,11 @@ export default function AdminChallengeDetailPage() {
     } finally { setBusy(false); inFlight.current = false }
   }, [id, load])
 
+  const deactivate = () => {
+    const reason = window.prompt("Why are you deactivating this challenge? This is shown in the audit trail and to joined creators.")
+    if (reason?.trim()) void act("deactivate", { reason: reason.trim() })
+  }
+
   if (loading || !detail) {
     return <div className="p-10 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>
   }
@@ -123,7 +128,8 @@ export default function AdminChallengeDetailPage() {
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${{
           DRAFT: "bg-muted", SCHEDULED: "bg-blue-100 text-blue-700", ACTIVE: "bg-green-100 text-green-700",
           SUBMISSION_CLOSED: "bg-amber-100 text-amber-700", JUDGING: "bg-purple-100 text-purple-700",
-          COMPLETED: "bg-emerald-100 text-emerald-800", ARCHIVED: "bg-muted text-muted-foreground",
+          COMPLETED: "bg-emerald-100 text-emerald-800", DEACTIVATED: "bg-red-100 text-red-700",
+          ARCHIVED: "bg-muted text-muted-foreground",
         }[status]}`}>{enumLabel(status)}</span>
         <Link href={`/creator/challenges/${c.id as string}`} target="_blank">
           <Button size="sm" variant="outline"><Eye className="w-3.5 h-3.5 mr-1" /> Creator view</Button>
@@ -143,7 +149,18 @@ export default function AdminChallengeDetailPage() {
         {status === "SUBMISSION_CLOSED" && <Button size="sm" variant="outline" disabled={busy} onClick={() => act("start_judging")}>Start judging</Button>}
         {status === "JUDGING" && <Button size="sm" disabled={busy} onClick={() => act("complete")}>Complete challenge</Button>}
         {status === "COMPLETED" && <Button size="sm" variant="outline" disabled={busy} onClick={() => act("archive")}>Archive</Button>}
+        {status !== "ARCHIVED" && status !== "DEACTIVATED" && (
+          <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" disabled={busy} onClick={deactivate}>Deactivate challenge</Button>
+        )}
+        {status === "DEACTIVATED" && <Button size="sm" disabled={busy} onClick={() => act("reactivate")}>Reactivate challenge</Button>}
       </div>
+
+      {status === "DEACTIVATED" && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          <span className="font-medium">Participation is paused.</span>{c.deactivated_reason ? ` ${c.deactivated_reason as string}` : ""}
+          {c.deactivated_at ? <span className="block text-xs mt-1">Deactivated {new Date(c.deactivated_at as string).toLocaleString("en-GB")} · Reactivation restores the previous lifecycle status.</span> : null}
+        </div>
+      )}
 
       {msg && <p className={`text-sm ${msg.kind === "ok" ? "text-green-600" : "text-destructive"}`}>{msg.text}</p>}
 
@@ -195,7 +212,6 @@ function OverviewTab({ detail, reload, setMsg }: { detail: Detail; act: (a: stri
     featured: !!c.featured,
   })
   const [amendReason, setAmendReason] = useState("")
-  const [amendAck, setAmendAck] = useState(false)
   const [saving, setSaving] = useState(false)
 
   function toLocal(iso: string | null) {
@@ -228,7 +244,6 @@ function OverviewTab({ detail, reload, setMsg }: { detail: Detail; act: (a: stri
             leaderboardVisible: form.leaderboardVisible, featured: form.featured,
           },
           reason: amendReason || undefined,
-          confirmMaterialAmendment: amendAck || undefined,
           notifyParticipants: true,
         }),
       })
@@ -237,7 +252,7 @@ function OverviewTab({ detail, reload, setMsg }: { detail: Detail; act: (a: stri
         setMsg({ kind: "err", text: data.missing ? `${data.error}: ${data.missing.join(", ")}` : `${data.error}${data.materialFields ? ` (${data.materialFields.join(", ")})` : ""}` })
       } else {
         setMsg({ kind: "ok", text: data.materialChanged?.length ? `Saved — material amendment recorded as rules v${data.rulesVersion}` : "Saved" })
-        setAmendReason(""); setAmendAck(false)
+        setAmendReason("")
         reload()
       }
     } finally { setSaving(false) }
@@ -251,7 +266,7 @@ function OverviewTab({ detail, reload, setMsg }: { detail: Detail; act: (a: stri
           {frozen && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>This challenge is live. Changes to material fields (eligibility, deadlines, terms, requirements, judging) create a new immutable rules version and notify participants.</span>
+              <span>This challenge is live, but administrators can still save changes. Material fields create a new rules version and notify participants automatically.</span>
             </div>
           )}
           <div className="grid gap-3 md:grid-cols-2">
@@ -317,12 +332,9 @@ function OverviewTab({ detail, reload, setMsg }: { detail: Detail; act: (a: stri
 
           {frozen && (
             <div className="rounded-md border border-input p-3 space-y-2">
-              <p className="text-xs font-medium">Amendment details (required for material changes on a live challenge)</p>
-              <input className={field} placeholder="Reason for the change" value={amendReason} onChange={(e) => setAmendReason(e.target.value)} />
-              <label className="flex items-center gap-2 text-xs">
-                <input type="checkbox" checked={amendAck} onChange={(e) => setAmendAck(e.target.checked)} />
-                I confirm this is a material amendment — a new rules version will be recorded and participants notified.
-              </label>
+              <p className="text-xs font-medium">Optional amendment note</p>
+              <input className={field} placeholder="Why is this being changed?" value={amendReason} onChange={(e) => setAmendReason(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Saving a material change automatically records a new rules version and notifies joined creators.</p>
             </div>
           )}
 
@@ -420,7 +432,7 @@ function BriefTab({ detail, id, reload, setMsg }: { detail: Detail; id: string; 
 
 /* ═══ Awards editor ═══ */
 function AwardsTab({ detail, id, reload, setMsg }: { detail: Detail; id: string; reload: () => void; setMsg: (m: { kind: "ok" | "err"; text: string } | null) => void }) {
-  const locked = !!detail.challenge.rules_frozen_at
+  const live = !!detail.challenge.rules_frozen_at
   const [awards, setAwards] = useState(
     detail.awards.map((a) => ({
       awardType: a.award_type, title: a.title, description: a.description ?? "",
@@ -456,47 +468,43 @@ function AwardsTab({ detail, id, reload, setMsg }: { detail: Detail; id: string;
 
   return (
     <div className="space-y-4">
-      {locked && (
+      {live && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Awards are locked — the challenge is live. Changing prize values or winner counts requires cancelling/replacing the challenge; editing here is disabled to protect participants.
+          Awards remain editable while the challenge is live. Saving changes creates a new rules version and notifies joined creators. Awards cannot be replaced after winners have been finalised.
         </div>
       )}
       {awards.map((a, i) => (
         <Card key={i}>
           <CardContent className="p-4 grid gap-3 md:grid-cols-4">
             <label><span className={lbl}>Type</span>
-              <select className={field} disabled={locked} value={a.awardType} onChange={(e) => update(i, "awardType", e.target.value)}>
+              <select className={field} value={a.awardType} onChange={(e) => update(i, "awardType", e.target.value)}>
                 {AWARD_TYPES.map((t) => <option key={t} value={t}>{enumLabel(t)}</option>)}
               </select></label>
             <label className="md:col-span-2"><span className={lbl}>Title</span>
-              <input className={field} disabled={locked} value={a.title} onChange={(e) => update(i, "title", e.target.value)} placeholder="e.g. Conversion Champion" /></label>
+              <input className={field} value={a.title} onChange={(e) => update(i, "title", e.target.value)} placeholder="e.g. Conversion Champion" /></label>
             <label><span className={lbl}>Winners</span>
-              <input type="number" min={1} className={field} disabled={locked} value={a.winnersCount} onChange={(e) => update(i, "winnersCount", Number(e.target.value))} /></label>
+              <input type="number" min={1} className={field} value={a.winnersCount} onChange={(e) => update(i, "winnersCount", Number(e.target.value))} /></label>
             <label><span className={lbl}>Cash (₦)</span>
-              <input type="number" min={0} className={field} disabled={locked} value={a.cashAmountNaira ?? ""} onChange={(e) => update(i, "cashAmountNaira", e.target.value ? Number(e.target.value) : null)} /></label>
+              <input type="number" min={0} className={field} value={a.cashAmountNaira ?? ""} onChange={(e) => update(i, "cashAmountNaira", e.target.value ? Number(e.target.value) : null)} /></label>
             <label className="md:col-span-2"><span className={lbl}>Non-cash reward</span>
-              <input className={field} disabled={locked} value={a.nonCashReward} onChange={(e) => update(i, "nonCashReward", e.target.value)} placeholder="e.g. Feature on MartPoint channels" /></label>
+              <input className={field} value={a.nonCashReward} onChange={(e) => update(i, "nonCashReward", e.target.value)} placeholder="e.g. Feature on MartPoint channels" /></label>
             <label><span className={lbl}>Description</span>
-              <input className={field} disabled={locked} value={a.description} onChange={(e) => update(i, "description", e.target.value)} /></label>
+              <input className={field} value={a.description} onChange={(e) => update(i, "description", e.target.value)} /></label>
             <label className="md:col-span-4"><span className={lbl}>Judging criteria for this award</span>
-              <input className={field} disabled={locked} value={a.judgingCriteria} onChange={(e) => update(i, "judgingCriteria", e.target.value)} placeholder="e.g. Quality: originality, clarity, MartPoint accuracy" /></label>
+              <input className={field} value={a.judgingCriteria} onChange={(e) => update(i, "judgingCriteria", e.target.value)} placeholder="e.g. Quality: originality, clarity, MartPoint accuracy" /></label>
             <label><span className={lbl}>Minimum verified views</span>
-              <input type="number" min={0} className={field} disabled={locked} value={a.minViews} onChange={(e) => update(i, "minViews", e.target.value === "" ? "" : Number(e.target.value))} placeholder="No fixed floor" /></label>
+              <input type="number" min={0} className={field} value={a.minViews} onChange={(e) => update(i, "minViews", e.target.value === "" ? "" : Number(e.target.value))} placeholder="No fixed floor" /></label>
             <label><span className={lbl}>Minimum qualified outcomes</span>
-              <input type="number" min={0} className={field} disabled={locked} value={a.minQualifiedOutcomes} onChange={(e) => update(i, "minQualifiedOutcomes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="No fixed floor" /></label>
+              <input type="number" min={0} className={field} value={a.minQualifiedOutcomes} onChange={(e) => update(i, "minQualifiedOutcomes", e.target.value === "" ? "" : Number(e.target.value))} placeholder="No fixed floor" /></label>
             <p className="md:col-span-2 self-end text-xs text-muted-foreground">Leave blank when this award has no hard numeric floor. Qualified outcomes are MartPoint-verified enquiries or demos, not raw clicks.</p>
-            {!locked && (
-              <div><Button size="sm" variant="ghost" onClick={() => setAwards((arr) => arr.filter((_, j) => j !== i))}>Remove</Button></div>
-            )}
+            <div><Button size="sm" variant="ghost" onClick={() => setAwards((arr) => arr.filter((_, j) => j !== i))}>Remove</Button></div>
           </CardContent>
         </Card>
       ))}
-      {!locked && (
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={add}><Plus className="w-4 h-4 mr-1" /> Add award</Button>
-          <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} Save awards</Button>
-        </div>
-      )}
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={add}><Plus className="w-4 h-4 mr-1" /> Add award</Button>
+        <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} Save awards</Button>
+      </div>
     </div>
   )
 }

@@ -146,11 +146,10 @@ export async function GET(_req: Request, { params }: Params) {
   })
 }
 
-/* ─── PATCH: update challenge — freeze enforcement on material fields ─── */
+/* ─── PATCH: update challenge — version and notify material live edits ─── */
 const updateSchema = z.object({
   patch: z.record(z.string(), z.unknown()),
   reason: z.string().max(1000).optional(),
-  confirmMaterialAmendment: z.boolean().optional(),
   notifyParticipants: z.boolean().optional(),
 })
 
@@ -179,7 +178,7 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!challenge) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   try {
-    const { patch, reason, confirmMaterialAmendment, notifyParticipants } = updateSchema.parse(await request.json())
+    const { patch, reason, notifyParticipants } = updateSchema.parse(await request.json())
     const snakePatch: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(patch)) {
       const col = FIELD_MAP[k]
@@ -190,24 +189,8 @@ export async function PATCH(request: Request, { params }: Params) {
     const frozen = !!challenge.rules_frozen_at
     const materialChanged = detectMaterialChanges(challenge, snakePatch)
 
-    if (frozen && materialChanged.length > 0) {
-      if (!reason?.trim()) {
-        return NextResponse.json({
-          error: "This challenge is live — material changes require a reason, create a new rules version, and notify participants.",
-          materialFields: materialChanged,
-          requiresAmendment: true,
-        }, { status: 409 })
-      }
-      if (!confirmMaterialAmendment) {
-        return NextResponse.json({
-          error: "Confirm the material amendment explicitly.",
-          materialFields: materialChanged,
-          requiresAmendment: true,
-        }, { status: 409 })
-      }
-    }
-
     const nextVersion = frozen && materialChanged.length > 0 ? challenge.rules_version + 1 : challenge.rules_version
+    const amendmentReason = reason?.trim() || "Admin amendment"
     snakePatch.updated_by = session.userId
     snakePatch.updated_at = new Date().toISOString()
     if (frozen && materialChanged.length > 0) snakePatch.rules_version = nextVersion
@@ -217,12 +200,12 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if (frozen && materialChanged.length > 0) {
       await snapshotRules(challenge.id, { id: session.userId, name: session.name ?? session.username }, {
-        reason, material: true,
+        reason: amendmentReason, material: true,
       })
       if (notifyParticipants !== false) {
         void notifyChallengeAudience({ ...challenge, rules_version: nextVersion } as ChallengeRow, "JOINED", {
           title: `Rules updated: ${challenge.name}`,
-          body: `The challenge rules were amended (version ${nextVersion}). Reason: ${reason}. Please review the updated challenge.`,
+          body: `The challenge rules were amended (version ${nextVersion}). Reason: ${amendmentReason}. Please review the updated challenge.`,
         })
       }
     }
@@ -233,7 +216,7 @@ export async function PATCH(request: Request, { params }: Params) {
       entityId: challenge.id,
       metadata: {
         fields: Object.keys(snakePatch).filter((k) => !k.startsWith("updated")),
-        materialChanged, reason: reason ?? null, rulesVersion: nextVersion,
+        materialChanged, reason: reason?.trim() || null, rulesVersion: nextVersion,
       },
     })
     return NextResponse.json({ success: true, rulesVersion: nextVersion, materialChanged })
@@ -247,8 +230,9 @@ export async function PATCH(request: Request, { params }: Params) {
 const actionSchema = z.object({
   action: z.enum([
     "activate", "schedule", "close_submissions", "start_judging",
-    "complete", "archive", "save_brief", "replace_awards", "link_resources",
+    "complete", "archive", "deactivate", "reactivate", "save_brief", "replace_awards", "link_resources",
   ]),
+  reason: z.string().trim().max(1000).optional(),
   brief: z.record(z.string(), z.unknown()).optional(),
   awards: z.array(z.object({
     awardType: z.string(), title: z.string(), description: z.string().nullish(),
@@ -268,6 +252,7 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   SUBMISSION_CLOSED: ["start_judging"],
   JUDGING: ["complete"],
   COMPLETED: ["archive"],
+  DEACTIVATED: ["reactivate"],
   ARCHIVED: [],
 }
 
@@ -295,35 +280,67 @@ export async function POST(request: Request, { params }: Params) {
         created_by: session.userId,
       })
       if (error) return NextResponse.json({ error: "Failed to save brief" }, { status: 500 })
+      let rulesVersion = challenge.rules_version
+      if (challenge.rules_frozen_at) {
+        rulesVersion += 1
+        const { error: versionError } = await supabase.from("creator_challenges").update({
+          rules_version: rulesVersion, updated_by: session.userId, updated_at: new Date().toISOString(),
+        }).eq("id", challenge.id)
+        if (versionError) return NextResponse.json({ error: "Brief saved, but the rules version could not be recorded." }, { status: 500 })
+        await snapshotRules(challenge.id, { id: session.userId, name: session.name ?? session.username }, {
+          reason: body.reason ?? "Brief updated by admin", material: true,
+        })
+        void notifyChallengeAudience({ ...challenge, rules_version: rulesVersion } as ChallengeRow, "JOINED", {
+          title: `Brief updated: ${challenge.name}`,
+          body: `The challenge brief was updated (rules version ${rulesVersion}). Please review the latest instructions.`,
+        })
+      }
       await recordAudit(adminCtx, {
         action: AUDIT_ACTIONS.CREATOR_CHALLENGE_UPDATED, entityType: "creator_challenge",
-        entityId: challenge.id, metadata: { briefVersion: nextVersion },
+        entityId: challenge.id, metadata: { briefVersion: nextVersion, rulesVersion },
       })
-      return NextResponse.json({ success: true, briefVersion: nextVersion })
+      return NextResponse.json({ success: true, briefVersion: nextVersion, rulesVersion })
     }
 
     if (body.action === "replace_awards") {
       const { count: winnerCount } = await supabase.from("creator_challenge_winners")
         .select("id", { count: "exact", head: true })
         .in("award_id", (await listAwards(challenge.id)).map((a) => a.id))
-      if ((winnerCount ?? 0) > 0 || challenge.rules_frozen_at) {
-        return NextResponse.json({ error: "Awards cannot be replaced after activation or finalisation — amend with a new rules version instead." }, { status: 409 })
+      if ((winnerCount ?? 0) > 0) {
+        return NextResponse.json({ error: "Awards cannot be replaced after winners have been finalised." }, { status: 409 })
       }
-      await supabase.from("creator_challenge_awards").delete().eq("challenge_id", challenge.id)
+      const { error: deleteError } = await supabase.from("creator_challenge_awards").delete().eq("challenge_id", challenge.id)
+      if (deleteError) return NextResponse.json({ error: "Failed to replace awards" }, { status: 500 })
       if (body.awards?.length) {
-        await supabase.from("creator_challenge_awards").insert(body.awards.map((a, i) => ({
+        const { error: insertError } = await supabase.from("creator_challenge_awards").insert(body.awards.map((a, i) => ({
           challenge_id: challenge.id, award_type: a.awardType, title: a.title,
           description: a.description ?? null, winners_count: a.winnersCount,
           cash_amount_kobo: a.cashAmountNaira != null ? Math.round(a.cashAmountNaira * 100) : null,
           non_cash_reward: a.nonCashReward ?? null, judging_criteria: a.judgingCriteria ?? null,
           scoring_config: a.scoringConfig ?? {}, sort_order: a.sortOrder ?? i,
         })))
+        if (insertError) return NextResponse.json({ error: "Failed to replace awards" }, { status: 500 })
+      }
+      let rulesVersion = challenge.rules_version
+      if (challenge.rules_frozen_at) {
+        rulesVersion += 1
+        const { error: versionError } = await supabase.from("creator_challenges").update({
+          rules_version: rulesVersion, updated_by: session.userId, updated_at: new Date().toISOString(),
+        }).eq("id", challenge.id)
+        if (versionError) return NextResponse.json({ error: "Awards saved, but the rules version could not be recorded." }, { status: 500 })
+        await snapshotRules(challenge.id, { id: session.userId, name: session.name ?? session.username }, {
+          reason: body.reason ?? "Awards updated by admin", material: true,
+        })
+        void notifyChallengeAudience({ ...challenge, rules_version: rulesVersion } as ChallengeRow, "JOINED", {
+          title: `Prizes updated: ${challenge.name}`,
+          body: `The challenge prizes were updated (rules version ${rulesVersion}). Please review the latest challenge terms.`,
+        })
       }
       await recordAudit(adminCtx, {
         action: AUDIT_ACTIONS.CREATOR_CHALLENGE_UPDATED, entityType: "creator_challenge",
-        entityId: challenge.id, metadata: { awardsReplaced: body.awards?.length ?? 0 },
+        entityId: challenge.id, metadata: { awardsReplaced: body.awards?.length ?? 0, rulesVersion },
       })
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, rulesVersion })
     }
 
     if (body.action === "link_resources") {
@@ -335,6 +352,61 @@ export async function POST(request: Request, { params }: Params) {
         })))
       }
       return NextResponse.json({ success: true })
+    }
+
+    if (body.action === "deactivate") {
+      if (challenge.status === "ARCHIVED" || challenge.status === "DEACTIVATED") {
+        return NextResponse.json({ error: `Cannot deactivate a ${challenge.status.toLowerCase()} challenge.` }, { status: 409 })
+      }
+      if (!body.reason) {
+        return NextResponse.json({ error: "A reason is required when deactivating a challenge." }, { status: 400 })
+      }
+      const now = new Date().toISOString()
+      const { error } = await supabase.from("creator_challenges").update({
+        status: "DEACTIVATED", deactivated_at: now, deactivated_reason: body.reason,
+        deactivated_from_status: challenge.status,
+        updated_by: session.userId, updated_at: now,
+      }).eq("id", challenge.id)
+      if (error) return NextResponse.json({ error: "Could not deactivate challenge" }, { status: 500 })
+      await recordAudit(adminCtx, {
+        action: AUDIT_ACTIONS.CREATOR_CHALLENGE_STATUS_CHANGED,
+        entityType: "creator_challenge", entityId: challenge.id,
+        metadata: { from: challenge.status, to: "DEACTIVATED", reason: body.reason },
+      })
+      void notifyChallengeAudience(challenge, "JOINED", {
+        title: `Challenge deactivated: ${challenge.name}`,
+        body: `This challenge has been temporarily deactivated. New joins and submissions are paused. Reason: ${body.reason}`,
+        sendEmail: true,
+      })
+      return NextResponse.json({ success: true, status: "DEACTIVATED" })
+    }
+
+    if (body.action === "reactivate") {
+      if (challenge.status !== "DEACTIVATED") {
+        return NextResponse.json({ error: "Only deactivated challenges can be reactivated." }, { status: 409 })
+      }
+      const restorableStatuses = ["DRAFT", "SCHEDULED", "ACTIVE", "SUBMISSION_CLOSED", "JUDGING", "COMPLETED"]
+      const restoredStatus = restorableStatuses.includes(challenge.deactivated_from_status ?? "")
+        ? challenge.deactivated_from_status!
+        : "DRAFT"
+      const now = new Date().toISOString()
+      const { error } = await supabase.from("creator_challenges").update({
+        status: restoredStatus, deactivated_at: null, deactivated_reason: null, deactivated_from_status: null,
+        updated_by: session.userId, updated_at: now,
+      }).eq("id", challenge.id)
+      if (error) return NextResponse.json({ error: "Could not reactivate challenge" }, { status: 500 })
+      await recordAudit(adminCtx, {
+        action: AUDIT_ACTIONS.CREATOR_CHALLENGE_STATUS_CHANGED,
+        entityType: "creator_challenge", entityId: challenge.id,
+        metadata: { from: "DEACTIVATED", to: restoredStatus },
+      })
+      if (["SCHEDULED", "ACTIVE"].includes(restoredStatus)) {
+        void notifyChallengeAudience(challenge, "JOINED", {
+          title: `Challenge reactivated: ${challenge.name}`,
+          body: "This challenge is active again. Please review the latest challenge details before continuing.",
+        })
+      }
+      return NextResponse.json({ success: true, status: restoredStatus })
     }
 
     // Status transitions

@@ -25,7 +25,8 @@ function err(message: string, status = 400) {
 function mapProviderEvent(rawStatus: string): string {
   const s = String(rawStatus).toLowerCase()
   if (s === "ringing" || s === "queued" || s === "initiated") return "ringing"
-  if (s === "answered" || s === "completed" || s === "active") return "active"
+  if (s === "answered" || s === "active") return "active"
+  if (s === "completed") return "ended"
   if (s === "ended" || s === "finished" || s === "hangup") return "ended"
   if (s === "missed" || s === "no_answer" || s === "timeout") return "missed"
   if (s === "failed" || s === "error" || s === "rejected") return "failed"
@@ -34,6 +35,10 @@ function mapProviderEvent(rawStatus: string): string {
 }
 
 export async function POST(request: Request) {
+  const expected = process.env.SIP_WEBHOOK_SECRET || process.env.AFRICASTALKING_CALLBACK_SECRET
+  if (!expected) return err("Configure a SIP webhook secret first", 503)
+  const provided = request.headers.get("x-webhook-secret") || new URL(request.url).searchParams.get("secret")
+  if (provided !== expected) return err("Forbidden", 403)
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ ok: true })
   }

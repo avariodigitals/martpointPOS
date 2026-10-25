@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { randomUUID } from "node:crypto"
 
 async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession()
@@ -33,10 +34,14 @@ export async function POST(request: Request) {
     if (!callId || !businessId || !file) {
       return err("call_id, business_id and file are required")
     }
+    if (!(file instanceof File) || file.size === 0 || file.size > 4 * 1024 * 1024 || !/^audio\/(wav|x-wav|mp3|mpeg|ogg|webm|mp4)(;.*)?$/.test(file.type)) return err("Choose a supported audio recording up to 4 MB.")
+    if (formData.get("consent_confirmed") !== "true") return err("Confirm that both participants consented to recording.")
+    const { data: call } = await supabase.from("azera_calls").select("id").eq("id", callId).eq("business_id", businessId).maybeSingle()
+    if (!call) return err("Call and business do not match.", 404)
 
     // Upload to Supabase storage
-    const fileName = `recordings/${callId}/${Date.now()}-${file.name}`
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const fileName = `${businessId}/${callId}/${randomUUID()}.audio`
+    const { error: uploadError } = await supabase.storage
       .from("call-recordings")
       .upload(fileName, file)
 
@@ -46,9 +51,9 @@ export async function POST(request: Request) {
     }
 
     // Get public URL
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = await supabase.storage
       .from("call-recordings")
-      .getPublicUrl(fileName)
+      .createSignedUrl(fileName, 300)
 
     // Save recording record
     const { data, error } = await supabase
@@ -56,20 +61,25 @@ export async function POST(request: Request) {
       .insert({
         call_id: callId,
         business_id: businessId,
-        recording_url: urlData.publicUrl,
+        recording_url: "",
         recording_path: fileName,
         duration_seconds: 0,
         file_size_bytes: file.size,
         mime_type: file.type || "audio/wav",
         recording_type: "manual",
+        consent_confirmed_at: new Date().toISOString(),
+        retention_expires_at: new Date(Date.now() + 90 * 86_400_000).toISOString(),
         created_at: new Date().toISOString(),
       })
       .select()
       .single()
 
-    if (error || !data) return err("Failed to save recording record", 500)
+    if (error || !data) {
+      await supabase.storage.from("call-recordings").remove([fileName])
+      return err("Failed to save recording record", 500)
+    }
 
-    return ok(data)
+    return ok({ ...data, recording_url: urlData?.signedUrl || null })
   } catch (e) {
     return err(String(e), 500)
   }

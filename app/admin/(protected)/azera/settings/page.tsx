@@ -1,72 +1,80 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Loader2, Save, MessageCircle, Save as SaveIcon } from "lucide-react";
+import { VoiceDepartmentsEditor } from "@/components/admin/voice-departments-editor";
+import { CloudflareMediaSettings } from "@/components/admin/cloudflare-media-settings";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Loader2, Save, MessageCircle, Save as SaveIcon } from "lucide-react"
-import { VoiceDepartmentsEditor } from "@/components/admin/voice-departments-editor"
-import { departmentFallbacks, type VoiceDepartmentForm } from "@/lib/voice-department-form"
+  departmentFallbacks,
+  type VoiceDepartmentForm,
+} from "@/lib/voice-department-form";
 
 interface AzeraSettings {
-  widget_enabled: boolean
-  widget_title: string
-  widget_greeting: string
-  brand_color: string
-  position: "bottom-right" | "bottom-left"
-  ai_enabled: boolean
-  ai_prompt: string | null
-  ai_voice_enabled: boolean
-  ai_voice_provider: string | null
-  ai_voice: string | null
-  openaiConfigured?: boolean
-  fallbackConfigured?: boolean
-  configured?: boolean
-  sip_provider: string | null
-  sip_from_number: string | null
-  africas_talking_phone_number: string | null
-  africas_talking_forward_numbers: string
-  voice_greeting: string
-  voice_connecting_greeting: string
-  voice_no_answer_greeting: string
-  voice_busy_greeting: string
-  voice_after_hours_greeting: string
-  voice_after_hours_destination: string
-  voice_timezone: string
-  voice_weekly_schedule: string
-  voice_closed_dates: string
-  voice_menu_retry_limit: number
-  voice_menu_enabled: boolean
-  voice_departments: VoiceDepartmentForm[]
-  voice_voicemail_enabled: boolean
-  voice_voicemail_max_seconds: number
-  voice_voicemail_retention_days: number
-  voice_greeting_audio_url: string
-  voice_connecting_audio_url: string
-  voice_no_answer_audio_url: string
-  voice_after_hours_audio_url: string
-  voice_waiting_audio_url: string
-  africas_talking_api_key: string | null
-  africas_talking_username: string | null
-  twilio_account_sid: string | null
-  twilio_auth_token: string | null
-  twilio_from: string | null
-  messenger_page_id: string | null
-  instagram_account_id: string | null
-  google_place_id: string | null
-  google_review_enabled: boolean
-  google_review_message: string | null
+  widget_enabled: boolean;
+  widget_title: string;
+  widget_greeting: string;
+  brand_color: string;
+  position: "bottom-right" | "bottom-left";
+  ai_enabled: boolean;
+  ai_prompt: string | null;
+  ai_voice_enabled: boolean;
+  ai_voice_provider: string | null;
+  ai_voice: string | null;
+  voice_record_calls: boolean;
+  voice_recording_notice: string;
+  voice_recording_retention_days: number;
+  voice_realtime_enabled: boolean;
+  openaiConfigured?: boolean;
+  fallbackConfigured?: boolean;
+  configured?: boolean;
+  sip_provider: string | null;
+  sip_from_number: string | null;
+  africas_talking_phone_number: string | null;
+  africas_talking_forward_numbers: string;
+  voice_greeting: string;
+  voice_connecting_greeting: string;
+  voice_no_answer_greeting: string;
+  voice_busy_greeting: string;
+  voice_after_hours_greeting: string;
+  voice_after_hours_destination: string;
+  voice_timezone: string;
+  voice_weekly_schedule: string;
+  voice_closed_dates: string;
+  voice_menu_retry_limit: number;
+  voice_menu_enabled: boolean;
+  voice_departments: VoiceDepartmentForm[];
+  voice_voicemail_enabled: boolean;
+  voice_voicemail_max_seconds: number;
+  voice_voicemail_retention_days: number;
+  voice_greeting_audio_url: string;
+  voice_connecting_audio_url: string;
+  voice_no_answer_audio_url: string;
+  voice_after_hours_audio_url: string;
+  voice_waiting_audio_url: string;
+  africas_talking_api_key: string | null;
+  africas_talking_username: string | null;
+  twilio_account_sid: string | null;
+  twilio_auth_token: string | null;
+  twilio_from: string | null;
+  messenger_page_id: string | null;
+  messenger_page_access_token: string | null;
+  instagram_access_token: string | null;
+  whatsapp_phone_number_id: string | null;
+  whatsapp_access_token: string | null;
+  whatsapp_phone_number: string | null;
+  instagram_account_id: string | null;
+  google_place_id: string | null;
+  google_review_enabled: boolean;
+  google_review_message: string | null;
 }
 
 export default function AzeraSettingsPage() {
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState("")
-  const [voiceProviderCheck, setVoiceProviderCheck] = useState("")
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [voiceProviderCheck, setVoiceProviderCheck] = useState("");
 
   // Local form state
   const [form, setForm] = useState<AzeraSettings>({
@@ -80,18 +88,28 @@ export default function AzeraSettingsPage() {
     ai_voice_enabled: false,
     ai_voice_provider: "openai",
     ai_voice: "alloy",
+    voice_record_calls: false,
+    voice_recording_notice:
+      "We would like to record this conversation for service quality. Press 1 to agree, or press 2 to continue without recording.",
+    voice_recording_retention_days: 90,
+    voice_realtime_enabled: false,
     sip_provider: null,
     sip_from_number: null,
     africas_talking_phone_number: null,
     africas_talking_forward_numbers: "",
-    voice_greeting: "Welcome to MartPoint, the business management software built for Nigerian businesses. Manage your sales, inventory, customer payments, and online store—all in one place. For sales, pricing, or to book a demo, press 1. For technical support, press 2. For billing, renewals, or onboarding, press 3. To hear these options again, press 9.",
+    voice_greeting:
+      "Welcome to MartPoint, the business management software built for Nigerian businesses. Manage your sales, inventory, customer payments, and online store—all in one place. For sales, pricing, or to book a demo, press 1. For technical support, press 2. For billing, renewals, or onboarding, press 3. To hear these options again, press 9.",
     voice_connecting_greeting: "Please hold while we connect you.",
-    voice_no_answer_greeting: "We are unable to answer right now. Please try again later.",
-    voice_busy_greeting: "All our care agents are currently busy. Please try again later.",
-    voice_after_hours_greeting: "Our office is currently closed. Please hold while I direct you to our after-hours support team.",
+    voice_no_answer_greeting:
+      "We are unable to answer right now. Please try again later.",
+    voice_busy_greeting:
+      "All our care agents are currently busy. Please try again later.",
+    voice_after_hours_greeting:
+      "Our office is currently closed. Please hold while I direct you to our after-hours support team.",
     voice_after_hours_destination: "",
     voice_timezone: "Africa/Lagos",
-    voice_weekly_schedule: "Mon | 09:00-17:00\nTue | 09:00-17:00\nWed | 09:00-17:00\nThu | 09:00-17:00\nFri | 09:00-17:00",
+    voice_weekly_schedule:
+      "Mon | 09:00-17:00\nTue | 09:00-17:00\nWed | 09:00-17:00\nThu | 09:00-17:00\nFri | 09:00-17:00",
     voice_closed_dates: "",
     voice_menu_retry_limit: 1,
     voice_menu_enabled: false,
@@ -110,126 +128,209 @@ export default function AzeraSettingsPage() {
     twilio_auth_token: null,
     twilio_from: null,
     messenger_page_id: null,
+    messenger_page_access_token: null,
+    instagram_access_token: null,
+    whatsapp_phone_number_id: null,
+    whatsapp_access_token: null,
+    whatsapp_phone_number: null,
     instagram_account_id: null,
     google_place_id: null,
     google_review_enabled: false,
     google_review_message: null,
-  })
+  });
 
   async function loadSettings() {
     try {
-      const res = await fetch("/api/azera/settings?business_id=1")
-      const json = await res.json()
+      const res = await fetch("/api/azera/settings?business_id=1");
+      const json = await res.json();
       setForm((current) => {
-        const settings = json.settings || {}
+        const settings = json.settings || {};
         return {
           ...current,
           ...settings,
           ...(json.ai_provider || {}),
-          africas_talking_forward_numbers: Array.isArray(settings.africas_talking_forward_numbers)
+          africas_talking_forward_numbers: Array.isArray(
+            settings.africas_talking_forward_numbers,
+          )
             ? settings.africas_talking_forward_numbers.join(", ")
             : settings.africas_talking_forward_numbers || "",
           voice_weekly_schedule: settings.voice_weekly_schedule
-            ? Object.entries(settings.voice_weekly_schedule as Record<string, { open?: string; close?: string } | null>)
+            ? Object.entries(
+                settings.voice_weekly_schedule as Record<
+                  string,
+                  { open?: string; close?: string } | null
+                >,
+              )
                 .filter(([, value]) => value)
-                .map(([day, value]) => `${day.slice(0, 1).toUpperCase()}${day.slice(1)} | ${value?.open || ""}-${value?.close || ""}`)
+                .map(
+                  ([day, value]) =>
+                    `${day.slice(0, 1).toUpperCase()}${day.slice(1)} | ${value?.open || ""}-${value?.close || ""}`,
+                )
                 .join("\n")
             : current.voice_weekly_schedule,
-          voice_closed_dates: Array.isArray(settings.voice_closed_dates) ? settings.voice_closed_dates.join(", ") : current.voice_closed_dates,
+          voice_closed_dates: Array.isArray(settings.voice_closed_dates)
+            ? settings.voice_closed_dates.join(", ")
+            : current.voice_closed_dates,
           voice_departments: (() => {
-            if (!Array.isArray(settings.voice_departments)) return []
-            const usedDigits = new Set<number>()
-            return settings.voice_departments.map((department: { digit?: number; label?: string; primary?: string; fallback?: string[]; numbers?: string[]; enabled?: boolean }, index: number) => {
-              const requestedDigit = Number(department.digit || index + 1)
-              const digit = Number.isInteger(requestedDigit) && requestedDigit >= 1 && requestedDigit <= 8 && !usedDigits.has(requestedDigit)
-                ? requestedDigit
-                : Array.from({ length: 8 }, (_, offset) => offset + 1).find((candidate) => !usedDigits.has(candidate)) || ""
-              if (digit) usedDigits.add(Number(digit))
-              return {
-                id: crypto.randomUUID(),
-                digit: String(digit),
-                label: department.label || "",
-                primary: department.primary || department.numbers?.[0] || "",
-                fallback: Array.isArray(department.fallback) ? department.fallback.join(", ") : (department.numbers || []).slice(1).join(", "),
-                enabled: department.enabled !== false,
-              }
-            })
+            if (!Array.isArray(settings.voice_departments)) return [];
+            const usedDigits = new Set<number>();
+            return settings.voice_departments.map(
+              (
+                department: {
+                  digit?: number;
+                  label?: string;
+                  primary?: string;
+                  fallback?: string[];
+                  numbers?: string[];
+                  enabled?: boolean;
+                },
+                index: number,
+              ) => {
+                const requestedDigit = Number(department.digit || index + 1);
+                const digit =
+                  Number.isInteger(requestedDigit) &&
+                  requestedDigit >= 1 &&
+                  requestedDigit <= 8 &&
+                  !usedDigits.has(requestedDigit)
+                    ? requestedDigit
+                    : Array.from({ length: 8 }, (_, offset) => offset + 1).find(
+                        (candidate) => !usedDigits.has(candidate),
+                      ) || "";
+                if (digit) usedDigits.add(Number(digit));
+                return {
+                  id: crypto.randomUUID(),
+                  digit: String(digit),
+                  label: department.label || "",
+                  primary: department.primary || department.numbers?.[0] || "",
+                  fallback: Array.isArray(department.fallback)
+                    ? department.fallback.join(", ")
+                    : (department.numbers || []).slice(1).join(", "),
+                  enabled: department.enabled !== false,
+                };
+              },
+            );
           })(),
-        }
-      })
+        };
+      });
     } catch {
       // ignore
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   useEffect(() => {
     // The request synchronizes the form with the persisted admin settings.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadSettings()
-  }, [])
+    void loadSettings();
+  }, []);
 
-  async function uploadAudio(key: "voice_greeting_audio_url" | "voice_connecting_audio_url" | "voice_no_answer_audio_url" | "voice_after_hours_audio_url" | "voice_waiting_audio_url", file: File) {
-    const body = new FormData()
-    body.append("business_id", "1")
-    body.append("file", file)
-    const res = await fetch("/api/azera/voice-audio", { method: "POST", body })
-    const json = await res.json()
+  async function uploadAudio(
+    key:
+      | "voice_greeting_audio_url"
+      | "voice_connecting_audio_url"
+      | "voice_no_answer_audio_url"
+      | "voice_after_hours_audio_url"
+      | "voice_waiting_audio_url",
+    file: File,
+  ) {
+    const body = new FormData();
+    body.append("business_id", "1");
+    body.append("file", file);
+    const res = await fetch("/api/azera/voice-audio", { method: "POST", body });
+    const json = await res.json();
     if (!res.ok || !json.url) {
-      setMessage(json.error || "Audio upload failed")
-      return
+      setMessage(json.error || "Audio upload failed");
+      return;
     }
-    setForm((current) => ({ ...current, [key]: json.url }))
-    setMessage("Audio uploaded. Save settings to activate it.")
+    setForm((current) => ({ ...current, [key]: json.url }));
+    setMessage("Audio uploaded. Save settings to activate it.");
   }
 
   async function checkVoiceProvider() {
-    setVoiceProviderCheck("Checking provider…")
+    setVoiceProviderCheck("Checking provider…");
     try {
-      const provider = encodeURIComponent(form.ai_voice_provider || "openai")
-      const res = await fetch(`/api/azera/voice/provider-check?business_id=1&provider=${provider}`)
-      const json = await res.json()
-      setVoiceProviderCheck(json.message || json.error || "Provider check failed")
+      const provider = encodeURIComponent(form.ai_voice_provider || "openai");
+      const res = await fetch(
+        `/api/azera/voice/provider-check?business_id=1&provider=${provider}`,
+      );
+      const json = await res.json();
+      setVoiceProviderCheck(
+        json.message || json.error || "Provider check failed",
+      );
     } catch {
-      setVoiceProviderCheck("Provider check failed")
+      setVoiceProviderCheck("Provider check failed");
     }
   }
 
   async function saveSettings() {
-    setSaving(true)
-    setMessage("")
+    setSaving(true);
+    setMessage("");
     try {
-      const seenDigits = new Set<number>()
+      const seenDigits = new Set<number>();
       const departments = form.voice_departments
-        .filter((department) => department.label.trim() || department.primary.trim() || department.fallback.trim())
+        .filter(
+          (department) =>
+            department.label.trim() ||
+            department.primary.trim() ||
+            department.fallback.trim(),
+        )
         .map((department) => {
-          const digit = Number(department.digit)
-          if (!Number.isInteger(digit) || digit < 1 || digit > 8 || seenDigits.has(digit)) throw new Error("Department digits must be unique numbers from 1 to 8. Digit 9 repeats the menu.")
-          seenDigits.add(digit)
-          const primary = department.primary.trim()
-          const fallback = departmentFallbacks(department.fallback)
-          if (!department.label.trim() || !primary) throw new Error("Each enabled department needs a name and primary destination.")
+          const digit = Number(department.digit);
+          if (
+            !Number.isInteger(digit) ||
+            digit < 1 ||
+            digit > 8 ||
+            seenDigits.has(digit)
+          )
+            throw new Error(
+              "Department digits must be unique numbers from 1 to 8. Digit 9 repeats the menu.",
+            );
+          seenDigits.add(digit);
+          const primary = department.primary.trim();
+          const fallback = departmentFallbacks(department.fallback);
+          if (!department.label.trim() || !primary)
+            throw new Error(
+              "Each enabled department needs a name and primary destination.",
+            );
           return {
             digit,
-            key: department.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+            key: department.label
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-|-$/g, ""),
             label: department.label.trim(),
             primary,
             fallback,
             numbers: [primary, ...fallback],
             enabled: department.enabled,
-          }
-        })
-      const weeklySchedule: Record<string, { open: string; close: string } | null> = {}
-      for (const line of form.voice_weekly_schedule.split("\n").map((value) => value.trim()).filter(Boolean)) {
-        const [rawDay, rawHours] = line.split("|").map((value) => value.trim())
-        if (!rawDay || !rawHours) throw new Error("Business hours must use one line per day, such as Mon | 09:00-17:00.")
-        const [open, close] = rawHours.split("-").map((value) => value.trim())
-        const day = rawDay.slice(0, 3).toLowerCase()
-        if (!["mon", "tue", "wed", "thu", "fri", "sat", "sun"].includes(day) || !/^\d{2}:\d{2}$/.test(open || "") || !/^\d{2}:\d{2}$/.test(close || "")) throw new Error("Business hours contain an invalid day or time.")
-        weeklySchedule[day] = { open, close }
+          };
+        });
+      const weeklySchedule: Record<
+        string,
+        { open: string; close: string } | null
+      > = {};
+      for (const line of form.voice_weekly_schedule
+        .split("\n")
+        .map((value) => value.trim())
+        .filter(Boolean)) {
+        const [rawDay, rawHours] = line.split("|").map((value) => value.trim());
+        if (!rawDay || !rawHours)
+          throw new Error(
+            "Business hours must use one line per day, such as Mon | 09:00-17:00.",
+          );
+        const [open, close] = rawHours.split("-").map((value) => value.trim());
+        const day = rawDay.slice(0, 3).toLowerCase();
+        if (
+          !["mon", "tue", "wed", "thu", "fri", "sat", "sun"].includes(day) ||
+          !/^\d{2}:\d{2}$/.test(open || "") ||
+          !/^\d{2}:\d{2}$/.test(close || "")
+        )
+          throw new Error("Business hours contain an invalid day or time.");
+        weeklySchedule[day] = { open, close };
       }
-      for (const day of ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]) if (!weeklySchedule[day]) weeklySchedule[day] = null
+      for (const day of ["mon", "tue", "wed", "thu", "fri", "sat", "sun"])
+        if (!weeklySchedule[day]) weeklySchedule[day] = null;
 
       const res = await fetch("/api/azera/settings", {
         method: "PATCH",
@@ -243,20 +344,25 @@ export default function AzeraSettingsPage() {
             .filter(Boolean),
           voice_departments: departments,
           voice_weekly_schedule: weeklySchedule,
-          voice_closed_dates: form.voice_closed_dates.split(",").map((value) => value.trim()).filter(Boolean),
+          voice_closed_dates: form.voice_closed_dates
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
         }),
-      })
-      const json = await res.json()
+      });
+      const json = await res.json();
       if (json.success) {
-        setMessage("Settings saved successfully")
-        setTimeout(() => setMessage(""), 3000)
+        setMessage("Settings saved successfully");
+        setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage(json.error || "Failed to save settings")
+        setMessage(json.error || "Failed to save settings");
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to save settings")
+      setMessage(
+        error instanceof Error ? error.message : "Failed to save settings",
+      );
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
@@ -265,7 +371,7 @@ export default function AzeraSettingsPage() {
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
-    )
+    );
   }
 
   return (
@@ -282,13 +388,16 @@ export default function AzeraSettingsPage() {
       </div>
 
       {message && (
-        <p className={`text-sm ${message.includes("success") ? "text-green-600" : "text-red-500"}`}>
+        <p
+          className={`text-sm ${message.includes("success") ? "text-green-600" : "text-red-500"}`}
+        >
           {message}
         </p>
       )}
 
       <div className="grid min-w-0 grid-cols-1 items-start gap-6 md:grid-cols-2 xl:grid-cols-3 [&>div]:min-w-0">
         {/* Widget Settings */}
+        <CloudflareMediaSettings />
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">Chat Widget</CardTitle>
@@ -369,7 +478,9 @@ export default function AzeraSettingsPage() {
                 <input
                   type="checkbox"
                   checked={form.ai_enabled}
-                  onChange={(e) => setForm({ ...form, ai_enabled: e.target.checked })}
+                  onChange={(e) =>
+                    setForm({ ...form, ai_enabled: e.target.checked })
+                  }
                   className="rounded border-retail text-retail focus:ring-retail"
                 />
                 Enable AI auto-replies
@@ -379,14 +490,27 @@ export default function AzeraSettingsPage() {
                 Configure a provider before enabling auto-replies.
               </p>
             </div>
-            <div className={`rounded-lg border px-3 py-3 text-sm ${form.configured ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
-              <p className="font-semibold">{form.configured ? "AI provider connected" : "AI provider not configured"}</p>
+            <div
+              className={`rounded-lg border px-3 py-3 text-sm ${form.configured ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}
+            >
+              <p className="font-semibold">
+                {form.configured
+                  ? "AI provider connected"
+                  : "AI provider not configured"}
+              </p>
               <p className="mt-1 text-xs opacity-85">
-                {form.openaiConfigured ? "OpenAI is ready." : "OpenAI is not connected."}{" "}
-                {form.fallbackConfigured ? "A fallback provider is ready." : "No fallback provider is connected."}
+                {form.openaiConfigured
+                  ? "OpenAI is ready."
+                  : "OpenAI is not connected."}{" "}
+                {form.fallbackConfigured
+                  ? "A fallback provider is ready."
+                  : "No fallback provider is connected."}
               </p>
               {!form.configured && (
-                <a href="/admin/settings#openai-configuration" className="mt-2 inline-block text-xs font-semibold underline underline-offset-2">
+                <a
+                  href="/admin/settings#openai-configuration"
+                  className="mt-2 inline-block text-xs font-semibold underline underline-offset-2"
+                >
                   Configure AI provider in Admin Settings →
                 </a>
               )}
@@ -395,7 +519,9 @@ export default function AzeraSettingsPage() {
               <label className="text-xs font-medium">AI system prompt</label>
               <textarea
                 value={form.ai_prompt || ""}
-                onChange={(e) => setForm({ ...form, ai_prompt: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, ai_prompt: e.target.value })
+                }
                 rows={3}
                 placeholder="Custom instructions for Azera..."
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -407,7 +533,89 @@ export default function AzeraSettingsPage() {
         {/* AI Voice Settings */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">AI Voice Calls</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Call recording and AI voice
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.voice_record_calls}
+                onChange={(e) =>
+                  setForm({ ...form, voice_record_calls: e.target.checked })
+                }
+              />
+              Offer recording on incoming telephone calls
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Africa’s Talking records only after the caller presses 1. Pressing
+              2 or giving no answer continues without recording. This does not
+              record calls made directly through the AT browser SDK.
+            </p>
+            <label className="block space-y-1 text-sm">
+              <span>Recording consent notice</span>
+              <textarea
+                className="w-full rounded-lg border p-3"
+                maxLength={1000}
+                rows={3}
+                value={form.voice_recording_notice}
+                onChange={(e) =>
+                  setForm({ ...form, voice_recording_notice: e.target.value })
+                }
+              />
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Keep the instructions “press 1 to agree” and “press 2 to continue
+              without recording”.
+            </p>
+            <label className="block space-y-1 text-sm">
+              <span>Recording retention (days)</span>
+              <input
+                className="w-full rounded-lg border p-3"
+                type="number"
+                min={1}
+                max={365}
+                value={form.voice_recording_retention_days}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    voice_recording_retention_days: Number(e.target.value),
+                  })
+                }
+              />
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.voice_realtime_enabled}
+                onChange={(e) =>
+                  setForm({ ...form, voice_realtime_enabled: e.target.checked })
+                }
+              />
+              Enable continuous AI voice on the website
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Connects directly to OpenAI Realtime with your configured OpenAI
+              key. No LiveKit subscription or separate voice worker is required.
+              OpenAI audio usage is chargeable. Each browser call ends after 10
+              minutes, with server-side concurrency/daily limits and scheduled
+              provider shutdown. A human request ends the AI session and rings
+              the existing support call flow; it is not a warm telephone
+              transfer. Keep disabled until tested.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Deployment must also set <code>AZERA_REALTIME_ENABLED=true</code>{" "}
+              and verify the authenticated five-minute shutdown cron. This
+              switch alone does not activate an unprepared deployment.
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              AI speech provider
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
@@ -420,10 +628,13 @@ export default function AzeraSettingsPage() {
                   }
                   className="rounded border-retail text-retail focus:ring-retail"
                 />
-                Enable AI voice answering
+                Enable speech-processing endpoint
               </label>
               <p className="text-xs text-muted-foreground">
-                AI uses the selected provider for speech-to-text, chat, and text-to-speech when that provider exposes OpenAI-compatible voice endpoints. Transfers to a human agent when needed.
+                Configures the separate speech-processing endpoint. The
+                continuous website AI voice option above uses OpenAI Realtime
+                directly; its provider is independent of these transcription/TTS
+                settings.
               </p>
             </div>
             <div className="space-y-2">
@@ -452,20 +663,41 @@ export default function AzeraSettingsPage() {
               >
                 <option value="openai">OpenAI (Whisper + GPT + TTS)</option>
                 <option value="groq">Groq (OpenAI-compatible endpoint)</option>
-                <option value="gemini">Gemini (OpenAI-compatible endpoint)</option>
-                <option value="mistral">Mistral (OpenAI-compatible endpoint)</option>
-                <option value="openrouter">OpenRouter (OpenAI-compatible endpoint)</option>
+                <option value="gemini">
+                  Gemini (OpenAI-compatible endpoint)
+                </option>
+                <option value="mistral">
+                  Mistral (OpenAI-compatible endpoint)
+                </option>
+                <option value="openrouter">
+                  OpenRouter (OpenAI-compatible endpoint)
+                </option>
                 <option value="xai">xAI (OpenAI-compatible endpoint)</option>
-                <option value="custom">Custom OpenAI-compatible provider</option>
+                <option value="custom">
+                  Custom OpenAI-compatible provider
+                </option>
               </select>
               <div className="flex items-center gap-3">
-                <Button type="button" variant="outline" size="sm" onClick={() => void checkVoiceProvider()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void checkVoiceProvider()}
+                >
                   Check selected provider
                 </Button>
-                {voiceProviderCheck && <span className="text-xs text-muted-foreground">{voiceProviderCheck}</span>}
+                {voiceProviderCheck && (
+                  <span className="text-xs text-muted-foreground">
+                    {voiceProviderCheck}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
-                The selected provider must support <code>/audio/transcriptions</code>, <code>/chat/completions</code>, and <code>/audio/speech</code>. OpenAI is the currently configured provider in this installation.
+                The selected provider must support{" "}
+                <code>/audio/transcriptions</code>,{" "}
+                <code>/chat/completions</code>, and <code>/audio/speech</code>.
+                Use the provider check to verify access; an API key alone does
+                not prove support for all three features.
               </p>
             </div>
           </CardContent>
@@ -474,7 +706,56 @@ export default function AzeraSettingsPage() {
         {/* Messenger Settings */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Facebook Messenger</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              WhatsApp messaging
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Cloud API uses the phone number ID and access token below. Leave
+              both blank to use your existing 360dialog integration. Both
+              providers require an authenticated webhook and an exact
+              business-number mapping.
+            </p>
+            {(
+              [
+                ["whatsapp_phone_number", "WhatsApp business number", "+234…"],
+                [
+                  "whatsapp_phone_number_id",
+                  "Meta phone number ID",
+                  "Phone number ID, not your phone number",
+                ],
+                [
+                  "whatsapp_access_token",
+                  "Cloud API access token",
+                  "Messaging token",
+                ],
+              ] as const
+            ).map(([key, label, placeholder]) => (
+              <label key={key} className="block text-sm font-medium">
+                {label}
+                <input
+                  type={key.includes("token") ? "password" : "text"}
+                  autoComplete="off"
+                  value={form[key] || ""}
+                  placeholder={placeholder}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </label>
+            ))}
+            <p className="text-xs text-muted-foreground">
+              Cloud webhook: /api/azera/webhook/meta ·
+              WHATSAPP_WEBHOOK_VERIFY_TOKEN + META_APP_SECRET. 360dialog
+              webhook: /api/webhooks/whatsapp · webhook secret in Integrations.
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">
+              Facebook Messenger
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -488,6 +769,21 @@ export default function AzeraSettingsPage() {
                 placeholder="Your Messenger Page ID"
               />
             </div>
+            <label className="block text-xs font-medium">
+              Page messaging access token
+              <input
+                type="password"
+                autoComplete="off"
+                value={form.messenger_page_access_token || ""}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    messenger_page_access_token: e.target.value,
+                  })
+                }
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </label>
             <p className="text-xs text-muted-foreground">
               Set up webhook at: /api/azera/webhook/messenger · Verify token:
               MESSENGER_VERIFY_TOKEN
@@ -502,7 +798,9 @@ export default function AzeraSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label className="text-xs font-medium">Instagram Account ID</label>
+              <label className="text-xs font-medium">
+                Instagram Account ID
+              </label>
               <input
                 value={form.instagram_account_id || ""}
                 onChange={(e) =>
@@ -512,6 +810,18 @@ export default function AzeraSettingsPage() {
                 placeholder="Your Instagram Account ID"
               />
             </div>
+            <label className="block text-xs font-medium">
+              Messaging access token (Facebook Login integration)
+              <input
+                type="password"
+                autoComplete="off"
+                value={form.instagram_access_token || ""}
+                onChange={(e) =>
+                  setForm({ ...form, instagram_access_token: e.target.value })
+                }
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </label>
             <p className="text-xs text-muted-foreground">
               Set up webhook at: /api/azera/webhook/instagram · Verify token:
               INSTAGRAM_VERIFY_TOKEN
@@ -522,7 +832,9 @@ export default function AzeraSettingsPage() {
         {/* Google Reviews Settings */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Google Reviews</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Google Reviews
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
@@ -531,7 +843,10 @@ export default function AzeraSettingsPage() {
                   type="checkbox"
                   checked={form.google_review_enabled}
                   onChange={(e) =>
-                    setForm({ ...form, google_review_enabled: e.target.checked })
+                    setForm({
+                      ...form,
+                      google_review_enabled: e.target.checked,
+                    })
                   }
                   className="rounded border-retail text-retail focus:ring-retail"
                 />
@@ -552,11 +867,14 @@ export default function AzeraSettingsPage() {
                 placeholder="Your Google Business Place ID"
               />
               <p className="text-xs text-muted-foreground">
-                Find it at: https://developers.google.com/maps/documentation/places/web-service/get-place-id
+                Find it at:
+                https://developers.google.com/maps/documentation/places/web-service/get-place-id
               </p>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-medium">Review request message</label>
+              <label className="text-xs font-medium">
+                Review request message
+              </label>
               <textarea
                 value={form.google_review_message || ""}
                 onChange={(e) =>
@@ -566,7 +884,12 @@ export default function AzeraSettingsPage() {
                 placeholder="Hi {{name}}! Thanks for choosing {{businessName}}. We’d appreciate a quick Google review: {{link}}"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
-              <p className="text-xs text-muted-foreground">Use <code>{"{{name}}"}</code>, <code>{"{{businessName}}"}</code>, and <code>{"{{link}}"}</code>. Review requests are tracked here; connect an outbound WhatsApp, SMS, or email sender before sending automatically.</p>
+              <p className="text-xs text-muted-foreground">
+                Use <code>{"{{name}}"}</code>, <code>{"{{businessName}}"}</code>
+                , and <code>{"{{link}}"}</code>. Review requests are tracked
+                here; connect an outbound WhatsApp, SMS, or email sender before
+                sending automatically.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -574,7 +897,9 @@ export default function AzeraSettingsPage() {
         {/* SIP / Phone Settings */}
         <Card className="min-w-0 md:col-span-2 xl:col-span-3">
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Phone Calls (SIP)</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Phone Calls (SIP)
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -623,7 +948,9 @@ export default function AzeraSettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium">From Number (outbound caller ID)</label>
+                    <label className="text-xs font-medium">
+                      From Number (outbound caller ID)
+                    </label>
                     <input
                       value={form.sip_from_number || ""}
                       onChange={(e) =>
@@ -634,95 +961,166 @@ export default function AzeraSettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium">Africa&apos;s Talking virtual number</label>
+                    <label className="text-xs font-medium">
+                      Africa&apos;s Talking virtual number
+                    </label>
                     <input
                       value={form.africas_talking_phone_number || ""}
                       onChange={(e) =>
-                        setForm({ ...form, africas_talking_phone_number: e.target.value })
+                        setForm({
+                          ...form,
+                          africas_talking_phone_number: e.target.value,
+                        })
                       }
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       placeholder="+23420xxxxxxx"
                     />
                     <p className="text-xs text-muted-foreground">
-                      The number customers dial. This also lets the callback identify the business.
+                      The number customers dial. This also lets the callback
+                      identify the business.
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium">Answer calls on</label>
+                    <label className="text-xs font-medium">
+                      Answer calls on
+                    </label>
                     <input
                       value={form.africas_talking_forward_numbers}
                       onChange={(e) =>
-                        setForm({ ...form, africas_talking_forward_numbers: e.target.value })
+                        setForm({
+                          ...form,
+                          africas_talking_forward_numbers: e.target.value,
+                        })
                       }
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       placeholder="+2348012345678"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Enter mobile numbers in international format or an Africa&apos;s Talking SIP destination such as <code>sales@youraccount.sip.africastalking.com</code>.
+                      Enter mobile numbers in international format or an
+                      Africa&apos;s Talking SIP destination such as{" "}
+                      <code>sales@youraccount.sip.africastalking.com</code>.
                     </p>
                   </div>
                   <div className="space-y-2 pt-2 border-t border-border/50">
-                    <label className="text-xs font-medium">Main greeting and menu</label>
+                    <label className="text-xs font-medium">
+                      Main greeting and menu
+                    </label>
                     <textarea
                       value={form.voice_greeting}
-                      onChange={(e) => setForm({ ...form, voice_greeting: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, voice_greeting: e.target.value })
+                      }
                       rows={2}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       placeholder="Welcome to MartPoint... Press 1 for Sales."
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium">Connecting greeting</label>
+                    <label className="text-xs font-medium">
+                      Connecting greeting
+                    </label>
                     <textarea
                       value={form.voice_connecting_greeting}
-                      onChange={(e) => setForm({ ...form, voice_connecting_greeting: e.target.value })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          voice_connecting_greeting: e.target.value,
+                        })
+                      }
                       rows={2}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       placeholder="Please hold while we connect you."
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium">No-answer / voicemail greeting</label>
+                    <label className="text-xs font-medium">
+                      No-answer / voicemail greeting
+                    </label>
                     <textarea
                       value={form.voice_no_answer_greeting}
-                      onChange={(e) => setForm({ ...form, voice_no_answer_greeting: e.target.value })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          voice_no_answer_greeting: e.target.value,
+                        })
+                      }
                       rows={2}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       placeholder="We are unable to answer right now. Please try again later."
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium">All agents busy greeting</label>
+                    <label className="text-xs font-medium">
+                      All agents busy greeting
+                    </label>
                     <textarea
                       value={form.voice_busy_greeting}
-                      onChange={(e) => setForm({ ...form, voice_busy_greeting: e.target.value })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          voice_busy_greeting: e.target.value,
+                        })
+                      }
                       rows={2}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       placeholder="All our care agents are currently busy. Please try again later."
                     />
-                    <p className="text-xs text-muted-foreground">Used when every destination in the selected department is already handling another call.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Used when every destination in the selected department is
+                      already handling another call.
+                    </p>
                   </div>
                   <VoiceDepartmentsEditor
                     departments={form.voice_departments}
                     menuEnabled={form.voice_menu_enabled}
-                    onChange={(voice_departments) => setForm((current) => ({ ...current, voice_departments }))}
-                    onMenuChange={(voice_menu_enabled) => setForm((current) => ({ ...current, voice_menu_enabled }))}
+                    onChange={(voice_departments) =>
+                      setForm((current) => ({ ...current, voice_departments }))
+                    }
+                    onMenuChange={(voice_menu_enabled) =>
+                      setForm((current) => ({ ...current, voice_menu_enabled }))
+                    }
                   />
                   <div className="grid gap-3 md:grid-cols-2 pt-2 border-t border-border/50">
                     <div className="space-y-2">
                       <label className="text-xs font-medium">Timezone</label>
-                      <input value={form.voice_timezone} onChange={(e) => setForm({ ...form, voice_timezone: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Africa/Lagos" />
+                      <input
+                        value={form.voice_timezone}
+                        onChange={(e) =>
+                          setForm({ ...form, voice_timezone: e.target.value })
+                        }
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        placeholder="Africa/Lagos"
+                      />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-medium">After-hours destination (optional)</label>
-                      <input value={form.voice_after_hours_destination} onChange={(e) => setForm({ ...form, voice_after_hours_destination: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="+234... or agent@account.sip.africastalking.com" />
+                      <label className="text-xs font-medium">
+                        After-hours destination (optional)
+                      </label>
+                      <input
+                        value={form.voice_after_hours_destination}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            voice_after_hours_destination: e.target.value,
+                          })
+                        }
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        placeholder="+234... or agent@account.sip.africastalking.com"
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium">After-hours greeting</label>
+                    <label className="text-xs font-medium">
+                      After-hours greeting
+                    </label>
                     <textarea
                       value={form.voice_after_hours_greeting}
-                      onChange={(e) => setForm({ ...form, voice_after_hours_greeting: e.target.value })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          voice_after_hours_greeting: e.target.value,
+                        })
+                      }
                       rows={2}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       placeholder="Our office is currently closed. Please hold while I direct you to our after-hours support team."
@@ -730,60 +1128,194 @@ export default function AzeraSettingsPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium">Weekly hours</label>
-                    <textarea value={form.voice_weekly_schedule} onChange={(e) => setForm({ ...form, voice_weekly_schedule: e.target.value })} rows={4} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono" placeholder="Mon | 09:00-17:00" />
-                    <p className="text-xs text-muted-foreground">One line per day, for example <code>Mon | 09:00-17:00</code>. Omitted days are closed. Timezone is applied on the server.</p>
+                    <textarea
+                      value={form.voice_weekly_schedule}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          voice_weekly_schedule: e.target.value,
+                        })
+                      }
+                      rows={4}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                      placeholder="Mon | 09:00-17:00"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      One line per day, for example{" "}
+                      <code>Mon | 09:00-17:00</code>. Omitted days are closed.
+                      Timezone is applied on the server.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium">Closed dates</label>
-                    <input value={form.voice_closed_dates} onChange={(e) => setForm({ ...form, voice_closed_dates: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="2026-12-25, 2026-12-26" />
+                    <input
+                      value={form.voice_closed_dates}
+                      onChange={(e) =>
+                        setForm({ ...form, voice_closed_dates: e.target.value })
+                      }
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="2026-12-25, 2026-12-26"
+                    />
                   </div>
                   <div className="grid gap-3 md:grid-cols-3 pt-2 border-t border-border/50">
                     <div className="space-y-2">
-                      <label className="text-xs font-medium">Menu retries</label>
-                      <input type="number" min={0} max={3} value={form.voice_menu_retry_limit} onChange={(e) => setForm({ ...form, voice_menu_retry_limit: Number(e.target.value) })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                      <label className="text-xs font-medium">
+                        Menu retries
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={3}
+                        value={form.voice_menu_retry_limit}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            voice_menu_retry_limit: Number(e.target.value),
+                          })
+                        }
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-medium">Voicemail max seconds</label>
-                      <input type="number" min={15} max={300} value={form.voice_voicemail_max_seconds} onChange={(e) => setForm({ ...form, voice_voicemail_max_seconds: Number(e.target.value) })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                      <label className="text-xs font-medium">
+                        Voicemail max seconds
+                      </label>
+                      <input
+                        type="number"
+                        min={15}
+                        max={300}
+                        value={form.voice_voicemail_max_seconds}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            voice_voicemail_max_seconds: Number(e.target.value),
+                          })
+                        }
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-medium">Retention days</label>
-                      <input type="number" min={1} max={3650} value={form.voice_voicemail_retention_days} onChange={(e) => setForm({ ...form, voice_voicemail_retention_days: Number(e.target.value) })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                      <label className="text-xs font-medium">
+                        Retention days
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={3650}
+                        value={form.voice_voicemail_retention_days}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            voice_voicemail_retention_days: Number(
+                              e.target.value,
+                            ),
+                          })
+                        }
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
                     </div>
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer text-sm">
-                    <input type="checkbox" checked={form.voice_voicemail_enabled} onChange={(e) => setForm({ ...form, voice_voicemail_enabled: e.target.checked })} className="rounded border-retail text-retail focus:ring-retail" />
+                    <input
+                      type="checkbox"
+                      checked={form.voice_voicemail_enabled}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          voice_voicemail_enabled: e.target.checked,
+                        })
+                      }
+                      className="rounded border-retail text-retail focus:ring-retail"
+                    />
                     Enable voicemail when no destination answers
                   </label>
                   <div className="space-y-2 pt-2 border-t border-border/50">
-                    <label className="text-xs font-medium">Optional audio URLs</label>
-                    <p className="text-xs text-muted-foreground">Use HTTPS WAV or MP3 URLs reachable by Africa&apos;s Talking. Leave blank to use text-to-speech.</p>
+                    <label className="text-xs font-medium">
+                      Optional audio URLs
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Use HTTPS WAV or MP3 URLs reachable by Africa&apos;s
+                      Talking. Leave blank to use text-to-speech.
+                    </p>
                     <div className="grid gap-2 md:grid-cols-2">
-                      {([
-                        ["voice_greeting_audio_url", "Main greeting audio"],
-                        ["voice_connecting_audio_url", "Connecting audio"],
-                        ["voice_no_answer_audio_url", "No-answer audio"],
-                        ["voice_after_hours_audio_url", "After-hours audio"],
-                        ["voice_waiting_audio_url", "Waiting / ringback audio"],
-                      ] as const).map(([key, label]) => (
+                      {(
+                        [
+                          ["voice_greeting_audio_url", "Main greeting audio"],
+                          ["voice_connecting_audio_url", "Connecting audio"],
+                          ["voice_no_answer_audio_url", "No-answer audio"],
+                          ["voice_after_hours_audio_url", "After-hours audio"],
+                          [
+                            "voice_waiting_audio_url",
+                            "Waiting / ringback audio",
+                          ],
+                        ] as const
+                      ).map(([key, label]) => (
                         <div key={key} className="space-y-1">
-                          <input value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder={`${label} (https://...)`} aria-label={label} />
+                          <input
+                            value={form[key]}
+                            onChange={(e) =>
+                              setForm({ ...form, [key]: e.target.value })
+                            }
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            placeholder={`${label} (https://...)`}
+                            aria-label={label}
+                          />
                           <div className="flex items-center gap-2">
-                            <input type="file" accept="audio/wav,audio/mpeg,audio/mp3" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadAudio(key, file) }} className="min-w-0 flex-1 text-xs" aria-label={`Upload ${label}`} />
-                            {form[key] && <button type="button" className="text-xs text-destructive hover:underline" onClick={() => setForm({ ...form, [key]: "" })}>Remove</button>}
+                            <input
+                              type="file"
+                              accept="audio/wav,audio/mpeg,audio/mp3"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) void uploadAudio(key, file);
+                              }}
+                              className="min-w-0 flex-1 text-xs"
+                              aria-label={`Upload ${label}`}
+                            />
+                            {form[key] && (
+                              <button
+                                type="button"
+                                className="text-xs text-destructive hover:underline"
+                                onClick={() => setForm({ ...form, [key]: "" })}
+                              >
+                                Remove
+                              </button>
+                            )}
                           </div>
-                          {form[key] && <audio controls preload="none" src={form[key]} className="w-full h-8" />}
+                          {form[key] && (
+                            <audio
+                              controls
+                              preload="none"
+                              src={form[key]}
+                              className="w-full h-8"
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
                   <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
-                    <p className="font-medium text-foreground">Africa&apos;s Talking callback paths</p>
-                    <p className="mt-1">Voice callback: <code>/api/africastalking/voice/callback</code></p>
-                    <p>Voice events: <code>/api/africastalking/voice/events</code></p>
-                    <p>Voice recording: <code>/api/africastalking/voice/recording</code></p>
-                    <p>SMS: <code>/api/africastalking/sms</code> · USSD: <code>/api/africastalking/ussd</code></p>
-                    <p>Airtime: <code>/api/africastalking/airtime/events</code></p>
+                    <p className="font-medium text-foreground">
+                      Africa&apos;s Talking callback paths
+                    </p>
+                    <p className="mt-1">
+                      Voice callback:{" "}
+                      <code>/api/africastalking/voice/callback</code>
+                    </p>
+                    <p>
+                      Voice events:{" "}
+                      <code>/api/africastalking/voice/events</code>
+                    </p>
+                    <p>
+                      Voice recording:{" "}
+                      <code>/api/africastalking/voice/recording</code>
+                    </p>
+                    <p>
+                      SMS: <code>/api/africastalking/sms</code> · USSD:{" "}
+                      <code>/api/africastalking/ussd</code>
+                    </p>
+                    <p>
+                      Airtime: <code>/api/africastalking/airtime/events</code>
+                    </p>
                   </div>
                 </div>
               )}
@@ -834,10 +1366,14 @@ export default function AzeraSettingsPage() {
           disabled={saving}
           className="bg-retail text-white"
         >
-          {saving ? <SaveIcon className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+          {saving ? (
+            <SaveIcon className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Save className="w-4 h-4 mr-2" />
+          )}
           Save Settings
         </Button>
       </div>
     </div>
-  )
+  );
 }

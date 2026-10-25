@@ -1,5 +1,10 @@
-import { NextResponse } from "next/server"
-import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { NextResponse } from "next/server";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import {
+  recordingConsentAction,
+  recordedDialAction,
+} from "@/lib/africa-recording-actions";
+import { importAfricaCallRecording } from "@/lib/africa-call-recording";
 import {
   callbackSecretIsValid,
   finishAfricaWebhookEvent,
@@ -13,50 +18,36 @@ import {
   storeAfricaWebhookEvent,
   voiceXml,
   xmlEscape,
-} from "@/lib/africastalking"
+} from "@/lib/africastalking";
 
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function isoOrNull(value: string): string | null {
-  if (!value || value.toLowerCase() === "none") return null
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  if (!value || value.toLowerCase() === "none") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function say(text: string): string {
-  return `<Say>${xmlEscape(text)}</Say>`
+  return `<Say>${xmlEscape(text)}</Say>`;
 }
 
 function sayOrPlay(text: string, audioUrl: string): string {
-  return audioUrl ? `<Play url="${xmlEscape(audioUrl)}"/>` : say(text)
+  return audioUrl ? `<Play url="${xmlEscape(audioUrl)}"/>` : say(text);
 }
 
 function digitsAction(request: Request, prompt: string, audioUrl = ""): string {
   // Keep the secret query parameter on the callback used for the next digit.
-  return `<GetDigits numDigits="1" timeout="8" finishOnKey="#" callbackUrl="${xmlEscape(request.url)}">${sayOrPlay(prompt, audioUrl)}</GetDigits>`
+  return `<GetDigits numDigits="1" timeout="8" finishOnKey="#" callbackUrl="${xmlEscape(request.url)}">${sayOrPlay(prompt, audioUrl)}</GetDigits>`;
 }
 
 function callbackUrl(request: Request, path: string): string {
-  const url = new URL(request.url)
-  url.pathname = path
-  return url.toString()
-}
-
-function dialAction(
-  destinations: string[],
-  callerId: string,
-  waitingAudioUrl: string,
-): string {
-  const attributes = [
-    `phoneNumbers="${xmlEscape(destinations.join(","))}"`,
-    `sequential="true"`,
-    callerId ? `callerId="${xmlEscape(callerId)}"` : "",
-    waitingAudioUrl ? `ringbackTone="${xmlEscape(waitingAudioUrl)}"` : "",
-  ].filter(Boolean).join(" ")
-  // Africa's Talking supports maxDuration on Dial, but it is the connected-call
-  // limit, not a ringing timeout. Do not send a made-up timeout attribute.
-  return `<Dial ${attributes}/>`
+  const url = new URL(request.url);
+  url.pathname = path;
+  url.searchParams.delete("stage");
+  if (path.endsWith("/recording")) url.searchParams.set("kind", "voicemail");
+  return url.toString();
 }
 
 function voicemailOrEnd(
@@ -67,12 +58,14 @@ function voicemailOrEnd(
 ): string[] {
   // Africa's Talking ends the call after the final Voice action. Hangup is not
   // a supported Voice action and causes the provider to abort the call.
-  if (!config.voicemailEnabled) return [sayOrPlay(message, audioUrl)]
+  if (!config.voicemailEnabled) return [sayOrPlay(message, audioUrl)];
   return [
     sayOrPlay(message, audioUrl),
     `<Record maxLength="${config.voicemailMaxSeconds}" playBeep="true" callbackUrl="${xmlEscape(callbackUrl(request, "/api/africastalking/voice/recording"))}"/>`,
-    say("Thank you. Your message has been recorded and our team will follow up."),
-  ]
+    say(
+      "Thank you. Your message has been recorded and our team will follow up.",
+    ),
+  ];
 }
 
 async function recordAttempts(
@@ -82,7 +75,7 @@ async function recordAttempts(
   destinations: string[],
   now: string,
 ) {
-  if (!destinations.length) return
+  if (!destinations.length) return;
   await supabase.from("azera_call_attempts").insert(
     destinations.map((destination, index) => ({
       call_id: callId,
@@ -94,64 +87,92 @@ async function recordAttempts(
       started_at: now,
       created_at: now,
     })),
-  )
+  );
 }
 
-async function destinationsAreBusy(businessId: string, destinations: string[]): Promise<boolean> {
-  const routeDestinations = [...new Set(destinations.map(normalizeVoiceDestination).filter(Boolean))]
-  if (!routeDestinations.length) return false
+async function destinationsAreBusy(
+  businessId: string,
+  destinations: string[],
+): Promise<boolean> {
+  const routeDestinations = [
+    ...new Set(destinations.map(normalizeVoiceDestination).filter(Boolean)),
+  ];
+  if (!routeDestinations.length) return false;
 
   const { data, error } = await supabase
     .from("azera_call_attempts")
     .select("destination")
     .eq("business_id", businessId)
     .in("status", ["dialing", "ringing", "answered"])
-    .is("ended_at", null)
+    .is("ended_at", null);
 
   if (error) {
     // A failed availability check must not prevent the provider from trying
     // the configured route.
-    console.error("[Africa's Talking busy-route check error]", error)
-    return false
+    console.error("[Africa's Talking busy-route check error]", error);
+    return false;
   }
 
-  const busyDestinations = new Set((data || []).map((row) => normalizeVoiceDestination(row.destination)).filter(Boolean))
-  return routeDestinations.every((destination) => busyDestinations.has(destination))
+  const busyDestinations = new Set(
+    (data || [])
+      .map((row) => normalizeVoiceDestination(row.destination))
+      .filter(Boolean),
+  );
+  return routeDestinations.every((destination) =>
+    busyDestinations.has(destination),
+  );
 }
 
 async function markCallBusy(callId: string, now: string) {
-  await supabase.from("azera_calls").update({
-    status: "busy",
-    final_outcome: "busy",
-    ended_at: now,
-    updated_at: now,
-  }).eq("id", callId)
+  await supabase
+    .from("azera_calls")
+    .update({
+      status: "busy",
+      final_outcome: "busy",
+      ended_at: now,
+      updated_at: now,
+    })
+    .eq("id", callId);
   await supabase.from("azera_call_events").insert({
     call_id: callId,
     event_type: "busy",
     actor_type: "system",
     metadata: { reason: "All configured call destinations are busy" },
     created_at: now,
-  })
+  });
 }
 
 function menuPrompt(
   greeting: string,
   departments: Awaited<ReturnType<typeof getAfricaVoiceConfig>>["departments"],
 ): string {
-  if (/press\s+1\b/i.test(greeting)) return greeting
-  return `${greeting} ${departments.map((department) => `Press ${department.digit} for ${department.label}.`).join(" ")} To hear these options again, press 9.`
+  if (/press\s+1\b/i.test(greeting)) return greeting;
+  return `${greeting} ${departments.map((department) => `Press ${department.digit} for ${department.label}.`).join(" ")} To hear these options again, press 9.`;
 }
 
 export async function POST(request: Request) {
-  if (!callbackSecretIsValid(request)) return new NextResponse("Forbidden", { status: 403 })
+  if (!callbackSecretIsValid(request))
+    return new NextResponse("Forbidden", { status: 403 });
 
-  const { rawBody, payload } = await readAfricaRequest(request)
-  const caller = normalizePhone(pick(payload, "callerNumber", "caller", "from"))
-  const destination = normalizePhone(pick(payload, "destinationNumber", "destination", "to"))
-  const sessionId = pick(payload, "sessionId", "callSessionId", "call_sid", "call_id", "id")
-  const dtmfDigits = pick(payload, "dtmfDigits", "digits", "userInput", "input").replace(/[^0-9*#]/g, "").slice(0, 1)
-  const businessId = await resolveAfricaBusinessId(destination)
+  const { rawBody, payload } = await readAfricaRequest(request);
+  const caller = normalizePhone(
+    pick(payload, "callerNumber", "caller", "from"),
+  );
+  const destination = normalizePhone(
+    pick(payload, "destinationNumber", "destination", "to"),
+  );
+  const sessionId = pick(
+    payload,
+    "sessionId",
+    "callSessionId",
+    "call_sid",
+    "call_id",
+    "id",
+  );
+  const dtmfDigits = pick(payload, "dtmfDigits", "digits", "userInput", "input")
+    .replace(/[^0-9*#]/g, "")
+    .slice(0, 1);
+  const businessId = await resolveAfricaBusinessId(destination);
   const webhookEventId = await storeAfricaWebhookEvent({
     product: "voice",
     endpoint: "voice/callback",
@@ -159,25 +180,36 @@ export async function POST(request: Request) {
     rawBody,
     payload,
     businessId,
-  })
+  });
 
   try {
     if (!sessionId || !businessId || !isSupabaseConfigured()) {
-      await finishAfricaWebhookEvent(webhookEventId, sessionId ? "processed" : "failed", sessionId ? undefined : "Missing Africa's Talking sessionId")
-      return voiceXml([say("Sorry, this call cannot be connected right now. Please try again later.")])
+      await finishAfricaWebhookEvent(
+        webhookEventId,
+        sessionId ? "processed" : "failed",
+        sessionId ? undefined : "Missing Africa's Talking sessionId",
+      );
+      return voiceXml([
+        say(
+          "Sorry, this call cannot be connected right now. Please try again later.",
+        ),
+      ]);
     }
 
-    const now = new Date().toISOString()
-    const startedAt = isoOrNull(pick(payload, "callStartTime", "started_at")) || now
+    const now = new Date().toISOString();
+    const startedAt =
+      isoOrNull(pick(payload, "callStartTime", "started_at")) || now;
     const { data: existing } = await supabase
       .from("azera_calls")
-      .select("id, menu_attempts")
+      .select(
+        "id, status, menu_attempts, selected_department, recording_choice, recording_consent_at",
+      )
       .eq("business_id", businessId)
       .eq("sip_call_sid", sessionId)
-      .maybeSingle()
+      .maybeSingle();
 
-    let callId = existing?.id as string | undefined
-    let menuAttempts = Number(existing?.menu_attempts || 0)
+    let callId = existing?.id as string | undefined;
+    let menuAttempts = Number(existing?.menu_attempts || 0);
     if (!callId) {
       const { data: created, error } = await supabase
         .from("azera_calls")
@@ -196,119 +228,336 @@ export async function POST(request: Request) {
           updated_at: now,
         })
         .select("id, menu_attempts")
-        .single()
-      if (error || !created) throw new Error(error?.message || "Could not create inbound call")
-      callId = created.id as string
-      menuAttempts = Number(created.menu_attempts || 0)
+        .single();
+      if (error || !created)
+        throw new Error(error?.message || "Could not create inbound call");
+      callId = created.id as string;
+      menuAttempts = Number(created.menu_attempts || 0);
       await supabase.from("azera_call_events").insert({
         call_id: callId,
         event_type: "ringing",
         actor_type: "sip_provider",
-        metadata: { provider: "africas_talking", callback_event_id: webhookEventId },
+        metadata: {
+          provider: "africas_talking",
+          callback_event_id: webhookEventId,
+        },
         created_at: now,
-      })
+      });
     }
 
-    const config = await getAfricaVoiceConfig(businessId)
-    const departments = config.departments.slice(0, 8)
-    const open = isVoiceBusinessOpen(config.timezone, config.weeklySchedule, config.closedDates)
+    const config = await getAfricaVoiceConfig(businessId);
+    const departments = config.departments.slice(0, 8);
+    const open = isVoiceBusinessOpen(
+      config.timezone,
+      config.weeklySchedule,
+      config.closedDates,
+    );
+    const recordingUrl = pick(payload, "recordingUrl", "recording_url");
+    if (recordingUrl && existing?.recording_choice === "accepted") {
+      await importAfricaCallRecording(
+        {
+          id: callId,
+          business_id: businessId,
+          recording_choice: existing.recording_choice,
+          recording_consent_at: existing.recording_consent_at,
+        },
+        recordingUrl,
+        pick(payload, "recordingId", "recording_id") || sessionId,
+        config.recordingRetentionDays,
+      );
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml([]);
+    }
+    if (
+      existing &&
+      ["ended", "failed", "missed", "busy"].includes(existing.status)
+    ) {
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml([]);
+    }
+    // This stage runs only after a route was selected. No input or any digit
+    // other than 1 means no recording; silence is never treated as consent.
+    if (
+      new URL(request.url).searchParams.get("stage") === "recording-consent"
+    ) {
+      const accepted =
+        config.recordCalls &&
+        (existing?.recording_choice
+          ? existing.recording_choice === "accepted" &&
+            Boolean(existing.recording_consent_at)
+          : dtmfDigits === "1");
+      const { error: consentError } = await supabase
+        .from("azera_calls")
+        .update({
+          recording_choice: accepted ? "accepted" : "declined",
+          recording_consent_at: accepted ? now : null,
+          recording_notice: config.recordingNotice,
+          updated_at: now,
+        })
+        .eq("id", callId)
+        .is("recording_choice", null);
+      if (consentError) throw new Error("Could not store recording choice");
+      const selected = existing?.selected_department;
+      const targets =
+        selected === "after-hours"
+          ? [config.afterHoursDestination].filter(Boolean)
+          : selected
+            ? departments.find((item) => item.key === selected)?.numbers || []
+            : config.forwardNumbers;
+      if (!targets.length)
+        return voiceXml(
+          voicemailOrEnd(request, config, config.noAnswerGreeting),
+        );
+      await recordAttempts(callId, businessId, selected || null, targets, now);
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml([
+        say(config.connectingGreeting),
+        recordedDialAction(
+          targets,
+          config.phoneNumber || destination,
+          config.waitingAudioUrl,
+          accepted,
+        ),
+      ]);
+    }
+    const dialAction = (targets: string[], callerId: string, audio: string) =>
+      recordedDialAction(
+        targets,
+        callerId,
+        audio,
+        config.recordCalls &&
+          existing?.recording_choice === "accepted" &&
+          Boolean(existing.recording_consent_at),
+      );
+    const consentRequired = config.recordCalls && !existing?.recording_choice;
 
     if (!open) {
       if (config.afterHoursDestination) {
-        await recordAttempts(callId, businessId, "after-hours", [config.afterHoursDestination], now)
-        await supabase.from("azera_calls").update({ selected_department: "after-hours", updated_at: now }).eq("id", callId)
-        await finishAfricaWebhookEvent(webhookEventId, "processed")
+        if (consentRequired) {
+          await supabase
+            .from("azera_calls")
+            .update({ selected_department: "after-hours" })
+            .eq("id", callId);
+          await finishAfricaWebhookEvent(webhookEventId, "processed");
+          return voiceXml([
+            recordingConsentAction(request.url, config.recordingNotice),
+          ]);
+        }
+        await recordAttempts(
+          callId,
+          businessId,
+          "after-hours",
+          [config.afterHoursDestination],
+          now,
+        );
+        await supabase
+          .from("azera_calls")
+          .update({ selected_department: "after-hours", updated_at: now })
+          .eq("id", callId);
+        await finishAfricaWebhookEvent(webhookEventId, "processed");
         return voiceXml([
           sayOrPlay(config.afterHoursGreeting, config.afterHoursAudioUrl),
-          dialAction([config.afterHoursDestination], config.phoneNumber || destination, config.waitingAudioUrl),
-        ])
+          dialAction(
+            [config.afterHoursDestination],
+            config.phoneNumber || destination,
+            config.waitingAudioUrl,
+          ),
+        ]);
       }
-      await finishAfricaWebhookEvent(webhookEventId, "processed")
-      return voiceXml(voicemailOrEnd(request, config, config.afterHoursGreeting, config.afterHoursAudioUrl))
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml(
+        voicemailOrEnd(
+          request,
+          config,
+          config.afterHoursGreeting,
+          config.afterHoursAudioUrl,
+        ),
+      );
     }
 
-    const hasConfiguredRoute = config.forwardNumbers.length > 0 || (config.menuEnabled && departments.some((department) => department.numbers.length))
+    const hasConfiguredRoute =
+      config.forwardNumbers.length > 0 ||
+      (config.menuEnabled &&
+        departments.some((department) => department.numbers.length));
     if (!hasConfiguredRoute) {
-      await supabase.from("azera_calls").update({ status: "missed", final_outcome: "no_route", ended_at: now, updated_at: now }).eq("id", callId)
+      await supabase
+        .from("azera_calls")
+        .update({
+          status: "missed",
+          final_outcome: "no_route",
+          ended_at: now,
+          updated_at: now,
+        })
+        .eq("id", callId);
       await supabase.from("azera_call_events").insert({
         call_id: callId,
         event_type: "missed",
         actor_type: "system",
-        metadata: { reason: "No Africa's Talking forwarding number configured", callback_event_id: webhookEventId },
+        metadata: {
+          reason: "No Africa's Talking forwarding number configured",
+          callback_event_id: webhookEventId,
+        },
         created_at: now,
-      })
-      await finishAfricaWebhookEvent(webhookEventId, "processed")
-      return voiceXml(voicemailOrEnd(request, config, config.noAnswerGreeting, config.noAnswerAudioUrl))
+      });
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml(
+        voicemailOrEnd(
+          request,
+          config,
+          config.noAnswerGreeting,
+          config.noAnswerAudioUrl,
+        ),
+      );
     }
 
     if (config.menuEnabled && departments.length) {
-      const prompt = menuPrompt(config.greeting, departments)
-      const digit = Number(dtmfDigits)
+      const prompt = menuPrompt(config.greeting, departments);
+      const digit = Number(dtmfDigits);
 
-      if (digit === 9 || !dtmfDigits || !departments.some((department) => department.digit === digit)) {
-        const nextAttempts = menuAttempts + 1
-        await supabase.from("azera_calls").update({ menu_attempts: nextAttempts, updated_at: now }).eq("id", callId)
-        const canRetry = digit === 9 ? nextAttempts <= 3 : nextAttempts <= config.menuRetryLimit
+      if (
+        digit === 9 ||
+        !dtmfDigits ||
+        !departments.some((department) => department.digit === digit)
+      ) {
+        const nextAttempts = menuAttempts + 1;
+        await supabase
+          .from("azera_calls")
+          .update({ menu_attempts: nextAttempts, updated_at: now })
+          .eq("id", callId);
+        const canRetry =
+          digit === 9
+            ? nextAttempts <= 3
+            : nextAttempts <= config.menuRetryLimit;
         if (canRetry) {
-          await finishAfricaWebhookEvent(webhookEventId, "processed")
-          const retryPrompt = digit === 9 ? prompt : `${dtmfDigits ? "That is not a valid selection. " : "We did not receive a selection. "}${prompt}`
-          return voiceXml([digitsAction(request, retryPrompt, digit === 9 ? "" : config.greetingAudioUrl)])
+          await finishAfricaWebhookEvent(webhookEventId, "processed");
+          const retryPrompt =
+            digit === 9
+              ? prompt
+              : `${dtmfDigits ? "That is not a valid selection. " : "We did not receive a selection. "}${prompt}`;
+          return voiceXml([
+            digitsAction(
+              request,
+              retryPrompt,
+              digit === 9 ? "" : config.greetingAudioUrl,
+            ),
+          ]);
         }
 
         if (config.forwardNumbers.length) {
-          await recordAttempts(callId, businessId, null, config.forwardNumbers, now)
-          await supabase.from("azera_calls").update({ selected_department: "default", updated_at: now }).eq("id", callId)
-          await finishAfricaWebhookEvent(webhookEventId, "processed")
+          await recordAttempts(
+            callId,
+            businessId,
+            null,
+            config.forwardNumbers,
+            now,
+          );
+          await supabase
+            .from("azera_calls")
+            .update({ selected_department: "default", updated_at: now })
+            .eq("id", callId);
+          await finishAfricaWebhookEvent(webhookEventId, "processed");
           return voiceXml([
             say(config.connectingGreeting),
-            dialAction(config.forwardNumbers, config.phoneNumber || destination, config.waitingAudioUrl),
-          ])
+            dialAction(
+              config.forwardNumbers,
+              config.phoneNumber || destination,
+              config.waitingAudioUrl,
+            ),
+          ]);
         }
-        await finishAfricaWebhookEvent(webhookEventId, "processed")
-        return voiceXml(voicemailOrEnd(request, config, config.noAnswerGreeting, config.noAnswerAudioUrl))
+        await finishAfricaWebhookEvent(webhookEventId, "processed");
+        return voiceXml(
+          voicemailOrEnd(
+            request,
+            config,
+            config.noAnswerGreeting,
+            config.noAnswerAudioUrl,
+          ),
+        );
       }
 
-      const department = departments.find((item) => item.digit === digit)
+      const department = departments.find((item) => item.digit === digit);
       if (department) {
         if (await destinationsAreBusy(businessId, department.numbers)) {
-          await markCallBusy(callId, now)
-          await finishAfricaWebhookEvent(webhookEventId, "processed")
-          return voiceXml(voicemailOrEnd(request, config, config.busyGreeting))
+          await markCallBusy(callId, now);
+          await finishAfricaWebhookEvent(webhookEventId, "processed");
+          return voiceXml(voicemailOrEnd(request, config, config.busyGreeting));
         }
-        await recordAttempts(callId, businessId, department.key, department.numbers, now)
-        await supabase.from("azera_calls").update({ selected_department: department.key, updated_at: now }).eq("id", callId)
+        if (consentRequired) {
+          await supabase
+            .from("azera_calls")
+            .update({ selected_department: department.key })
+            .eq("id", callId);
+          await finishAfricaWebhookEvent(webhookEventId, "processed");
+          return voiceXml([
+            recordingConsentAction(request.url, config.recordingNotice),
+          ]);
+        }
+        await recordAttempts(
+          callId,
+          businessId,
+          department.key,
+          department.numbers,
+          now,
+        );
+        await supabase
+          .from("azera_calls")
+          .update({ selected_department: department.key, updated_at: now })
+          .eq("id", callId);
         await supabase.from("azera_call_events").insert({
           call_id: callId,
           event_type: "sip_webhook",
           actor_type: "system",
-          metadata: { provider: "africas_talking", department: department.key, digit, label: department.label, callback_event_id: webhookEventId },
+          metadata: {
+            provider: "africas_talking",
+            department: department.key,
+            digit,
+            label: department.label,
+            callback_event_id: webhookEventId,
+          },
           created_at: now,
-        })
-        await finishAfricaWebhookEvent(webhookEventId, "processed")
+        });
+        await finishAfricaWebhookEvent(webhookEventId, "processed");
         return voiceXml([
           sayOrPlay(config.connectingGreeting, config.connectingAudioUrl),
-          dialAction(department.numbers, config.phoneNumber || destination, config.waitingAudioUrl),
-        ])
+          dialAction(
+            department.numbers,
+            config.phoneNumber || destination,
+            config.waitingAudioUrl,
+          ),
+        ]);
       }
     }
 
     if (await destinationsAreBusy(businessId, config.forwardNumbers)) {
-      await markCallBusy(callId, now)
-      await finishAfricaWebhookEvent(webhookEventId, "processed")
-      return voiceXml(voicemailOrEnd(request, config, config.busyGreeting))
+      await markCallBusy(callId, now);
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml(voicemailOrEnd(request, config, config.busyGreeting));
     }
 
-    await recordAttempts(callId, businessId, null, config.forwardNumbers, now)
-    await finishAfricaWebhookEvent(webhookEventId, "processed")
-    const callerId = config.phoneNumber || destination
+    if (consentRequired) {
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml([
+        recordingConsentAction(request.url, config.recordingNotice),
+      ]);
+    }
+    await recordAttempts(callId, businessId, null, config.forwardNumbers, now);
+    await finishAfricaWebhookEvent(webhookEventId, "processed");
+    const callerId = config.phoneNumber || destination;
     return voiceXml([
       sayOrPlay(config.greeting, config.greetingAudioUrl),
       sayOrPlay(config.connectingGreeting, config.connectingAudioUrl),
       dialAction(config.forwardNumbers, callerId, config.waitingAudioUrl),
-    ])
+    ]);
   } catch (error) {
-    console.error("[Africa's Talking voice callback error]", error)
-    await finishAfricaWebhookEvent(webhookEventId, "failed", error instanceof Error ? error.message : "Voice callback failed")
-    return voiceXml([say("Sorry, we are unable to connect your call right now.")])
+    console.error("[Africa's Talking voice callback error]", error);
+    await finishAfricaWebhookEvent(
+      webhookEventId,
+      "failed",
+      error instanceof Error ? error.message : "Voice callback failed",
+    );
+    return voiceXml([
+      say("Sorry, we are unable to connect your call right now."),
+    ]);
   }
 }

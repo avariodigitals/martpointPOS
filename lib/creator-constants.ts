@@ -117,6 +117,7 @@ export const CHALLENGE_STATUSES = [
   "SUBMISSION_CLOSED",
   "JUDGING",
   "COMPLETED",
+  "DEACTIVATED",
   "ARCHIVED",
 ] as const
 export type ChallengeStatus = (typeof CHALLENGE_STATUSES)[number]

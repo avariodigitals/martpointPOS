@@ -17,6 +17,7 @@ interface Detail {
     objective: string | null; theme: string | null; status: string
     startDate: string | null; submissionDeadline: string | null
     performanceCutoff: string | null; announcementDate: string | null
+    joinOpensAt: string | null; joinClosesAt: string | null; judgingDate: string | null
     eligiblePlatforms: string[]; requiredHashtags: string[]; requiredMentions: string[]
     requiredCta: string | null; contentRequirements: string | null
     prohibitedClaims: string | null; judgingCriteria: string | null; terms: string | null
@@ -104,6 +105,12 @@ export default function CreatorChallengeDetailPage() {
   const canSubmit = joined && c.status === "ACTIVE"
 
   const arr = (k: string): string[] => ((d.brief?.[k] as string[] | undefined) ?? [])
+  const timelineDate = (value: string | null) => value
+    ? new Date(value).toLocaleString("en-GB", {
+      timeZone: "Africa/Lagos", day: "numeric", month: "short", year: "numeric",
+      hour: "numeric", minute: "2-digit", hour12: true,
+    })
+    : "To be announced"
 
   return (
     <div className="space-y-5 max-w-4xl">
@@ -134,6 +141,18 @@ export default function CreatorChallengeDetailPage() {
       )}
 
       {msg && <p className={`text-sm ${msg.kind === "ok" ? "text-green-600" : "text-destructive"}`}>{msg.text}</p>}
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Challenge timeline</CardTitle></CardHeader>
+        <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          <TimelineItem label="Applications open" value={timelineDate(c.joinOpensAt ?? c.startDate)} />
+          <TimelineItem label="Applications close" value={timelineDate(c.joinClosesAt)} />
+          <TimelineItem label="Submissions close" value={timelineDate(c.submissionDeadline)} />
+          <TimelineItem label="Performance measured through" value={timelineDate(c.performanceCutoff)} />
+          <TimelineItem label="Judging begins" value={timelineDate(c.judgingDate ?? c.performanceCutoff)} />
+          <TimelineItem label="Winners announced" value={timelineDate(c.announcementDate)} />
+        </CardContent>
+      </Card>
 
       {/* Join card */}
       {!joined && (
@@ -298,6 +317,16 @@ function ListSection({ title, items }: { title: string; items: string[] }) {
     <div>
       <p className="text-xs font-medium text-muted-foreground">{title}</p>
       <ul className="list-disc pl-5 mt-0.5 space-y-0.5">{items.map((it, i) => <li key={i}>{it}</li>)}</ul>
+    </div>
+  )
+}
+
+function TimelineItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-input bg-muted/30 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 font-medium">{value}</p>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">West Africa Time</p>
     </div>
   )
 }

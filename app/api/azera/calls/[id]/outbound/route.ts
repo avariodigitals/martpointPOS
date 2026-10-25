@@ -56,7 +56,7 @@ export async function POST(_request: Request, context: Context) {
 export async function GET(_request: Request, context: Context) {
   try {
     const owned = await ownedCall(context)
-    if (!owned) return err("Call not found or access denied.", 403)
+    if (!owned) return NextResponse.json({ status: "transferred", error: "This call is no longer assigned to you." }, { status: 403 })
     const { call, session } = owned
     let status = call.status
     if (["ringing", "active"].includes(status) && call.sip_call_sid && !call.sip_call_sid.startsWith("dialing-")) {

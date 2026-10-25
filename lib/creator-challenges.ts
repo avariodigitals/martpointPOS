@@ -20,7 +20,7 @@ import { pushCreatorNotification, sendCreatorNotification } from "./creator-noti
 import type { CreatorRecord } from "./creators"
 
 export const CHALLENGE_STATUSES = [
-  "DRAFT", "SCHEDULED", "ACTIVE", "SUBMISSION_CLOSED", "JUDGING", "COMPLETED", "ARCHIVED",
+  "DRAFT", "SCHEDULED", "ACTIVE", "SUBMISSION_CLOSED", "JUDGING", "COMPLETED", "DEACTIVATED", "ARCHIVED",
 ] as const
 export type ChallengeStatus = (typeof CHALLENGE_STATUSES)[number]
 
@@ -87,6 +87,9 @@ export interface ChallengeRow {
   cover_image_path: string | null
   rules_version: number
   rules_frozen_at: string | null
+  deactivated_at: string | null
+  deactivated_reason: string | null
+  deactivated_from_status: ChallengeStatus | null
   status: ChallengeStatus
   created_by: string | null
   created_at: string

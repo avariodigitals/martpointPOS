@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Phone, PhoneOff, Mic, MicOff, X, Volume2 } from "lucide-react"
-import { BrowserCall, type CallSnapshot, type CallState } from "@/lib/azera-webrtc"
+import { type CallSnapshot, type CallState } from "@/lib/azera-webrtc"
+import { WebsiteCall } from "@/lib/azera-cloudflare-call"
 
 interface UseWebRTCCallProps {
   callId: string; enabled?: boolean; isAgent: boolean; authToken?: string | null;
@@ -13,11 +14,11 @@ interface UseWebRTCCallProps {
 
 export function useWebRTCCall({ callId, enabled = true, isAgent, authToken, localStream,
   remoteAudioEl, onCallEnded, onCallError, onStartRecording, onStopRecording }: UseWebRTCCallProps) {
-  const engine = useRef<BrowserCall | null>(null)
+  const engine = useRef<WebsiteCall | null>(null)
   const [snapshot, setSnapshot] = useState<CallSnapshot>({ state: "idle", error: null, isMuted: false, audioBlocked: false })
   useEffect(() => {
     if (!enabled || !callId) return
-    const current = new BrowserCall({ callId, isAgent, authToken, localStream, remoteAudioEl, onChange: setSnapshot })
+    const current = new WebsiteCall({ callId, isAgent, authToken, localStream, remoteAudioEl, onChange: setSnapshot })
     engine.current = current
     // Strict Mode's setup/cleanup probe must not stop a real microphone or
     // place two offers. Only the effect that survives the probe starts work.
@@ -31,9 +32,22 @@ export function useWebRTCCall({ callId, enabled = true, isAgent, authToken, loca
     }
   }, [authToken, callId, enabled, isAgent, localStream, remoteAudioEl])
   useEffect(() => { if (snapshot.error) onCallError?.(snapshot.error) }, [snapshot.error, onCallError])
+  useEffect(() => {
+    if (!isAgent || snapshot.state !== "active") return
+    let current = true
+    const keepAlive = async () => {
+      try {
+        const response = await fetch("/api/admin/session", { method: "POST", signal: AbortSignal.timeout(10_000) })
+        if (current && [401, 403].includes(response.status)) await engine.current?.end()
+      } catch { /* Signaling has its own connection-loss handling. */ }
+    }
+    void keepAlive()
+    const timer = window.setInterval(() => void keepAlive(), 30_000)
+    return () => { current = false; window.clearInterval(timer) }
+  }, [isAgent, snapshot.state])
   const endCall = useCallback(async (decline = false) => {
-    await engine.current?.end(decline)
-    onCallEnded?.()
+    const ended = await engine.current?.end(decline)
+    if (ended !== false) onCallEnded?.()
   }, [onCallEnded])
   return { ...snapshot, startCall: () => engine.current?.start(), answerCall: () => engine.current?.answer(),
     endCall, toggleMute: () => engine.current?.toggleMute(), resumeAudio: () => engine.current?.resumeAudio(),

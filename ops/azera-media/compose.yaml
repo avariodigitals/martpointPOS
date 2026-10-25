@@ -1,0 +1,22 @@
+# Preparation only. Do not run on shared cPanel hosting. Requires a Linux host,
+# permission to expose media ports, an approved pinned image, and TLS proxy.
+# This starts only the free/open-source room server, not a SIP trunk or Cloud.
+services:
+  media:
+    image: ${LIVEKIT_SERVER_IMAGE:?Set an approved pinned livekit/livekit-server image or digest}
+    restart: unless-stopped
+    command: ["--config", "/etc/azera/livekit.yaml"]
+    environment:
+      LIVEKIT_KEYS: ${LIVEKIT_KEYS:?Set a generated key-to-secret mapping; never use devkey/secret}
+      NODE_IP: ${MEDIA_PUBLIC_IP:?Set the approved host public IP}
+    ports:
+      - "127.0.0.1:7880:7880"
+      - "7881:7881/tcp"
+      - "50000-50100:50000-50100/udp"
+    volumes:
+      - ./livekit.yaml:/etc/azera/livekit.yaml:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

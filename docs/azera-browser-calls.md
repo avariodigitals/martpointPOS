@@ -3,12 +3,29 @@
 The website phone button connects a visitor to a **human support agent** in
 `/admin/azera`. It is not the AI voice or Africa’s Talking telephone/IVR path.
 
+The separate **Talk to Azera · AI voice** action uses direct OpenAI Realtime
+after migration 135 and explicit opt-in. It does not require LiveKit. Existing
+OpenAI audio charges apply; see [the no-paid-LiveKit notes](azera-no-paid-livekit.md).
+
 ## Omnichannel outbound calls
 
-The contact panel's **Call in browser** action uses the existing LiveKit
-integration plus a SIP telephone trunk. The agent speaks through the browser;
-the customer answers their regular phone. It never opens FaceTime or a `tel:`
-link. Phone-network charges are governed by the configured provider.
+**Current path (25 October 2026):** the contact panel's **Call in browser** action
+uses the official Africa’s Talking browser SDK and the existing AT configuration.
+It speaks through the browser, not FaceTime or a `tel:` link. One-hour capability
+tokens are issued server-side; the provider API key is never sent to the browser.
+Microphone permission precedes preparation, and the SDK dials only once it is
+ready. Mute, hold/resume, keypad and inline-audio recovery use the provider SDK.
+An active call renews the staff session; this stops on hangup. Provider activation,
+balance and real-device audio must still be tested. Apply migrations **134 and 135** before
+deploying. See [the deployment checklist and limitations](./azera-contact-centre-readiness.md).
+
+### Optional self-hosted media path
+
+The lower-level LiveKit/SIP path is selected only when an explicitly approved
+self-hosted host and an Africa’s Talking-compatible trunk have been configured
+and verified. Standard LiveKit Cloud URLs are blocked. Without that opt-in the
+button keeps using the direct AT SDK; no paid service is selected as fallback.
+The shared cPanel host has not been verified as able to run these services.
 
 Configure **Admin → Integrations → LiveKit Calls**: server URL, public WebSocket
 URL, API key/secret, SIP hostname, SIP username/password, caller number and
@@ -53,8 +70,8 @@ than repeatedly returning the first 100 rows of a long conversation.
   credentials are delivered only to authorized call participants. The existing
   AI/SIP credentials are not interchangeable with TURN credentials.
 
-No new database migration is needed. Existing calls/events/presence tables are
-used. This repair does not alter production records during local testing.
+Migration 134 is required for the updated contact-centre routing and private
+recording controls. Local tests do not modify production records.
 
 ## Behaviour
 

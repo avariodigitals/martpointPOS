@@ -7,7 +7,7 @@ type Signal = { id: string; event_type: string; actor_type: string; metadata: {
   candidate_sdp_mid?: string | null; candidate_sdp_mline_index?: number | null;
 } }
 type SignalResponse = { data: Signal[]; call: { status: string }; ice_servers?: RTCIceServer[] }
-type Options = {
+export type BrowserCallOptions = {
   callId: string; isAgent: boolean; authToken?: string | null; localStream?: MediaStream;
   remoteAudioEl?: HTMLAudioElement; onChange: (value: CallSnapshot) => void;
 }
@@ -44,7 +44,7 @@ export class BrowserCall {
   private processingSignals = false
   private readonly base: string
 
-  constructor(private options: Options) {
+  constructor(private options: BrowserCallOptions) {
     this.base = `/api/azera/calls/${encodeURIComponent(options.callId)}`
   }
 

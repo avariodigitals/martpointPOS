@@ -1,5 +1,6 @@
 import { notifyAllAdmins } from "./admin-notifications"
 import { isSupabaseConfigured } from "./supabase"
+import { contactCentreUrl } from "./contact-centre-links"
 
 type Queue = "sales" | "support" | "customer_support"
 
@@ -26,7 +27,7 @@ export async function notifySupportAgents(input: {
     email: {
       route: input.queue === "sales" ? "lead_submission" : "support_ticket",
       subject: input.title,
-      text: `${input.title}\n\n${input.message}\n\nOpen the conversation in the Admin Portal:\n${input.deepLink}`,
+      text: `${input.title}\n\n${input.message}\n\nOpen the conversation in the Admin Portal:\n${contactCentreUrl(input.deepLink)}`,
     },
   })
 }

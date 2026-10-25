@@ -15,7 +15,7 @@ export async function POST(request: Request, { params }: Params) {
   if (denied) return denied
   const { id } = await params
   const challenge = await getChallenge(id)
-  if (!challenge || ["DRAFT", "ARCHIVED"].includes(challenge.status)) {
+  if (!challenge || ["DRAFT", "DEACTIVATED", "ARCHIVED"].includes(challenge.status)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 

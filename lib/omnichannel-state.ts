@@ -10,6 +10,12 @@ export interface InboxMessage {
   attachment_name?: string | null
   attachment_mime?: string | null
   metadata?: Record<string, unknown>
+  delivery_status?: string
+  delivery_error?: string | null
+}
+
+export function messageDeliveryLabel(status?: string) {
+  return ({ pending: "Sending…", accepted: "Provider accepted", sent: "Sent", delivered: "Delivered", read: "Read", failed: "Not sent", unknown: "Send result unknown", received: "Received", not_required: "Saved in conversation" } as Record<string, string>)[status || ""] || "Saved · delivery not tracked"
 }
 
 /** Preserve existing rows, pending sends and history during background sync. */

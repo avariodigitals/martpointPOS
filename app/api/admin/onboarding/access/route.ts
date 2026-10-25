@@ -8,6 +8,7 @@ import type { EmailAttachment } from "@/lib/email"
 import { renderEmailTemplate, brandedEmailHtml, getEmailWhiteLogoUrl } from "@/lib/email-templates"
 import { markAccessSent, startCheckins } from "@/lib/client-checkins"
 import { getClientCheckinConfig } from "@/lib/automations"
+import { accessEmailText, recipientEmails } from "@/lib/access-email"
 
 async function guardOnboardingAccess() {
   const session = await getSession()
@@ -42,10 +43,15 @@ export async function POST(request: Request) {
       additionalUsers,
       attachments,
       message,
+      subject,
+      additionalNote,
     } = body
 
-    if (!recordId || !softwareUrl || !adminUsername || !tempPassword) {
+    if ([recordId, softwareUrl, adminUsername, tempPassword].some((value) => typeof value !== "string" || !value.trim() || value.length > 2048)) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+    if (recipients !== undefined && typeof recipients !== "string") {
+      return NextResponse.json({ error: "Enter a recipient email address." }, { status: 400 })
     }
 
     if (!isSupabaseConfigured()) {
@@ -62,9 +68,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Onboarding record not found" }, { status: 404 })
     }
 
-    const to = typeof recipients === "string" && recipients.trim() ? recipients.trim() : record.email
-    if (!to) {
-      return NextResponse.json({ error: "No recipient email" }, { status: 400 })
+    let to: string[]
+    try { to = recipientEmails(typeof recipients === "string" ? recipients : String(record.email || "")) }
+    catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid recipient email" }, { status: 400 }) }
+    if ((subject !== undefined && (typeof subject !== "string" || !subject.trim() || subject.length > 300 || /[\r\n]/.test(subject)))
+      || (message !== undefined && (typeof message !== "string" || !message.trim() || message.length > 50_000))
+      || (additionalNote !== undefined && (typeof additionalNote !== "string" || additionalNote.length > 10_000))) {
+      return NextResponse.json({ error: "Check the email subject and message lengths." }, { status: 400 })
     }
 
     const productLabel = record.product_interest === "erp" ? "ERP" : "Retail"
@@ -86,7 +96,9 @@ export async function POST(request: Request) {
       trainingSchedule: trainingSchedule || "",
     })
 
-    const emailText = message || accessTpl.text
+    const emailSubject = subject?.trim() || accessTpl.subject
+    const baseMessage = message || accessTpl.text
+    const emailText = accessEmailText(baseMessage, additionalNote)
 
     // Build attachment list: uploaded kit files + generated QR codes
     const MAX_ATTACHMENTS = 10
@@ -94,13 +106,18 @@ export async function POST(request: Request) {
     const MAX_TOTAL_BYTES = 10 * 1024 * 1024
     const emailAttachments: EmailAttachment[] = []
 
+    if (attachments !== undefined && (!Array.isArray(attachments) || attachments.length > MAX_ATTACHMENTS)) {
+      return NextResponse.json({ error: "Attach no more than ten files." }, { status: 400 })
+    }
     if (Array.isArray(attachments)) {
       let totalBytes = 0
       for (const a of attachments.slice(0, MAX_ATTACHMENTS)) {
         const name = String(a?.name || "").slice(0, 120) || "attachment"
         const content = String(a?.content || "")
         const approxBytes = Math.floor((content.length * 3) / 4)
-        if (!content || approxBytes > MAX_ATTACHMENT_BYTES || totalBytes + approxBytes > MAX_TOTAL_BYTES) continue
+        if (!content || approxBytes > MAX_ATTACHMENT_BYTES || totalBytes + approxBytes > MAX_TOTAL_BYTES) {
+          return NextResponse.json({ error: "An attachment is empty or exceeds the size limit. Please check your files." }, { status: 400 })
+        }
         totalBytes += approxBytes
         emailAttachments.push({ filename: name, content })
       }
@@ -119,47 +136,53 @@ export async function POST(request: Request) {
         emailAttachments.push({ filename: t.filename, content: buf.toString("base64") })
       } catch (err) {
         console.error("[onboarding access] QR generation failed:", err)
+        return NextResponse.json({ error: "Could not generate a selected QR attachment. Try again or deselect it." }, { status: 500 })
       }
     }
 
     const logoWhiteUrl = getEmailWhiteLogoUrl()
     const emailHtml = brandedEmailHtml(
       `<div style="font-size:15px;line-height:1.6;color:#374151;background:#f9fafb;padding:16px;border-radius:8px;margin:0;">${escapeHtml(emailText).replace(/\n/g, "<br>")}</div>`,
-      { eyebrow: "Onboarding", title: accessTpl.subject, signoff: "MartPoint Team", logoWhiteUrl }
+      { eyebrow: "Onboarding", title: emailSubject, signoff: "MartPoint Team", logoWhiteUrl }
     )
 
     const sent = await sendEmail({
       to,
-      subject: accessTpl.subject,
+      subject: emailSubject,
       text: emailText,
       html: emailHtml,
       route: "onboarding_access",
+      useRouteRecipients: false,
       replyTo: REPLY_TO.sales,
       attachments: emailAttachments.length ? emailAttachments : undefined,
     })
 
-    // Persist the payload so the modal can be reopened prefilled for resends
-    await supabase
-      .from("onboarding")
-      .update({
-        updated_at: new Date().toISOString(),
-        access_details: {
-          recipients: to,
-          softwareUrl,
-          adminUsername,
-          tempPassword,
-          onlineStoreUrl: onlineStoreUrl || "",
-          supportGroupUrl: supportGroupUrl || "",
-          supportContact: supportContact || "",
-          trainingSchedule: trainingSchedule || "",
-          attachStoreQr: !!attachStoreQr,
-          attachLoginQr: !!attachLoginQr,
-          additionalUsers: additionalUsers || "",
-          message: emailText,
-          lastSentAt: new Date().toISOString(),
-        },
-      })
-      .eq("id", recordId)
+    if (!sent) return NextResponse.json({ success: false, sent: false, error: "The email provider did not accept this message. Your edits are still open; check Email Settings and try again." }, { status: 502 })
+
+    const accessDetails = {
+      recipients: to.join(", "), subject: emailSubject,
+      softwareUrl, adminUsername, tempPassword,
+      onlineStoreUrl: onlineStoreUrl || "", supportGroupUrl: supportGroupUrl || "",
+      supportContact: supportContact || "", trainingSchedule: trainingSchedule || "",
+      attachStoreQr: !!attachStoreQr, attachLoginQr: !!attachLoginQr,
+      additionalUsers: additionalUsers || "", message: baseMessage,
+      attachmentNames: emailAttachments.map((attachment) => attachment.filename),
+      additionalNote: additionalNote || "", lastSentAt: new Date().toISOString(),
+      sendCount: Math.max(0, Number(record.access_details?.sendCount) || (record.access_details?.lastSentAt ? 1 : 0)) + 1,
+      deliveryStatus: "PROVIDER_ACCEPTED",
+    }
+    // Only successful provider acceptance can advance lastSentAt. Returning
+    // the saved snapshot also updates the current page without a full refresh.
+    let persisted = false
+    try {
+      const { error } = await supabase.from("onboarding")
+        .update({ updated_at: new Date().toISOString(), access_details: accessDetails })
+        .eq("id", recordId)
+      persisted = !error
+    } catch {
+      // An accepted email must not be reported as a failed send just because
+      // saving its snapshot failed: that would encourage duplicate resends.
+    }
 
     // Founder check-in sequence: the first time a client receives their
     // credentials, day 0 is stamped, the welcome note goes out right away and
@@ -180,7 +203,8 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, sent, checkins })
+    return NextResponse.json({ success: true, sent, checkins, accessDetails, persisted,
+      warning: !persisted ? "The provider accepted the email, but its saved resend details could not be updated. Do not send it again just to retry saving." : undefined })
   } catch {
     return NextResponse.json({ error: "Failed to send access details" }, { status: 500 })
   }

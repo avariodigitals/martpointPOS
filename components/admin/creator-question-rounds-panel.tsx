@@ -22,6 +22,8 @@ interface Round {
   id: string
   token: string
   title: string
+  email_subject: string | null
+  email_intro: string | null
   status: "Sent" | "Submitted" | "Reviewed"
   fields: RoundField[]
   responses: Record<string, unknown>
@@ -48,7 +50,7 @@ interface EmailAttempt {
   created_at: string
 }
 
-interface SamplePack { key: string; title: string; description: string; fields: RoundField[] }
+interface SamplePack { key: string; title: string; description: string; emailSubject?: string; emailIntro?: string; fields: RoundField[] }
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const FIELD_TYPES: { value: string; label: string }[] = [
@@ -86,6 +88,8 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
   const [publicSiteUrl, setPublicSiteUrl] = useState("")
   const [composing, setComposing] = useState(false)
   const [title, setTitle] = useState("Additional Questions")
+  const [emailSubject, setEmailSubject] = useState("")
+  const [emailIntro, setEmailIntro] = useState("")
   const [draftFields, setDraftFields] = useState<DraftField[]>([newDraftField()])
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState("")
@@ -149,12 +153,14 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
     setBusy("send")
     try {
       const res = await fetch(`/api/admin/creators/applications/${applicationId}/questions`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, fields }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, emailSubject, emailIntro, fields }),
       })
       const d = await res.json()
       if (!res.ok) { flash(d.error || "Could not send questions"); return }
       setComposing(false)
       setDraftFields([newDraftField()])
+      setEmailSubject("")
+      setEmailIntro("")
       flash(d.emailSent ? "Questions emailed to the applicant · application set to Manual Review." : "Questions saved, but the email failed to send.")
       await load()
       onSent?.()
@@ -218,7 +224,7 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
         <CardTitle className="text-sm flex items-center justify-between">
           <span className="flex items-center gap-2"><MessageSquareQuote className="w-4 h-4 text-retail" /> Additional Questions</span>
           {!composing && (
-            <Button size="sm" variant="outline" onClick={() => { setComposing(true); setTitle("Additional Questions"); setDraftFields([newDraftField()]) }}>
+              <Button size="sm" variant="outline" onClick={() => { setComposing(true); setTitle("Additional Questions"); setEmailSubject(""); setEmailIntro(""); setDraftFields([newDraftField()]) }}>
               <Plus className="w-3.5 h-3.5 mr-1" /> Ask
             </Button>
           )}
@@ -245,6 +251,7 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
               {round.submitted_at ? ` · answered ${new Date(round.submitted_at).toLocaleString("en-GB")}` : ""}
               {round.reviewed_at ? ` · reviewed ${new Date(round.reviewed_at).toLocaleString("en-GB")}` : ""}
             </p>
+            {round.email_subject && <p className="break-words text-[11px] text-muted-foreground"><span className="font-semibold text-foreground">Email subject:</span> {round.email_subject}</p>}
             {round.status === "Sent" && (
               <div className="space-y-2 border-t pt-2">
                 <p className="text-xs text-muted-foreground">Waiting for the applicant to complete the questions.</p>
@@ -325,12 +332,18 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
                 {busy === "generate" ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />} Generate from AI assessment
               </Button>
               {samplePacks.map((pack) => (
-                <Button key={pack.key} size="sm" variant="outline" title={pack.description} onClick={() => { setTitle(pack.title); setDraftFields(packToDraft(pack.fields)) }}>
+                <Button key={pack.key} size="sm" variant="outline" title={pack.description} onClick={() => { setTitle(pack.title); setEmailSubject(pack.emailSubject || ""); setEmailIntro(pack.emailIntro || ""); setDraftFields(packToDraft(pack.fields)) }}>
                   <Plus className="w-3.5 h-3.5 mr-1" /> {pack.title}
                 </Button>
               ))}
             </div>
             <div className="space-y-2">
+              <div className="space-y-1.5 rounded-md border bg-background p-2">
+                <p className="text-xs font-semibold">Email copy</p>
+                <input className={inputCls} value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Email subject (optional)" />
+                <textarea className={`${inputCls} min-h-28`} value={emailIntro} onChange={(e) => setEmailIntro(e.target.value)} placeholder="Message shown in the email before the secure answer link (optional)" />
+                <p className="text-[11px] text-muted-foreground">The secure answer link is added automatically after this message. Leave blank to use the standard question email.</p>
+              </div>
               {draftFields.map((f, i) => (
                 <div key={f.key} className="space-y-1.5 rounded-md bg-muted/40 p-2">
                   <div className="flex min-w-0 flex-wrap gap-2">

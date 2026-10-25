@@ -29,14 +29,14 @@ export async function GET(
   }
 
   const { searchParams } = new URL(request.url)
-  const limit = Math.min(Number(searchParams.get("limit")) || 50, 100)
+  const limit = Math.max(1, Math.min(Number(searchParams.get("limit")) || 50, 100))
 
   try {
     const { data, error } = await supabase
       .from("azera_messages")
       .select("*")
       .eq("conversation_id", id)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(limit)
 
     if (error) {
@@ -44,13 +44,13 @@ export async function GET(
       return NextResponse.json({ error: "Failed to load messages" }, { status: 500 })
     }
 
-    const messages = await Promise.all((data || []).map(async (message: ChatMessage) => {
+    const messages = await Promise.all((data || []).reverse().map(async (message: ChatMessage) => {
       if (!message.attachment_path) return message
       const { data: signed } = await supabase.storage.from("azera-chat-attachments").createSignedUrl(message.attachment_path, 3600)
       return { ...message, attachment_url: signed?.signedUrl || null }
     }))
 
-    return NextResponse.json({ messages })
+    return NextResponse.json({ messages }, { headers: { "Cache-Control": "no-store" } })
   } catch (err) {
     console.error("[Azera messages error]", err)
     return NextResponse.json({ error: "Failed to load messages" }, { status: 500 })

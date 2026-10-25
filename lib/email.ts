@@ -44,6 +44,8 @@ export interface EmailMessage {
   html?: string
   from?: string
   route?: string
+  /** False keeps routing/log identity but sends ONLY to explicit recipients. */
+  useRouteRecipients?: boolean
   /** Carbon-copy recipients (visible to all recipients). */
   cc?: string | string[]
   attachments?: EmailAttachment[]
@@ -116,6 +118,7 @@ export interface ResendPayload {
   from: string | null
   replyTo: string | null
   route: string | null
+  useRouteRecipients?: boolean
   skipBranding: boolean
 }
 
@@ -251,6 +254,7 @@ export function buildResendPayload(
     from: message.from || null,
     replyTo: message.replyTo || null,
     route: message.route || null,
+    useRouteRecipients: message.useRouteRecipients,
     skipBranding: message.skipBranding === true,
   }
 }
@@ -319,7 +323,7 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
     process.env.RESEND_FROM_EMAIL ||
     "MartPoint <hello@martpoint.com.ng>"
 
-  const routeRecipients = message.route ? await getEmailRoute(message.route) : []
+  const routeRecipients = message.route && message.useRouteRecipients !== false ? await getEmailRoute(message.route) : []
   const explicitRecipients = normalizeRecipients(message.to)
 
   let toList: string[]
@@ -333,7 +337,7 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
   }
 
   // If a route was used but produced no recipients, fall back to the general notify email.
-  if (toList.length === 0 && message.route) {
+  if (toList.length === 0 && message.route && message.useRouteRecipients !== false) {
     const notifyFallback = settings.notifyEmail || process.env.NOTIFY_EMAIL || ""
     if (notifyFallback) {
       toList = normalizeRecipients(notifyFallback)

@@ -3,12 +3,13 @@
 /* This page hydrates its legacy workflow state from the admin APIs. */
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { generateSetupQuestions } from "@/lib/onboarding"
 import { Button } from "@/components/ui/button"
+import { accessEmailSubject, recipientEmails, updateAccessMessageField } from "@/lib/access-email"
 import {
   Loader2,
   ClipboardCheck,
@@ -84,6 +85,10 @@ interface OnboardingRecord {
   }
   accessDetails?: {
     recipients?: string
+    subject?: string
+    additionalNote?: string
+    attachmentNames?: string[]
+    sendCount?: number
     softwareUrl?: string
     adminUsername?: string
     tempPassword?: string
@@ -139,8 +144,40 @@ export default function AdminOnboardingPage() {
   const [accessRecord, setAccessRecord] = useState<OnboardingRecord | null>(null)
   const [sendingAccess, setSendingAccess] = useState(false)
   const [accessDirty, setAccessDirty] = useState(false)
+  const [accessError, setAccessError] = useState("")
+  const accessDialogRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!showAccessModal) return
+    const previousFocus = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    accessDialogRef.current?.querySelector<HTMLTextAreaElement>("#access-recipients")?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !sendingAccess) {
+        setShowAccessModal(false)
+        setAccessRecord(null)
+      }
+      if (event.key !== "Tab") return
+      const items = Array.from(accessDialogRef.current?.querySelectorAll<HTMLElement>("button, input, textarea, a[href], [tabindex='0']") || [])
+        .filter((element) => !element.matches(":disabled") && element.getClientRects().length > 0)
+      const first = items[0], last = items[items.length - 1]
+      if (!first) { event.preventDefault(); return }
+      if ((event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last)) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first)?.focus()
+      }
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener("keydown", onKeyDown)
+      previousFocus?.focus()
+    }
+  }, [showAccessModal, sendingAccess])
   const [accessForm, setAccessForm] = useState({
     recipients: "",
+    subject: "",
+    additionalNote: "",
     softwareUrl: "",
     adminUsername: "",
     tempPassword: "",
@@ -382,7 +419,7 @@ export default function AdminOnboardingPage() {
       : ""
     return `Hi ${record.fullName},
 
-Welcome to MartPoint! We're pleased to confirm that your MartPoint ${productLabel} system is ready.
+Welcome to MartPoint! We're pleased to confirm that your ${productLabel} system is ready.
 
 Your MartPoint Access Details
 
@@ -432,6 +469,8 @@ MartPoint Team`
     const slug = (record.businessName || record.fullName).toLowerCase().replace(/[^a-z0-9]+/g, "")
     const form = {
       recipients: saved?.recipients || record.email,
+      subject: saved?.subject || accessEmailSubject(record.businessName || record.fullName),
+      additionalNote: saved?.additionalNote || "",
       softwareUrl: saved?.softwareUrl || (slug ? `https://${slug}.martpoint.com.ng/login` : ""),
       adminUsername: saved?.adminUsername || record.email,
       tempPassword: saved?.tempPassword || "",
@@ -445,8 +484,9 @@ MartPoint Team`
       message: "",
     }
     setAccessRecord(record)
+    setAccessError("")
     setAccessFiles([])
-    setAccessForm({ ...form, message: saved?.message || buildAccessMessage(record, form) })
+    setAccessForm({ ...form, message: saved?.message || buildAccessMessage(record, form, []) })
     setAccessDirty(!!saved?.message)
     setShowAccessModal(true)
   }
@@ -454,8 +494,11 @@ MartPoint Team`
   const updateAccessField = (key: keyof typeof accessForm, value: string | boolean) => {
     setAccessForm((prev) => {
       const next = { ...prev, [key]: value }
+      if (["recipients", "subject", "additionalNote"].includes(key)) return next
       if (!accessDirty && accessRecord) {
         next.message = buildAccessMessage(accessRecord, next)
+      } else if (typeof value === "string") {
+        next.message = updateAccessMessageField(prev.message, key, value, String(prev[key]))
       }
       return next
     })
@@ -504,8 +547,17 @@ MartPoint Team`
   }
 
   const sendAccess = async () => {
-    if (!accessRecord) return
+    if (!accessRecord || sendingAccess) return
+    try {
+      recipientEmails(accessForm.recipients)
+      if (!accessForm.subject.trim() || /[\r\n]/.test(accessForm.subject)) throw new Error("Enter a valid email subject.")
+      if (!accessForm.message.trim()) throw new Error("Enter an email message.")
+    } catch (error) {
+      setAccessError(error instanceof Error ? error.message : "Check the email fields.")
+      return
+    }
     setSendingAccess(true)
+    setAccessError("")
     setMessage("")
     try {
       const res = await fetch("/api/admin/onboarding/access", {
@@ -514,6 +566,8 @@ MartPoint Team`
         body: JSON.stringify({
           recordId: accessRecord.id,
           recipients: accessForm.recipients,
+          subject: accessForm.subject,
+          additionalNote: accessForm.additionalNote,
           softwareUrl: accessForm.softwareUrl,
           adminUsername: accessForm.adminUsername,
           tempPassword: accessForm.tempPassword,
@@ -529,18 +583,16 @@ MartPoint Team`
         }),
       })
       const data = await res.json()
-      if (data.success) {
+      if (res.ok && data.success && data.sent) {
+        setRecords((prev) => prev.map((record) => record.id === accessRecord.id ? { ...record, accessDetails: data.accessDetails } : record))
         setShowAccessModal(false)
         setAccessRecord(null)
-        setMessage(data.sent
-          ? "Access details sent to client."
-          : "Email logged but not delivered — check Email Settings.")
-        setTimeout(() => setMessage(""), 4000)
+        setMessage(data.warning || "Access email successfully accepted by the email provider. Check Email Logs for the send record.")
       } else {
-        setMessage(data.error || "Failed to send access details")
+        setAccessError(data.error || "Failed to send access details. Your edits have been kept open.")
       }
     } catch {
-      setMessage("Failed to send access details")
+      setAccessError("We could not confirm the send result. Check Email Logs before trying again to avoid a duplicate. Your edits are still open.")
     } finally {
       setSendingAccess(false)
     }
@@ -939,7 +991,7 @@ MartPoint Team`
                           )}
                           <Button size="sm" variant="outline" onClick={() => openAccess(record)}>
                             <KeyRound className="w-3.5 h-3.5 mr-1" />
-                            Send Access Details
+                            {record.accessDetails?.lastSentAt ? "Edit & resend access" : "Send access details"}
                           </Button>
                         </div>
                         <button
@@ -1012,11 +1064,12 @@ MartPoint Team`
 
       {/* Access Details Modal */}
       {showAccessModal && accessRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
+          <div ref={accessDialogRef} role="dialog" aria-modal="true" aria-labelledby="access-email-title" className="flex w-full max-w-2xl max-h-[90dvh] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-lg [&_input]:text-base [&_textarea]:text-base sm:[&_input]:text-sm sm:[&_textarea]:text-sm">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-6">
               <div>
-                <h3 className="text-lg font-semibold">Send Access Details</h3>
+                <h3 id="access-email-title" className="text-lg font-semibold">{accessRecord.accessDetails?.lastSentAt ? "Edit & resend access details" : "Send access details"}</h3>
+                <p className="text-sm text-muted-foreground break-words">{accessRecord.businessName || accessRecord.fullName}</p>
                 {accessRecord.accessDetails?.lastSentAt && (
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Last sent {new Date(accessRecord.accessDetails.lastSentAt).toLocaleString()} — previous values are prefilled.
@@ -1025,24 +1078,39 @@ MartPoint Team`
               </div>
               <button
                 onClick={() => { setShowAccessModal(false); setAccessRecord(null) }}
+                disabled={sendingAccess}
+                aria-label="Close access email"
                 className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="space-y-3">
+            <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 space-y-3">
+              {accessError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{accessError}</p>}
+              <p className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">Review the recipient and message before sending. Editing these details changes this email only; it does not create users or reset their passwords.</p>
+              <fieldset disabled={sendingAccess} className="min-w-0 space-y-3">
               <div>
-                <label className="block text-xs font-medium mb-1">Send To (separate multiple with commas, semicolons or new lines)</label>
-                <input
-                  type="text"
+                <label htmlFor="access-recipients" className="block text-sm font-medium mb-1">Recipient email address(es) *</label>
+                <textarea
+                  id="access-recipients"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  rows={2}
                   value={accessForm.recipients}
                   onChange={(e) => updateAccessField("recipients", e.target.value)}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
+                <p className="mt-1 text-xs text-muted-foreground">Only these recipients receive the access details. Separate addresses with commas, semicolons or new lines.</p>
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Software URL</label>
+                <label htmlFor="access-subject" className="block text-sm font-medium mb-1">Email subject *</label>
+                <input id="access-subject" maxLength={300} value={accessForm.subject} onChange={(e) => updateAccessField("subject", e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label htmlFor="access-url" className="block text-xs font-medium mb-1">Software URL</label>
                 <input
+                  id="access-url"
                   type="text"
                   value={accessForm.softwareUrl}
                   onChange={(e) => updateAccessField("softwareUrl", e.target.value)}
@@ -1050,10 +1118,11 @@ MartPoint Team`
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium mb-1">Admin Username/Email</label>
+                  <label htmlFor="access-username" className="block text-xs font-medium mb-1">Admin Username/Email</label>
                   <input
+                    id="access-username"
                     type="text"
                     value={accessForm.adminUsername}
                     onChange={(e) => updateAccessField("adminUsername", e.target.value)}
@@ -1061,8 +1130,9 @@ MartPoint Team`
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1">Temporary Password</label>
+                  <label htmlFor="access-password" className="block text-xs font-medium mb-1">Temporary Password</label>
                   <input
+                    id="access-password"
                     type="text"
                     value={accessForm.tempPassword}
                     onChange={(e) => updateAccessField("tempPassword", e.target.value)}
@@ -1071,8 +1141,9 @@ MartPoint Team`
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Additional Users (optional — included in the email)</label>
+                <label htmlFor="access-users" className="block text-xs font-medium mb-1">Additional Users (optional — included in the email)</label>
                 <textarea
+                  id="access-users"
                   value={accessForm.additionalUsers}
                   onChange={(e) => updateAccessField("additionalUsers", e.target.value)}
                   rows={2}
@@ -1081,8 +1152,9 @@ MartPoint Team`
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Online Store URL (optional)</label>
+                <label htmlFor="access-store" className="block text-xs font-medium mb-1">Online Store URL (optional)</label>
                 <input
+                  id="access-store"
                   type="text"
                   value={accessForm.onlineStoreUrl}
                   onChange={(e) => updateAccessField("onlineStoreUrl", e.target.value)}
@@ -1091,8 +1163,9 @@ MartPoint Team`
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Support Group Link (optional)</label>
+                <label htmlFor="access-group" className="block text-xs font-medium mb-1">Support Group Link (optional)</label>
                 <input
+                  id="access-group"
                   type="text"
                   value={accessForm.supportGroupUrl}
                   onChange={(e) => updateAccessField("supportGroupUrl", e.target.value)}
@@ -1137,6 +1210,7 @@ MartPoint Team`
                     className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-xs file:font-medium hover:file:bg-muted"
                   />
                   <p className="text-xs text-muted-foreground mt-1">Welcome card, digital card, brand kit, etc. — 3 MB total max.</p>
+                  {accessRecord.accessDetails?.lastSentAt && <p className="mt-2 text-xs text-amber-700 break-words">Uploaded files are not stored for resending. Attach them again if needed{accessRecord.accessDetails.attachmentNames?.length ? ` (previous attachments: ${accessRecord.accessDetails.attachmentNames.join(", ")})` : ""}. Selected QR codes are generated again automatically.</p>}
                 </div>
                 {accessFiles.length > 0 && (
                   <ul className="space-y-1">
@@ -1159,10 +1233,11 @@ MartPoint Team`
                   </ul>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium mb-1">Support Contact</label>
+                  <label htmlFor="access-support" className="block text-xs font-medium mb-1">Support Contact</label>
                   <input
+                    id="access-support"
                     type="text"
                     value={accessForm.supportContact}
                     onChange={(e) => updateAccessField("supportContact", e.target.value)}
@@ -1170,8 +1245,9 @@ MartPoint Team`
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1">Training Date & Time</label>
+                  <label htmlFor="access-training" className="block text-xs font-medium mb-1">Training Date & Time</label>
                   <input
+                    id="access-training"
                     type="text"
                     value={accessForm.trainingSchedule}
                     onChange={(e) => updateAccessField("trainingSchedule", e.target.value)}
@@ -1181,12 +1257,13 @@ MartPoint Team`
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-medium">Welcome Email</label>
+                  <label htmlFor="access-message" className="block text-sm font-medium">Email message *</label>
                   {accessDirty && (
                     <button
                       type="button"
                       onClick={() => {
                         if (accessRecord) {
+                          if (!window.confirm("Rebuild the message from the fields above? This replaces any custom changes in the message.")) return
                           setAccessForm((prev) => ({ ...prev, message: buildAccessMessage(accessRecord, prev) }))
                           setAccessDirty(false)
                         }
@@ -1198,29 +1275,37 @@ MartPoint Team`
                   )}
                 </div>
                 <textarea
+                  id="access-message"
+                  maxLength={50000}
                   value={accessForm.message}
                   onChange={(e) => {
                     setAccessDirty(true)
                     setAccessForm((prev) => ({ ...prev, message: e.target.value }))
                   }}
                   rows={16}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none font-mono"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  The message rebuilds automatically as you edit the fields above until you edit it manually.
+                  Review the exact message here. Labelled access fields update without removing your custom text. Use Rebuild only to replace the message with the standard copy.
                 </p>
               </div>
+              <div>
+                <label htmlFor="access-note" className="block text-sm font-medium mb-1">Additional note (optional)</label>
+                <textarea id="access-note" rows={3} maxLength={10000} value={accessForm.additionalNote} onChange={(e) => updateAccessField("additionalNote", e.target.value)} placeholder="Add instructions or anything else the business needs to know." className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                <p className="mt-1 text-xs text-muted-foreground">Added after the message above and saved for your next resend.</p>
+              </div>
+              </fieldset>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => { setShowAccessModal(false); setAccessRecord(null) }}>Cancel</Button>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border px-4 py-4 sm:px-6">
+              <Button disabled={sendingAccess} variant="outline" size="sm" onClick={() => { setShowAccessModal(false); setAccessRecord(null) }}>Cancel</Button>
               <Button
                 size="sm"
                 variant="retail"
                 onClick={sendAccess}
-                disabled={sendingAccess || !accessForm.softwareUrl || !accessForm.adminUsername || !accessForm.tempPassword || !accessForm.recipients}
+                disabled={sendingAccess || !accessForm.softwareUrl || !accessForm.adminUsername || !accessForm.tempPassword || !accessForm.recipients.trim() || !accessForm.subject.trim() || !accessForm.message.trim()}
               >
                 {sendingAccess ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
-                {sendingAccess ? "Sending..." : "Send Access Details"}
+                {sendingAccess ? "Sending..." : accessRecord.accessDetails?.lastSentAt ? "Resend access email" : "Send access email"}
               </Button>
             </div>
           </div>

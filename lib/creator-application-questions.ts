@@ -29,6 +29,8 @@ export type CreatorApplicationQuestionRound = {
   application_id: string
   token: string
   title: string
+  email_subject: string | null
+  email_intro: string | null
   fields: QuestionnaireField[]
   responses: Record<string, unknown>
   status: CreatorQuestionStatus
@@ -145,7 +147,7 @@ export async function uploadRoundAttachment(input: {
 }
 
 export async function sendApplicationQuestionRound(input: {
-  applicationId: string; title: string; fields: QuestionnaireField[]; actorId: string; actorName: string; origin: string
+  applicationId: string; title: string; fields: QuestionnaireField[]; actorId: string; actorName: string; origin: string; emailSubject?: string; emailIntro?: string
 }) {
   if (!isSupabaseConfigured()) return { ok: false as const, error: "Service unavailable" }
   const fields = input.fields.filter((field) => field.name.trim() && field.label.trim())
@@ -161,20 +163,22 @@ export async function sendApplicationQuestionRound(input: {
 
   const token = crypto.randomUUID()
   const now = new Date().toISOString()
+  const safeTitle = input.title.trim() || "Additional Questions"
+  const safeEmailSubject = input.emailSubject?.trim().slice(0, 200) || `MartPoint Creator Network: ${safeTitle}`
+  const safeEmailIntro = input.emailIntro?.trim().slice(0, 8000) || `Thanks for your interest in the MartPoint Creator Network (application ${app.reference_number || ""}). Our team has a few additional questions before the next stage.`
   const { data: round, error } = await supabase.from("creator_application_question_rounds").insert({
-    application_id: input.applicationId, token, title: input.title.trim() || "Additional Questions", fields,
+    application_id: input.applicationId, token, title: safeTitle, email_subject: safeEmailSubject, email_intro: safeEmailIntro, fields,
     status: "Sent", sent_at: now, created_by: input.actorId,
   }).select().single()
   if (error || !round) return { ok: false as const, error: "Could not save question round" }
 
   const url = `${siteUrl(input.origin)}/creator/questions/${token}`
-  const safeTitle = input.title.trim() || "Additional Questions"
   const questionCount = fields.length
   const sent = await sendEmail({
     to: app.email as string,
-    subject: `MartPoint Creator Network: ${safeTitle}`,
-    text: `Hello ${app.full_name || "there"},\n\nThanks for your interest in the MartPoint Creator Network (application ${app.reference_number}). Our team has a few additional questions before the interview stage. Please answer them here:\n${url}\n\nSome questions let you attach screenshots or documents from your insights dashboard.\n\nMartPoint Creator Network Team`,
-    html: `<p>Hello ${escapeHtml(String(app.full_name || "there"))},</p><p>Thanks for your interest in the MartPoint Creator Network (application <strong>${escapeHtml(String(app.reference_number))}</strong>). Our team has a few additional questions before the interview stage.</p><p><a href="${url}">Answer the additional questions</a></p><p>Some questions let you attach screenshots or documents from your insights dashboard.</p><p>MartPoint Creator Network Team</p>`,
+    subject: safeEmailSubject,
+    text: `Hi ${app.full_name || "there"},\n\n${safeEmailIntro}\n\nPlease answer the questions here:\n${url}\n\nSome questions let you attach screenshots or documents.\n\nMartPoint Creator Network Team`,
+    html: `<p>Hi ${escapeHtml(String(app.full_name || "there"))},</p>${safeEmailIntro.split(/\n\s*\n/).map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`).join("")}<p><a href="${url}">Answer the questions</a></p><p>Some questions let you attach screenshots or documents.</p><p>MartPoint Creator Network Team</p>`,
     replyTo: REPLY_TO.digitals,
   })
 
@@ -204,6 +208,8 @@ type ReminderRound = {
   application_id: string
   token: string
   title: string
+  email_subject: string | null
+  email_intro: string | null
   status: CreatorQuestionStatus
   reminder_count: number
   reminder_claimed_at: string | null
@@ -236,7 +242,7 @@ async function placeApplicationOnHold(applicationId: string, reference: string |
 
 async function loadReminderRound(roundId: string): Promise<ReminderRound | null> {
   const { data } = await supabase.from("creator_application_question_rounds")
-    .select("id, application_id, token, title, status, reminder_count, reminder_claimed_at, application:application_id(id, reference_number, full_name, email, status)")
+    .select("id, application_id, token, title, email_subject, email_intro, status, reminder_count, reminder_claimed_at, application:application_id(id, reference_number, full_name, email, status)")
     .eq("id", roundId).maybeSingle()
   return data as unknown as ReminderRound | null
 }
@@ -273,9 +279,11 @@ export async function sendApplicationQuestionReminder(input: {
   const reminderNo = round.reminder_count + 1
   const url = `${siteUrl(input.origin)}/creator/questions/${round.token}`
   const isFinal = reminderNo === MAX_REMINDERS
-  const subject = `MartPoint Creator Network: Reminder — ${round.title}`
-  const text = `Hello ${app.full_name || "there"},\n\nThis is reminder ${reminderNo} of ${MAX_REMINDERS} about the additional questions for your MartPoint Creator Network application ${app.reference_number || ""}.\n\nPlease answer them here:\n${url}\n\n${isFinal ? "This is the final reminder. If we do not receive your answers, your application will be placed on hold for follow-up with the MartPoint team." : "Your application remains under review while we wait for your answers."}\n\nMartPoint Creator Network Team`
-  const html = `<p>Hello ${escapeHtml(String(app.full_name || "there"))},</p><p>This is reminder <strong>${reminderNo} of ${MAX_REMINDERS}</strong> about the additional questions for your MartPoint Creator Network application ${escapeHtml(String(app.reference_number || ""))}.</p><p><a href="${url}">Answer the additional questions</a></p><p>${isFinal ? "This is the final reminder. If we do not receive your answers, your application will be placed on hold for follow-up with the MartPoint team." : "Your application remains under review while we wait for your answers."}</p><p>MartPoint Creator Network Team</p>`
+  const subject = round.email_subject ? `Reminder — ${round.email_subject}` : `MartPoint Creator Network: Reminder — ${round.title}`
+  const intro = round.email_intro || `This is reminder ${reminderNo} of ${MAX_REMINDERS} about the additional questions for your MartPoint Creator Network application ${app.reference_number || ""}.`
+  const reminderNote = isFinal ? "This is the final reminder. If we do not receive your answers, your application will be placed on hold for follow-up with the MartPoint team." : "Your application remains under review while we wait for your answers."
+  const text = `Hello ${app.full_name || "there"},\n\n${intro}\n\nThis is reminder ${reminderNo} of ${MAX_REMINDERS}.\n\nPlease answer them here:\n${url}\n\n${reminderNote}\n\nMartPoint Creator Network Team`
+  const html = `<p>Hello ${escapeHtml(String(app.full_name || "there"))},</p>${escapeHtml(intro).replace(/\n/g, "<br />")}<p>This is reminder <strong>${reminderNo} of ${MAX_REMINDERS}</strong>.</p><p><a href="${url}">Answer the questions</a></p><p>${reminderNote}</p><p>MartPoint Creator Network Team</p>`
   const sent = await sendEmail({ to: app.email, subject, text, html, replyTo: REPLY_TO.digitals })
   await recordQuestionEmail({ roundId: round.id, applicationId: round.application_id, kind: "REMINDER", attemptNo: reminderNo, sent })
 
@@ -353,7 +361,7 @@ export async function submitApplicationQuestionResponses(
 
 /* ───────────────────────────  Sample question templates  ─────────────────────────── */
 
-export const CREATOR_SAMPLE_QUESTION_PACKS: { key: string; title: string; description: string; fields: QuestionnaireField[] }[] = [
+export const CREATOR_SAMPLE_QUESTION_PACKS: { key: string; title: string; description: string; emailSubject?: string; emailIntro?: string; fields: QuestionnaireField[] }[] = [
   {
     key: "verification",
     title: "Application Verification Pack",
@@ -378,6 +386,21 @@ export const CREATOR_SAMPLE_QUESTION_PACKS: { key: string; title: string; descri
       { name: "qc_audience_ask", label: "What do your followers ask you most about?", type: "textarea", required: true },
       { name: "qc_availability", label: "How many hours per week could you dedicate to MartPoint content?", type: "text", required: true },
       { name: "qc_supporting_file", label: "Anything else that helps your application? Attach it here (optional)", type: "file" },
+    ],
+  },
+  {
+    key: "video_follow_up",
+    title: "Video Collaboration Follow-up",
+    description: "Personal email for a creator who shared a MartPoint video on Instagram or TikTok; clarifies audience, origin, portfolio, onboarding and commercial expectations.",
+    emailSubject: "A few follow-up questions about your MartPoint video",
+    emailIntro: "Thank you for creating and sharing the MartPoint video on Instagram and TikTok. We appreciate the initiative and effort.\n\nAs we review your application and collaboration request, could you help us with a few things? These will help us clarify the next steps and expectations on both sides. Thank you!",
+    fields: [
+      { name: "vf_audience_bio", label: "Who do you mainly create content for, and what topics do you usually cover? Please also complete your Creator Profile bio.", type: "textarea", required: true },
+      { name: "vf_scenario_inspiration", label: "What inspired the business-recordkeeping scenario in your video — something you experienced or observed?", type: "textarea", required: true },
+      { name: "vf_other_videos", label: "Please share two other videos that best represent your work.", type: "textarea", required: true },
+      { name: "vf_onboarding_brief", label: "Would you be comfortable completing a short MartPoint onboarding and working from a brief, with feedback before future content goes live?", type: "boolean", required: true },
+      { name: "vf_original_video", label: "Do you have the original video without the TikTok watermark and outro?", type: "boolean", required: true },
+      { name: "vf_engagement_type", label: "For this video, are you requesting an Instagram collaboration only, or proposing a paid engagement as well?", type: "select", required: true, options: ["Instagram collaboration only", "Paid engagement as well", "Open to discussing either"] },
     ],
   },
 ]

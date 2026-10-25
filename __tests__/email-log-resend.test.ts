@@ -118,6 +118,12 @@ describe("buildResendPayload", () => {
 })
 
 describe("messageFromPayload", () => {
+  it("preserves explicit-recipient isolation when an access email is retried from logs", () => {
+    const stored = buildResendPayload({ subject: "Access", text: "Test only", route: "onboarding_access", useRouteRecipients: false }, ["chosen@example.test"], [])
+    const ready = resendPayloadFromLog({ metadata: { resend: stored } })
+    expect(ready.ok).toBe(true)
+    if (ready.ok) expect(messageFromPayload(ready.payload).useRouteRecipients).toBe(false)
+  })
   it("sends the same recipients and subject, and re-brands rather than reusing old HTML", () => {
     const ready = resendPayloadFromLog({ metadata: { resend: storedPayload } })
     expect(ready.ok).toBe(true)

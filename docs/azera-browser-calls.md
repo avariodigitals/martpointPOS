@@ -3,6 +3,38 @@
 The website phone button connects a visitor to a **human support agent** in
 `/admin/azera`. It is not the AI voice or Africa’s Talking telephone/IVR path.
 
+## Omnichannel outbound calls
+
+The contact panel's **Call in browser** action uses the existing LiveKit
+integration plus a SIP telephone trunk. The agent speaks through the browser;
+the customer answers their regular phone. It never opens FaceTime or a `tel:`
+link. Phone-network charges are governed by the configured provider.
+
+Configure **Admin → Integrations → LiveKit Calls**: server URL, public WebSocket
+URL, API key/secret, SIP hostname, SIP username/password, caller number and
+destination country. Missing credentials produce a clear setup state, not a
+fake connected call. Configuring Africa’s Talking IVR alone does not fill these
+LiveKit/SIP fields. No provider account or paid service is provisioned by this
+change. See [LiveKit outbound calling](https://docs.livekit.io/telephony/making-calls/outbound-calls/).
+
+Call preparation creates a private room and history record but does not dial.
+The agent joins and publishes their microphone first; the server verifies that
+audio participant before atomically claiming the telephone leg. A retry cannot
+dial the same call twice. Status follows the SIP participant's answer/hangup,
+and End call deletes the room to stop both legs. The call is scoped to its
+owning agent and stored conversation number. Ringing is limited to 60 seconds
+and a telephone leg to one hour. Page exit makes a best-effort hangup; an abrupt
+network/device loss still requires normal provider monitoring. No real phone
+calls are placed by the mocked regression tests.
+
+The desktop details panel separates contact information, AI/ticket/activity
+status, and actions into readable cards. Background message polling no longer
+replaces the thread with a spinner. It merges rows in place, preserves pending
+sends and per-conversation drafts, ignores late responses for another thread,
+retains messages on network errors, and follows new messages only when the
+agent is near the bottom. The messages API loads the latest 100 rows rather
+than repeatedly returning the first 100 rows of a long conversation.
+
 ## Release requirements
 
 - Deploy/restart Next.js so `Permissions-Policy` changes to

@@ -57,6 +57,7 @@ export function resendPayloadFromLog(log: Pick<EmailLogRow, "metadata"> | null |
       from: optional(candidate.from),
       replyTo: optional(candidate.replyTo),
       route: optional(candidate.route),
+      useRouteRecipients: typeof candidate.useRouteRecipients === "boolean" ? candidate.useRouteRecipients : undefined,
       skipBranding: candidate.skipBranding === true,
     },
   }
@@ -73,6 +74,7 @@ export function messageFromPayload(payload: ResendPayload): EmailMessage {
     from: payload.from || undefined,
     replyTo: payload.replyTo || undefined,
     route: payload.route || undefined,
+    useRouteRecipients: payload.useRouteRecipients,
     skipBranding: payload.skipBranding,
   }
 }

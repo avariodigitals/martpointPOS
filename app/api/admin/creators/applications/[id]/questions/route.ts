@@ -31,6 +31,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const reminderSchema = z.object({ action: z.literal("REMIND"), roundId: z.string().uuid() })
   const schema = z.object({
     title: z.string().trim().max(200).optional().default("Additional Questions"),
+    emailSubject: z.string().trim().max(200).optional(),
+    emailIntro: z.string().trim().max(8000).optional(),
     fields: z.array(questionnaireFieldSchema).min(1).max(30),
   })
   const body = await request.json().catch(() => null)
@@ -55,6 +57,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid questions" }, { status: 400 })
   const result = await sendApplicationQuestionRound({
     applicationId: id, title: parsed.data.title, fields: parsed.data.fields as QuestionnaireField[],
+    emailSubject: parsed.data.emailSubject, emailIntro: parsed.data.emailIntro,
     actorId: auth.session.userId, actorName: auth.session.name || auth.session.username, origin: new URL(request.url).origin,
   })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })

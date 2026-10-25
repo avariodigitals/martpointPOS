@@ -8,23 +8,9 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, MessageCircle, Save as SaveIcon, Plus, Trash2 } from "lucide-react"
-
-type VoiceDepartmentForm = {
-  digit: string
-  label: string
-  primary: string
-  fallback: string
-  enabled: boolean
-}
-
-function firstAvailableDepartmentDigit(departments: VoiceDepartmentForm[]): number | null {
-  const used = new Set(departments.map((department) => Number(department.digit)).filter((digit) => Number.isInteger(digit)))
-  for (let digit = 1; digit <= 8; digit += 1) {
-    if (!used.has(digit)) return digit
-  }
-  return null
-}
+import { Loader2, Save, MessageCircle, Save as SaveIcon } from "lucide-react"
+import { VoiceDepartmentsEditor } from "@/components/admin/voice-departments-editor"
+import { departmentFallbacks, type VoiceDepartmentForm } from "@/lib/voice-department-form"
 
 interface AzeraSettings {
   widget_enabled: boolean
@@ -160,6 +146,7 @@ export default function AzeraSettingsPage() {
                 : Array.from({ length: 8 }, (_, offset) => offset + 1).find((candidate) => !usedDigits.has(candidate)) || ""
               if (digit) usedDigits.add(Number(digit))
               return {
+                id: crypto.randomUUID(),
                 digit: String(digit),
                 label: department.label || "",
                 primary: department.primary || department.numbers?.[0] || "",
@@ -221,7 +208,7 @@ export default function AzeraSettingsPage() {
           if (!Number.isInteger(digit) || digit < 1 || digit > 8 || seenDigits.has(digit)) throw new Error("Department digits must be unique numbers from 1 to 8. Digit 9 repeats the menu.")
           seenDigits.add(digit)
           const primary = department.primary.trim()
-          const fallback = department.fallback.split(",").map((value) => value.trim()).filter(Boolean)
+          const fallback = departmentFallbacks(department.fallback)
           if (!department.label.trim() || !primary) throw new Error("Each enabled department needs a name and primary destination.")
           return {
             digit,
@@ -282,7 +269,7 @@ export default function AzeraSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6 [&_input]:min-w-0 [&_input]:max-w-full [&_select]:min-w-0 [&_textarea]:min-w-0 [&_code]:break-all">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <MessageCircle className="w-5 h-5 text-retail" />
@@ -300,7 +287,7 @@ export default function AzeraSettingsPage() {
         </p>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-6 md:grid-cols-2 xl:grid-cols-3 [&>div]:min-w-0">
         {/* Widget Settings */}
         <Card>
           <CardHeader>
@@ -585,7 +572,7 @@ export default function AzeraSettingsPage() {
         </Card>
 
         {/* SIP / Phone Settings */}
-        <Card>
+        <Card className="min-w-0 md:col-span-2 xl:col-span-3">
           <CardHeader>
             <CardTitle className="text-sm font-medium">Phone Calls (SIP)</CardTitle>
           </CardHeader>
@@ -715,85 +702,12 @@ export default function AzeraSettingsPage() {
                     />
                     <p className="text-xs text-muted-foreground">Used when every destination in the selected department is already handling another call.</p>
                   </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 cursor-pointer text-sm">
-                      <input
-                        type="checkbox"
-                        checked={form.voice_menu_enabled}
-                        onChange={(e) => setForm({ ...form, voice_menu_enabled: e.target.checked })}
-                        className="rounded border-retail text-retail focus:ring-retail"
-                      />
-                      Enable department menu (caller presses 1–8; 9 repeats)
-                    </label>
-                    <div className="space-y-2">
-                      {form.voice_departments.map((department, index) => (
-                        <div key={`${department.digit}-${index}`} className="rounded-md border border-border/60 p-3 space-y-2">
-                          <div className="grid gap-2 md:grid-cols-[64px_1fr_1fr]">
-                            <input
-                              value={department.digit}
-                              onChange={(e) => setForm({ ...form, voice_departments: form.voice_departments.map((item, itemIndex) => itemIndex === index ? { ...item, digit: e.target.value } : item) })}
-                              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              inputMode="numeric"
-                              aria-label="Keypad digit"
-                              placeholder="1"
-                            />
-                            <input
-                              value={department.label}
-                              onChange={(e) => setForm({ ...form, voice_departments: form.voice_departments.map((item, itemIndex) => itemIndex === index ? { ...item, label: e.target.value } : item) })}
-                              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="Sales / demos"
-                              aria-label="Department name"
-                            />
-                            <input
-                              value={department.primary}
-                              onChange={(e) => setForm({ ...form, voice_departments: form.voice_departments.map((item, itemIndex) => itemIndex === index ? { ...item, primary: e.target.value } : item) })}
-                              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="Primary phone or SIP destination"
-                              aria-label="Primary destination"
-                            />
-                          </div>
-                          <div className="flex gap-2 items-center">
-                            <input
-                              value={department.fallback}
-                              onChange={(e) => setForm({ ...form, voice_departments: form.voice_departments.map((item, itemIndex) => itemIndex === index ? { ...item, fallback: e.target.value } : item) })}
-                              className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="Fallback number or SIP destination (optional; comma-separated)"
-                              aria-label="Fallback destinations"
-                            />
-                            <label className="flex items-center gap-1 text-xs whitespace-nowrap">
-                              <input
-                                type="checkbox"
-                                checked={department.enabled}
-                                onChange={(e) => setForm({ ...form, voice_departments: form.voice_departments.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: e.target.checked } : item) })}
-                              />
-                              Enabled
-                            </label>
-                            <Button type="button" variant="ghost" size="icon" onClick={() => setForm({ ...form, voice_departments: form.voice_departments.filter((_, itemIndex) => itemIndex !== index) })} aria-label="Remove department">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={!firstAvailableDepartmentDigit(form.voice_departments)}
-                        onClick={() => {
-                          const digit = firstAvailableDepartmentDigit(form.voice_departments)
-                          if (digit) setForm({ ...form, voice_departments: [...form.voice_departments, { digit: String(digit), label: "", primary: "", fallback: "", enabled: true }] })
-                        }}
-                      >
-                        <Plus className="w-4 h-4 mr-1" /> Add department
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Use international phone numbers or Africa&apos;s Talking SIP destinations. Digit 9 is reserved for repeating the menu. The primary destination is tried before its optional fallback.
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      For sales softphones, request/map SIP destinations with Africa&apos;s Talking and configure each agent in Zoiper, Linphone, or another SIP app using the credentials they provide.
-                    </p>
-                  </div>
+                  <VoiceDepartmentsEditor
+                    departments={form.voice_departments}
+                    menuEnabled={form.voice_menu_enabled}
+                    onChange={(voice_departments) => setForm((current) => ({ ...current, voice_departments }))}
+                    onMenuChange={(voice_menu_enabled) => setForm((current) => ({ ...current, voice_menu_enabled }))}
+                  />
                   <div className="grid gap-3 md:grid-cols-2 pt-2 border-t border-border/50">
                     <div className="space-y-2">
                       <label className="text-xs font-medium">Timezone</label>

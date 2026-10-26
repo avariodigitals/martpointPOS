@@ -7,6 +7,7 @@ import {
 import { importAfricaCallRecording } from "@/lib/africa-call-recording";
 import { africaBrowserDestination, browserCallerIdentity, preparedAfricaOutbound } from "@/lib/africa-browser-routing";
 import { normalizeOutboundPhone } from "@/lib/azera-outbound";
+import { departmentMenuAction, splitVoiceMenuGreeting } from "@/lib/africa-voice-menu";
 import { POST as receiveVoiceEvent } from "@/app/api/africastalking/voice/events/route";
 import {
   callbackSecretIsValid,
@@ -25,6 +26,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const MENU_AFTER_CONSENT = "__department_menu__";
 
 function isoOrNull(value: string): string | null {
   if (!value || value.toLowerCase() === "none") return null;
@@ -40,15 +42,13 @@ function sayOrPlay(text: string, audioUrl: string): string {
   return audioUrl ? `<Play url="${xmlEscape(audioUrl)}"/>` : say(text);
 }
 
-function digitsAction(request: Request, prompt: string, audioUrl = ""): string {
-  // Keep the secret query parameter on the callback used for the next digit.
-  return `<GetDigits numDigits="1" timeout="8" finishOnKey="#" callbackUrl="${xmlEscape(request.url)}">${sayOrPlay(prompt, audioUrl)}</GetDigits>`;
-}
-
 function callbackUrl(request: Request, path: string): string {
   const url = new URL(request.url);
   url.pathname = path;
   url.searchParams.delete("stage");
+  url.searchParams.delete("menu-attempt");
+  url.searchParams.delete("menu-timeout");
+  url.searchParams.delete("consent-timeout");
   if (path.endsWith("/recording")) url.searchParams.set("kind", "voicemail");
   return url.toString();
 }
@@ -160,8 +160,11 @@ export async function POST(request: Request): Promise<Response> {
   const eventRequest = request.clone();
   const { rawBody, payload } = await readAfricaRequest(request);
   const rawCaller = pick(payload, "callerNumber", "caller", "from");
-  const actionStage = new URL(request.url).searchParams.get("stage");
-  const consentTimeout = new URL(request.url).searchParams.get("consent-timeout") === "1";
+  const requestUrl = new URL(request.url);
+  const actionStage = requestUrl.searchParams.get("stage");
+  const consentTimeout = requestUrl.searchParams.get("consent-timeout") === "1";
+  const menuTimeout = actionStage === "department-menu" && requestUrl.searchParams.get("menu-timeout") === "1";
+  const callbackMenuAttempt = requestUrl.searchParams.get("menu-attempt");
   const dtmfDigits = pick(payload, "dtmfDigits", "digits", "userInput", "input")
     .replace(/[^0-9*#]/g, "")
     .slice(0, 1);
@@ -278,19 +281,23 @@ export async function POST(request: Request): Promise<Response> {
 
     const config = await getAfricaVoiceConfig(businessId);
     const departments = config.departments.slice(0, 8);
+    const menuParts = splitVoiceMenuGreeting(config.greeting);
+    const optionsPrompt = menuParts.options || menuPrompt("", departments).trim();
+    const menuText = config.recordCalls && existing?.recording_choice
+      ? optionsPrompt : menuPrompt(config.greeting, departments);
     // Browser phones are tried before the configured phone/SIP fallbacks.
     // Reserve atomically only once a department/route has been selected.
     const withBrowser = async (targets: string[], department = "default") => {
       const browser = await africaBrowserDestination(callId!, businessId, department);
       return browser ? [browser, ...targets.filter(target => target !== browser)] : targets;
     };
-    const requestConsent = async (department: string) => {
+    const requestConsent = async (department: string, greeting: string[] = []) => {
       const { error } = await supabase.from("azera_calls")
         .update({ selected_department: department, recording_consent_requested_at: now, recording_notice: config.recordingNotice, updated_at: now })
         .eq("id", callId).is("recording_choice", null).is("recording_consent_requested_at", null);
       if (error) throw new Error("Could not save the pending recording choice");
       await finishAfricaWebhookEvent(webhookEventId, "processed");
-      return voiceXml([recordingConsentAction(request.url, config.recordingNotice)]);
+      return voiceXml([...greeting, recordingConsentAction(request.url, config.recordingNotice)]);
     };
     const open = isVoiceBusinessOpen(
       config.timezone,
@@ -329,11 +336,24 @@ export async function POST(request: Request): Promise<Response> {
       await finishAfricaWebhookEvent(webhookEventId, "processed");
       return voiceXml([]);
     }
+    // An old menu action cannot become recording consent or replace a selected
+    // route. Delayed callbacks from earlier prompt attempts must not advance it.
+    if (actionStage === "department-menu" &&
+        (existing?.selected_department || (callbackMenuAttempt !== null && Number(callbackMenuAttempt) !== menuAttempts))) {
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml([]);
+    }
     // The stored stage is authoritative even when the provider returns digit
     // callbacks to the number's default URL rather than the action URL.
     const awaitingConsent = Boolean(existing?.recording_consent_requested_at && !existing.recording_choice);
+    // A replayed consent digit must never become a department choice, or reset
+    // the menu after the caller already made their recording decision.
+    if (actionStage === "recording-consent" && existing?.recording_choice && menuAttempts > 0 && !existing.selected_department) {
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml([departmentMenuAction(request.url, optionsPrompt, "", menuAttempts)]);
+    }
     const consentRoute = actionStage === "recording-consent" || awaitingConsent ||
-      Boolean(existing?.recording_consent_requested_at && existing.recording_choice);
+      Boolean(existing?.recording_consent_requested_at && existing.recording_choice && existing.selected_department);
     if (consentRoute) {
       const pendingAge = existing?.recording_consent_requested_at
         ? Date.now() - Date.parse(existing.recording_consent_requested_at) : Infinity;
@@ -372,6 +392,15 @@ export async function POST(request: Request): Promise<Response> {
         accepted = config.recordCalls && winner.recording_choice === "accepted" && Boolean(winner.recording_consent_at);
       }
       const selected = existing?.selected_department;
+      if (selected === MENU_AFTER_CONSENT) {
+        // Consent is a distinct step. Its 1/2 is consumed here, not reused as
+        // Sales/Support; the next callback starts the department selection.
+        const { error } = await supabase.from("azera_calls")
+          .update({ selected_department: null, menu_attempts: 1, updated_at: now }).eq("id", callId);
+        if (error) throw new Error("Could not start the department menu");
+        await finishAfricaWebhookEvent(webhookEventId, "processed");
+        return voiceXml([departmentMenuAction(request.url, optionsPrompt, "", 1)]);
+      }
       let targets =
         selected === "after-hours"
           ? [config.afterHoursDestination].filter(Boolean)
@@ -388,7 +417,7 @@ export async function POST(request: Request): Promise<Response> {
       await recordAttempts(callId, businessId, selected || null, targets, now);
       await finishAfricaWebhookEvent(webhookEventId, "processed");
       return voiceXml([
-        say(config.connectingGreeting),
+        sayOrPlay(config.connectingGreeting, config.connectingAudioUrl),
         recordedDialAction(
           targets,
           config.phoneNumber || destination,
@@ -408,10 +437,12 @@ export async function POST(request: Request): Promise<Response> {
       );
     const consentRequired = config.recordCalls && !existing?.recording_choice;
 
-    if (!open) {
+    // Once the working-hours menu has started, finish that journey even if the
+    // clock crosses closing time while the caller is choosing a department.
+    if (!open && menuAttempts === 0) {
       if (config.afterHoursDestination) {
         if (consentRequired) {
-          return requestConsent("after-hours");
+          return requestConsent("after-hours", [sayOrPlay(config.afterHoursGreeting, config.afterHoursAudioUrl)]);
         }
         await recordAttempts(
           callId,
@@ -479,41 +510,52 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
+    if (config.menuEnabled && departments.length && consentRequired && menuAttempts === 0 &&
+        !existing?.selected_department && !dtmfDigits && actionStage !== "department-menu") {
+      // Working-hours journey: welcome -> recording choice -> department ->
+      // connection. A combined legacy welcome/menu is split at its options.
+      return requestConsent(MENU_AFTER_CONSENT, [say(menuParts.introduction)]);
+    }
+
     if (config.menuEnabled && departments.length) {
-      const prompt = menuPrompt(config.greeting, departments);
-      const digit = Number(dtmfDigits);
+      const prompt = menuText;
+      // A timeout Redirect can retain the previous request's digit in the body.
+      const menuDigits = menuTimeout ? "" : dtmfDigits;
+      const digit = Number(menuDigits);
 
       if (
         digit === 9 ||
-        !dtmfDigits ||
+        !menuDigits ||
         !departments.some((department) => department.digit === digit)
       ) {
-        const nextAttempts = menuAttempts + 1;
-        await supabase
-          .from("azera_calls")
-          .update({ menu_attempts: nextAttempts, updated_at: now })
-          .eq("id", callId);
-        const canRetry =
-          digit === 9
-            ? nextAttempts <= 3
-            : nextAttempts <= config.menuRetryLimit;
-        if (canRetry) {
+        const firstPrompt = menuAttempts === 0 && actionStage !== "department-menu";
+        const promptReplay = menuAttempts > 0 && !menuDigits && actionStage !== "department-menu";
+        if (promptReplay) {
           await finishAfricaWebhookEvent(webhookEventId, "processed");
-          const retryPrompt =
-            digit === 9
-              ? prompt
-              : `${dtmfDigits ? "That is not a valid selection. " : "We did not receive a selection. "}${prompt}`;
+          return voiceXml([departmentMenuAction(request.url, prompt, config.recordCalls && existing?.recording_choice ? "" : config.greetingAudioUrl, menuAttempts)]);
+        }
+        const nextAttempts = menuAttempts + 1;
+        // menu_attempts counts prompts delivered. The initial welcome is not a
+        // failed attempt and does not consume the configured retry allowance.
+        const canRetry = firstPrompt || (digit === 9 ? nextAttempts <= 4 : nextAttempts <= 1 + config.menuRetryLimit);
+        if (canRetry) {
+          await supabase
+            .from("azera_calls")
+            .update({ menu_attempts: nextAttempts, updated_at: now })
+            .eq("id", callId);
+          await finishAfricaWebhookEvent(webhookEventId, "processed");
+          const retryPrefix = firstPrompt || digit === 9 ? "" : menuDigits ? "That is not a valid selection. " : "We did not receive a selection. ";
+          // A configured audio file replaces only the menu itself, never the
+          // retry explanation. Do not silently discard the prefix on audio.
           return voiceXml([
-            digitsAction(
-              request,
-              retryPrompt,
-              digit === 9 ? "" : config.greetingAudioUrl,
-            ),
+            ...(retryPrefix ? [say(retryPrefix)] : []),
+            departmentMenuAction(request.url, prompt, config.recordCalls && existing?.recording_choice ? "" : config.greetingAudioUrl, nextAttempts),
           ]);
         }
 
         const retryTargets = await withBrowser(config.forwardNumbers);
         if (retryTargets.length) {
+          if (consentRequired) return requestConsent("default");
           await recordAttempts(
             callId,
             businessId,
@@ -527,7 +569,7 @@ export async function POST(request: Request): Promise<Response> {
             .eq("id", callId);
           await finishAfricaWebhookEvent(webhookEventId, "processed");
           return voiceXml([
-            say(config.connectingGreeting),
+            sayOrPlay(config.connectingGreeting, config.connectingAudioUrl),
             dialAction(
               retryTargets,
               config.phoneNumber || destination,
@@ -600,7 +642,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     if (consentRequired) {
-      return requestConsent("default");
+      return requestConsent("default", [sayOrPlay(config.greeting, config.greetingAudioUrl)]);
     }
     await recordAttempts(callId, businessId, null, defaultTargets, now);
     await finishAfricaWebhookEvent(webhookEventId, "processed");

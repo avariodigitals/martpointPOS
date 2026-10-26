@@ -35,4 +35,13 @@ describe("Durable keypad callback diagnostics", () => {
     expect(mocks.rows[0].dedupe_key).not.toBe(mocks.rows[1].dedupe_key);
     expect(String(mocks.rows[1].dedupe_key)).not.toContain("secret=");
   });
+  it("keeps each explicit menu timeout attempt separate in diagnostics", async () => {
+    const first = input("", "department-menu");
+    first.request = new Request(first.request.url + "&menu-attempt=1&menu-timeout=1");
+    const second = input("", "department-menu");
+    second.request = new Request(second.request.url + "&menu-attempt=2&menu-timeout=1");
+    await storeAfricaWebhookEvent(first); await storeAfricaWebhookEvent(second);
+    expect(mocks.rows[0].dedupe_key).not.toBe(mocks.rows[1].dedupe_key);
+    expect(mocks.rows[1].payload).toMatchObject({ _martpoint_callback: { menu_attempt: "2", menu_timeout: true } });
+  });
 });

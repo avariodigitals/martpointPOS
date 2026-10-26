@@ -119,3 +119,53 @@ Migration 137 adds authenticated receiving phones in the admin header. See
 department mapping and the required live acceptance checks. Provider activation,
 production dashboard configuration and two-way audio still require verification.
 Do not confuse this telephone route with website-to-agent Cloudflare audio.
+# Header dial pad and creator calling
+
+Authorised Azera staff can open the **phone icon in the admin header → Make a
+call**, type a full phone number, check the displayed number and press **Call
+number**. Nigerian 11-digit `080…` numbers are normalised to `+234…`; other
+destinations should include their country code. This uses Africa’s Talking
+browser audio, not the operating system's telephone/FaceTime handler.
+
+Creator profiles and creator applications have **Call creator**. This opens the
+same persistent header phone with the creator selected; it does not immediately
+call them. Press Call after checking the contact. The server reloads the saved
+phone number and requires both Azera and creator-view permissions. Missing or
+removed creator records cannot be called by that action. There is no requirement
+to create a chat conversation first, and the call does not manufacture one.
+
+Manual and creator calls use the configured MartPoint virtual number/business
+mapping, never a browser-supplied tenant or caller ID. Source record IDs are
+stored in call events, and call history retains the agent, number and outcome.
+The existing provider callback binds a prepared call to its stored destination.
+Cloudflare and LiveKit are not required for this dial-pad path. Voice/WebRTC
+activation, account balance and provider destination restrictions still apply.
+
+Only one live call per staff member is permitted. The incoming browser phone
+pauses for outbound calls and resumes after end-state persistence. Cross-origin
+preparations are rejected. Preparation is rate-limited to 20 attempts per
+hour/user/IP through the existing rate limiter (distributed when Redis is
+configured); this is not a guaranteed financial spending cap. Existing database
+call-concurrency migrations remain required; no new migration is introduced.
+
+Before calling clients, make one authorised test call: confirm the destination
+rings, caller ID, two-way microphone/audio, mute, hold, keypad and hang-up from
+both ends, then inspect call reports and provider events. Automated SDK mocks
+and successful builds do not constitute live carrier/audio verification.
+
+Authentication was checked on 26 October 2026 after correcting the saved
+application username: the AT capability endpoint returned HTTP 201 and issued a
+token. This verifies API authentication only, not ringing or two-way audio.
+
+Browser-call preparation now reads the current saved credentials directly from
+the database instead of the one-hour website settings cache. Saving credentials
+on production cannot invalidate a separate local/preview cache; using cached
+credentials was reproducing authentication failures after a correct save.
+
+One authorised live outbound test on 26 October 2026 subsequently rang the
+recipient's phone, and the recipient confirmed answering. Call history recorded
+the provider session, answered time, terminal `ended` state and 24-second talk
+duration. The test was ended and not repeated. This establishes ringing,
+answering and hang-up/history, not two-way human audio, caller-ID display,
+hold/mute/DTMF quality or every destination. This staff browser dialler does not
+automatically start the separate AI voice agent or speak on the staff's behalf.

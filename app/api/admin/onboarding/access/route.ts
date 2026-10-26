@@ -8,7 +8,7 @@ import type { EmailAttachment } from "@/lib/email"
 import { renderEmailTemplate, brandedEmailHtml, getEmailWhiteLogoUrl } from "@/lib/email-templates"
 import { markAccessSent, startCheckins } from "@/lib/client-checkins"
 import { getClientCheckinConfig } from "@/lib/automations"
-import { accessEmailText, recipientEmails } from "@/lib/access-email"
+import { accessEmailText, recipientEmails, accessLink, accessMessageLinks } from "@/lib/access-email"
 
 async function guardOnboardingAccess() {
   const session = await getSession()
@@ -22,6 +22,30 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
 
+export async function GET(request: Request) {
+  const denied = await guardOnboardingAccess()
+  if (denied) return denied
+  if (!isSupabaseConfigured()) return NextResponse.json({ error: "Database unavailable" }, { status: 503 })
+  const id = new URL(request.url).searchParams.get("recordId")
+  if (!id) return NextResponse.json({ error: "Choose an onboarding record" }, { status: 400 })
+  try {
+    const { data: record, error } = await supabase.from("onboarding").select("id,business_id,lead_id").eq("id", id).single()
+    if (error || !record) return NextResponse.json({ error: "Onboarding record not found" }, { status: 404 })
+    let businessId = record.business_id
+    if (!businessId && record.lead_id) {
+      const result = await supabase.from("businesses").select("id").eq("source_lead_id", record.lead_id).maybeSingle()
+      if (result.error) throw new Error("Business lookup failed")
+      businessId = result.data?.id
+    }
+    if (!businessId) return NextResponse.json({ softwareUrl: "", onlineStoreUrl: "" }, { headers: { "Cache-Control": "private, no-store" } })
+    const result = await supabase.from("business_deployments").select("admin_url,online_store_url").eq("business_id", businessId).maybeSingle()
+    if (result.error) throw new Error("Deployment lookup failed")
+    return NextResponse.json({ softwareUrl: result.data?.admin_url || "", onlineStoreUrl: result.data?.online_store_url || "" }, { headers: { "Cache-Control": "private, no-store" } })
+  } catch {
+    return NextResponse.json({ error: "Could not load deployment links. Enter and confirm the actual login address manually." }, { status: 503 })
+  }
+}
+
 export async function POST(request: Request) {
   const denied = await guardOnboardingAccess()
   if (denied) return denied
@@ -31,11 +55,11 @@ export async function POST(request: Request) {
     const {
       recordId,
       recipients,
-      softwareUrl,
+      softwareUrl: rawSoftwareUrl,
       adminUsername,
       tempPassword,
-      onlineStoreUrl,
-      supportGroupUrl,
+      onlineStoreUrl: rawOnlineStoreUrl,
+      supportGroupUrl: rawSupportGroupUrl,
       supportContact,
       trainingSchedule,
       attachStoreQr,
@@ -45,10 +69,20 @@ export async function POST(request: Request) {
       message,
       subject,
       additionalNote,
+      linksConfirmed,
     } = body
 
-    if ([recordId, softwareUrl, adminUsername, tempPassword].some((value) => typeof value !== "string" || !value.trim() || value.length > 2048)) {
+    if ([recordId, rawSoftwareUrl, adminUsername, tempPassword].some((value) => typeof value !== "string" || !value.trim() || value.length > 2048)) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+    if (linksConfirmed !== true) return NextResponse.json({ error: "Open and confirm the business login link before sending access details." }, { status: 400 })
+    let softwareUrl: string, onlineStoreUrl: string, supportGroupUrl: string
+    try {
+      softwareUrl = accessLink(rawSoftwareUrl)
+      onlineStoreUrl = accessLink(rawOnlineStoreUrl, "online store URL", true)
+      supportGroupUrl = accessLink(rawSupportGroupUrl, "support group URL", true)
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Check access links" }, { status: 400 })
     }
     if (recipients !== undefined && typeof recipients !== "string") {
       return NextResponse.json({ error: "Enter a recipient email address." }, { status: 400 })
@@ -97,7 +131,7 @@ export async function POST(request: Request) {
     })
 
     const emailSubject = subject?.trim() || accessTpl.subject
-    const baseMessage = message || accessTpl.text
+    const baseMessage = accessMessageLinks(message || accessTpl.text, softwareUrl, record.access_details?.softwareUrl || "", onlineStoreUrl, record.access_details?.onlineStoreUrl || "")
     const emailText = accessEmailText(baseMessage, additionalNote)
 
     // Build attachment list: uploaded kit files + generated QR codes

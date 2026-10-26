@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Phone } from "lucide-react"
+import { ArrowRight, FileText } from "lucide-react"
 
 export function DemoCTA() {
   return (
@@ -22,9 +22,9 @@ export function DemoCTA() {
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <Link href="/contact">
-                <Phone className="mr-2 h-4 w-4" />
-                Talk to Sales
+              <Link href="/request-quote">
+                <FileText className="mr-2 h-4 w-4" />
+                Request a Quote
               </Link>
             </Button>
           </div>

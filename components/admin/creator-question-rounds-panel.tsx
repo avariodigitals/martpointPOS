@@ -1,9 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, MessageSquareQuote, Plus, Sparkles, Trash2, Paperclip, Send } from "lucide-react"
+import { Loader2, MessageSquareQuote, Plus, Sparkles, Trash2, Paperclip, Send, RefreshCw } from "lucide-react"
 
 interface DraftField {
   key: string
@@ -95,6 +95,9 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
   const [message, setMessage] = useState("")
   const [openSent, setOpenSent] = useState<Record<string, boolean>>({})
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState("")
+  const [checkedAt, setCheckedAt] = useState<string | null>(null)
+  const loadingRef = useRef<AbortSignal | null>(null)
 
   async function copyAnswerLink(round: Round) {
     const url = `${publicSiteUrl || window.location.origin}/creator/questions/${round.token}`
@@ -107,18 +110,48 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
     }
   }
 
-  const load = useCallback(() => {
-    return fetch(`/api/admin/creators/applications/${applicationId}/questions`)
-      .then((r) => r.json())
-      .then((d) => {
-        setRounds(d.rounds || [])
-        setSamplePacks(d.samplePacks || [])
-        setPublicSiteUrl(d.publicSiteUrl || "")
-      })
-      .finally(() => setLoading(false))
+  const load = useCallback(async (signal?: AbortSignal) => {
+    if (loadingRef.current && !loadingRef.current.aborted) return
+    const requestSignal = signal || new AbortController().signal
+    loadingRef.current = requestSignal
+    try {
+      const res = await fetch(`/api/admin/creators/applications/${applicationId}/questions`, { cache: "no-store", signal: requestSignal })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Could not load question replies")
+      if (requestSignal.aborted) return
+      setRounds(data.rounds || [])
+      setSamplePacks(data.samplePacks || [])
+      setPublicSiteUrl(data.publicSiteUrl || "")
+      setLoadError("")
+      setCheckedAt(new Date().toISOString())
+    } catch (error) {
+      if (!requestSignal.aborted) setLoadError(error instanceof Error ? error.message : "Could not refresh question replies")
+    } finally {
+      if (loadingRef.current === requestSignal) loadingRef.current = null
+      if (!requestSignal.aborted) setLoading(false)
+    }
   }, [applicationId])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    const controller = new AbortController()
+    const refresh = () => { if (document.visibilityState !== "hidden") void load(controller.signal) }
+    refresh()
+    const timer = window.setInterval(refresh, 30_000)
+    window.addEventListener("focus", refresh)
+    document.addEventListener("visibilitychange", refresh)
+    return () => {
+      controller.abort()
+      window.clearInterval(timer)
+      window.removeEventListener("focus", refresh)
+      document.removeEventListener("visibilitychange", refresh)
+    }
+  }, [load])
+
+  useEffect(() => {
+    if (!loading && window.location.hash === "#questions") {
+      document.getElementById("questions")?.scrollIntoView({ block: "start" })
+    }
+  }, [loading])
 
   const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(""), 6000) }
 
@@ -219,9 +252,9 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
   }
 
   return (
-    <Card>
+    <Card id="questions" className="min-w-0 scroll-mt-28">
       <CardHeader>
-        <CardTitle className="text-sm flex items-center justify-between">
+        <CardTitle className="text-sm flex flex-wrap items-center justify-between gap-2">
           <span className="flex items-center gap-2"><MessageSquareQuote className="w-4 h-4 text-retail" /> Additional Questions</span>
           {!composing && (
               <Button size="sm" variant="outline" onClick={() => { setComposing(true); setTitle("Additional Questions"); setEmailSubject(""); setEmailIntro(""); setDraftFields([newDraftField()]) }}>
@@ -231,25 +264,31 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <p>Replies and files appear here after submission. Checks every 30 seconds{checkedAt ? ` · ${new Date(checkedAt).toLocaleTimeString("en-GB", { timeZone: "Africa/Lagos" })} WAT` : ""}.</p>
+          <Button type="button" size="sm" variant="ghost" onClick={() => { void load() }}><RefreshCw className="mr-1 h-3.5 w-3.5" />Refresh replies</Button>
+        </div>
+        {loadError && <p role="alert" className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">{loadError}. Please refresh replies. Previously loaded results may be out of date.</p>}
+        {rounds.some((round) => round.status === "Submitted") && <p role="status" className="rounded-md bg-amber-50 p-3 text-sm font-medium text-amber-900">{rounds.filter((round) => round.status === "Submitted").length} question {rounds.filter((round) => round.status === "Submitted").length === 1 ? "round needs" : "rounds need"} review. Read the answers and attachments below, then mark reviewed.</p>}
         {loading && <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>}
         {!loading && message && <p className="rounded-md bg-muted px-3 py-2 text-xs">{message}</p>}
 
-        {!loading && rounds.length === 0 && !composing && (
+        {!loading && !loadError && rounds.length === 0 && !composing && (
           <p className="text-sm text-muted-foreground">No questions sent yet. Ask follow-ups before the interview — applicants can attach screenshots and documents.</p>
         )}
 
         {rounds.map((round) => {
           const latestEmailAttempt = round.email_attempts?.[0]
           return (
-          <div key={round.id} className="rounded-lg border p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium">{round.title}</p>
-              <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${STATUS_BADGE[round.status] || "bg-muted"}`}>{round.status}</span>
+          <div key={round.id} className="min-w-0 rounded-lg border p-3 space-y-2">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="min-w-0 break-words text-sm font-medium">{round.title}</p>
+              <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${STATUS_BADGE[round.status] || "bg-muted"}`}>{round.status === "Submitted" ? "Reply needs review" : round.status === "Sent" ? "Awaiting reply" : "Reviewed"}</span>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Sent {round.sent_at ? new Date(round.sent_at).toLocaleString("en-GB") : "—"}
-              {round.submitted_at ? ` · answered ${new Date(round.submitted_at).toLocaleString("en-GB")}` : ""}
-              {round.reviewed_at ? ` · reviewed ${new Date(round.reviewed_at).toLocaleString("en-GB")}` : ""}
+              Sent {round.sent_at ? new Date(round.sent_at).toLocaleString("en-GB", { timeZone: "Africa/Lagos" }) : "—"}
+              {round.submitted_at ? ` · answered ${new Date(round.submitted_at).toLocaleString("en-GB", { timeZone: "Africa/Lagos" })}` : ""}
+              {round.reviewed_at ? ` · reviewed ${new Date(round.reviewed_at).toLocaleString("en-GB", { timeZone: "Africa/Lagos" })}` : ""} WAT
             </p>
             {round.email_subject && <p className="break-words text-[11px] text-muted-foreground"><span className="font-semibold text-foreground">Email subject:</span> {round.email_subject}</p>}
             {round.status === "Sent" && (
@@ -276,7 +315,7 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
                     The latest email attempt failed. Share the link directly or try a reminder.
                   </p>
                 )}
-                <Button size="sm" variant="ghost" className="h-auto p-0 text-xs font-semibold uppercase text-muted-foreground" onClick={() => setOpenSent((c) => ({ ...c, [round.id]: !c[round.id] }))}>
+                <Button size="sm" variant="ghost" className="h-auto p-0 text-xs font-semibold text-muted-foreground" onClick={() => setOpenSent((c) => ({ ...c, [round.id]: !c[round.id] }))}>
                   {openSent[round.id] ? "Hide" : "Show"} questions sent ({round.fields.length})
                 </Button>
                 {openSent[round.id] && (
@@ -307,7 +346,7 @@ export function CreatorQuestionRoundsPanel({ applicationId, onSent }: { applicat
             {round.status !== "Sent" && (
               <div className="space-y-2.5 border-t pt-2">
                 {round.fields.map((field) => (
-                  <div key={field.name}>
+                  <div key={field.name} className="min-w-0 break-words">
                     <p className="text-xs font-medium text-muted-foreground">{field.label}</p>
                     {renderAnswer(field, round.responses?.[field.name])}
                   </div>

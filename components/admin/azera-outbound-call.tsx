@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Mic,
   MicOff,
@@ -13,11 +14,13 @@ import {
 } from "lucide-react";
 import type { PhoneCallSnapshot } from "@/lib/azera-phone-call";
 import { AfricaBrowserCall } from "@/lib/africa-browser-call";
+import type { BrowserPhoneTarget } from "@/lib/browser-phone-target";
 
 export interface OutboundContact {
   id: string;
   name: string;
   phone: string;
+  target?: BrowserPhoneTarget;
 }
 export function AzeraOutboundCall({
   contact,
@@ -49,22 +52,27 @@ export function AzeraOutboundCall({
     let closed = false;
     const abort = new AbortController();
     void (async () => {
+      // React's development Strict Mode mounts/cleans a probe effect. Let that
+      // cleanup finish before acquiring the phone lock or asking for a mic.
+      await Promise.resolve();
+      if (closed) return;
       let selfHosted = false;
-      try {
-        const response = await fetch("/api/azera/calls/outbound", {
-          cache: "no-store",
-          signal: abort.signal,
-        });
-        selfHosted = response.ok && (await response.json()).ready === true;
-      } catch {
-        /* Keep the existing Africa's Talking browser dialler. */
+      if (!contact.target) {
+        try {
+          const response = await fetch("/api/azera/calls/outbound", {
+            cache: "no-store",
+            signal: abort.signal,
+          });
+          selfHosted = response.ok && (await response.json()).ready === true;
+        } catch {
+          /* Keep the existing Africa's Talking browser dialler. */
+        }
       }
       if (closed) return;
-      const Engine = selfHosted
-        ? (await import("@/lib/azera-phone-call")).BrowserPhoneCall
-        : AfricaBrowserCall;
-      if (closed) return;
-      const current = new Engine(contact.id, setCall);
+      const current = selfHosted
+        ? new (await import("@/lib/azera-phone-call")).BrowserPhoneCall(contact.id, setCall)
+        : new AfricaBrowserCall(contact.target || contact.id, setCall);
+      if (closed) { current.dispose(); return; }
       engine.current = current;
       setAdvanced(selfHosted);
       if (!current.disposed) await current.start();
@@ -78,16 +86,18 @@ export function AzeraOutboundCall({
       engine.current?.dispose();
       engine.current = null;
     };
-  }, [contact.id]);
+  }, [contact.id, contact.target]);
   async function end() {
     setEnding(true);
     if (await engine.current?.end()) onClosed();
     setEnding(false);
   }
-  return (
+  // Escape the topbar's backdrop-filter containing block: fixed call controls
+  // must stay inside the viewport, not above the header's bottom edge.
+  return typeof document === "undefined" ? null : createPortal(
     <section
       aria-label="Outbound phone call"
-      className="fixed bottom-5 right-5 z-[100] w-[calc(100vw-2.5rem)] max-w-sm rounded-2xl border border-blue-100 bg-white p-5 shadow-2xl"
+      className="fixed bottom-5 right-5 z-[100] max-h-[calc(100dvh-3rem)] w-[calc(100vw-2.5rem)] max-w-sm overflow-y-auto rounded-2xl border border-blue-100 bg-white p-5 shadow-2xl"
     >
       <div className="flex items-center gap-3">
         <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-blue-600">
@@ -104,7 +114,7 @@ export function AzeraOutboundCall({
         {call.state === "connecting"
           ? "Connecting your browser…"
           : call.state === "ringing"
-            ? "Calling customer…"
+            ? "Calling contact…"
             : call.state === "active"
               ? "Call connected"
               : call.state === "ended"
@@ -197,11 +207,12 @@ export function AzeraOutboundCall({
           <PhoneOff className="h-4 w-4" />
           {ending
             ? "Ending…"
-            : call.setupRequired || call.state === "ended"
+            : call.setupRequired || call.state === "ended" || call.state === "error"
               ? "Close"
               : "End call"}
         </button>
       </div>
-    </section>
+    </section>,
+    document.body
   );
 }

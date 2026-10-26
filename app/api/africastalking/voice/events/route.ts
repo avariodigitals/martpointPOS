@@ -251,17 +251,6 @@ export async function POST(request: Request): Promise<Response> {
       call = created;
     }
 
-    const recordingUrl = pick(payload, "recordingUrl", "recording_url");
-    if (recordingUrl && call.recording_choice === "accepted") {
-      const config = await getAfricaVoiceConfig(businessId);
-      await importAfricaCallRecording(
-        call,
-        recordingUrl,
-        pick(payload, "recordingId", "recording_id") || sessionId,
-        config.recordingRetentionDays,
-      );
-    }
-
     const stale = Boolean(
       providerEventAt &&
       call.last_provider_event_at &&
@@ -382,6 +371,19 @@ export async function POST(request: Request): Promise<Response> {
       },
       created_at: now,
     });
+    // Persist carrier state first. A failed/private-host recording download
+    // must not leave a finished call ringing or keep an agent falsely busy.
+    // Still return a retryable error so the recording is not silently lost.
+    const recordingUrl = pick(payload, "recordingUrl", "recording_url");
+    if (recordingUrl && call.recording_choice === "accepted") {
+      const config = await getAfricaVoiceConfig(businessId);
+      await importAfricaCallRecording(
+        call,
+        recordingUrl,
+        pick(payload, "recordingId", "recording_id") || sessionId,
+        config.recordingRetentionDays,
+      );
+    }
     await finishAfricaWebhookEvent(webhookEventId, "processed");
     return NextResponse.json({ ok: true });
   } catch (error) {

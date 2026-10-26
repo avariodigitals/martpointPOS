@@ -117,6 +117,11 @@ export const ctaNav = {
   href: "/book-demo",
 }
 
+export const quoteNav = {
+  label: "Request a Quote",
+  href: "/request-quote",
+}
+
 export const partnerLoginNav = {
   label: "Partner Login",
   href: "/partner/login",

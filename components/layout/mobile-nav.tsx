@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { Menu, X, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { mainNav, ctaNav, partnerLoginNav } from "@/lib/navigation"
+import { mainNav, ctaNav, quoteNav, partnerLoginNav } from "@/lib/navigation"
 
 interface MobileNavProps {
   logo: string
@@ -140,6 +140,14 @@ export function MobileNav({ logo }: MobileNavProps) {
                     <Link href={partnerLoginNav.href}>
                       {partnerLoginNav.label}
                     </Link>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full border-retail/40 text-retail hover:bg-retail-soft"
+                    onClick={() => setOpen(false)}
+                  >
+                    <Link href={quoteNav.href}>{quoteNav.label}</Link>
                   </Button>
                   <Button
                     asChild

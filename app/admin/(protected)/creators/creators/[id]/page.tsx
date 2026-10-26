@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Ban, CheckCircle2, AlertTriangle, ExternalLink } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
+import { CallCreatorButton } from "@/components/admin/call-creator-button"
 
 interface Creator {
   id: string; creatorId: string; referralCode: string; fullName: string; email: string
@@ -253,6 +254,7 @@ export default function AdminCreatorDetailPage() {
             <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <div><span className="text-muted-foreground">Email:</span> {creator.email}</div>
               <div><span className="text-muted-foreground">Phone:</span> {creator.phone || "—"}</div>
+              <div className="col-span-2"><CallCreatorButton id={id} name={creator.fullName} phone={creator.phone} /></div>
               <div><span className="text-muted-foreground">Location:</span> {[creator.city, creator.state].filter(Boolean).join(", ") || "—"}</div>
               <div><span className="text-muted-foreground">Category:</span> {creator.primaryCategory || "—"}</div>
               <div><span className="text-muted-foreground">Activated:</span> {creator.activatedAt ? new Date(creator.activatedAt).toLocaleDateString("en-GB") : "—"}</div>

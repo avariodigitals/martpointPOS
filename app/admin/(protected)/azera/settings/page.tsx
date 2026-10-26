@@ -568,7 +568,9 @@ export default function AzeraSettingsPage() {
             </label>
             <p className="text-xs text-muted-foreground">
               Keep the instructions “press 1 to agree” and “press 2 to continue
-              without recording”.
+              without recording”. The main welcome plays separately before this
+              notice; do not repeat it here. During working hours, department
+              selection follows the recording choice.
             </p>
             <label className="block space-y-1 text-sm">
               <span>Recording retention (days)</span>
@@ -1006,6 +1008,7 @@ export default function AzeraSettingsPage() {
                     <label className="text-xs font-medium">
                       Main greeting and menu
                     </label>
+                    <p className="text-xs text-muted-foreground">During working hours, callers hear this welcome first. If enabled, the department menu follows, then recording permission, then the connecting message. Outside working hours, the after-hours greeting and route are used instead.</p>
                     <textarea
                       value={form.voice_greeting}
                       onChange={(e) =>
@@ -1176,6 +1179,7 @@ export default function AzeraSettingsPage() {
                         }
                         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       />
+                      <p className="text-xs text-muted-foreground">Retries after the first menu. Zero plays the menu once, then uses the default fallback or no-answer route.</p>
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-medium">

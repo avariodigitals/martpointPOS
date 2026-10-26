@@ -1,6 +1,7 @@
 import type { AfricaClient } from "africastalking-client"
 import { requestCallMicrophone } from "@/lib/azera-webrtc"
 import type { PhoneCallSnapshot } from "@/lib/azera-phone-call"
+import type { BrowserPhoneTarget } from "@/lib/browser-phone-target"
 
 /** The provider owns the telephone/media legs. No tel: link or second provider. */
 export class AfricaBrowserCall {
@@ -27,7 +28,7 @@ export class AfricaBrowserCall {
     void this.resumeAudio()
   }
   constructor(
-    private conversationId: string,
+    private target: string | BrowserPhoneTarget,
     private onChange: (snapshot: PhoneCallSnapshot) => void
   ) {}
   private change(value: Partial<PhoneCallSnapshot>) {
@@ -59,9 +60,13 @@ export class AfricaBrowserCall {
     try {
       if (typeof window !== "undefined") {
         const pending: Promise<unknown>[] = []
-        this.receiverPaused = true
         window.dispatchEvent(new CustomEvent("azera:outbound-start", { detail: { waitUntil: (value: Promise<unknown>) => pending.push(value) } }))
         await Promise.all(pending)
+        this.receiverPaused = true
+        if (this.finished || this.disposed) {
+          this.release()
+          return
+        }
       }
       // Ask permission before creating a paid-call capability. The SDK then
       // opens its own media stream; do not hold two microphone streams open.
@@ -71,7 +76,7 @@ export class AfricaBrowserCall {
       const response = await fetch("/api/azera/calls/africa-browser", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: this.conversationId }),
+        body: JSON.stringify(typeof this.target === "string" ? { conversationId: this.target } : this.target),
         signal: AbortSignal.timeout(25_000),
       })
       const prepared = await response.json()
@@ -124,11 +129,11 @@ export class AfricaBrowserCall {
       client.on("hangup", () => {
         if (this.finished) return
         this.finished = true
-        this.release()
+        this.release(false)
         this.change({ state: "ended", held: false })
         void this.status(this.accepted ? "ended" : "missed").catch(
           (error: Error) => this.change({ error: error.message })
-        )
+        ).finally(() => this.release())
       })
       for (const event of ["notready", "offline", "closed"])
         client.on(event, () => {
@@ -222,8 +227,9 @@ export class AfricaBrowserCall {
     this.finished = true
     try {
       this.client?.hangup()
-      this.release()
+      this.release(false)
       await this.status("ended")
+      this.release()
       this.change({ state: "ended", held: false, error: null })
       return true
     } catch {
@@ -243,15 +249,16 @@ export class AfricaBrowserCall {
     } catch {
       /* destroy below closes media */
     }
-    this.release()
+    this.release(false)
     try {
       await this.status(status)
     } catch {
       error += " Call history could not be confirmed."
     }
+    this.release()
     this.change({ state: "error", error })
   }
-  private release() {
+  private release(resumeReceiver = true) {
     clearTimeout(this.deadline)
     clearInterval(this.heartbeat)
     this.remoteAudio?.removeEventListener("loadedmetadata", this.audioReady)
@@ -267,7 +274,7 @@ export class AfricaBrowserCall {
     } catch {
       /* best effort SDK cleanup */
     }
-    if (this.receiverPaused && typeof window !== "undefined") {
+    if (resumeReceiver && this.receiverPaused && typeof window !== "undefined") {
       this.receiverPaused = false
       window.dispatchEvent(new Event("azera:outbound-end"))
     }

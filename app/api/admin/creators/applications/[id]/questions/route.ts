@@ -16,12 +16,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const auth = await authorizeAdmin("creator.view")
   if (auth.denied) return auth.denied
   const { id } = await params
-  const rounds = await listApplicationQuestionRounds(id)
-  return NextResponse.json({
-    rounds: await Promise.all(rounds.map(withSignedAttachmentUrls)),
-    samplePacks: CREATOR_SAMPLE_QUESTION_PACKS,
-    publicSiteUrl: (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, ""),
-  })
+  try {
+    const rounds = await listApplicationQuestionRounds(id)
+    return NextResponse.json({
+      rounds: await Promise.all(rounds.map(withSignedAttachmentUrls)),
+      samplePacks: CREATOR_SAMPLE_QUESTION_PACKS,
+      publicSiteUrl: (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, ""),
+    }, { headers: { "Cache-Control": "private, no-store" } })
+  } catch (error) {
+    console.error("[creator questions] tracking load failed", error)
+    return NextResponse.json({ error: "Could not load question replies" }, { status: 503 })
+  }
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {

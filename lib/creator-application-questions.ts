@@ -93,7 +93,8 @@ export async function listApplicationQuestionRounds(applicationId: string): Prom
   if (!isSupabaseConfigured()) return []
   const { data, error } = await supabase.from("creator_application_question_rounds").select("*")
     .eq("application_id", applicationId).order("created_at", { ascending: false })
-  if (error || !data?.length) return error ? [] : []
+  if (error) throw new Error("Could not load creator question replies")
+  if (!data?.length) return []
 
   const roundIds = data.map((round) => round.id as string)
   const { data: attempts } = await supabase.from("creator_application_question_emails")
@@ -342,19 +343,44 @@ export async function submitApplicationQuestionResponses(
     }
   }
   const now = new Date().toISOString()
-  const { error } = await supabase.from("creator_application_question_rounds")
-    .update({ responses, status: "Submitted", submitted_at: now, updated_at: now }).eq("id", round.id)
+  // Only the first successful transition owns the alert. Concurrent/retried
+  // submissions must not overwrite answers or send duplicate bell/email alerts.
+  const { data: saved, error } = await supabase.from("creator_application_question_rounds")
+    .update({ responses, status: "Submitted", submitted_at: now, updated_at: now, next_reminder_at: null })
+    .eq("id", round.id).eq("status", "Sent").select("id").maybeSingle()
   if (error) return { ok: false as const, error: "Could not save your answers" }
+  if (!saved) return { ok: false as const, error: "These questions have already been submitted" }
 
   // Timeline note without changing status (MANUAL_REVIEW = still under review).
   const { data: app } = await supabase.from("creator_applications")
-    .select("status, status_history").eq("id", round.application_id).maybeSingle()
+    .select("status, status_history, full_name, reference_number").eq("id", round.application_id).maybeSingle()
   if (app) {
     const history = [
       ...((app.status_history as unknown[]) || []),
       { status: app.status, at: now, by: "Applicant", reason: "Applicant submitted answers to additional questions." },
     ]
     await supabase.from("creator_applications").update({ status_history: history, updated_at: now }).eq("id", round.application_id)
+  }
+  const link = `/admin/creators/applications/${round.application_id}#questions`
+  try {
+    await notifyAllAdmins({
+      type: "CREATOR_QUESTION_RESPONSES_SUBMITTED",
+      title: "Creator answers ready for review",
+      message: `${app?.full_name || "A creator applicant"}${app?.reference_number ? ` (${app.reference_number})` : ""} answered “${round.title}”. Open the application to review answers and attachments.`,
+      deep_link: link,
+      source_type: "creator_application_question_round",
+      source_id: round.id,
+      roles: ["Admin", "Digital Marketer"],
+      email: {
+        route: "creator_application",
+        subject: `Creator answers received — ${app?.reference_number || app?.full_name || round.title}`,
+        text: `${app?.full_name || "A creator applicant"} submitted answers to ${round.title}.\n\nReview the answers and any attachments:\n${siteUrl()}${link}\n\nThe application decision has not changed.`,
+      },
+    })
+  } catch (alertError) {
+    // Answers are already saved: an email outage must not ask the applicant to
+    // submit again. The central tracker remains the source of truth.
+    console.error("[creator questions] submission alert failed", alertError)
   }
   return { ok: true as const }
 }

@@ -13,7 +13,6 @@ import {
   PRIVACY_VERSION,
   type CreatorApplicationStatus,
   type CreatorPlatform,
-  type CreatorApplication,
 } from "./creators"
 import { createCreatorAuthToken } from "./creator-auth"
 import {
@@ -24,6 +23,7 @@ import {
 import { getGoogleSettings, isGoogleConnected, createMeetEvent } from "./google-calendar"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import { notifyAllAdmins } from "./admin-notifications"
+import { summarizeCreatorQuestions, type CreatorQuestionTrackingRow, type CreatorReplyFilter } from "./creator-question-summary"
 
 const SITE_URL = () => (process.env.NEXT_PUBLIC_SITE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
 
@@ -719,29 +719,54 @@ export interface CreatorApplicationListFilters {
   status?: CreatorApplicationStatus | null
   state?: string | null
   q?: string | null
+  response?: CreatorReplyFilter | null
 }
 
 export async function listCreatorApplications(
   filters: CreatorApplicationListFilters = {}
-): Promise<(CreatorApplication & { primaryPlatform?: string | null; aiScore?: number | null; aiRecommendation?: string | null })[]> {
-  if (!isSupabaseConfigured()) return []
+) {
+  return (await listCreatorApplicationsPage(filters, 1, 500)).applications
+}
+
+export async function listCreatorApplicationsPage(
+  filters: CreatorApplicationListFilters = {}, page = 1, pageSize = 25,
+) {
+  if (!isSupabaseConfigured()) throw new Error("Creator application tracking is unavailable")
+  const safePage = Math.max(1, Math.floor(page) || 1)
+  const safePageSize = Math.min(500, Math.max(1, Math.floor(pageSize) || 25))
+  // Separate embeds: filter matching parents without losing the other rounds
+  // from the summary. Filtering must happen before pagination, not after 500 rows.
+  const filterEmbed = filters.response
+    ? `,response_filter:creator_application_question_rounds${filters.response === "not_sent" ? "" : "!inner"}(id)`
+    : ""
   let query = supabase
     .from("creator_applications")
-    .select("*")
+    .select(`*,question_rounds:creator_application_question_rounds(status,submitted_at,first_viewed_at,initial_email_status,next_reminder_at)${filterEmbed}`, { count: "exact" })
     .is("deleted_at", null)
     .order("submitted_at", { ascending: false })
-    .limit(500)
+    .order("id", { ascending: false })
 
   if (filters.status) query = query.eq("status", filters.status)
   if (filters.state) query = query.eq("state", filters.state)
   if (filters.q) {
-    const q = filters.q.replace(/[%_]/g, "")
+    const q = filters.q.replace(/[%_,().\\"]/g, "").slice(0, 200)
     query = query.or(`full_name.ilike.%${q}%,email.ilike.%${q}%,reference_number.ilike.%${q}%`)
   }
+  if (filters.response === "not_sent") query = query.is("response_filter", null)
+  else if (filters.response) {
+    const status = filters.response === "needs_review" ? "Submitted" : filters.response === "reviewed" ? "Reviewed" : "Sent"
+    query = query.eq("response_filter.status", status)
+    if (filters.response === "opened") query = query.not("response_filter.first_viewed_at", "is", null)
+    if (filters.response === "not_opened") query = query.is("response_filter.first_viewed_at", null)
+    if (filters.response === "email_failed") query = query.eq("response_filter.initial_email_status", "FAILED")
+  }
 
-  const { data } = await query
-  const apps = (data || []).map(mapCreatorApplication)
-  if (apps.length === 0) return []
+  const { data, count, error } = await query.range((safePage - 1) * safePageSize, safePage * safePageSize - 1)
+  if (error) throw new Error("Could not load creator application response tracking")
+  const rows = (data || []) as unknown as Record<string, unknown>[]
+  const apps = rows.map(mapCreatorApplication)
+  const summaries = new Map(rows.map((row) => [row.id as string, summarizeCreatorQuestions((row.question_rounds || []) as CreatorQuestionTrackingRow[])]))
+  if (!apps.length) return { applications: [], total: count || 0, page: safePage, pageSize: safePageSize }
 
   // Attach latest AI score + primary platform for list display.
   const ids = apps.map((a) => a.id)
@@ -771,12 +796,13 @@ export async function listCreatorApplications(
     if (p.is_primary || !primaryPlatform.has(appId)) primaryPlatform.set(appId, p.platform as string)
   }
 
-  return apps.map((a) => ({
+  return { total: count || 0, page: safePage, pageSize: safePageSize, applications: apps.map((a) => ({
     ...a,
     primaryPlatform: primaryPlatform.get(a.id) ?? null,
     aiScore: latestReview.get(a.id)?.score ?? null,
     aiRecommendation: latestReview.get(a.id)?.rec ?? null,
-  }))
+    questionSummary: summaries.get(a.id)!,
+  })) }
 }
 
 export async function listCreators(filters: { status?: string | null; q?: string | null; state?: string | null } = {}) {

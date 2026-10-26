@@ -9,7 +9,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { generateSetupQuestions } from "@/lib/onboarding"
 import { Button } from "@/components/ui/button"
-import { accessEmailSubject, recipientEmails, updateAccessMessageField } from "@/lib/access-email"
+import { accessEmailSubject, recipientEmails, updateAccessMessageField, accessLink } from "@/lib/access-email"
 import {
   Loader2,
   ClipboardCheck,
@@ -190,6 +190,10 @@ export default function AdminOnboardingPage() {
     additionalUsers: "",
     message: "",
   })
+  const [accessLinksConfirmed, setAccessLinksConfirmed] = useState(false)
+  const [loadingAccessLinks, setLoadingAccessLinks] = useState(false)
+  const [accessLinkSource, setAccessLinkSource] = useState("")
+  const accessLinkRequest = useRef<AbortController | null>(null)
   const [accessFiles, setAccessFiles] = useState<Array<{ name: string; content: string; size: number }>>([])
 
   const loadData = async () => {
@@ -465,13 +469,18 @@ MartPoint Team`
   }
 
   const openAccess = (record: OnboardingRecord) => {
+    accessLinkRequest.current?.abort()
+    const controller = new AbortController()
+    accessLinkRequest.current = controller
+    setAccessLinksConfirmed(false)
+    setLoadingAccessLinks(true)
+    setAccessLinkSource("Checking saved deployment links…")
     const saved = record.accessDetails
-    const slug = (record.businessName || record.fullName).toLowerCase().replace(/[^a-z0-9]+/g, "")
     const form = {
       recipients: saved?.recipients || record.email,
       subject: saved?.subject || accessEmailSubject(record.businessName || record.fullName),
       additionalNote: saved?.additionalNote || "",
-      softwareUrl: saved?.softwareUrl || (slug ? `https://${slug}.martpoint.com.ng/login` : ""),
+      softwareUrl: saved?.softwareUrl || "",
       adminUsername: saved?.adminUsername || record.email,
       tempPassword: saved?.tempPassword || "",
       onlineStoreUrl: saved?.onlineStoreUrl || "",
@@ -489,9 +498,33 @@ MartPoint Team`
     setAccessForm({ ...form, message: saved?.message || buildAccessMessage(record, form, []) })
     setAccessDirty(!!saved?.message)
     setShowAccessModal(true)
+    const lookupTimeout = window.setTimeout(() => {
+      if (!controller.signal.aborted) {
+        setAccessLinkSource("Deployment lookup timed out. Enter and confirm the actual login address manually.")
+        setLoadingAccessLinks(false)
+        controller.abort()
+      }
+    }, 10_000)
+    void fetch(`/api/admin/onboarding/access?recordId=${encodeURIComponent(record.id)}`, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || "Could not load deployment links")
+        if (controller.signal.aborted) return
+        setAccessForm((previous) => {
+          const softwareUrl = data.softwareUrl || previous.softwareUrl
+          const onlineStoreUrl = data.onlineStoreUrl || previous.onlineStoreUrl
+          let message = updateAccessMessageField(previous.message, "softwareUrl", softwareUrl, previous.softwareUrl)
+          if (onlineStoreUrl !== previous.onlineStoreUrl) message = updateAccessMessageField(message, "onlineStoreUrl", onlineStoreUrl, previous.onlineStoreUrl)
+          return { ...previous, softwareUrl, onlineStoreUrl, message }
+        })
+        setAccessLinkSource(data.softwareUrl ? "Loaded the business deployment’s Admin URL. Open it and confirm it belongs to this business." : "No deployment Admin URL is saved. Enter the exact installed login address; any previous resend URL is unverified. We do not guess URLs from business names.")
+      })
+      .catch((error) => { if (!controller.signal.aborted) setAccessLinkSource(error instanceof Error ? error.message : "Enter and confirm the actual login address manually.") })
+      .finally(() => { window.clearTimeout(lookupTimeout); if (!controller.signal.aborted) setLoadingAccessLinks(false) })
   }
 
   const updateAccessField = (key: keyof typeof accessForm, value: string | boolean) => {
+    if (["softwareUrl", "onlineStoreUrl", "supportGroupUrl", "additionalNote"].includes(key)) setAccessLinksConfirmed(false)
     setAccessForm((prev) => {
       const next = { ...prev, [key]: value }
       if (["recipients", "subject", "additionalNote"].includes(key)) return next
@@ -550,6 +583,10 @@ MartPoint Team`
     if (!accessRecord || sendingAccess) return
     try {
       recipientEmails(accessForm.recipients)
+      accessLink(accessForm.softwareUrl)
+      accessLink(accessForm.onlineStoreUrl, "online store URL", true)
+      accessLink(accessForm.supportGroupUrl, "support group URL", true)
+      if (!accessLinksConfirmed || loadingAccessLinks) throw new Error("Open and confirm the business login link before sending.")
       if (!accessForm.subject.trim() || /[\r\n]/.test(accessForm.subject)) throw new Error("Enter a valid email subject.")
       if (!accessForm.message.trim()) throw new Error("Enter an email message.")
     } catch (error) {
@@ -569,6 +606,7 @@ MartPoint Team`
           subject: accessForm.subject,
           additionalNote: accessForm.additionalNote,
           softwareUrl: accessForm.softwareUrl,
+          linksConfirmed: accessLinksConfirmed,
           adminUsername: accessForm.adminUsername,
           tempPassword: accessForm.tempPassword,
           onlineStoreUrl: accessForm.onlineStoreUrl,
@@ -1114,9 +1152,13 @@ MartPoint Team`
                   type="text"
                   value={accessForm.softwareUrl}
                   onChange={(e) => updateAccessField("softwareUrl", e.target.value)}
-                  placeholder="https://clientname.martpoint.com.ng/login"
+                  disabled={loadingAccessLinks}
+                  placeholder="Paste the exact deployed login URL, including its path"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
+                <p className="mt-1 text-xs text-muted-foreground">{accessLinkSource}</p>
+                {!loadingAccessLinks && /^https?:\/\//i.test(accessForm.softwareUrl) && <a href={(() => { try { return accessLink(accessForm.softwareUrl) } catch { return undefined } })()} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-sm font-medium text-retail underline">Open login link to verify</a>}
+                <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" disabled={loadingAccessLinks || !accessForm.softwareUrl} checked={accessLinksConfirmed} onChange={(event) => setAccessLinksConfirmed(event.target.checked)} /><span>I opened the login URL and confirmed it belongs to {accessRecord.businessName || accessRecord.fullName}. I also checked any store/support links included below.</span></label>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -1302,7 +1344,7 @@ MartPoint Team`
                 size="sm"
                 variant="retail"
                 onClick={sendAccess}
-                disabled={sendingAccess || !accessForm.softwareUrl || !accessForm.adminUsername || !accessForm.tempPassword || !accessForm.recipients.trim() || !accessForm.subject.trim() || !accessForm.message.trim()}
+                disabled={sendingAccess || loadingAccessLinks || !accessLinksConfirmed || !accessForm.softwareUrl || !accessForm.adminUsername || !accessForm.tempPassword || !accessForm.recipients.trim() || !accessForm.subject.trim() || !accessForm.message.trim()}
               >
                 {sendingAccess ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
                 {sendingAccess ? "Sending..." : accessRecord.accessDetails?.lastSentAt ? "Resend access email" : "Send access email"}

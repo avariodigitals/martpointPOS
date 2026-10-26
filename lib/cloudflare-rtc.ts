@@ -5,7 +5,7 @@ export function cloudflareSfuConfigured() {
   return Boolean(identifier.test(process.env.CLOUDFLARE_REALTIME_APP_ID || "") && process.env.CLOUDFLARE_REALTIME_APP_SECRET?.trim());
 }
 export function cloudflareSfuEnabled() {
-  return process.env.AZERA_BROWSER_MEDIA === "cloudflare" && cloudflareSfuConfigured() && cloudflareTurnConfigured() && Boolean(process.env.CRON_SECRET);
+  return process.env.AZERA_BROWSER_MEDIA === "cloudflare" && cloudflareSfuConfigured() && cloudflareTurnConfigured() && Boolean(process.env.CRON_SECRET?.trim());
 }
 export function cloudflareTurnConfigured() {
   return Boolean(identifier.test(process.env.CLOUDFLARE_TURN_KEY_ID || "") && process.env.CLOUDFLARE_TURN_API_TOKEN?.trim());

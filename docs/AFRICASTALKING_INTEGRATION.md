@@ -40,6 +40,25 @@ reconciliation.
 
 ## Admin settings
 
+### Predictable greeting and department-menu order
+
+During working hours the first request plays **Main greeting and menu** without
+claiming a selection was missed. Only a real invalid reply or a GetDigits timeout
+can produce a retry explanation. The initial prompt does not use up a retry;
+zero retries means one prompt followed by the configured fallback/no-answer path.
+The menu uses explicit action/attempt URLs and a Redirect for no-input handling,
+following [AT's no-input guidance](https://help.africastalking.com/en/articles/5947754-dealing-with-no-user-response-in-get_digits-action).
+Late menu callbacks cannot replace a selected department or become consent.
+
+With the menu enabled: welcome/menu → selected department → recording choice,
+if enabled → connecting message → destination. With the menu disabled: main
+greeting → recording choice, if enabled → connecting message → destination.
+After-hours forwarding plays the after-hours greeting before recording choice;
+it does not play the working-hours menu. A caller already using the menu can
+finish that journey if the clock crosses closing time during the call.
+Audio greetings retain the same order; a retry explanation is not hidden by a
+configured audio file. Menu fallback also requests consent before any recording.
+
 ### Recording-choice loop repair (migration 139)
 
 Apply `139_voice_recording_consent_flow.sql` before deploying the repair. The
@@ -149,6 +168,34 @@ In Admin → Azera → Settings → Phone Calls:
 7. To route by department, enable the department menu and add rows with an
    explicit digit, department name, primary destination, and optional fallback.
    Digits 1–8 are available; 9 repeats the menu.
+
+### Incoming prompt order and deployment
+
+With working-hours departments and recording enabled, the sequence is now:
+**welcome → recording choice → department options → connecting → Dial**.
+Consent 1/2 is consumed separately and cannot select Sales/Support. Silence at
+consent continues without recording; silence at the department menu retries up
+to the configured limit, then uses the default route/voicemail. The no-input
+Redirect is necessary because AT does not post an empty GetDigits result.
+
+Legacy combined greeting/menu text is split at the first option sentence. With
+recording enabled, the separate options use text-to-speech so a combined welcome
+audio file cannot play options before consent. Keep the recording notice to the
+recording explanation and 1/2 instructions; adding “Welcome” there duplicates the
+main welcome. Custom menu audio remains used when recording consent is disabled.
+
+These are Next.js route-handler changes, not a database-only fix. Applying SQL
+migration 139 does not deploy them: the updated Next.js build must reach the
+production callback URL before a call to the public number can test this flow.
+Check both Callback and Events URLs in the provider dashboard. The callback
+must remain publicly reachable with its existing secret; never remove callback
+authentication to troubleshoot input.
+
+A recording import failure is retained as a retryable failed webhook, but the
+carrier's terminal state is saved first so a finished call is not left ringing.
+An “Unapproved provider recording host” error needs the provider's exact trusted
+recording hostname verified and configured in AFRICASTALKING_RECORDING_HOSTS;
+do not allow all hosts or disable the private-recording checks.
 8. Enable voicemail if missed calls should leave a message. The admin voicemail
    endpoint returns short-lived signed links only for authenticated Azera users.
 

@@ -1,6 +1,9 @@
 import { xmlEscape } from "@/lib/africastalking";
 
 export function recordingConsentAction(callback: string, notice: string) {
+  // The call journey now plays the main welcome before this step. Older
+  // settings included that same welcome in the consent notice as a workaround.
+  notice = notice.replace(/^\s*Welcome to MartPoint[.!]?\s*(?:Thank you for calling[.!]?\s*)?/i, "").trim();
   if (!/press\s+1\b/i.test(notice) || !/press\s+2\b/i.test(notice))
     notice +=
       " Press 1 to agree to recording, or press 2 to continue without recording.";
@@ -8,6 +11,8 @@ export function recordingConsentAction(callback: string, notice: string) {
   url.pathname = "/api/africastalking/voice/consent";
   url.searchParams.set("stage", "recording-consent");
   url.searchParams.delete("consent-timeout");
+  url.searchParams.delete("menu-timeout");
+  url.searchParams.delete("menu-attempt");
   const timeoutUrl = new URL(url);
   timeoutUrl.searchParams.set("consent-timeout", "1");
   // GetDigits with no input does not call callbackUrl: AT executes the next

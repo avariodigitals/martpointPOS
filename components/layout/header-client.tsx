@@ -6,7 +6,7 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { MobileNav } from "./mobile-nav"
-import { mainNav, ctaNav, partnerLoginNav } from "@/lib/navigation"
+import { mainNav, ctaNav, quoteNav, partnerLoginNav } from "@/lib/navigation"
 import { ChevronDown } from "lucide-react"
 import type { NavItem } from "@/lib/navigation"
 
@@ -172,6 +172,12 @@ export function HeaderClient({ logo }: HeaderClientProps) {
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
             {partnerLoginNav.label}
+          </Link>
+          <Link
+            href={quoteNav.href}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "border-retail/40 text-retail hover:bg-retail-soft")}
+          >
+            {quoteNav.label}
           </Link>
           {ctaNav.href.startsWith("http") ? (
             <a

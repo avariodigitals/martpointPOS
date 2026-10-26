@@ -1,9 +1,15 @@
 # Azera contact-centre handoff — 25 October 2026
 
 The operational repairs below are implemented locally. This is **not** a claim
-that the whole contact centre has been production-verified. No real telephone
-calls, provider messages, emails or production database writes were performed.
+that the whole contact centre has been production-verified. During the original
+25 October work, no real telephone calls, provider messages, emails or production
+database writes were performed.
 Unrelated Creator changes in the working tree were preserved.
+
+**26 October update:** one explicitly authorised AT browser-to-phone test rang
+the recipient, who confirmed answering. History saved `ended` and 24 talk
+seconds. Two-way audio and the other acceptance checks remain unverified. See
+[the browser-call test notes](azera-browser-calls.md#header-dial-pad-and-creator-calling).
 
 ## Update: no paid LiveKit service
 

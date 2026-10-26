@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 import { CreatorQuestionRoundsPanel } from "@/components/admin/creator-question-rounds-panel"
+import { CallCreatorButton } from "@/components/admin/call-creator-button"
 
 interface ApplicationDetail {
   id: string
@@ -367,6 +368,7 @@ export default function CreatorApplicationDetailPage() {
             </CardContent>
           </Card>
 
+          <CallCreatorButton id={id} name={application.fullName} phone={application.phone} application />
           {/* Additional questions (verification pack, AI-generated pre-interview round) */}
           <CreatorQuestionRoundsPanel applicationId={id} onSent={load} />
 

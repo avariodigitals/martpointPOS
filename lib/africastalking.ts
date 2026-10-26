@@ -455,7 +455,7 @@ export async function getAfricaVoiceConfig(businessId: string | null) {
       : [],
     menuRetryLimit: Math.min(
       3,
-      Math.max(0, Number(row.voice_menu_retry_limit) || 1),
+      Math.max(0, row.voice_menu_retry_limit == null || !Number.isFinite(Number(row.voice_menu_retry_limit)) ? 1 : Math.floor(Number(row.voice_menu_retry_limit))),
     ),
     menuEnabled: row.voice_menu_enabled === true,
     departments: normalizeVoiceDepartments(row.voice_departments),
@@ -492,7 +492,9 @@ export async function storeAfricaWebhookEvent(input: {
   const callback = new URL(input.request.url);
   const stage = callback.searchParams.get("stage") || "";
   const consentTimeout = callback.searchParams.get("consent-timeout") === "1";
-  const fingerprint = stablePayloadHash(input.product, `${input.endpoint}:${stage}:${consentTimeout}`, input.rawBody);
+  const menuAttempt = callback.searchParams.get("menu-attempt") || "";
+  const menuTimeout = callback.searchParams.get("menu-timeout") === "1";
+  const fingerprint = stablePayloadHash(input.product, `${input.endpoint}:${stage}:${consentTimeout}:${menuAttempt}:${menuTimeout}`, input.rawBody);
   const dedupeKey = reference
     ? `${input.product}:${input.endpoint}:${reference}:${type}:${fingerprint}`
     : fingerprint;
@@ -509,7 +511,7 @@ export async function storeAfricaWebhookEvent(input: {
         content_type: input.request.headers.get("content-type"),
         request_headers: requestHeaders(input.request),
         raw_body: input.rawBody,
-        payload: { ...input.payload, _martpoint_callback: { path: callback.pathname, stage: stage || null, consent_timeout: consentTimeout } },
+        payload: { ...input.payload, _martpoint_callback: { path: callback.pathname, stage: stage || null, consent_timeout: consentTimeout, menu_attempt: menuAttempt || null, menu_timeout: menuTimeout } },
         processing_status: "received",
       },
     )

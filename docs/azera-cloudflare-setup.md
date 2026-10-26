@@ -56,6 +56,11 @@ this Cloudflare change**. Existing direct website AI voice remains separate.
 6. Redeploy, then Admin → Azera Settings → **Cloudflare website calls**. The
    status card checks credential presence and database schema without exposing
    secret values or placing a call. "Configured" is not proof of live audio.
+   **Refresh setup status** now shows a checking state and the last successful
+   check in WAT. Missing items have specific instructions. An expired session,
+   permission failure or timeout is shown explicitly; stale results are labelled.
+   Settings-authorised staff use the same access rule as the parent settings
+   screen. Refresh does not save secrets, redeploy Vercel or run a live call test.
 7. Test a visitor and an online staff user in the correct queue on separate
    browsers/devices. Check two-way audio, microphone denial, autoplay recovery,
    mute, decline, hang up from both sides, lost network, closed tab, iOS Safari,

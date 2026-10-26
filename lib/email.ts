@@ -26,6 +26,7 @@ export const REPLY_TO = {
   sales: "MartPoint Sales <sales@martpoint.com.ng>",
   support: "MartPoint Support <support@martpoint.com.ng>",
   digitals: "MartPoint Digital <digitals@martpoint.com.ng>",
+  creators: "MartPoint Creators <creators@martpoint.com.ng>",
   careers: "MartPoint Careers <careers@martpoint.com.ng>",
   noreply: "MartPoint <no-reply@martpoint.com.ng>",
   /** Founder check-in emails — replies land directly in the founder's inbox. */

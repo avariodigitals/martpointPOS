@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/azera-voicemails",
       "schedule": "15 2 * * *"
+    },
+    {
+      "path": "/api/cron/creator-social-metrics",
+      "schedule": "17 */6 * * *"
     }
   ]
 }

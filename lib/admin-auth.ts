@@ -153,6 +153,7 @@ export async function createAdminInvitation(
   name: string,
   role: UserRole,
   expiresInHours = 48,
+  signatureHtml = "",
 ): Promise<AdminInvitation> {
   const token = crypto.randomBytes(32).toString("base64url")
   const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString()
@@ -161,7 +162,7 @@ export async function createAdminInvitation(
     username: username.toLowerCase().trim(),
     email: email.toLowerCase().trim(),
     name: name.trim(),
-    signatureHtml: "",
+    signatureHtml,
     passwordHash: hashPassword(crypto.randomBytes(32).toString("hex")),
     role,
     status: "ACTIVE",
@@ -212,21 +213,27 @@ export async function deleteUser(id: string): Promise<boolean> {
 }
 
 export async function disableUser(id: string): Promise<boolean> {
-  if (!isSupabaseConfigured()) return false
-  const { error } = await supabase
+  if (!isSupabaseConfigured()) throw new Error("User service is unavailable")
+  const { data, error } = await supabase
     .from("users")
     .update({ status: "DISABLED", updated_at: new Date().toISOString() })
     .eq("id", id)
-  return !error
+    .select("id")
+    .maybeSingle()
+  if (error) throw new Error(`Could not disable user: ${error.message}`)
+  return Boolean(data)
 }
 
 export async function enableUser(id: string): Promise<boolean> {
-  if (!isSupabaseConfigured()) return false
-  const { error } = await supabase
+  if (!isSupabaseConfigured()) throw new Error("User service is unavailable")
+  const { data, error } = await supabase
     .from("users")
     .update({ status: "ACTIVE", updated_at: new Date().toISOString() })
     .eq("id", id)
-  return !error
+    .select("id")
+    .maybeSingle()
+  if (error) throw new Error(`Could not enable user: ${error.message}`)
+  return Boolean(data)
 }
 
 /* ───────────────────────────  DEFAULT ADMIN  ─────────────────────────── */

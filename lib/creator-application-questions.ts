@@ -180,7 +180,7 @@ export async function sendApplicationQuestionRound(input: {
     subject: safeEmailSubject,
     text: `Hi ${app.full_name || "there"},\n\n${safeEmailIntro}\n\nPlease answer the questions here:\n${url}\n\nSome questions let you attach screenshots or documents.\n\nMartPoint Creator Network Team`,
     html: `<p>Hi ${escapeHtml(String(app.full_name || "there"))},</p>${safeEmailIntro.split(/\n\s*\n/).map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`).join("")}<p><a href="${url}">Answer the questions</a></p><p>Some questions let you attach screenshots or documents.</p><p>MartPoint Creator Network Team</p>`,
-    replyTo: REPLY_TO.digitals,
+    replyTo: REPLY_TO.creators,
   })
 
   await recordQuestionEmail({
@@ -285,7 +285,7 @@ export async function sendApplicationQuestionReminder(input: {
   const reminderNote = isFinal ? "This is the final reminder. If we do not receive your answers, your application will be placed on hold for follow-up with the MartPoint team." : "Your application remains under review while we wait for your answers."
   const text = `Hello ${app.full_name || "there"},\n\n${intro}\n\nThis is reminder ${reminderNo} of ${MAX_REMINDERS}.\n\nPlease answer them here:\n${url}\n\n${reminderNote}\n\nMartPoint Creator Network Team`
   const html = `<p>Hello ${escapeHtml(String(app.full_name || "there"))},</p>${escapeHtml(intro).replace(/\n/g, "<br />")}<p>This is reminder <strong>${reminderNo} of ${MAX_REMINDERS}</strong>.</p><p><a href="${url}">Answer the questions</a></p><p>${reminderNote}</p><p>MartPoint Creator Network Team</p>`
-  const sent = await sendEmail({ to: app.email, subject, text, html, replyTo: REPLY_TO.digitals })
+  const sent = await sendEmail({ to: app.email, subject, text, html, replyTo: REPLY_TO.creators })
   await recordQuestionEmail({ roundId: round.id, applicationId: round.application_id, kind: "REMINDER", attemptNo: reminderNo, sent })
 
   const nextReminderAt = sent && reminderNo < MAX_REMINDERS
@@ -332,9 +332,15 @@ export async function submitApplicationQuestionResponses(
   if (!round) return { ok: false as const, error: "Invalid or expired question link" }
   if (round.status !== "Sent") return { ok: false as const, error: "These questions have already been submitted" }
   const fields = (round.fields || []) as QuestionnaireField[]
+  const normalizedResponses = { ...responses }
   for (const field of fields) {
+    // Accept answers from older open forms that submitted the visible labels,
+    // while storing a consistent boolean value for new and existing clients.
+    if (field.type === "boolean" && (normalizedResponses[field.name] === "Yes" || normalizedResponses[field.name] === "No")) {
+      normalizedResponses[field.name] = normalizedResponses[field.name] === "Yes"
+    }
     if (!field.required) continue
-    const answer = responses[field.name]
+    const answer = normalizedResponses[field.name]
     const empty = answer === undefined || answer === null || answer === ""
       || (Array.isArray(answer) && answer.length === 0)
     if (empty) return { ok: false as const, error: `Please answer: ${field.label}` }
@@ -346,7 +352,7 @@ export async function submitApplicationQuestionResponses(
   // Only the first successful transition owns the alert. Concurrent/retried
   // submissions must not overwrite answers or send duplicate bell/email alerts.
   const { data: saved, error } = await supabase.from("creator_application_question_rounds")
-    .update({ responses, status: "Submitted", submitted_at: now, updated_at: now, next_reminder_at: null })
+    .update({ responses: normalizedResponses, status: "Submitted", submitted_at: now, updated_at: now, next_reminder_at: null })
     .eq("id", round.id).eq("status", "Sent").select("id").maybeSingle()
   if (error) return { ok: false as const, error: "Could not save your answers" }
   if (!saved) return { ok: false as const, error: "These questions have already been submitted" }

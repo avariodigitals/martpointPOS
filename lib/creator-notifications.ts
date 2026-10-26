@@ -6,7 +6,7 @@
  * WhatsApp later — no WhatsApp sending is implemented.
  */
 
-import { sendEmail, type EmailAttachment } from "./email"
+import { sendEmail, REPLY_TO, type EmailAttachment } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { getCreatorSession } from "./creator-auth"
@@ -114,6 +114,7 @@ export async function sendCreatorNotification(input: CreatorNotifyInput): Promis
     subject: tpl.subject,
     text: tpl.text,
     html: tpl.html,
+    replyTo: REPLY_TO.creators,
     route: input.route,
     cc: input.cc,
     attachments: input.attachments,

@@ -1,7 +1,9 @@
 import Link from "next/link"
 import { Mail, Phone } from "lucide-react"
 import { readSettings, getPublicSiteSettings } from "@/lib/settings"
-import { footerColumns, socialLinks } from "@/lib/navigation"
+import { footerColumns, partnerLoginNav, socialLinks } from "@/lib/navigation"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 export async function Footer() {
   const settings = await readSettings()
@@ -142,6 +144,12 @@ export async function Footer() {
                 </li>
               ))}
             </ul>
+            <Link
+              href={partnerLoginNav.href}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-5 border-white/70 bg-transparent text-white hover:bg-white hover:text-[#0047CC]")}
+            >
+              {partnerLoginNav.label}
+            </Link>
           </div>
         </div>
 

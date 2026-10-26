@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Username, email, name and role are required" }, { status: 400 })
     }
 
-    const invitation = await createAdminInvitation(username, email, name, role)
+    const invitation = await createAdminInvitation(username, email, name, role, 48, signatureHtml || "")
     const origin = new URL(request.url).origin
     const inviteUrl = `${origin}/admin/invite/${encodeURIComponent(invitation.token)}`
     const emailSent = await sendEmail({
@@ -44,8 +44,10 @@ export async function POST(request: Request) {
     if (!emailSent) {
       return NextResponse.json({ error: "User was created, but the invitation email could not be sent." }, { status: 502 })
     }
-    const user = await updateUser(invitation.user.id, { signatureHtml: signatureHtml || "" })
-    if (!user) return NextResponse.json({ error: "User was created, but could not be loaded." }, { status: 500 })
+    // The invitation insert is the authoritative user record. Avoid a second
+    // update/read here: a failed follow-up write used to report failure after
+    // the account and invitation had already been created successfully.
+    const user = invitation.user
     const { passwordHash: _, ...safe } = user
 
     const ctx = auditContextFromSession(session, request)
@@ -167,7 +169,8 @@ export async function DELETE(request: Request) {
     })
 
     return NextResponse.json({ success: true })
-  } catch {
-    return NextResponse.json({ error: "Failed to disable user" }, { status: 500 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to disable user"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

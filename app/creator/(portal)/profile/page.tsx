@@ -3,9 +3,11 @@ import { getApplicationSocialProfiles, creatorTrackingUrl } from "@/lib/creators
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProfileForm } from "./profile-form"
 import { SocialsManager } from "./socials-form"
+import { SocialConnections } from "./social-connections"
 
-export default async function CreatorProfilePage() {
+export default async function CreatorProfilePage({ searchParams }: { searchParams: Promise<{ social?: string }> }) {
   const { creator } = await requireCreatorSession()
+  const params = await searchParams
   const socials = await getApplicationSocialProfiles(creator.applicationId)
 
   return (
@@ -33,6 +35,8 @@ export default async function CreatorProfilePage() {
           bio: creator.bio || "",
         }}
       />
+
+      <SocialConnections notice={params.social} />
 
       <SocialsManager
         initial={socials.map((s) => ({

@@ -72,6 +72,13 @@ export default function CreatorApplicationQuestionsPage() {
     setFileErrors((c) => ({ ...c, [name]: errors.join("; ") }))
   }
 
+  function booleanSelection(name: string) {
+    const answer = responses[name]
+    if (answer === true || answer === "Yes") return "yes"
+    if (answer === false || answer === "No") return "no"
+    return ""
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     const attachmentError = Object.values(fileErrors).find(Boolean)
@@ -140,11 +147,23 @@ export default function CreatorApplicationQuestionsPage() {
             {field.options?.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         ) : field.type === "boolean" ? (
-          <select required={field.required} value={String(responses[field.name] ?? "")} onChange={(e) => setValue(field.name, e.target.value === "Yes")} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            <option value="">Select...</option>
-            <option value="Yes">Yes</option>
-            <option value="No">No</option>
-          </select>
+          <fieldset className="grid grid-cols-2 gap-2">
+            <legend className="sr-only">{field.label}</legend>
+            {(["yes", "no"] as const).map((choice) => (
+              <label key={choice} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${booleanSelection(field.name) === choice ? "border-primary bg-primary/5 text-foreground" : "border-input bg-background text-muted-foreground"}`}>
+                <input
+                  type="radio"
+                  name={field.name}
+                  value={choice}
+                  required={field.required}
+                  checked={booleanSelection(field.name) === choice}
+                  onChange={() => setValue(field.name, choice === "yes")}
+                  className="accent-primary"
+                />
+                {choice === "yes" ? "Yes" : "No"}
+              </label>
+            ))}
+          </fieldset>
         ) : field.type === "file" ? (
           <div className="rounded-md border border-dashed border-input bg-background px-3 py-3 space-y-2">
             <p className="text-xs text-muted-foreground">PDF, PNG, JPG or WEBP · max 5 MB each · up to 5 files</p>

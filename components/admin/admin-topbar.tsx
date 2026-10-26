@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react"
 import { AdminNotificationBell } from "@/components/admin/admin-notification-bell"
 import type { UserRole } from "@/lib/admin-types"
 import { roleLabel } from "@/lib/utils"
+import { AfricaBrowserPhone } from "@/components/admin/africa-browser-phone"
 
 const PAGE_CONTEXT: Array<{ match: string; title: string; subtitle: string }> = [
   { match: "/finance", title: "Finance", subtitle: "Commercial performance and control" },
@@ -86,6 +87,7 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
         >
           <Search className="h-4 w-4" />
         </Link>
+        {["Admin", "Sales", "Customer Care", "Tech"].includes(userRole) && <AfricaBrowserPhone />}
         <AdminNotificationBell />
 
         <div ref={menuRef} className="relative">

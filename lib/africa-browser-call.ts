@@ -21,6 +21,7 @@ export class AfricaBrowserCall {
   private heartbeatBusy = false
   private heartbeatFailures = 0
   private accepted = false
+  private receiverPaused = false
   private remoteAudio: HTMLAudioElement | null = null
   private audioReady = () => {
     void this.resumeAudio()
@@ -56,6 +57,12 @@ export class AfricaBrowserCall {
     if (this.started || this.disposed) return
     this.started = true
     try {
+      if (typeof window !== "undefined") {
+        const pending: Promise<unknown>[] = []
+        this.receiverPaused = true
+        window.dispatchEvent(new CustomEvent("azera:outbound-start", { detail: { waitUntil: (value: Promise<unknown>) => pending.push(value) } }))
+        await Promise.all(pending)
+      }
       // Ask permission before creating a paid-call capability. The SDK then
       // opens its own media stream; do not hold two microphone streams open.
       const stream = await requestCallMicrophone()
@@ -259,6 +266,10 @@ export class AfricaBrowserCall {
       client?.destroy()
     } catch {
       /* best effort SDK cleanup */
+    }
+    if (this.receiverPaused && typeof window !== "undefined") {
+      this.receiverPaused = false
+      window.dispatchEvent(new Event("azera:outbound-end"))
     }
   }
   dispose() {

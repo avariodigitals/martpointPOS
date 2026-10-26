@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import dynamic from "next/dynamic";
@@ -118,6 +118,35 @@ function revealProfileField(field: HTMLInputElement) {
   });
 }
 
+function cleanChatMessage(message: string): string {
+  return message
+    .replace(/\[\[(https?:\/\/[^\s\\\]]+)[^\n]*?\\?\)\)/gi, "$1")
+    .replace(/\\([()[\]])/g, "$1");
+}
+
+function renderChatMessage(message: string): ReactNode {
+  const cleaned = cleanChatMessage(message);
+  const parts = cleaned.split(/(https?:\/\/[^\s<]+)/gi);
+  return parts.map((part, index) => {
+    if (!/^https?:\/\//i.test(part)) return <span key={index}>{part}</span>;
+    const trailing = part.match(/[.,!?]+$/)?.[0] || "";
+    const href = trailing ? part.slice(0, -trailing.length) : part;
+    return (
+      <span key={index}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2"
+        >
+          {href}
+        </a>
+        {trailing}
+      </span>
+    );
+  });
+}
+
 function getReadableTextColor(color: string): "#0f172a" | "#ffffff" {
   const normalized = color.trim().replace(/^#/, "");
   const hex =
@@ -168,9 +197,6 @@ export function AzeraChatWidget({
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [ratingError, setRatingError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [expandedMessages, setExpandedMessages] = useState<
-    Record<string, boolean>
-  >({});
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1382,8 +1408,6 @@ export function AzeraChatWidget({
             {!needsVisitorProfile &&
               messages.map((m) => {
                 const isCustomer = m.author_type === "customer";
-                const isExpanded = Boolean(expandedMessages[m.id]);
-                const canCollapse = m.message.length > 280;
                 return (
                   <div
                     key={m.id}
@@ -1404,38 +1428,7 @@ export function AzeraChatWidget({
                         MartPoint Support
                       </span>
                     )}
-                    <p
-                      className="whitespace-pre-wrap"
-                      style={
-                        canCollapse && !isExpanded
-                          ? {
-                              display: "-webkit-box",
-                              WebkitBoxOrient: "vertical",
-                              WebkitLineClamp: 5,
-                              overflow: "hidden",
-                            }
-                          : undefined
-                      }
-                    >
-                      {m.message}
-                    </p>
-                    {canCollapse && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedMessages((current) => ({
-                            ...current,
-                            [m.id]: !current[m.id],
-                          }))
-                        }
-                        className="mt-1 text-xs font-semibold underline underline-offset-2"
-                        style={{
-                          color: isCustomer ? brandTextColor : brandColor,
-                        }}
-                      >
-                        {isExpanded ? "Show less" : "Show more"}
-                      </button>
-                    )}
+                    <p className="whitespace-pre-wrap">{renderChatMessage(m.message)}</p>
                     <div className="mt-1 flex items-center justify-between gap-3 text-[10px] leading-4 opacity-60">
                       <span>
                         {new Date(m.created_at).toLocaleTimeString([], {

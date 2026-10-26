@@ -111,3 +111,11 @@ Answer, two-way sound, mute, autoplay recovery, decline, remote hangup, unanswer
 timeout, page exit and Wi-Fi-to-mobile network changes. Test TURN with a
 restrictive network. A mocked test suite cannot certify real device audio or
 production firewall/relay behaviour.
+
+## Africa's Talking incoming browser phone
+
+Migration 137 adds authenticated receiving phones in the admin header. See
+`docs/AFRICASTALKING_INTEGRATION.md` for production callback/event URLs,
+department mapping and the required live acceptance checks. Provider activation,
+production dashboard configuration and two-way audio still require verification.
+Do not confuse this telephone route with website-to-agent Cloudflare audio.

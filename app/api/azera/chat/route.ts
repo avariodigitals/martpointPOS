@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { checkRateLimit } from "@/lib/rate-limit"
 import { aiChat, aiChatStream, type AiChatMessage } from "@/lib/ai-chat"
 import { notifySupportAgents } from "@/lib/omnichannel-notifications"
 import { sendEmail, REPLY_TO } from "@/lib/email"
@@ -7,8 +8,15 @@ import { addMessage as addTicketMessage, createTicket } from "@/lib/support"
 import { isConversationIdentityMatch, resolveChatBusinessId, type ChatSource } from "@/lib/azera-identity"
 import { issueConversationToken, tokenFromRequest, verifyConversationToken } from "@/lib/azera-public-auth"
 import { AZERA_CUSTOMER_REPLY_STYLE, visitorChatRecord } from "@/lib/azera-visitor-presentation"
+import { getBusyForRange, getSchedulingSettings, formatWhen } from "@/lib/meeting-booking"
+import { generateSlots } from "@/lib/scheduling"
+import { createAzeraDemoBooking } from "@/lib/azera-demo-booking"
 
-type AiSettings = { ai_prompt?: string | null } | null
+type AiSettings = {
+  ai_prompt?: string | null
+  voice_timezone?: string | null
+  voice_weekly_schedule?: Record<string, { open?: string; close?: string } | null> | null
+} | null
 type KnowledgeArticle = {
   id?: string
   title: string
@@ -50,6 +58,153 @@ function acceptedHumanOffer(message: string, previousAssistantMessage: string): 
 
 function requestedSalesFollowUp(message: string): boolean {
   return /\b(book|schedule|arrange|request|need|want|interested in|please set up)\b.{0,40}\b(demo|call|meeting|quote|sales|callback|call back|contact me)\b|\b(demo request|talk to sales|contact me about pricing)\b/i.test(message)
+}
+
+function requestedWorkingHours(message: string): boolean {
+  return /\b(working|business|office|support|opening)\s+hours\b|\b(when|what time)\b.{0,35}\b(open|close|available|working)\b|\bare you open\b/i.test(message)
+}
+
+function requestedDemoBooking(message: string): boolean {
+  return /\b(book|schedule|reserve|arrange|set up|find)\b.{0,50}\b(slot|demo|call|meeting|appointment)\b|\b(slot|demo|call|meeting|appointment)\b.{0,50}\b(book|schedule|reserve|arrange)\b/i.test(message)
+}
+
+type BookingState = {
+  status?: "awaiting_slot" | "awaiting_details"
+  slots?: string[]
+  timezone?: string
+  durationMinutes?: number
+  selectedSlot?: string
+  fullName?: string
+  businessName?: string
+  email?: string
+  phone?: string
+}
+
+const WORKING_HOURS_REPLY =
+  "Our team is available Monday to Friday, 9:00 AM to 5:00 PM West Africa Time (WAT). You can request a demo at any time; Azera will show you the current open booking slots."
+
+function formatWorkingHoursReply(settings: AiSettings): string {
+  const weekly = settings?.voice_weekly_schedule
+  if (!weekly || typeof weekly !== "object") return WORKING_HOURS_REPLY
+
+  const labels: Array<[string, string]> = [
+    ["mon", "Monday"],
+    ["tue", "Tuesday"],
+    ["wed", "Wednesday"],
+    ["thu", "Thursday"],
+    ["fri", "Friday"],
+    ["sat", "Saturday"],
+    ["sun", "Sunday"],
+  ]
+  const openDays = labels
+    .map(([key, label]) => {
+      const hours = weekly[key]
+      return hours?.open && hours.close ? { label, open: hours.open, close: hours.close } : null
+    })
+    .filter((entry): entry is { label: string; open: string; close: string } => Boolean(entry))
+
+  if (!openDays.length) return "Our team is currently closed. Please use the booking page to request the next available demo time: https://www.martpoint.com.ng/book-demo"
+
+  const sameHours = openDays.every((day) => day.open === openDays[0].open && day.close === openDays[0].close)
+  const dayText = sameHours && openDays.length > 1
+    ? openDays[0].label + " to " + openDays[openDays.length - 1].label
+    : openDays.map((day) => day.label).join(", ")
+  const timeText = sameHours
+    ? openDays[0].open + "–" + openDays[0].close
+    : openDays.map((day) => day.label + " " + day.open + "–" + day.close).join("; ")
+  const timezone = settings.voice_timezone || "Africa/Lagos"
+  return "Our team is available " + dayText + ", " + timeText + " (" + timezone + "). You can request a demo at any time; Azera will show you the current open booking slots."
+}
+
+function formatBookingSlots(slots: string[], timezone: string, durationMinutes: number): string {
+  const lines = slots.slice(0, 5).map((slot, index) => `${index + 1}. ${formatWhen(slot, timezone)}`)
+  return [
+    "Absolutely — I can help you book a MartPoint demo here.",
+    `These are the next available ${durationMinutes}-minute slots (${timezone}):`,
+    ...lines,
+    "Reply with the number of your preferred slot. I’ll then collect the few details needed to confirm it.",
+  ].join("\n")
+}
+
+function labelledValue(message: string, labels: string[]): string | null {
+  const label = labels.join("|")
+  const match = message.match(new RegExp(`(?:${label})\\s*[:=-]\\s*([^\\n,;]+)`, "i"))
+  return match?.[1]?.trim() || null
+}
+
+function extractBookingDetails(message: string, state: BookingState, supplied: { name?: unknown; email?: unknown; phone?: unknown }): BookingState {
+  const email = String(supplied.email || "").trim().toLowerCase() || message.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase() || state.email
+  const phone = String(supplied.phone || "").trim() || message.match(/(?:\+?234|0)\s*[0-9][0-9\s().-]{7,}/)?.[0]?.trim() || state.phone
+  const fullName = String(supplied.name || "").trim() || labelledValue(message, ["full name", "name"]) || state.fullName
+  let businessName = labelledValue(message, ["business name", "business", "company"]) || state.businessName
+  if (!businessName && message.trim().length >= 2 && !message.includes("@") && !/(?:\+?234|0)\s*[0-9][0-9\s().-]{7,}/.test(message)) businessName = message.trim()
+  return { ...state, fullName, businessName, email, phone }
+}
+
+async function handleDemoBooking(
+  conv: Record<string, unknown>,
+  message: string,
+  supplied: { name?: unknown; email?: unknown; phone?: unknown },
+  startsBooking: boolean,
+): Promise<string | null> {
+  const current = (conv.booking_state && typeof conv.booking_state === "object" ? conv.booking_state : {}) as BookingState
+  const inProgress = current.status === "awaiting_slot" || current.status === "awaiting_details"
+  if (!startsBooking && !inProgress) return null
+
+  if (startsBooking && !inProgress) {
+    const settings = await getSchedulingSettings()
+    const now = new Date()
+    const to = new Date(now.getTime() + settings.maxDaysAhead * 86_400_000)
+    const busy = await getBusyForRange(now, to)
+    const slots = generateSlots({ settings, from: now, to, busy, now }).map((slot) => slot.toISOString()).slice(0, 5)
+    if (!slots.length) return "I couldn’t find an open demo slot in the current booking window. Please use https://www.martpoint.com.ng/book-demo or tell me that you’d like the team to arrange a time."
+    const nextState: BookingState = { status: "awaiting_slot", slots, timezone: settings.timezone, durationMinutes: settings.slotMinutes }
+    await supabase.from("azera_conversations").update({ booking_state: nextState, updated_at: new Date().toISOString() }).eq("id", conv.id)
+    return formatBookingSlots(slots, settings.timezone, settings.slotMinutes)
+  }
+
+  const slots = Array.isArray(current.slots) ? current.slots : []
+  let selectedSlot = current.selectedSlot
+  if (current.status === "awaiting_slot") {
+    const number = message.trim().match(/^(?:slot\s*)?(\d{1,2})[.)]?$/i)?.[1]
+    const byNumber = number ? slots[Number(number) - 1] : null
+    const byText = slots.find((slot) => {
+      const date = new Date(slot)
+      return message.includes(date.toISOString().slice(0, 10)) || message.toLowerCase().includes(formatWhen(slot, current.timezone || "Africa/Lagos").toLowerCase().split(",")[0])
+    })
+    selectedSlot = byNumber || byText || undefined
+    if (!selectedSlot) return "Please reply with one of the slot numbers above, from 1 to 5."
+    current.status = "awaiting_details"
+    current.selectedSlot = selectedSlot
+  }
+
+  const details = extractBookingDetails(message, current, supplied)
+  const missing = [
+    !details.fullName ? "full name" : null,
+    !details.businessName ? "business name" : null,
+    !details.email ? "email address" : null,
+    !details.phone ? "phone number" : null,
+  ].filter(Boolean) as string[]
+  if (missing.length) {
+    await supabase.from("azera_conversations").update({ booking_state: details, updated_at: new Date().toISOString() }).eq("id", conv.id)
+    return `Great — I’ve kept your selection in this chat. It is confirmed only after the details are submitted, so please send your ${missing.join(", ")} in one message. For example: Full name: Ada Obi; Business name: Ada Stores; Email: ada@example.com; Phone: +234 801 234 5678.`
+  }
+
+  const result = await createAzeraDemoBooking({
+    fullName: details.fullName as string,
+    businessName: details.businessName as string,
+    email: details.email as string,
+    phone: details.phone as string,
+    slot: details.selectedSlot as string,
+    timezone: details.timezone,
+  })
+  if (!result.ok) {
+    await supabase.from("azera_conversations").update({ booking_state: {}, updated_at: new Date().toISOString() }).eq("id", conv.id)
+    return `${result.error} You can choose another live slot at https://www.martpoint.com.ng/book-demo.`
+  }
+  await supabase.from("azera_conversations").update({ booking_state: {}, updated_at: new Date().toISOString() }).eq("id", conv.id)
+  const when = formatWhen(result.scheduledAt, details.timezone || "Africa/Lagos")
+  return `You’re booked! Your ${result.durationMinutes}-minute MartPoint demo is confirmed for ${when}. ${result.meetingLink ? `Join here: ${result.meetingLink}` : "A confirmation email with the meeting details is on its way."}`
 }
 
 function tokens(value: string): string[] {
@@ -128,6 +283,8 @@ export async function POST(request: Request) {
   }
 
   try {
+    const limit = await checkRateLimit(request, { key: "azera-chat", max: 60, windowSeconds: 3600 })
+    if (!limit.allowed) return err("Too many chat messages. Please try again later.", 429)
     const body = await request.json()
     const {
       business_id: requestedBusinessId,
@@ -263,7 +420,25 @@ export async function POST(request: Request) {
     const previousAssistantMessage = conversationHistory.slice(0, -1).reverse().find((item) => item.role === "assistant")?.content || ""
     const directHumanRequest = requestedHuman(message.trim()) || acceptedHumanOffer(message.trim(), previousAssistantMessage)
     const complaintReason = immediateEscalation(message.trim())
-    const salesFollowUp = queue === "sales" && requestedSalesFollowUp(message.trim())
+    const bookingInProgress = Boolean((conv.booking_state as BookingState | null)?.status)
+    const bookingRequest = requestedDemoBooking(message.trim()) || bookingInProgress
+    let deterministicReply: string | null = null
+    if (requestedWorkingHours(message.trim())) {
+      const { data: hoursSettings } = await supabase
+        .from("azera_settings")
+        .select("voice_timezone, voice_weekly_schedule")
+        .eq("business_id", business_id)
+        .maybeSingle()
+      deterministicReply = formatWorkingHoursReply(hoursSettings as AiSettings)
+    } else if (source === "public_site" && bookingRequest) {
+      deterministicReply = await handleDemoBooking(
+        conv as Record<string, unknown>,
+        message.trim(),
+        { name: customer_name, email: customer_email, phone: customer_phone },
+        requestedDemoBooking(message.trim()),
+      )
+    }
+    const salesFollowUp = queue === "sales" && requestedSalesFollowUp(message.trim()) && !bookingRequest
     const humanHandoff = directHumanRequest || salesFollowUp
     const escalationReason = directHumanRequest
       ? "customer_requested_human"
@@ -287,7 +462,7 @@ export async function POST(request: Request) {
       .eq("id", conv.id)
 
     // 3. AI reply (if enabled)
-    let aiReply: string | null = null
+    let aiReply: string | null = deterministicReply
     if (conv.ai_enabled && !humanHandoff && !escalationReason) {
       try {
         // These reads do not depend on one another; fetch them together to
@@ -306,7 +481,7 @@ export async function POST(request: Request) {
             .limit(100),
           supabase
             .from("azera_settings")
-            .select("ai_prompt, brand_color")
+            .select("ai_prompt, brand_color, voice_timezone, voice_weekly_schedule")
             .eq("business_id", business_id)
             .maybeSingle(),
         ])
@@ -345,7 +520,10 @@ export async function POST(request: Request) {
                       conversation_token,
                       customer_message: custMsg ? visitorChatRecord(custMsg) : null,
                     })
-                    if (shouldAskTriage || isGreeting(message.trim())) {
+                    if (deterministicReply) {
+                      streamedReply = deterministicReply
+                      emit("delta", { text: streamedReply })
+                    } else if (shouldAskTriage || isGreeting(message.trim())) {
                       streamedReply = localFallbackReply(message.trim(), relevantKnowledge, shouldAskTriage)
                       emit("delta", { text: streamedReply })
                     } else {
@@ -431,7 +609,9 @@ export async function POST(request: Request) {
             })
           }
 
-          if (shouldAskTriage || isGreeting(message.trim())) {
+          if (deterministicReply) {
+            aiReply = deterministicReply
+          } else if (shouldAskTriage || isGreeting(message.trim())) {
             aiReply = localFallbackReply(message.trim(), relevantKnowledge, shouldAskTriage)
           } else {
             // Public chat must never leave a visitor waiting on a provider that

@@ -40,7 +40,8 @@ export function africaBrowserReady(config: {
 /** Only a short-lived browser capability leaves the server, never the API key. */
 export async function africaCapability(
   config: Awaited<ReturnType<typeof africaBrowserConfig>>,
-  clientName: string
+  clientName: string,
+  incoming = false
 ) {
   const response = await fetch(
     "https://webrtc.africastalking.com/capability-token/request",
@@ -55,8 +56,8 @@ export async function africaCapability(
         username: config.username,
         phoneNumber: config.phone,
         clientName,
-        incoming: false,
-        outgoing: true,
+        incoming,
+        outgoing: !incoming,
         expire: "3600s",
       }),
       signal: AbortSignal.timeout(15_000),

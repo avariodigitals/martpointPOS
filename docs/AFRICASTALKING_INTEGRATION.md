@@ -14,8 +14,9 @@ AFRICASTALKING_BUSINESS_ID=<MartPoint business UUID>
 AFRICASTALKING_FORWARD_NUMBERS=+2348012345678
 ```
 
-When `AFRICASTALKING_CALLBACK_SECRET` is set, append
-`?secret=<random-long-value>` to each Africa's Talking URL below.
+`AFRICASTALKING_CALLBACK_SECRET` is mandatory. Append
+`?secret=<random-long-value>` to each Africa's Talking URL below. Missing or
+incorrect secrets are rejected; do not remove authentication to fix a 403.
 
 ## Dashboard URLs
 
@@ -38,6 +39,103 @@ safe support/callback menu and Airtime stores the delivery payload for later
 reconciliation.
 
 ## Admin settings
+
+### Recording-choice loop repair (migration 139)
+
+Apply `139_voice_recording_consent_flow.sql` before deploying the repair. The
+pending recording step is stored on the call, not inferred from a department
+digit or dependent only on `?stage=recording-consent`. The dedicated
+`/api/africastalking/voice/consent` action uses the same callback authentication.
+Do **not** set it as the virtual number's main callback: GetDigits uses it
+automatically. Keep the main Callback/Events URLs as documented below.
+
+Press 1 saves explicit consent; press 2 continues on the same selected route
+without recording. Silence/timeout also continues without recording through a
+Redirect after GetDigits (AT does not call callbackUrl when no input arrives).
+Duplicate or late responses cannot overwrite a stored choice or redial an
+already connected call. Existing call history is not backfilled as consent.
+GetDigits input delivered to the Events URL for a pending native incoming call
+is also handled as a voice action and returns XML, rather than being ignored
+with a JSON status acknowledgement.
+
+Webhook diagnostics now insert exact-delivery fingerprints, preserving
+different keypresses within one Ringing session. Duplicate inserts use the
+existing partial unique index; PostgREST upsert on just `dedupe_key` could not
+infer that partial index. No production call or diagnostic data is deleted.
+
+Retest the 020 line after deployment with 1, 2, no input and a department choice
+followed by 2. Confirm the same selected destination rings, the prompt does not
+loop and only explicit consent allows `Dial record="true"`. Until deployed,
+local passing tests do not change the live telephone line.
+
+### Browser phones and the production callback (migration 137)
+
+Apply `137_africa_browser_agents.sql` after 136 and deploy the Next.js changes.
+No SIP password, VPS or LiveKit subscription is required for this browser path.
+Africa's Talking must activate Voice/WebRTC for the live application/number;
+normal provider telephone charges still apply.
+
+In Admin → Azera Settings → Phone Calls, use **Copy callback URL** and **Copy
+events URL**. These are absolute production URLs with the required secret,
+not links to open as webpages. Paste them into Africa's Talking **Voice →
+Phone Numbers** for the virtual number, replacing `/test/voice`:
+
+```text
+Callback: https://www.martpoint.com.ng/api/africastalking/voice/callback?secret=<Vercel AFRICASTALKING_CALLBACK_SECRET>
+Events:   https://www.martpoint.com.ng/api/africastalking/voice/events?secret=<same secret>
+Recording:https://www.martpoint.com.ng/api/africastalking/voice/recording?secret=<same secret>
+```
+
+Set `NEXT_PUBLIC_BASE_URL` to the canonical HTTPS production origin if it differs.
+Do not paste secrets into chat, tickets or public documents. The copy controls
+are restricted to settings-authorised staff and never return the AT API key.
+The code does **not** update your provider dashboard or Vercel settings itself.
+If the SIP provisioning screen shows `Events: N/A`, configure the virtual
+number's events URL where available; final `isActive=0` notifications posted to
+the callback are also reconciled without restarting the IVR.
+
+Staff use the **phone button in the admin header** → select Sales, Support,
+Onboarding or General enquiries → **Enable browser phone**. Grant microphone
+access. The phone remains mounted during admin navigation. The tab must stay
+open; a closed/sleeping browser cannot be promised incoming calls. A second tab
+cannot take over a fresh phone lease. Availability expires after 60 seconds
+without a successful heartbeat. A failed SDK registration is never advertised
+as ready. The receiving token renews while idle; provider expiry during an
+active call is surfaced as a disconnection, not silently claimed as connected.
+
+The callback routes the selected department to an available registered agent,
+then tries the department's configured telephone/SIP fallbacks sequentially.
+Department names/keys containing Sales/Demo map to Sales; Support/Tech to
+Support; Onboarding/Billing to Onboarding. Other names and a menu-disabled
+default route use General enquiries. Set appropriate business hours and keep
+offline/no-answer greetings or voicemail configured. One agent is reserved
+atomically per inbound call; other calls skip busy agents. The existing seven
+SIP accounts may still be used in softphones or as fallback destinations, but
+are not the credentials for this browser phone.
+
+For an outgoing browser call, the provider sends `clientDialedNumber` and the
+browser identity `applicationUsername.clientName`. The callback validates the
+server-prepared call/contact, binds the provider session and returns `Dial` to
+that stored destination only. It does not play the incoming IVR, accept an
+arbitrary dial destination, or create a second inbound record. Incoming browser
+identities use the documented `username.clientName` destination syntax. See
+[AT WebRTC usage](https://developers.africastalking.com/docs/voice/webRTC_client/usage).
+
+Production acceptance checks (not replaced by automated tests):
+
+- Outgoing contact call: two-way audio, correct caller ID, single call history,
+  correct final duration/cost from provider events; no IVR loop or FaceTime.
+- Incoming virtual-number call: select each department, receive and explicitly
+  answer/decline in Azera; verify two-way audio, mute/hold/keypad and history.
+- Busy/offline agent and closed browser: next available agent or configured
+  fallback/no-answer handling; never show an offline agent as connected.
+- Duplicate/late provider events and final notifications sent to Callback:
+  no redial, duplicate history or regression from active back to ringing.
+- Test Chrome, Android Chrome and iOS Safari with microphone/autoplay
+  permissions, and token expiry/failed network recovery.
+
+Cloudflare remains the separate website-visitor-to-agent media path, not a SIP
+registrar or a required intermediary for Africa's Talking telephone calls.
 
 In Admin → Azera → Settings → Phone Calls:
 
@@ -76,6 +174,11 @@ or remove these audio references. The application does not create synthetic
 promotional audio or expose voicemail files publicly.
 
 ## Sales softphones
+
+For the seven provisioned staff accounts, follow the
+[MartPoint SIP setup guide](./azera-sip-setup-guide.md). It covers the working
+Linphone UDP configuration, department fallbacks, deployment checks and the
+distinction between SIP registration and Azera browser outbound calling.
 
 For a sales team, request or map Africa's Talking SIP destinations for the
 agents, then configure each destination in a SIP client such as Zoiper or

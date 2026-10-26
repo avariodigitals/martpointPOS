@@ -22,6 +22,10 @@ describe("Africa’s Talking recording consent", () => {
     expect(xml).toContain("stage=recording-consent");
     expect(xml).toContain("secret=test&amp;");
     expect(xml).toContain("Press 1 to agree &amp; 2 to decline");
+    expect(xml).toContain('/api/africastalking/voice/consent?');
+    expect(xml).toContain('<Redirect>');
+    expect(xml).toContain('consent-timeout=1');
+    expect(xml).toContain('numDigits="1"');
   });
   it("never records a default dial and uses only documented recording attributes when consented", () => {
     expect(recordedDialAction(["+2348000000001"], "", "", false)).not.toContain(

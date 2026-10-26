@@ -35,6 +35,8 @@ export function normalizePhone(value: unknown): string {
 export function normalizeVoiceDestination(value: unknown): string {
   const raw = String(value || "").trim();
   if (!raw) return "";
+  // WebRTC identities are applicationUsername.clientName, not phone numbers.
+  if (/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/.test(raw)) return raw;
   if (
     /^(?:sip:)?[^\s,@]+@[^\s,@]+$/i.test(raw) ||
     /^[^\s,@]+\.sip\.[^\s,@]+$/i.test(raw)
@@ -485,12 +487,18 @@ export async function storeAfricaWebhookEvent(input: {
   if (!isSupabaseConfigured()) return null;
   const reference = providerReference(input.product, input.payload);
   const type = eventType(input.product, input.payload);
+  // Several GetDigits responses have the same sessionId and Ringing state.
+  // Deduplicate exact deliveries, not distinct keypresses in that session.
+  const callback = new URL(input.request.url);
+  const stage = callback.searchParams.get("stage") || "";
+  const consentTimeout = callback.searchParams.get("consent-timeout") === "1";
+  const fingerprint = stablePayloadHash(input.product, `${input.endpoint}:${stage}:${consentTimeout}`, input.rawBody);
   const dedupeKey = reference
-    ? `${input.product}:${input.endpoint}:${reference}:${type}`
-    : stablePayloadHash(input.product, input.endpoint, input.rawBody);
+    ? `${input.product}:${input.endpoint}:${reference}:${type}:${fingerprint}`
+    : fingerprint;
   const { data, error } = await supabase
     .from("africastalking_webhook_events")
-    .upsert(
+    .insert(
       {
         business_id: input.businessId || null,
         product: input.product,
@@ -501,15 +509,21 @@ export async function storeAfricaWebhookEvent(input: {
         content_type: input.request.headers.get("content-type"),
         request_headers: requestHeaders(input.request),
         raw_body: input.rawBody,
-        payload: input.payload,
+        payload: { ...input.payload, _martpoint_callback: { path: callback.pathname, stage: stage || null, consent_timeout: consentTimeout } },
         processing_status: "received",
       },
-      { onConflict: "dedupe_key" },
     )
     .select("id")
     .single();
 
   if (error) {
+    // The original dedupe index is partial. INSERT catches duplicate keys;
+    // ON CONFLICT(dedupe_key) cannot infer that partial index (SQL 42P10).
+    if (error.code === "23505") {
+      const { data: existing } = await supabase.from("africastalking_webhook_events")
+        .select("id").eq("dedupe_key", dedupeKey).maybeSingle();
+      return (existing?.id as string | undefined) || null;
+    }
     console.error("[Africa's Talking webhook store error]", error);
     return null;
   }

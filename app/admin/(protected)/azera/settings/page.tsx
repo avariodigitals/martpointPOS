@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Save, MessageCircle, Save as SaveIcon } from "lucide-react";
 import { VoiceDepartmentsEditor } from "@/components/admin/voice-departments-editor";
 import { CloudflareMediaSettings } from "@/components/admin/cloudflare-media-settings";
+import { AfricaCallbackSettings } from "@/components/admin/africa-callback-settings";
 import {
   departmentFallbacks,
   type VoiceDepartmentForm,
@@ -1293,6 +1294,7 @@ export default function AzeraSettingsPage() {
                       ))}
                     </div>
                   </div>
+                  <AfricaCallbackSettings />
                   <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
                     <p className="font-medium text-foreground">
                       Africa&apos;s Talking callback paths

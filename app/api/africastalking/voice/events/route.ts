@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { importAfricaCallRecording } from "@/lib/africa-call-recording";
 import { getAfricaVoiceConfig } from "@/lib/africastalking";
+import { browserCallerIdentity, preparedAfricaOutbound } from "@/lib/africa-browser-routing";
+import { normalizeOutboundPhone } from "@/lib/azera-outbound";
 import {
   callbackSecretIsValid,
   finishAfricaWebhookEvent,
@@ -101,6 +103,7 @@ function numericValue(value: string): number | null {
 function providerDestination(payload: Record<string, unknown>): string {
   const raw = pick(
     payload,
+    "clientDialedNumber",
     "phoneNumber",
     "dialedNumber",
     "calledNumber",
@@ -108,22 +111,20 @@ function providerDestination(payload: Record<string, unknown>): string {
     "destination",
     "to",
   );
-  return raw.includes("@") || raw.toLowerCase().startsWith("sip:")
-    ? normalizeVoiceDestination(raw)
-    : normalizePhone(raw);
+  return normalizeVoiceDestination(raw);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   if (!callbackSecretIsValid(request))
     return NextResponse.json(
       { ok: false, error: "Forbidden" },
       { status: 403 },
     );
 
+  const actionRequest = request.clone();
   const { rawBody, payload } = await readAfricaRequest(request);
-  const caller = normalizePhone(
-    pick(payload, "callerNumber", "caller", "from"),
-  );
+  const rawCaller = pick(payload, "callerNumber", "caller", "from");
+  const caller = browserCallerIdentity(rawCaller) ? "" : normalizePhone(rawCaller);
   const destination = normalizePhone(
     pick(payload, "destinationNumber", "destination", "to"),
   );
@@ -135,7 +136,32 @@ export async function POST(request: Request) {
     "call_id",
     "id",
   );
-  const businessId = await resolveAfricaBusinessId(destination);
+  // Some AT number configurations deliver GetDigits results to Events.
+  // For a still-ringing native incoming call this is a voice action needing
+  // XML, not just a status notification to acknowledge with JSON.
+  const digits = pick(payload, "dtmfDigits", "digits", "userInput", "input");
+  const actionState = pick(payload, "callSessionState", "status").toLowerCase();
+  if (digits && sessionId && !browserCallerIdentity(rawCaller) && isSupabaseConfigured() &&
+      !["0", "false"].includes(String(payload.isActive).toLowerCase()) &&
+      ["", "ringing", "active", "answered", "connected", "bridged"].includes(actionState)) {
+    const { data: pending, error } = await supabase.from("azera_calls").select("id")
+      .eq("sip_call_sid", sessionId).eq("sip_provider", "africas_talking")
+      .eq("direction", "inbound").eq("status", "ringing").limit(1).maybeSingle();
+    if (error) return NextResponse.json({ ok: false }, { status: 503 });
+    if (pending) {
+      const { POST: handleVoiceAction } = await import("@/app/api/africastalking/voice/callback/route");
+      return handleVoiceAction(actionRequest);
+    }
+  }
+  let prepared = null;
+  if (browserCallerIdentity(rawCaller)) {
+    try {
+      prepared = await preparedAfricaOutbound(rawCaller, normalizeOutboundPhone(pick(payload, "clientDialedNumber")) || "", sessionId);
+      // Never fabricate an inbound call for an unrecognised browser identity.
+      if (!prepared) return NextResponse.json({ ok: true, ignored: true });
+    } catch { return NextResponse.json({ ok: false }, { status: 503 }); }
+  }
+  const businessId = prepared?.business_id || await resolveAfricaBusinessId(destination);
   const webhookEventId = await storeAfricaWebhookEvent({
     product: "voice",
     endpoint: "voice/events",
@@ -155,6 +181,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    const inactive = ["0", "false"].includes(String(payload.isActive).toLowerCase());
     const providerState = pick(
       payload,
       "callSessionState",
@@ -162,7 +189,10 @@ export async function POST(request: Request) {
       "call_status",
       "event",
     );
-    const mapped = mapState(providerState);
+    let mapped = mapState(providerState);
+    // Keep an explicit Busy/Failed/NoAnswer outcome, but a final notification
+    // without a terminal state must never leave the parent call ringing.
+    if (inactive && !mapped.terminal) mapped = mapState("completed");
     const now = new Date().toISOString();
     const providerEventAt = isoOrNull(
       pick(payload, "eventTime", "timestamp", "callStopTime", "callStartTime"),
@@ -182,7 +212,7 @@ export async function POST(request: Request) {
     let { data: call } = await supabase
       .from("azera_calls")
       .select(
-        "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at",
+        "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, agent_user_id",
       )
       .eq("business_id", businessId)
       .eq("sip_call_sid", sessionId)
@@ -213,7 +243,7 @@ export async function POST(request: Request) {
           updated_at: now,
         })
         .select(
-          "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at",
+          "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, agent_user_id",
         )
         .single();
       if (error || !created)
@@ -239,7 +269,7 @@ export async function POST(request: Request) {
     );
     const terminalToRinging =
       !mapped.terminal &&
-      ["ended", "missed", "failed", "busy"].includes(call.status);
+      (["ended", "missed", "failed", "busy"].includes(call.status) || (call.status === "active" && mapped.status === "ringing"));
     if (!stale && !terminalToRinging) {
       const { data: pendingAttempts } = await supabase
         .from("azera_call_attempts")
@@ -297,7 +327,7 @@ export async function POST(request: Request) {
         mapped.status === "active"
           ? "active"
           : mapped.status === "ended"
-            ? "ended"
+            ? hasAnswered || call.answered_at ? "ended" : "missed"
             : mapped.terminal && !stillPending && !hasAnswered
               ? mapped.status
               : call.status;
@@ -305,6 +335,13 @@ export async function POST(request: Request) {
         status: nextStatus,
         updated_at: now,
       };
+      // If the reserved browser was not answered and a configured fallback
+      // connects instead, don't attribute that telephone conversation to it.
+      if (mapped.status === "active" && call.agent_user_id && attempt && dialedDestination &&
+          !/^[a-zA-Z0-9_-]+\.mp_agent_[a-zA-Z0-9_-]+$/.test(dialedDestination)) {
+        updates.agent_user_id = null;
+        updates.agent_name = null;
+      }
       if (startedAt) updates.started_at = startedAt;
       if (mapped.status === "active" && !call.answered_at)
         updates.answered_at = providerEventAt || now;
@@ -315,7 +352,7 @@ export async function POST(request: Request) {
         updates.ended_at = endedAt || now;
         updates.duration_seconds = duration || 0;
         updates.final_outcome =
-          hasAnswered && mapped.status !== "ended" ? "answered" : mapped.status;
+          hasAnswered && mapped.status !== "ended" ? "answered" : nextStatus;
       }
       if (cost !== null) {
         updates.provider_cost_amount = cost;

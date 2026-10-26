@@ -5,6 +5,9 @@ import {
   recordedDialAction,
 } from "@/lib/africa-recording-actions";
 import { importAfricaCallRecording } from "@/lib/africa-call-recording";
+import { africaBrowserDestination, browserCallerIdentity, preparedAfricaOutbound } from "@/lib/africa-browser-routing";
+import { normalizeOutboundPhone } from "@/lib/azera-outbound";
+import { POST as receiveVoiceEvent } from "@/app/api/africastalking/voice/events/route";
 import {
   callbackSecretIsValid,
   finishAfricaWebhookEvent,
@@ -150,11 +153,27 @@ function menuPrompt(
   return `${greeting} ${departments.map((department) => `Press ${department.digit} for ${department.label}.`).join(" ")} To hear these options again, press 9.`;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   if (!callbackSecretIsValid(request))
     return new NextResponse("Forbidden", { status: 403 });
 
+  const eventRequest = request.clone();
   const { rawBody, payload } = await readAfricaRequest(request);
+  const rawCaller = pick(payload, "callerNumber", "caller", "from");
+  const actionStage = new URL(request.url).searchParams.get("stage");
+  const consentTimeout = new URL(request.url).searchParams.get("consent-timeout") === "1";
+  const dtmfDigits = pick(payload, "dtmfDigits", "digits", "userInput", "input")
+    .replace(/[^0-9*#]/g, "")
+    .slice(0, 1);
+  // AT also posts final events to the callback. A finished call must never
+  // restart IVR or Dial (even when the separate Events URL is not configured).
+  const providerState = pick(payload, "callSessionState", "status").toLowerCase();
+  if (["0", "false"].includes(String(payload.isActive).toLowerCase()) ||
+      ["completed", "ended", "failed", "busy", "notanswered", "rejected"].includes(providerState) ||
+      (browserCallerIdentity(rawCaller) && !dtmfDigits && ["bridged", "answered", "active", "connected"].includes(providerState))) {
+    const response = await receiveVoiceEvent(eventRequest);
+    return response.ok ? voiceXml([]) : new NextResponse("Please retry", { status: 503 });
+  }
   const caller = normalizePhone(
     pick(payload, "callerNumber", "caller", "from"),
   );
@@ -169,9 +188,20 @@ export async function POST(request: Request) {
     "call_id",
     "id",
   );
-  const dtmfDigits = pick(payload, "dtmfDigits", "digits", "userInput", "input")
-    .replace(/[^0-9*#]/g, "")
-    .slice(0, 1);
+  if (browserCallerIdentity(rawCaller) || pick(payload, "clientDialedNumber")) {
+    try {
+      const dialled = normalizeOutboundPhone(pick(payload, "clientDialedNumber")) || "";
+      const call = await preparedAfricaOutbound(rawCaller, dialled, sessionId);
+      if (!call) return voiceXml([say("This call is not authorised. Please start the call again from MartPoint.")]);
+      const event = await storeAfricaWebhookEvent({ product: "voice", endpoint: "voice/callback", request, rawBody, payload, businessId: call.business_id });
+      await finishAfricaWebhookEvent(event, "processed");
+      if (!["ringing", "active"].includes(call.status)) return voiceXml([]);
+      // Exactly the stored contact number, never arbitrary caller input.
+      return voiceXml([recordedDialAction([call.sip_to_number], call.sip_from_number, "", false)]);
+    } catch {
+      return new NextResponse("Please retry", { status: 503 });
+    }
+  }
   const businessId = await resolveAfricaBusinessId(destination);
   const webhookEventId = await storeAfricaWebhookEvent({
     product: "voice",
@@ -199,14 +229,15 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     const startedAt =
       isoOrNull(pick(payload, "callStartTime", "started_at")) || now;
-    const { data: existing } = await supabase
+    const { data: existing, error: callReadError } = await supabase
       .from("azera_calls")
       .select(
-        "id, status, menu_attempts, selected_department, recording_choice, recording_consent_at",
+        "id, status, menu_attempts, selected_department, recording_choice, recording_consent_at, recording_consent_requested_at",
       )
       .eq("business_id", businessId)
       .eq("sip_call_sid", sessionId)
       .maybeSingle();
+    if (callReadError) throw new Error("Could not load call flow. Apply voice consent migration 139.");
 
     let callId = existing?.id as string | undefined;
     let menuAttempts = Number(existing?.menu_attempts || 0);
@@ -247,6 +278,20 @@ export async function POST(request: Request) {
 
     const config = await getAfricaVoiceConfig(businessId);
     const departments = config.departments.slice(0, 8);
+    // Browser phones are tried before the configured phone/SIP fallbacks.
+    // Reserve atomically only once a department/route has been selected.
+    const withBrowser = async (targets: string[], department = "default") => {
+      const browser = await africaBrowserDestination(callId!, businessId, department);
+      return browser ? [browser, ...targets.filter(target => target !== browser)] : targets;
+    };
+    const requestConsent = async (department: string) => {
+      const { error } = await supabase.from("azera_calls")
+        .update({ selected_department: department, recording_consent_requested_at: now, recording_notice: config.recordingNotice, updated_at: now })
+        .eq("id", callId).is("recording_choice", null).is("recording_consent_requested_at", null);
+      if (error) throw new Error("Could not save the pending recording choice");
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml([recordingConsentAction(request.url, config.recordingNotice)]);
+    };
     const open = isVoiceBusinessOpen(
       config.timezone,
       config.weeklySchedule,
@@ -275,18 +320,35 @@ export async function POST(request: Request) {
       await finishAfricaWebhookEvent(webhookEventId, "processed");
       return voiceXml([]);
     }
-    // This stage runs only after a route was selected. No input or any digit
-    // other than 1 means no recording; silence is never treated as consent.
-    if (
-      new URL(request.url).searchParams.get("stage") === "recording-consent"
-    ) {
-      const accepted =
+    if (existing?.status === "active") {
+      // A delayed GetDigits retry must never dial again after connection.
+      if (!dtmfDigits && ["bridged", "answered", "active", "connected"].includes(providerState)) {
+        const response = await receiveVoiceEvent(eventRequest);
+        return response.ok ? voiceXml([]) : new NextResponse("Please retry", { status: 503 });
+      }
+      await finishAfricaWebhookEvent(webhookEventId, "processed");
+      return voiceXml([]);
+    }
+    // The stored stage is authoritative even when the provider returns digit
+    // callbacks to the number's default URL rather than the action URL.
+    const awaitingConsent = Boolean(existing?.recording_consent_requested_at && !existing.recording_choice);
+    const consentRoute = actionStage === "recording-consent" || awaitingConsent ||
+      Boolean(existing?.recording_consent_requested_at && existing.recording_choice);
+    if (consentRoute) {
+      const pendingAge = existing?.recording_consent_requested_at
+        ? Date.now() - Date.parse(existing.recording_consent_requested_at) : Infinity;
+      if (awaitingConsent && !consentTimeout && actionStage !== "recording-consent" && !dtmfDigits && pendingAge < 8_000) {
+        // A prompt-delivery retry must not erase a choice or prompt forever.
+        await finishAfricaWebhookEvent(webhookEventId, "processed");
+        return voiceXml([recordingConsentAction(request.url, config.recordingNotice)]);
+      }
+      let accepted =
         config.recordCalls &&
         (existing?.recording_choice
           ? existing.recording_choice === "accepted" &&
             Boolean(existing.recording_consent_at)
-          : dtmfDigits === "1");
-      const { error: consentError } = await supabase
+          : !consentTimeout && dtmfDigits === "1");
+      const { data: savedConsent, error: consentError } = await supabase
         .from("azera_calls")
         .update({
           recording_choice: accepted ? "accepted" : "declined",
@@ -295,19 +357,34 @@ export async function POST(request: Request) {
           updated_at: now,
         })
         .eq("id", callId)
-        .is("recording_choice", null);
+        .is("recording_choice", null)
+        .select("recording_choice,recording_consent_at")
+        .maybeSingle();
       if (consentError) throw new Error("Could not store recording choice");
+      if (savedConsent?.recording_choice) {
+        accepted = config.recordCalls && savedConsent.recording_choice === "accepted" && Boolean(savedConsent.recording_consent_at);
+      } else if (!existing?.recording_choice) {
+        // Another callback may have decided first. Read its stored decision;
+        // never start recording using a losing callback's unsaved press of 1.
+        const { data: winner, error } = await supabase.from("azera_calls")
+          .select("recording_choice,recording_consent_at").eq("id", callId).maybeSingle();
+        if (error || !winner?.recording_choice) throw new Error("Recording choice could not be confirmed");
+        accepted = config.recordCalls && winner.recording_choice === "accepted" && Boolean(winner.recording_consent_at);
+      }
       const selected = existing?.selected_department;
-      const targets =
+      let targets =
         selected === "after-hours"
           ? [config.afterHoursDestination].filter(Boolean)
-          : selected
+          : selected && selected !== "default"
             ? departments.find((item) => item.key === selected)?.numbers || []
             : config.forwardNumbers;
-      if (!targets.length)
+      if (selected !== "after-hours") targets = await withBrowser(targets, selected || "default");
+      if (!targets.length) {
+        await finishAfricaWebhookEvent(webhookEventId, "processed");
         return voiceXml(
           voicemailOrEnd(request, config, config.noAnswerGreeting),
         );
+      }
       await recordAttempts(callId, businessId, selected || null, targets, now);
       await finishAfricaWebhookEvent(webhookEventId, "processed");
       return voiceXml([
@@ -334,14 +411,7 @@ export async function POST(request: Request) {
     if (!open) {
       if (config.afterHoursDestination) {
         if (consentRequired) {
-          await supabase
-            .from("azera_calls")
-            .update({ selected_department: "after-hours" })
-            .eq("id", callId);
-          await finishAfricaWebhookEvent(webhookEventId, "processed");
-          return voiceXml([
-            recordingConsentAction(request.url, config.recordingNotice),
-          ]);
+          return requestConsent("after-hours");
         }
         await recordAttempts(
           callId,
@@ -375,10 +445,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const hasConfiguredRoute =
-      config.forwardNumbers.length > 0 ||
-      (config.menuEnabled &&
-        departments.some((department) => department.numbers.length));
+    // A browser-only default route is valid even with no forwarding numbers.
+    const defaultTargets = !config.menuEnabled ? await withBrowser(config.forwardNumbers) : config.forwardNumbers;
+    const hasConfiguredRoute = defaultTargets.length > 0 || (config.menuEnabled && departments.length > 0);
     if (!hasConfiguredRoute) {
       await supabase
         .from("azera_calls")
@@ -443,12 +512,13 @@ export async function POST(request: Request) {
           ]);
         }
 
-        if (config.forwardNumbers.length) {
+        const retryTargets = await withBrowser(config.forwardNumbers);
+        if (retryTargets.length) {
           await recordAttempts(
             callId,
             businessId,
             null,
-            config.forwardNumbers,
+            retryTargets,
             now,
           );
           await supabase
@@ -459,7 +529,7 @@ export async function POST(request: Request) {
           return voiceXml([
             say(config.connectingGreeting),
             dialAction(
-              config.forwardNumbers,
+              retryTargets,
               config.phoneNumber || destination,
               config.waitingAudioUrl,
             ),
@@ -478,26 +548,20 @@ export async function POST(request: Request) {
 
       const department = departments.find((item) => item.digit === digit);
       if (department) {
-        if (await destinationsAreBusy(businessId, department.numbers)) {
+        const targets = await withBrowser(department.numbers, `${department.key} ${department.label}`);
+        if (await destinationsAreBusy(businessId, targets)) {
           await markCallBusy(callId, now);
           await finishAfricaWebhookEvent(webhookEventId, "processed");
           return voiceXml(voicemailOrEnd(request, config, config.busyGreeting));
         }
         if (consentRequired) {
-          await supabase
-            .from("azera_calls")
-            .update({ selected_department: department.key })
-            .eq("id", callId);
-          await finishAfricaWebhookEvent(webhookEventId, "processed");
-          return voiceXml([
-            recordingConsentAction(request.url, config.recordingNotice),
-          ]);
+          return requestConsent(department.key);
         }
         await recordAttempts(
           callId,
           businessId,
           department.key,
-          department.numbers,
+          targets,
           now,
         );
         await supabase
@@ -521,7 +585,7 @@ export async function POST(request: Request) {
         return voiceXml([
           sayOrPlay(config.connectingGreeting, config.connectingAudioUrl),
           dialAction(
-            department.numbers,
+            targets,
             config.phoneNumber || destination,
             config.waitingAudioUrl,
           ),
@@ -529,25 +593,22 @@ export async function POST(request: Request) {
       }
     }
 
-    if (await destinationsAreBusy(businessId, config.forwardNumbers)) {
+    if (await destinationsAreBusy(businessId, defaultTargets)) {
       await markCallBusy(callId, now);
       await finishAfricaWebhookEvent(webhookEventId, "processed");
       return voiceXml(voicemailOrEnd(request, config, config.busyGreeting));
     }
 
     if (consentRequired) {
-      await finishAfricaWebhookEvent(webhookEventId, "processed");
-      return voiceXml([
-        recordingConsentAction(request.url, config.recordingNotice),
-      ]);
+      return requestConsent("default");
     }
-    await recordAttempts(callId, businessId, null, config.forwardNumbers, now);
+    await recordAttempts(callId, businessId, null, defaultTargets, now);
     await finishAfricaWebhookEvent(webhookEventId, "processed");
     const callerId = config.phoneNumber || destination;
     return voiceXml([
       sayOrPlay(config.greeting, config.greetingAudioUrl),
       sayOrPlay(config.connectingGreeting, config.connectingAudioUrl),
-      dialAction(config.forwardNumbers, callerId, config.waitingAudioUrl),
+      dialAction(defaultTargets, callerId, config.waitingAudioUrl),
     ]);
   } catch (error) {
     console.error("[Africa's Talking voice callback error]", error);

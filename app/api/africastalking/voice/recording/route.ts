@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { importAfricaCallRecording } from "@/lib/africa-call-recording";
+import { notifyAllAdmins } from "@/lib/admin-notifications";
 import {
   callbackSecretIsValid,
   finishAfricaWebhookEvent,
@@ -210,6 +211,16 @@ export async function POST(request: Request) {
         recording_reference: reference,
       },
       created_at: new Date().toISOString(),
+    });
+    await notifyAllAdmins({
+      type: "azera_voicemail",
+      title: "New Azera voicemail",
+      message: `${call.selected_department || "General enquiries"} · ${caller || call.customer_phone || "Unknown caller"}`,
+      deep_link: "/admin/azera/voicemails",
+      source_type: "azera_voicemail",
+      source_id: call.id,
+      roles: ["Admin", "Sales", "Customer Care", "Tech"],
+      actor_admin_user_id: null,
     });
 
     await finishAfricaWebhookEvent(webhookEventId, "processed");

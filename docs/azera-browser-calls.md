@@ -116,8 +116,27 @@ production firewall/relay behaviour.
 
 Migration 137 adds authenticated receiving phones in the admin header. See
 `docs/AFRICASTALKING_INTEGRATION.md` for production callback/event URLs,
-department mapping and the required live acceptance checks. Provider activation,
-production dashboard configuration and two-way audio still require verification.
+department mapping and the required live acceptance checks. Migrations 141 and
+142 add the production safety layer: an administrator must assign each user to
+one or more voice queues under **Admin → Azera → Voice Agent Assignments**.
+The user's normal portal role only allows access to the phone feature; it does
+not grant access to every queue. The server ignores a browser's requested queue
+list and registers only the saved assignment.
+
+The incoming card shows the selected queue and provides mute, hold, keypad,
+blind transfer and a conference request. Transfer uses the Africa's Talking
+Events URL to return a provider `Dial` action to the selected online agent.
+Conference is recorded and guarded, but remains disabled until the tenant's
+Africa's Talking conference capability and room/participant behaviour are
+verified on a real test number; the app does not silently claim a conference
+was joined. If no eligible agent is online, the existing configured fallback
+or voicemail route is used.
+
+Voicemail is handled in **Admin → Azera → Voicemails**. The recording callback
+downloads the provider recording into the private `azera-voicemails` Supabase
+bucket, returns a short-lived signed playback link, and supports status, notes,
+follow-up date and assignment. The retention setting controls deletion. Africa's
+Talking's dashboard copy is short-lived, so the download step is important.
 Do not confuse this telephone route with website-to-agent Cloudflare audio.
 # Header dial pad and creator calling
 

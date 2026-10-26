@@ -11,7 +11,7 @@ beforeEach(() => {
     return q
   })
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals() })
 describe("Current browser-call credentials", () => {
   it("reads the saved application username on every preparation, not the website cache", async () => {
     expect((await africaBrowserConfig()).username).toBe("current_app")

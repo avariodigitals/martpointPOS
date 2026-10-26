@@ -86,7 +86,10 @@ async function recordAttempts(
       department_key: departmentKey,
       destination,
       attempt_number: index + 1,
-      status: "dialing",
+      // Africa's Talking <Dial sequential="true"> tries one destination at a
+      // time. Reserving every later fallback as dialing made concurrent calls
+      // falsely treat unused lines as busy.
+      status: index === 0 ? "dialing" : "queued",
       started_at: now,
       created_at: now,
     })),
@@ -145,12 +148,20 @@ async function markCallBusy(callId: string, now: string) {
   });
 }
 
+function menuOptions(departments: Awaited<ReturnType<typeof getAfricaVoiceConfig>>["departments"]): string {
+  const choices = departments.map((department) => `Press ${department.digit} for ${department.label}.`).join(" ");
+  return `${choices} To hear these options again, press 9.`.trim();
+}
+
 function menuPrompt(
   greeting: string,
   departments: Awaited<ReturnType<typeof getAfricaVoiceConfig>>["departments"],
 ): string {
-  if (/press\s+1\b/i.test(greeting)) return greeting;
-  return `${greeting} ${departments.map((department) => `Press ${department.digit} for ${department.label}.`).join(" ")} To hear these options again, press 9.`;
+  // A legacy greeting may contain only one option (often “Press 1”). Never
+  // treat that as a complete menu: derive every spoken choice from the active
+  // department configuration and reserve 9 for replay.
+  const introduction = splitVoiceMenuGreeting(greeting).introduction;
+  return `${introduction} ${menuOptions(departments)}`.trim();
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -191,6 +202,15 @@ export async function POST(request: Request): Promise<Response> {
     "call_id",
     "id",
   );
+  const campaignRequest = pick(payload, "clientRequestId", "client_request_id");
+  const campaignId = /^azera-campaign:[0-9a-f-]{36}$/i.test(campaignRequest);
+  const campaignCall = !campaignId && sessionId
+    ? await supabase.from("azera_calls").select("id").eq("sip_provider", "africas_talking_campaign").eq("sip_call_sid", sessionId).limit(1).maybeSingle()
+    : null;
+  if (campaignId || campaignCall?.data) {
+    const { POST: handleCampaignVoice } = await import("@/app/api/africastalking/voice/campaign/route");
+    return handleCampaignVoice(request);
+  }
   if (browserCallerIdentity(rawCaller) || pick(payload, "clientDialedNumber")) {
     try {
       const dialled = normalizeOutboundPhone(pick(payload, "clientDialedNumber")) || "";
@@ -282,14 +302,18 @@ export async function POST(request: Request): Promise<Response> {
     const config = await getAfricaVoiceConfig(businessId);
     const departments = config.departments.slice(0, 8);
     const menuParts = splitVoiceMenuGreeting(config.greeting);
-    const optionsPrompt = menuParts.options || menuPrompt("", departments).trim();
+    const optionsPrompt = menuOptions(departments);
     const menuText = config.recordCalls && existing?.recording_choice
       ? optionsPrompt : menuPrompt(config.greeting, departments);
-    // Browser phones are tried before the configured phone/SIP fallbacks.
-    // Reserve atomically only once a department/route has been selected.
-    const withBrowser = async (targets: string[], department = "default") => {
+    // Reserve an available browser agent atomically. General/default calls
+    // prefer the browser, while a selected department tries configured SIP
+    // destinations first and keeps the browser as fallback.
+    const withBrowser = async (targets: string[], department = "default", sipFirst = false) => {
       const browser = await africaBrowserDestination(callId!, businessId, department);
-      return browser ? [browser, ...targets.filter(target => target !== browser)] : targets;
+      if (!browser) return targets;
+      return sipFirst
+        ? [...targets.filter(target => target !== browser), browser]
+        : [browser, ...targets.filter(target => target !== browser)];
     };
     const requestConsent = async (department: string, greeting: string[] = []) => {
       const { error } = await supabase.from("azera_calls")
@@ -590,7 +614,7 @@ export async function POST(request: Request): Promise<Response> {
 
       const department = departments.find((item) => item.digit === digit);
       if (department) {
-        const targets = await withBrowser(department.numbers, `${department.key} ${department.label}`);
+        const targets = await withBrowser(department.numbers, `${department.key} ${department.label}`, true);
         if (await destinationsAreBusy(businessId, targets)) {
           await markCallBusy(callId, now);
           await finishAfricaWebhookEvent(webhookEventId, "processed");

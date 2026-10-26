@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { importAfricaCallRecording } from "@/lib/africa-call-recording";
 import { getAfricaVoiceConfig } from "@/lib/africastalking";
 import { browserCallerIdentity, preparedAfricaOutbound } from "@/lib/africa-browser-routing";
+import { campaignCallId, finishAzeraCampaignIfDone } from "@/lib/azera-campaign-worker";
 import { normalizeOutboundPhone } from "@/lib/azera-outbound";
 import {
   callbackSecretIsValid,
@@ -13,6 +14,8 @@ import {
   readAfricaRequest,
   resolveAfricaBusinessId,
   storeAfricaWebhookEvent,
+  voiceXml,
+  xmlEscape,
 } from "@/lib/africastalking";
 
 export const runtime = "nodejs";
@@ -136,11 +139,58 @@ export async function POST(request: Request): Promise<Response> {
     "call_id",
     "id",
   );
+  const campaignRequestId = campaignCallId(pick(payload, "clientRequestId", "client_request_id"));
+  // Outbound campaign webhooks usually identify the dialed customer as
+  // destinationNumber, not the MartPoint virtual number. Resolve the tenant
+  // through the campaign recipient before falling back to number mapping.
+  const { data: campaignEventCall } = campaignRequestId && isSupabaseConfigured()
+    ? await supabase.from("azera_calls")
+      .select("id,business_id,status,answered_at,last_provider_event_at,recording_choice,recording_consent_at,agent_user_id,campaign_recipient_id")
+      .eq("campaign_recipient_id", campaignRequestId).maybeSingle()
+    : { data: null };
   // Some AT number configurations deliver GetDigits results to Events.
   // For a still-ringing native incoming call this is a voice action needing
   // XML, not just a status notification to acknowledge with JSON.
   const digits = pick(payload, "dtmfDigits", "digits", "userInput", "input");
   const actionState = pick(payload, "callSessionState", "status").toLowerCase();
+  // A browser agent can request a blind transfer by creating a short-lived
+  // control row and sending one reserved DTMF control digit. Africa's Talking
+  // then asks the Events URL for the next XML action. This keeps target
+  // identities server-side; the browser never receives a SIP password.
+  if (digits && sessionId && isSupabaseConfigured() &&
+      !["0", "false"].includes(String(payload.isActive).toLowerCase()) &&
+      ["active", "answered", "connected", "bridged"].includes(actionState)) {
+    const { data: activeCall } = await supabase.from("azera_calls")
+      .select("id,business_id,status,agent_user_id,sip_call_sid")
+      .eq("sip_call_sid", sessionId).eq("sip_provider", "africas_talking")
+      .eq("direction", "inbound").eq("status", "active").maybeSingle();
+    if (activeCall) {
+      const { data: control } = await supabase.from("azera_call_control_requests")
+        .select("id,mode,target_destination,target_queue,target_user_id")
+        .eq("call_id", activeCall.id).eq("status", "pending")
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (control && (String(digits).includes("*") || String(digits).includes("#"))) {
+        await supabase.from("azera_call_control_requests").update({ status: "executing", consumed_at: new Date().toISOString() }).eq("id", control.id).eq("status", "pending");
+        await supabase.from("azera_call_events").insert({ call_id: activeCall.id, event_type: control.mode === "transfer" ? "transfer_started" : "conference_requested", actor_type: "system", metadata: { control_request_id: control.id, target_destination: control.target_destination, provider: "africas_talking" } });
+        if (control.mode === "transfer") {
+          const { data: targetUser } = control.target_user_id
+            ? await supabase.from("users").select("name").eq("id", control.target_user_id).maybeSingle()
+            : { data: null };
+          const reassignment: Record<string, unknown> = { agent_user_id: control.target_user_id, agent_name: targetUser?.name || null, updated_at: new Date().toISOString() };
+          if (control.target_queue) reassignment.selected_department = control.target_queue;
+          await supabase.from("azera_calls").update(reassignment).eq("id", activeCall.id).eq("status", "active");
+          return voiceXml([`<Dial phoneNumbers="${xmlEscape(control.target_destination)}" sequential="true"/>`]);
+        }
+        // AT exposes Conference as an Events/Voice XML action. The exact
+        // conference-room/participant semantics must be enabled and verified
+        // on the tenant's AT account before we expose it as a production join.
+        // Do not silently drop the live call if that account capability is not
+        // present; leave a provider-visible prompt and record the request.
+        await supabase.from("azera_call_control_requests").update({ status: "failed", error_message: "Conference requires tenant-level Africa's Talking conference configuration and live verification." }).eq("id", control.id);
+        return voiceXml(["<Say>Conference joining is not enabled for this number. Please use transfer or stay on the call.</Say>"]);
+      }
+    }
+  }
   if (digits && sessionId && !browserCallerIdentity(rawCaller) && isSupabaseConfigured() &&
       !["0", "false"].includes(String(payload.isActive).toLowerCase()) &&
       ["", "ringing", "active", "answered", "connected", "bridged"].includes(actionState)) {
@@ -161,7 +211,7 @@ export async function POST(request: Request): Promise<Response> {
       if (!prepared) return NextResponse.json({ ok: true, ignored: true });
     } catch { return NextResponse.json({ ok: false }, { status: 503 }); }
   }
-  const businessId = prepared?.business_id || await resolveAfricaBusinessId(destination);
+  const businessId = prepared?.business_id || campaignEventCall?.business_id || await resolveAfricaBusinessId(destination);
   const webhookEventId = await storeAfricaWebhookEvent({
     product: "voice",
     endpoint: "voice/events",
@@ -212,11 +262,22 @@ export async function POST(request: Request): Promise<Response> {
     let { data: call } = await supabase
       .from("azera_calls")
       .select(
-        "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, agent_user_id",
+        "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, agent_user_id, campaign_recipient_id",
       )
       .eq("business_id", businessId)
       .eq("sip_call_sid", sessionId)
       .maybeSingle();
+    if (!call && campaignEventCall) call = campaignEventCall;
+    if (!call && campaignRequestId) {
+      const { data: recipient } = await supabase.from("azera_call_campaign_recipients")
+        .select("call_id").eq("id", campaignRequestId).maybeSingle();
+      if (recipient?.call_id) {
+        const { data: campaignCall } = await supabase.from("azera_calls")
+          .select("id,business_id,status,answered_at,last_provider_event_at,recording_choice,recording_consent_at,agent_user_id,campaign_recipient_id")
+          .eq("id", recipient.call_id).maybeSingle();
+        call = campaignCall;
+      }
+    }
     if (!call) {
       const { data: created, error } = await supabase
         .from("azera_calls")
@@ -243,7 +304,7 @@ export async function POST(request: Request): Promise<Response> {
           updated_at: now,
         })
         .select(
-          "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, agent_user_id",
+          "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, agent_user_id, campaign_recipient_id",
         )
         .single();
       if (error || !created)
@@ -264,7 +325,7 @@ export async function POST(request: Request): Promise<Response> {
         .from("azera_call_attempts")
         .select("id, status")
         .eq("call_id", call.id)
-        .in("status", ["dialing", "ringing"]);
+        .in("status", ["queued", "dialing", "ringing"]);
       const { data: answeredAttempts } = await supabase
         .from("azera_call_attempts")
         .select("id")
@@ -308,7 +369,7 @@ export async function POST(request: Request): Promise<Response> {
       const stillPending = (pendingAttempts || []).some(
         (item) =>
           item.id !== attempt?.id &&
-          ["dialing", "ringing"].includes(item.status),
+          ["queued", "dialing", "ringing"].includes(item.status),
       );
       const hasAnswered =
         Boolean(answeredAttempts?.length) || mapped.status === "active";
@@ -354,6 +415,36 @@ export async function POST(request: Request): Promise<Response> {
         .update(updates)
         .eq("id", call.id);
       if (error) throw new Error(error.message);
+
+      // Completed is the aggregate end of the sequential Dial action: any
+      // destinations still queued were never needed and must not hold history
+      // open forever. Per-destination busy/no-answer events keep those rows
+      // queued while the provider advances to the next fallback.
+      if (mapped.status === "ended") {
+        await supabase.from("azera_call_attempts").update({ status: hasAnswered ? "failed" : "no_answer", ended_at: endedAt || now, provider_state: providerState || null })
+          .eq("call_id", call.id).eq("status", "queued");
+      }
+    }
+
+    if (!stale && call.campaign_recipient_id) {
+      const { data: recipient } = await supabase.from("azera_call_campaign_recipients")
+        .select("id,campaign_id,status,response_digit").eq("id", call.campaign_recipient_id).maybeSingle();
+      if (recipient && mapped.status === "active" && !recipient.response_digit && recipient.status === "dialing") {
+        await supabase.from("azera_call_campaign_recipients").update({ status: "answered", answered_at: providerEventAt || now, updated_at: now }).eq("id", recipient.id).eq("status", "dialing");
+      }
+      if (recipient && mapped.terminal) {
+        if (!recipient.response_digit && ["dialing", "answered"].includes(recipient.status)) {
+          const noAnswer = mapped.status === "missed" || mapped.status === "busy";
+          await supabase.from("azera_call_campaign_recipients").update({
+            status: noAnswer ? "no_response" : "no_response",
+            response_label: noAnswer ? "No answer" : "Call ended without a keypad response",
+            notes: noAnswer ? "The contact did not answer the automated campaign call." : "The call connected but ended before a keypad response was received.",
+            completed_at: endedAt || now,
+            updated_at: now,
+          }).eq("id", recipient.id).in("status", ["dialing", "answered"]).is("response_digit", null);
+        }
+        await finishAzeraCampaignIfDone(recipient.campaign_id);
+      }
     }
 
     await supabase.from("azera_call_events").insert({

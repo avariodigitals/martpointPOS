@@ -5,6 +5,7 @@ import { contactCentreUrl } from "@/lib/contact-centre-links";
 import { hangupRealtimeCall } from "@/lib/azera-realtime";
 import { cloudflareSfuConfigured } from "@/lib/cloudflare-rtc";
 import { sweepCloudflareCalls } from "@/lib/azera-cloudflare-cleanup";
+import { dispatchAzeraCampaignCall } from "@/lib/azera-campaign-worker";
 export const maxDuration = 60;
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -158,5 +159,11 @@ export async function GET(request: Request) {
     });
     reminded++;
   }
-  return NextResponse.json({ success: true, reminded });
+  let campaign = { dispatched: false };
+  try {
+    campaign = await dispatchAzeraCampaignCall();
+  } catch {
+    return NextResponse.json({ error: "Could not dispatch outbound campaign call. Check migration 140 and Africa’s Talking Voice setup." }, { status: 503 });
+  }
+  return NextResponse.json({ success: true, reminded, campaign });
 }

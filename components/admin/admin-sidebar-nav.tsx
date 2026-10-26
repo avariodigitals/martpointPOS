@@ -54,6 +54,7 @@ import {
   Calculator,
   Sparkles,
   FileAudio,
+  PhoneCall,
   CreditCard,
   Star,
   type LucideIcon,
@@ -92,8 +93,11 @@ const navItems: NavItem[] = [
 
   // OMNICHANNEL
   { href: "/admin/azera", label: "Azera Chat", icon: MessageCircle, page: "azera", section: "Omnichannel" },
+  { href: "/admin/azera/campaigns", label: "Call Campaigns", icon: Megaphone, page: "azera", section: "Omnichannel" },
   { href: "/admin/azera/knowledge", label: "AI Knowledge Base", icon: BookOpen, page: "azera", section: "Omnichannel" },
   { href: "/admin/azera/settings", label: "Azera Settings", icon: Settings, page: "azera", section: "Omnichannel" },
+  { href: "/admin/azera/voice-agents", label: "Voice Agent Assignments", icon: PhoneCall, page: "settings", section: "Omnichannel" },
+  { href: "/admin/azera/voicemails", label: "Voicemails", icon: FileAudio, page: "azera", section: "Omnichannel" },
   { href: "/admin/azera/reports", label: "Call Reports", icon: FileAudio, page: "support", section: "Omnichannel" },
   { href: "/admin/google-reviews", label: "Google Reviews", icon: Star, page: "support", section: "Omnichannel" },
 

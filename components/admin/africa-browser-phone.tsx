@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { Phone, PhoneIncoming, PhoneOff, Mic, MicOff, Pause, Play, X } from "lucide-react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { Phone, PhoneIncoming, PhoneOff, Mic, MicOff, Pause, Play, X, ArrowRightLeft, Users } from "lucide-react";
 import { AfricaIncomingPhone, type IncomingPhoneState } from "@/lib/africa-incoming-phone";
 import { normalizeDialNumber, type BrowserDialRequest } from "@/lib/browser-phone-target";
 import { AzeraOutboundCall, type OutboundContact } from "@/components/admin/azera-outbound-call";
 
-const departments = [["sales", "Sales"], ["support", "Support"], ["onboarding", "Onboarding"], ["customer_support", "General enquiries"]];
+const departments = [["sales", "Sales"], ["support", "Support"], ["onboarding", "Onboarding"], ["customer_support", "General enquiries"]] as const;
 export function AfricaBrowserPhone() {
   const phone = useRef<AfricaIncomingPhone | null>(null);
   const enabled = useRef(false);
@@ -18,13 +18,31 @@ export function AfricaBrowserPhone() {
   const [outgoing, setOutgoing] = useState<OutboundContact | null>(null);
   const [outboundBusy, setOutboundBusy] = useState(false);
   const [dialError, setDialError] = useState("");
-  const [queues, setQueues] = useState(["customer_support"]);
+  const [controlQueue, setControlQueue] = useState("support");
+  const [controlBusy, setControlBusy] = useState(false);
+  const [controlMessage, setControlMessage] = useState("");
+  const [queues, setQueues] = useState<string[]>([]);
+  const [assignmentLoading, setAssignmentLoading] = useState(true);
+  const [assignmentError, setAssignmentError] = useState("");
+  const [panelPosition, setPanelPosition] = useState<{ left: number; top: number } | null>(null);
+  const drag = useRef<{ pointerId: number; x: number; y: number; left: number; top: number; width: number; height: number } | null>(null);
   const selected = useRef(queues);
   useEffect(() => { selected.current = queues; }, [queues]);
   const [state, setState] = useState<IncomingPhoneState>({ state: "off", call: null, error: null, held: false, muted: false, audioBlocked: false });
   useEffect(() => {
     const current = new AfricaIncomingPhone(value => { setState(value); if (value.state === "ringing") setOpen(true); });
     phone.current = current;
+    void fetch("/api/azera/calls/africa-browser/agent", { cache: "no-store" })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load voice assignment.");
+        const assigned = Array.isArray(data.allowedQueues) ? data.allowedQueues : [];
+        setQueues(assigned);
+        selected.current = assigned;
+        if (!assigned.length) setAssignmentError("You are not assigned to a voice queue.");
+      })
+      .catch(error => setAssignmentError(error instanceof Error ? error.message : "Could not load voice assignment."))
+      .finally(() => setAssignmentLoading(false));
     const pause = (event: Event) => {
       const wait = (event as CustomEvent<{ waitUntil: (promise: Promise<void>) => void }>).detail?.waitUntil;
       if (["ringing", "active"].includes(current.snapshot.state)) {
@@ -65,6 +83,27 @@ export function AfricaBrowserPhone() {
   }, []);
   const inCall = ["ringing", "active"].includes(state.state);
   const connected = ["connecting", "ready", "ringing", "active"].includes(state.state);
+  const beginPanelDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest("button")) return;
+    const panel = event.currentTarget.closest("section");
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setPanelPosition({ left: rect.left, top: rect.top });
+    event.preventDefault();
+  };
+  const movePanel = (event: PointerEvent<HTMLDivElement>) => {
+    const active = drag.current;
+    if (!active || active.pointerId !== event.pointerId) return;
+    setPanelPosition({
+      left: Math.max(8, Math.min(window.innerWidth - active.width - 8, active.left + event.clientX - active.x)),
+      top: Math.max(8, Math.min(window.innerHeight - active.height - 8, active.top + event.clientY - active.y)),
+    });
+  };
+  const endPanelDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (drag.current?.pointerId === event.pointerId) drag.current = null;
+  };
   const dial = () => {
       if (inCall || outbound.current || outboundBusy || outgoing) { setDialError("Finish the current call first."); return; }
     const phoneNumber = normalizeDialNumber(number);
@@ -73,18 +112,34 @@ export function AfricaBrowserPhone() {
     setOutgoing({ id: `manual-${Date.now()}`, name: name.trim() || "Phone call", phone: phoneNumber, target: context?.target || { phone: phoneNumber, name: name.trim() } });
     setOpen(false);
   };
+  const requestControl = async (mode: "transfer" | "conference") => {
+    if (!state.call?.id || state.state !== "active") return;
+    setControlBusy(true); setControlMessage("");
+    try {
+      const response = await fetch(`/api/azera/calls/${state.call.id}/control`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode, queue: controlQueue }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not prepare call control.");
+      phone.current?.dtmf(data.controlDigit);
+      setControlMessage(data.message || "Control request sent.");
+    } catch (error) { setControlMessage(error instanceof Error ? error.message : "Could not prepare call control."); }
+    finally { setControlBusy(false); }
+  };
   return <div className="relative">
     <button type="button" aria-label="Browser phone" aria-expanded={open} onClick={() => setOpen(!open)} className={`relative flex h-10 w-10 items-center justify-center rounded-xl border ${state.state === "ready" ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-white text-slate-700"}`}>
       <Phone className="h-4 w-4" />{inCall && <span className="absolute right-0 top-0 h-3 w-3 animate-pulse rounded-full bg-retail" />}
     </button>
-    {open && <section aria-label="Browser phone controls" className="fixed inset-x-3 top-20 z-[90] max-h-[calc(100dvh-7rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-80">
-      <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-semibold text-slate-900">Browser phone</h2><button aria-label="Minimise phone" onClick={() => setOpen(false)}><X className="h-4 w-4" /></button></div>
+    {open && <section aria-label="Browser phone controls" style={panelPosition ? { left: panelPosition.left, top: panelPosition.top, right: "auto" } : undefined} className="fixed right-3 top-20 z-[90] max-h-[calc(100dvh-6rem)] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+      <div onPointerDown={beginPanelDrag} onPointerMove={movePanel} onPointerUp={endPanelDrag} onPointerCancel={endPanelDrag} style={{ touchAction: "none" }} className="flex cursor-move items-center justify-between gap-2 rounded-lg pb-1">
+        <div><h2 className="text-sm font-semibold text-slate-900">Browser phone</h2><p className="text-[10px] text-slate-400">Drag to move</p></div>
+        <button type="button" aria-label="Minimise phone" onPointerDown={event => event.stopPropagation()} onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100"><X className="h-4 w-4" /></button>
+      </div>
       <p role="status" className="mt-2 text-sm text-slate-700">{outboundBusy || outgoing ? "Outgoing call in progress" : state.state === "ready" ? "Ready for incoming calls" : state.state === "connecting" ? "Connecting your phone…" : state.state === "ringing" ? "Incoming telephone call" : state.state === "active" ? "Call connected" : "Incoming phone offline"}</p>
-      {state.error && <p role="alert" className="mt-2 break-words text-sm text-red-700">{state.error}</p>}
+      {state.error && <div role="alert" className="mt-2 space-y-1 break-words text-sm text-red-700"><p>{state.error}</p>{/active|ringing|Call Reports/i.test(state.error) && <a href="/admin/azera/reports" className="inline-flex font-medium text-blue-700 underline">Open Azera Call Reports</a>}</div>}
       {inCall ? <div className="mt-3 space-y-3">
-        <p className="break-words text-sm font-medium text-slate-900">{state.call?.customer_phone || "Loading caller…"}</p>
+        <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">{state.call?.selected_department || "Assigned queue"}</p><p className="mt-1 break-words text-sm font-medium text-slate-900">{state.call?.caller?.name || state.call?.customer_phone || "Loading caller…"}</p>{state.call?.caller?.businessName && <p className="mt-1 break-words text-xs text-slate-600">{state.call.caller.businessName} · {state.call.customer_phone}</p>}</div>
         {state.state === "ringing" ? <button disabled={!state.call} onClick={() => void phone.current?.answer()} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-3 text-sm text-white disabled:opacity-50"><PhoneIncoming className="h-4 w-4" />Answer call</button> : <>
           <div className="flex gap-2"><button onClick={() => phone.current?.mute()} className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border text-sm">{state.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}{state.muted ? "Unmute" : "Mute"}</button><button onClick={() => phone.current?.hold()} className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border text-sm">{state.held ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}{state.held ? "Resume" : "Hold"}</button></div>
+          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs font-medium uppercase tracking-wide text-slate-500">Send this call to another queue</p><select value={controlQueue} onChange={event => setControlQueue(event.target.value)} disabled={controlBusy} className="mt-2 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm">{departments.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><div className="mt-2 flex gap-2"><button type="button" disabled={controlBusy} onClick={() => void requestControl("transfer")} className="flex min-h-10 flex-1 items-center justify-center gap-1 rounded-lg bg-blue-50 text-sm text-blue-800 disabled:opacity-50"><ArrowRightLeft className="h-4 w-4" />Transfer</button><button type="button" disabled={controlBusy} onClick={() => void requestControl("conference")} className="flex min-h-10 flex-1 items-center justify-center gap-1 rounded-lg border text-sm text-slate-700 disabled:opacity-50"><Users className="h-4 w-4" />Conference</button></div>{controlMessage && <p role="status" className="mt-2 text-xs leading-5 text-slate-600">{controlMessage}</p>}</div>
           <div aria-label="Phone keypad" className="grid grid-cols-3 gap-1">{"123456789*0#".split("").map(digit => <button key={digit} onClick={() => phone.current?.dtmf(digit)} className="min-h-9 rounded-lg bg-slate-50 text-sm">{digit}</button>)}</div>
         </>}
         {state.audioBlocked && <button onClick={() => void phone.current?.resumeAudio()} className="w-full rounded-lg bg-blue-50 p-2 text-sm text-blue-700">Tap to hear the call</button>}
@@ -99,9 +154,10 @@ export function AfricaBrowserPhone() {
           <p className="text-xs leading-5 text-slate-600">Calls use your browser microphone and Africa’s Talking balance—not FaceTime. Supported destinations depend on your provider account. Check the number before calling.</p>
           <button type="submit" disabled={!number.trim() || outboundBusy || !!outgoing} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-retail px-3 text-sm font-medium text-white disabled:opacity-50"><Phone className="h-4 w-4" />Call {context ? name : "number"}</button>
         </form> : <>
-        <fieldset disabled={connected} className="space-y-2"><legend className="mb-2 text-xs font-medium text-slate-600">Receive calls for</legend>{departments.map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" checked={queues.includes(key)} onChange={event => setQueues(old => event.target.checked ? [...old, key] : old.filter(value => value !== key))} />{label}</label>)}</fieldset>
-        <button disabled={outboundBusy || !!outgoing || state.state === "connecting" || (!connected && !queues.length)} onClick={() => { enabled.current = !connected; if (connected) void phone.current?.stop(); else if (!outbound.current) void phone.current?.start(queues); }} className="min-h-11 w-full rounded-xl bg-retail px-3 text-sm font-medium text-white disabled:opacity-50">{connected ? "Go offline" : "Enable browser phone"}</button>
-        <p className="text-xs leading-5 text-slate-500">Keep this tab open. Calls continue while you navigate the admin portal. Microphone permission is required. Only one tab can receive calls.</p>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-medium uppercase tracking-wide text-slate-500">Assigned queues</p>{assignmentLoading ? <p className="mt-1 text-sm text-slate-600">Loading assignment…</p> : queues.length ? <p className="mt-1 text-sm text-slate-800">{queues.map(queue => departments.find(([key]) => key === queue)?.[1] || queue).join(", ")}</p> : <p className="mt-1 text-sm text-amber-700">No queues assigned. Ask an administrator to enable your voice access.</p>}</div>
+        {assignmentError && <p role="alert" className="text-sm text-amber-700">{assignmentError}</p>}
+        <button disabled={assignmentLoading || outboundBusy || !!outgoing || state.state === "connecting" || (!connected && !queues.length)} onClick={() => { enabled.current = !connected; if (connected) void phone.current?.stop(); else if (!outbound.current) void phone.current?.start(queues); }} className="min-h-11 w-full rounded-xl bg-retail px-3 text-sm font-medium text-white disabled:opacity-50">{connected ? "Go offline" : "Enable browser phone"}</button>
+        <p className="text-xs leading-5 text-slate-500">Your queues are assigned by an administrator; this browser cannot opt itself into another department. Keep this tab open. Calls continue while you navigate the admin portal. Microphone permission is required. Only one tab can receive calls. Use Go offline before switching tabs; minimising this panel keeps it connected.</p>
         </>}
       </div>}
     </section>}

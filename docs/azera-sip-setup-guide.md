@@ -37,9 +37,10 @@ and [Linphone third-party account login](https://www.linphone.org/en/docs/login-
 ## 2. Deploy MartPoint before testing the repaired call flow
 
 1. Wait for the latest **production Vercel deployment** to show Ready.
-2. Ensure migrations 137, 138 and 139 have been applied after their predecessors.
-   You have already reported applying 139. Migration 137 enables browser-agent
-   routing; 138 stores chat demo-booking state.
+2. Ensure migrations 137, 138, 139, 140, 141 and 142 have been applied after
+   their predecessors. Migration 137 enables browser-agent routing; 140 stores
+   outbound campaign state; 141 adds explicit voice-agent assignments; and 142
+   adds the transfer-control request table.
 3. Confirm the production Africa’s Talking username, API key, virtual number,
    business ID and callback secret are configured. Do not expose these values.
 
@@ -80,19 +81,22 @@ Set business hours, timezone, after-hours destination and no-answer/voicemail
 handling deliberately. Outside business hours, the configured after-hours route
 may apply instead of the department menu.
 
-**Routing priority:** a ready Azera browser agent for the selected department is
-tried before the configured SIP/telephone fallbacks. To test Linphone alone,
-disable the receiving browser phones first. Fallbacks are sequential, not a
-promise that all three softphones ring simultaneously.
+**Routing priority:** for a department the configured SIP/telephone
+destinations are tried in their saved order first; an available Azera browser
+agent is the final fallback. General/default routes continue to prefer an
+available browser agent. Fallbacks are sequential, not a promise that all
+three softphones ring simultaneously.
 
 The virtual number callback returns the SIP dial instructions, as described in
 [Africa’s Talking’s incoming SIP guide](https://help.africastalking.com/en/articles/5947707-how-do-i-receive-calls-on-my-sip-phone-or-any-ip-phone).
 
 ## 5. Browser calling versus SIP outbound calling
 
-For Azera’s browser phone, staff use the phone button in the admin header,
-choose a department, enable the phone and grant microphone permission. Keep the
-tab open. This uses server-issued WebRTC capability tokens, **not SIP passwords**.
+For Azera’s browser phone, an administrator first assigns queues in **Admin →
+Azera → Voice Agent Assignments**. Staff then use the phone button in the admin
+header, review their assigned queues, enable the phone and grant microphone
+permission. They cannot self-select another department. Keep the tab open.
+This uses server-issued WebRTC capability tokens, **not SIP passwords**.
 Use Azera’s contact-call action for the implemented browser-to-customer outbound
 workflow. Cloudflare handles the separate website-browser-to-agent media path.
 
@@ -102,7 +106,31 @@ outbound callback setup and destination/caller-ID validation. Do not point a SIP
 outbound callback at the incoming IVR and assume it can dial arbitrary numbers.
 See the provider’s [outbound SIP requirements](https://help.africastalking.com/en/articles/5947735-how-do-i-make-outbound-calls-from-my-sip-phone-or-any-ip-phone).
 
-## 6. Test the 020 line
+## 6. Run an Azera follow-up campaign
+
+After the Next.js deployment is Ready and database migration **140** has been
+applied, open **Admin → Omnichannel → Call Campaigns**. Choose estimate
+follow-up, expired-quote follow-up or older-enquiry re-engagement; set the
+minimum enquiry age and a call cap; review the masked audience preview; save a
+draft; then use **Start** only when ready to place real calls.
+
+Keep the virtual number’s Callback and Events URLs from Section 3. Campaign
+calls are correlated through Africa’s Talking’s `clientRequestId`; no new
+provider callback path or SIP password is needed. The production API key,
+application username and caller number must be configured in Azera Settings.
+The first eligible call is dispatched when Start is confirmed; later calls
+are paced by the existing five-minute Vercel worker, with only one Azera
+campaign call active at a time. Calls respect the configured voice business
+hours and may incur Africa’s Talking charges.
+
+The current campaign is an automated spoken introduction plus keypad choices,
+not a free-speech AI conversation: **1** asks the team to follow up, **2** asks
+for a call back, and **3** opts the number out of future automated campaigns.
+Responses and call notes appear in the selected campaign. Do a small internal
+test first and check both Callback and Events delivery before selecting a larger
+audience.
+
+## 7. Test the 020 line
 
 Use a separate phone as the caller and a registered staff softphone as receiver.
 
@@ -117,6 +145,13 @@ Use a separate phone as the caller and a registered staff softphone as receiver.
   duration. Recording is allowed only after explicit consent.
 - Separately test Azera browser answering and outbound contact calling, including
   microphone permission, caller ID and two-way audio.
+- Assign only one test user to each queue, verify the incoming card shows the
+  right queue, then test Transfer to an online agent in another queue. Test the
+  Conference button only after Africa's Talking confirms the account's conference
+  setup and room semantics; otherwise it remains guarded and reports that it is
+  not enabled.
+- Leave a voicemail and verify it appears in **Admin → Azera → Voicemails**, is
+  playable, can be assigned and is removed after the configured retention period.
 
 Automated tests do not establish carrier connectivity, audio quality, provider
 charges or successful live recording. Those require these real-call checks.

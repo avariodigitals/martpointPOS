@@ -1,7 +1,7 @@
 import type { AfricaClient } from "africastalking-client";
 import { requestCallMicrophone } from "@/lib/azera-webrtc";
 
-type IncomingCall = { id: string; customer_phone: string; selected_department?: string; status: string };
+type IncomingCall = { id: string; customer_phone: string; selected_department?: string; status: string; caller?: { kind: "lead" | "business"; name: string; businessName?: string } | null };
 export type IncomingPhoneState = {
   state: "off" | "connecting" | "ready" | "ringing" | "active" | "error";
   call: IncomingCall | null; error: string | null; muted: boolean; held: boolean; audioBlocked: boolean;

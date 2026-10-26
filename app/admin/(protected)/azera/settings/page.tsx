@@ -1008,7 +1008,7 @@ export default function AzeraSettingsPage() {
                     <label className="text-xs font-medium">
                       Main greeting and menu
                     </label>
-                    <p className="text-xs text-muted-foreground">During working hours, callers hear this welcome first. If enabled, the department menu follows, then recording permission, then the connecting message. Outside working hours, the after-hours greeting and route are used instead.</p>
+                    <p className="text-xs text-muted-foreground">During working hours, callers hear the welcome, then recording permission, then every enabled department option and the repeat-menu option. The menu choices come from Department routing below. Outside working hours, the after-hours greeting and route are used instead.</p>
                     <textarea
                       value={form.voice_greeting}
                       onChange={(e) =>

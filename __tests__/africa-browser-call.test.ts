@@ -1,16 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-const sdk = vi.hoisted(() => ({ events: new Map<string, (...args: unknown[]) => void>(), call: vi.fn(), hangup: vi.fn(), mute: vi.fn(), unmute: vi.fn(), hold: vi.fn(), unhold: vi.fn(), dtmf: vi.fn(), destroy: vi.fn(), tokens: [] as string[] }))
+const sdk = vi.hoisted(() => ({ events: new Map<string, (...args: unknown[]) => void>(), call: vi.fn(), hangup: vi.fn(), mute: vi.fn(), unmute: vi.fn(), hold: vi.fn(), unhold: vi.fn(), dtmf: vi.fn(), destroy: vi.fn(), tokens: [] as string[], microphoneStreams: [] as unknown[] }))
 vi.mock("africastalking-client", () => ({ default: { Client: class {
   constructor(token: string) { sdk.tokens.push(token) }
   on(event: string, callback: (...args: unknown[]) => void) { sdk.events.set(event, callback) }
   call = sdk.call; hangup = sdk.hangup; mute = sdk.mute; unmute = sdk.unmute; hold = sdk.hold; unhold = sdk.unhold; dtmf = sdk.dtmf; destroy = sdk.destroy
 } } }))
 import { AfricaBrowserCall } from "@/lib/africa-browser-call"
-const stop = vi.fn(), stream = { getTracks: () => [{ stop }] }
+const stop = vi.fn(), sdkTrack = { readyState: "live", enabled: true, stop: vi.fn() }, track = { readyState: "live", enabled: true, clone: vi.fn(() => sdkTrack), stop }, stream = { getTracks: () => [track], getAudioTracks: () => [track] }
 let engines: AfricaBrowserCall[]
 beforeEach(() => {
-  vi.clearAllMocks(); vi.useFakeTimers(); sdk.events.clear(); sdk.tokens.length = 0; engines = []
+  vi.clearAllMocks(); vi.useFakeTimers(); sdk.events.clear(); sdk.tokens.length = 0; sdk.microphoneStreams.length = 0; engines = []
   vi.stubGlobal("navigator", { mediaDevices: { getUserMedia: vi.fn(async () => stream) } }); vi.stubGlobal("RTCPeerConnection", class {})
+  vi.stubGlobal("MediaStream", class {
+    private tracks: unknown[]
+    constructor(tracks: unknown[] = []) { this.tracks = tracks }
+    getTracks() { return this.tracks }
+    getAudioTracks() { return this.tracks }
+  })
+  sdk.call.mockImplementation(() => navigator.mediaDevices.getUserMedia({ audio: true }).then(value => sdk.microphoneStreams.push(value)))
   vi.stubGlobal("fetch", vi.fn(async (url: string) => url === "/api/azera/calls/africa-browser" ? Response.json({ id: "call-1", token: "test-capability", phone: "+2348000000001" }) : Response.json({ status: "ended" })))
 })
 afterEach(() => { engines.forEach(engine => engine.dispose()); vi.unstubAllGlobals(); vi.useRealTimers() })
@@ -62,11 +69,15 @@ describe("Africa’s Talking browser calling", () => {
     finish?.(Response.json({ status: "ended" })); await pending
     expect(ended).toHaveBeenCalledOnce()
   })
-  it("uses a capability token, releases the permission probe and dials only once after SDK readiness", async () => {
+  it("publishes the microphone stream acquired during the user gesture and dials only once after SDK readiness", async () => {
     const value = engine(); await value.start()
-    expect(stop).toHaveBeenCalledOnce(); expect(sdk.call).not.toHaveBeenCalled()
+    expect(stop).not.toHaveBeenCalled(); expect(sdk.call).not.toHaveBeenCalled()
     sdk.events.get("ready")?.(); sdk.events.get("ready")?.()
+    await vi.waitFor(() => expect(sdk.microphoneStreams).toHaveLength(1))
     expect(sdk.call).toHaveBeenCalledOnce(); expect(sdk.call).toHaveBeenCalledWith("+2348000000001")
+    expect(track.clone).toHaveBeenCalledOnce(); expect(sdk.microphoneStreams).toHaveLength(1)
+    expect((sdk.microphoneStreams[0] as MediaStream).getAudioTracks()[0]).toBe(sdkTrack)
+    expect(stop).toHaveBeenCalledOnce()
     expect(sdk.tokens).toEqual(["test-capability"])
     expect(value.snapshot.state).toBe("ringing")
   })

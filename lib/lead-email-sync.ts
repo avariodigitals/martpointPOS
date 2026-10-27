@@ -13,6 +13,7 @@
 
 import { getEmailSettings, isImapConfigured, type EmailSettings } from "./email"
 import { fileInboundLeadEmail } from "./lead-emails-inbound"
+import { fileInboundCreatorEmail } from "./creator-emails-inbound"
 
 export const LEAD_INBOX_SYNC_FLAG = "$MartpointLeadMail"
 
@@ -129,7 +130,7 @@ export async function syncLeadInbox(preloadedSettings?: EmailSettings): Promise<
             continue
           }
           const parsed = await simpleParser(source)
-          const filed = await fileInboundLeadEmail({
+          const inbound = {
             from: firstAddress(parsed.from),
             to: addressList(parsed.to),
             subject: parsed.subject || "(no subject)",
@@ -141,8 +142,12 @@ export async function syncLeadInbox(preloadedSettings?: EmailSettings): Promise<
             references: Array.isArray(parsed.references) ? parsed.references.join(" ") : parsed.references || null,
             sentAt: parsed.date ? parsed.date.toISOString() : null,
             provider: "imap",
-          })
-          if (filed) base.imported++
+          }
+          const [filedLead, filedCreator] = await Promise.all([
+            fileInboundLeadEmail(inbound),
+            fileInboundCreatorEmail(inbound),
+          ])
+          if (filedLead || filedCreator) base.imported++
           // Flag even non-lead mail: it has been looked at and deliberately ignored.
           await client.messageFlagsAdd(uid, [LEAD_INBOX_SYNC_FLAG], { uid: true })
         } catch (err) {

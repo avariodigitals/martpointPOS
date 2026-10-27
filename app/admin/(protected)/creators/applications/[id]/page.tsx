@@ -11,6 +11,7 @@ import {
 import { enumLabel } from "@/lib/utils"
 import { CreatorQuestionRoundsPanel } from "@/components/admin/creator-question-rounds-panel"
 import { CallCreatorButton } from "@/components/admin/call-creator-button"
+import { CreatorEmailTab } from "@/components/admin/creator-email-tab"
 
 interface ApplicationDetail {
   id: string
@@ -102,6 +103,7 @@ export default function CreatorApplicationDetailPage() {
   const [interviewNotes, setInterviewNotes] = useState("")
   const [toast, setToast] = useState("")
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [activeTab, setActiveTab] = useState<"application" | "email">("application")
 
   async function deleteApplication() {
     setBusy("delete")
@@ -204,7 +206,12 @@ export default function CreatorApplicationDetailPage() {
 
       {toast && <p className="rounded-md bg-muted px-4 py-2 text-sm">{toast}</p>}
 
-      <div className="grid w-full min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
+      <div className="flex gap-2 border-b" role="tablist" aria-label="Creator application sections">
+        <button type="button" role="tab" aria-selected={activeTab === "application"} onClick={() => setActiveTab("application")} className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === "application" ? "border-retail text-retail" : "border-transparent text-muted-foreground hover:text-foreground"}`}>Application</button>
+        <button type="button" role="tab" aria-selected={activeTab === "email"} onClick={() => setActiveTab("email")} className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === "email" ? "border-retail text-retail" : "border-transparent text-muted-foreground hover:text-foreground"}`}>Email</button>
+      </div>
+
+      {activeTab === "email" ? <CreatorEmailTab applicationId={id} name={application.fullName} email={application.email} /> : <div className="grid w-full min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
         {/* Left: applicant info */}
         <div className="min-w-0 space-y-6">
           <Card>
@@ -543,7 +550,7 @@ export default function CreatorApplicationDetailPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

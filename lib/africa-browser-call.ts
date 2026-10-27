@@ -24,6 +24,10 @@ export class AfricaBrowserCall {
   private accepted = false
   private receiverPaused = false
   private remoteAudio: HTMLAudioElement | null = null
+  private captureStream: MediaStream | null = null
+  private sdkMicrophoneStream: MediaStream | null = null
+  private restoreSdkCapture: (() => void) | null = null
+  private captureBridgeTimer?: ReturnType<typeof setTimeout>
   private audioReady = () => {
     void this.resumeAudio()
   }
@@ -68,10 +72,14 @@ export class AfricaBrowserCall {
           return
         }
       }
-      // Ask permission before creating a paid-call capability. The SDK then
-      // opens its own media stream; do not hold two microphone streams open.
-      const stream = await requestCallMicrophone()
-      stream.getTracks().forEach((track) => track.stop())
+      // Acquire the mic while still in the user's click flow. Hand a clone of
+      // this exact capture stream to the AT SDK instead of stopping it and
+      // asking the SDK to reacquire the device later (which can select a
+      // different/default input or fail after browser/device route changes).
+      this.captureStream = await requestCallMicrophone()
+      if (!this.captureStream.getAudioTracks().some((track) => track.readyState === "live" && track.enabled)) {
+        throw new Error("Your microphone is unavailable. Check the selected input device and try again.")
+      }
       if (this.finished) return
       const response = await fetch("/api/azera/calls/africa-browser", {
         method: "POST",
@@ -109,6 +117,7 @@ export class AfricaBrowserCall {
         this.remoteAudio?.setAttribute("playsinline", "")
         this.remoteAudio?.addEventListener("loadedmetadata", this.audioReady)
         try {
+          this.bridgeMicrophoneToSdk()
           client.call(prepared.phone)
           this.change({ state: "ringing" })
         } catch {
@@ -156,6 +165,38 @@ export class AfricaBrowserCall {
           error instanceof Error ? error.message : "Could not connect the call."
         )
     }
+  }
+  private bridgeMicrophoneToSdk() {
+    const mediaDevices = globalThis.navigator?.mediaDevices
+    const source = this.captureStream
+    if (!mediaDevices || !source) throw new Error("Your microphone could not be connected to the browser phone. Please retry.")
+
+    const original = mediaDevices.getUserMedia.bind(mediaDevices)
+    const wrapped = (constraints?: MediaStreamConstraints) => {
+      const wantsAudio = constraints?.audio !== false && constraints?.audio !== undefined
+      if (!wantsAudio || this.sdkMicrophoneStream || this.finished) return original(constraints)
+
+      this.restoreSdkCapture?.()
+      const tracks = source.getAudioTracks().filter((track) => track.readyState === "live" && track.enabled)
+      if (!tracks.length) return Promise.reject(new Error("Your microphone stopped before the call connected. Please retry."))
+
+      this.sdkMicrophoneStream = new MediaStream(tracks.map((track) => track.clone()))
+      source.getTracks().forEach((track) => track.stop())
+      this.captureStream = null
+      return Promise.resolve(this.sdkMicrophoneStream)
+    }
+    mediaDevices.getUserMedia = wrapped
+    this.restoreSdkCapture = () => {
+      if (mediaDevices.getUserMedia === wrapped) mediaDevices.getUserMedia = original
+      this.restoreSdkCapture = null
+      clearTimeout(this.captureBridgeTimer)
+      this.captureBridgeTimer = undefined
+    }
+    this.captureBridgeTimer = setTimeout(() => {
+      this.restoreSdkCapture?.()
+      this.captureStream?.getTracks().forEach((track) => track.stop())
+      this.captureStream = null
+    }, 15_000)
   }
   async toggleMute() {
     if (!this.client || this.finished) return
@@ -262,6 +303,12 @@ export class AfricaBrowserCall {
     clearTimeout(this.deadline)
     clearInterval(this.heartbeat)
     this.remoteAudio?.removeEventListener("loadedmetadata", this.audioReady)
+    this.restoreSdkCapture?.()
+    clearTimeout(this.captureBridgeTimer)
+    this.captureStream?.getTracks().forEach((track) => track.stop())
+    this.sdkMicrophoneStream?.getTracks().forEach((track) => track.stop())
+    this.captureStream = null
+    this.sdkMicrophoneStream = null
     if (this.remoteAudio) {
       this.remoteAudio.pause()
       this.remoteAudio.srcObject = null

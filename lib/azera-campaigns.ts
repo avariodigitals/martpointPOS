@@ -3,6 +3,7 @@ import { africaBrowserConfig } from "@/lib/africa-browser-voice"
 import { normalizeOutboundPhone } from "@/lib/azera-outbound"
 import { resolveAfricaBusinessId } from "@/lib/africastalking"
 import { supabase } from "@/lib/supabase"
+import type { NaijaLanguage } from "@/lib/naija-tts"
 
 export type CampaignPurpose = "estimate_followup" | "quote_followup" | "lead_reengagement"
 type Lead = {
@@ -72,18 +73,26 @@ export async function getCampaignCandidates(purpose: CampaignPurpose, days: numb
   })
 }
 
-export async function buildCampaignScript(input: { purpose: CampaignPurpose; goal: string; product: string }) {
+export async function buildCampaignScript(input: { purpose: CampaignPurpose; goal: string; product: string; language?: NaijaLanguage }) {
+  const language = input.language || "en"
   const purpose = input.purpose === "estimate_followup" ? "a website estimate" : input.purpose === "quote_followup" ? "an expired quote" : "an earlier enquiry"
-  const fallback = `Hello, this is Azera, MartPoint's automated assistant. I’m following up about ${purpose} for {business}. Would you still like help with {product}?`
+  const fallbackByLanguage: Record<NaijaLanguage, string> = {
+    en: `Hello, this is Azera, MartPoint's automated assistant. I’m following up about ${purpose} for {business}. Would you still like help with {product}?`,
+    yo: "Ẹ káàárọ̀, Azera ni mí, olùrànlọ́wọ́ aládàáṣe MartPoint. Mo ń tẹ̀lé ìbéèrè yín nípa {product} fún {business}. Ṣé ẹ ṣì nílò ìrànlọ́wọ́ wa?",
+    ig: "Ndewo, abụ m Azera, onye enyemaka akpaka nke MartPoint. Ana m eso ajụjụ unu gbasara {product} maka {business}. Unu ka chọrọ enyemaka anyị?",
+    ha: "Sannu, ni ne Azera, mataimaki na atomatik na MartPoint. Ina bin diddigin tambayarku game da {product} na {business}. Har yanzu kuna bukatar taimakonmu?",
+  }
+  const fallback = fallbackByLanguage[language]
+  const spokenLanguage = ({ en: "Nigerian English", yo: "Yoruba", ig: "Igbo", ha: "Hausa" } as const)[language]
   try {
     const result = await aiChat({
       messages: [
-        { role: "system", content: "Write a short, courteous outbound call opening for Azera, MartPoint's AI assistant. Clearly disclose that this is an automated AI call. Do not invent prices, dates, features, promises, or claim a person requested a call. Only use the supplied purpose and product. Keep placeholders {name}, {business}, and {product} exactly as written. Ask one question. Return only spoken text under 45 words." },
+        { role: "system", content: `Write a short, courteous outbound call opening for Azera, MartPoint's automated AI assistant, in ${spokenLanguage}. Clearly disclose it is an automated assistant in that language. Do not invent prices, dates, features, promises, or claim a person requested a call. Keep placeholders {name}, {business}, and {product} exactly as written and do not translate them. Ask one question. Return only spoken text under 45 words.` },
         { role: "user", content: `Purpose: follow up on ${purpose}. Product category: ${input.product || "MartPoint"}. Campaign objective: ${input.goal}.` },
       ], temperature: 0.2, maxTokens: 100, timeoutMs: 8_000,
     })
     const copy = result.content.replace(/[\r\n]+/g, " ").trim()
-    if (copy && copy.length <= 500 && /azera|automated|ai assistant/i.test(copy) && copy.includes("{business}") && copy.includes("{product}")) return copy
+    if (copy && copy.length <= 500 && /azera/i.test(copy) && copy.includes("{business}") && copy.includes("{product}")) return copy
   } catch {
     // Use a predictable, fact-safe script when an AI provider is unavailable.
   }

@@ -1,6 +1,7 @@
 import { africaBrowserConfig } from "@/lib/africa-browser-voice"
 import { getAfricaVoiceConfig, isVoiceBusinessOpen } from "@/lib/africastalking"
 import { personalizeCampaignScript, placeAfricaCampaignCall } from "@/lib/azera-campaigns"
+import { campaignSpeechText, isNaijaTtsEnabled, removeCampaignAudio, synthesizeCampaignAudio, type NaijaLanguage } from "@/lib/naija-tts"
 import { supabase } from "@/lib/supabase"
 
 /** Dispatch one recipient. The SQL RPC serializes workers and reserves only one call at a time. */
@@ -11,7 +12,7 @@ export async function dispatchAzeraCampaignCall() {
   if (!recipient) return { dispatched: false }
 
   const { data: campaign, error: campaignError } = await supabase.from("azera_call_campaigns")
-    .select("id,business_id,status,purpose,goal,script_template,max_calls")
+    .select("id,business_id,status,purpose,goal,script_template,max_calls,speech_provider,speech_language,speech_voice")
     .eq("id", recipient.campaign_id).maybeSingle()
   if (campaignError || !campaign || campaign.status !== "running") {
     await supabase.from("azera_call_campaign_recipients").update({ status: "failed", provider_error: "Campaign is no longer active", completed_at: new Date().toISOString() }).eq("id", recipient.id)
@@ -33,6 +34,31 @@ export async function dispatchAzeraCampaignCall() {
   const clientRequestId = String(recipient.id)
   const now = new Date().toISOString()
   const personalizedScript = personalizeCampaignScript(campaign.script_template || "", recipient)
+  const language = (campaign.speech_language || "en") as NaijaLanguage
+  let speechAudioPath: string | null = null
+  if (campaign.speech_provider === "naija_speech" && !isNaijaTtsEnabled()) {
+    await supabase.from("azera_call_campaign_recipients").update({ status: "failed", provider_error: "Naija Speech API key is not configured", completed_at: now, updated_at: now }).eq("id", recipient.id)
+    await finishAzeraCampaignIfDone(campaign.id)
+    return { dispatched: false, speechConfigurationError: true }
+  }
+  try {
+    if (campaign.speech_provider === "naija_speech") {
+      speechAudioPath = await synthesizeCampaignAudio({
+        businessId: campaign.business_id,
+        campaignId: campaign.id,
+        recipientId: recipient.id,
+        language,
+        voice: campaign.speech_voice || "idera",
+        text: campaignSpeechText(personalizedScript, language),
+      })
+    }
+    await supabase.from("azera_call_campaign_recipients").update({ personalized_script: personalizedScript, speech_audio_path: speechAudioPath, updated_at: new Date().toISOString() }).eq("id", recipient.id)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Naija Speech audio generation failed"
+    await supabase.from("azera_call_campaign_recipients").update({ status: "failed", provider_error: reason, completed_at: now, updated_at: now }).eq("id", recipient.id)
+    await finishAzeraCampaignIfDone(campaign.id)
+    return { dispatched: false, speechGenerationError: true }
+  }
   const { data: call, error: insertError } = await supabase.from("azera_calls").insert({
     business_id: campaign.business_id,
     campaign_recipient_id: recipient.id,
@@ -50,11 +76,12 @@ export async function dispatchAzeraCampaignCall() {
     updated_at: now,
   }).select("id").single()
   if (insertError || !call) {
+    await removeCampaignAudio(speechAudioPath)
     await supabase.from("azera_call_campaign_recipients").update({ status: "failed", provider_error: "Call history could not be created", completed_at: now }).eq("id", recipient.id)
     return { dispatched: false, databaseError: true }
   }
 
-  await supabase.from("azera_call_campaign_recipients").update({ personalized_script: personalizedScript, call_id: call.id, updated_at: now }).eq("id", recipient.id)
+  await supabase.from("azera_call_campaign_recipients").update({ personalized_script: personalizedScript, speech_audio_path: speechAudioPath, call_id: call.id, updated_at: now }).eq("id", recipient.id)
   await supabase.from("azera_call_events").insert({ call_id: call.id, event_type: "call_initiated", actor_type: "system", metadata: { provider: "africas_talking_campaign", campaign_id: campaign.id, campaign_recipient_id: recipient.id } })
 
   try {
@@ -68,6 +95,7 @@ export async function dispatchAzeraCampaignCall() {
     const endedAt = new Date().toISOString()
     await supabase.from("azera_calls").update({ status: "failed", final_outcome: "provider_rejected", ended_at: endedAt, updated_at: endedAt }).eq("id", call.id)
     await supabase.from("azera_call_campaign_recipients").update({ status: "failed", provider_error: message, completed_at: endedAt, updated_at: endedAt }).eq("id", recipient.id)
+    await removeCampaignAudio(speechAudioPath)
     return { dispatched: false, providerError: true }
   }
 }

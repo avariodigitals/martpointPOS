@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
 type Purpose = "estimate_followup" | "quote_followup" | "lead_reengagement"
-type Campaign = { id: string; name: string; purpose: Purpose; goal: string; status: string; target_count: number; max_calls: number; script_template?: string; created_at?: string }
+type Language = "en" | "ha" | "ig" | "yo"
+type SpeechProvider = "africa_talking" | "naija_speech"
+type Campaign = { id: string; name: string; purpose: Purpose; goal: string; status: string; target_count: number; max_calls: number; script_template?: string; speech_provider?: SpeechProvider; speech_language?: Language; speech_voice?: string; created_at?: string }
 type Preview = { total: number; preview: { contactName: string; businessName: string; phone: string; productInterest: string }[] }
 type Recipient = { id: string; contact_name: string; business_name: string; phone: string; product_interest: string; status: string; response_label: string | null; notes: string | null; provider_error: string | null }
 
@@ -15,6 +17,12 @@ const PURPOSES: { id: Purpose; title: string; description: string }[] = [
   { id: "quote_followup", title: "Follow up on an expired quote", description: "Sent quotes past their validity date, where the lead has not converted." },
   { id: "lead_reengagement", title: "Reconnect with older enquiries", description: "Older unconverted leads with a phone number." },
 ]
+const SPEECH_VOICES: Record<Language, { name: string; id: string }[]> = {
+  en: ["idera", "emma", "jude", "osagie", "tayo", "zainab", "joke", "regina", "remi", "umar", "chinenye", "onye"].map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1) })),
+  ha: ["hausa_male2", "hausa_female1", "hausa_female2", "hausa_male1", "hausa_clear"].map((id) => ({ id, name: id.replace("hausa_", "").replaceAll("_", " ") })),
+  ig: ["igbo_female2", "igbo_male2", "igbo_female1"].map((id) => ({ id, name: id.replace("igbo_", "").replaceAll("_", " ") })),
+  yo: ["yoruba_male2", "yoruba_female2", "yoruba_female1", "yoruba_clear"].map((id) => ({ id, name: id.replace("yoruba_", "").replaceAll("_", " ") })),
+}
 const statusClass: Record<string, string> = {
   queued: "bg-slate-100 text-slate-700", dialing: "bg-blue-100 text-blue-800", answered: "bg-emerald-100 text-emerald-800",
   callback_requested: "bg-amber-100 text-amber-800", not_interested: "bg-slate-100 text-slate-600", no_response: "bg-orange-100 text-orange-800",
@@ -26,11 +34,15 @@ export function AzeraCallCampaigns() {
   const [purpose, setPurpose] = useState<Purpose>("estimate_followup")
   const [days, setDays] = useState(14)
   const [maxCalls, setMaxCalls] = useState(25)
+  const [speechProvider, setSpeechProvider] = useState<SpeechProvider>("africa_talking")
+  const [speechLanguage, setSpeechLanguage] = useState<Language>("en")
+  const [speechVoice, setSpeechVoice] = useState("idera")
   const [name, setName] = useState("Estimate follow-up")
   const [goal, setGoal] = useState("Check whether the business still wants help with its estimate and, if so, arrange a human follow-up.")
   const [preview, setPreview] = useState<Preview | null>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [ready, setReady] = useState(false)
+  const [naijaTtsReady, setNaijaTtsReady] = useState(false)
   const [selected, setSelected] = useState<Campaign | null>(null)
   const [recipients, setRecipients] = useState<Recipient[]>([])
   const [busy, setBusy] = useState(false)
@@ -49,6 +61,7 @@ export function AzeraCallCampaigns() {
       } else {
         setCampaigns(data.campaigns || [])
         setReady(Boolean(data.ready))
+        setNaijaTtsReady(Boolean(data.naijaTtsReady))
       }
       setError("")
     } catch (caught) {
@@ -83,7 +96,7 @@ export function AzeraCallCampaigns() {
   async function createCampaign(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError(""); setNotice("")
     try {
-      const response = await fetch("/api/admin/azera/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, purpose, goal, audienceDays: days, maxCalls }) })
+      const response = await fetch("/api/admin/azera/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, purpose, goal, audienceDays: days, maxCalls, speechProvider, speechLanguage, speechVoice }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Could not create campaign.")
       setNotice(`Campaign draft created with ${data.count} eligible contact${data.count === 1 ? "" : "s"}. Review it below before starting.`)
@@ -122,6 +135,12 @@ export function AzeraCallCampaigns() {
         <form onSubmit={createCampaign} className="space-y-4">
           <label className="block text-sm font-medium text-slate-800">Campaign name<input required minLength={3} maxLength={100} value={name} onChange={(event) => setName(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3" /></label>
           <label className="block text-sm font-medium text-slate-800">What is this campaign about?<select value={purpose} onChange={(event) => setPurpose(event.target.value as Purpose)} className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3">{PURPOSES.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select><span className="mt-1 block text-xs font-normal text-slate-500">{PURPOSES.find((item) => item.id === purpose)?.description}</span></label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-medium text-slate-800">Call voice provider<select value={speechProvider} onChange={(event) => setSpeechProvider(event.target.value as SpeechProvider)} className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3"><option value="africa_talking">Africa’s Talking voice</option><option value="naija_speech" disabled={!naijaTtsReady}>Naija Speech{naijaTtsReady ? "" : " — API key required"}</option></select></label>
+            <label className="text-sm font-medium text-slate-800">Language<select value={speechLanguage} disabled={speechProvider !== "naija_speech"} onChange={(event) => { const next = event.target.value as Language; setSpeechLanguage(next); setSpeechVoice(SPEECH_VOICES[next][0].id) }} className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3"><option value="en">Nigerian English</option><option value="ha">Hausa</option><option value="ig">Igbo</option><option value="yo">Yoruba</option></select></label>
+            {speechProvider === "naija_speech" && <label className="text-sm font-medium text-slate-800 sm:col-span-2">Voice<select value={speechVoice} onChange={(event) => setSpeechVoice(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3">{SPEECH_VOICES[speechLanguage].map((voice) => <option key={voice.id} value={voice.id}>{voice.name}</option>)}</select></label>}
+          </div>
+          {speechProvider === "naija_speech" && <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-900">Naija Speech generates the selected language and voice. Africa’s Talking still places the call and plays the audio; its call charges are separate.</p>}
           <label className="block text-sm font-medium text-slate-800">Objective and call guidance<textarea required minLength={8} maxLength={500} rows={3} value={goal} onChange={(event) => setGoal(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" /><span className="mt-1 block text-xs font-normal text-slate-500">The AI uses this to prepare a short opening. It must not invent pricing or account details.</span></label>
           <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium text-slate-800">Enquiry age<input type="number" min={1} max={365} value={days} onChange={(event) => setDays(Math.max(1, Number(event.target.value) || 1))} className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3" /><span className="mt-1 block text-xs font-normal text-slate-500">Minimum days since enquiry</span></label><label className="text-sm font-medium text-slate-800">Call limit<input type="number" min={1} max={100} value={maxCalls} onChange={(event) => setMaxCalls(Math.max(1, Math.min(100, Number(event.target.value) || 1)))} className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3" /><span className="mt-1 block text-xs font-normal text-slate-500">Maximum 100 recipients per campaign</span></label></div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><p className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Users className="h-4 w-4" />Eligible contacts</p><p className="text-sm font-semibold text-slate-900">{preview?.total ?? "—"}</p></div><p className="mt-1 text-xs text-slate-600">Converted leads, won/lost leads, leads without a usable phone, and opted-out numbers are excluded. Only the first {maxCalls} eligible contacts are added.</p>{preview?.preview?.length ? <ul className="mt-2 divide-y divide-slate-200 text-xs text-slate-700">{preview.preview.slice(0, 5).map((item, index) => <li key={`${item.phone}-${index}`} className="flex justify-between gap-2 py-1.5"><span className="truncate">{item.contactName} · {item.businessName}</span><span className="shrink-0 text-slate-500">{item.phone}</span></li>)}</ul> : <p className="mt-2 text-xs text-slate-500">No preview contacts for these criteria yet.</p>}</div>

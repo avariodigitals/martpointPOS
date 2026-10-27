@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { campaignCallId, finishAzeraCampaignIfDone } from "@/lib/azera-campaign-worker"
 import { callbackSecretIsValid, pick, readAfricaRequest, voiceXml, xmlEscape } from "@/lib/africastalking"
 import { notifyAllAdmins } from "@/lib/admin-notifications"
+import { createCampaignAudioUrl, removeCampaignAudio } from "@/lib/naija-tts"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -11,7 +12,7 @@ function endCall(message: string) {
   return voiceXml([`<Say>${xmlEscape(message)}</Say>`])
 }
 
-function askForResponse(request: Request, script: string, attempt: number) {
+function askForResponse(request: Request, script: string, attempt: number, audioUrl = "") {
   const callback = new URL(request.url)
   callback.pathname = "/api/africastalking/voice/campaign"
   callback.searchParams.set("stage", "response")
@@ -20,7 +21,8 @@ function askForResponse(request: Request, script: string, attempt: number) {
   const timeout = new URL(callback)
   timeout.searchParams.set("timeout", "1")
   const prompt = `${script} To arrange a follow-up with our team, press 1. To request a call back, press 2. To stop automated calls from MartPoint, press 3.`
-  return voiceXml([`<GetDigits numDigits="1" timeout="8" callbackUrl="${xmlEscape(callback.toString())}"><Say>${xmlEscape(prompt)}</Say></GetDigits><Redirect>${xmlEscape(timeout.toString())}</Redirect>`])
+  const playback = audioUrl ? `<Play url="${xmlEscape(audioUrl)}"/>` : `<Say>${xmlEscape(prompt)}</Say>`
+  return voiceXml([`<GetDigits numDigits="1" timeout="8" callbackUrl="${xmlEscape(callback.toString())}">${playback}</GetDigits><Redirect>${xmlEscape(timeout.toString())}</Redirect>`])
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -37,7 +39,7 @@ export async function POST(request: Request): Promise<Response> {
     recipientId = matchedCall?.campaign_recipient_id || null
   }
   const { data: recipient, error: recipientError } = recipientId
-    ? await supabase.from("azera_call_campaign_recipients").select("id,campaign_id,call_id,status,response_digit,phone,contact_name,business_name,personalized_script").eq("id", recipientId).maybeSingle()
+    ? await supabase.from("azera_call_campaign_recipients").select("id,campaign_id,call_id,status,response_digit,phone,contact_name,business_name,personalized_script,speech_audio_path").eq("id", recipientId).maybeSingle()
     : { data: null, error: null }
   if (recipientError || !recipient?.call_id) return endCall("Sorry, this follow-up call could not be confirmed. Please contact MartPoint directly.")
   const { data: call, error: callError } = await supabase.from("azera_calls").select("id,business_id,status,sip_provider").eq("id", recipient.call_id).maybeSingle()
@@ -49,12 +51,13 @@ export async function POST(request: Request): Promise<Response> {
     if (!recipient.response_digit) {
       await supabase.from("azera_call_campaign_recipients").update({ status: "no_response", response_label: "No keypad response", notes: "The call connected, but no keypad response was received.", completed_at: now, updated_at: now }).eq("id", recipient.id).in("status", ["dialing", "answered"])
     }
+    if (Number(url.searchParams.get("attempt") || "0") > 1) await removeCampaignAudio(recipient.speech_audio_path)
     await finishAzeraCampaignIfDone(recipient.campaign_id)
     return endCall("Thank you for your time. Goodbye.")
   }
 
   if (digits) {
-    if (recipient.response_digit) return endCall("We have already recorded your response. Thank you. Goodbye.")
+    if (recipient.response_digit) { await removeCampaignAudio(recipient.speech_audio_path); return endCall("We have already recorded your response. Thank you. Goodbye.") }
     const outcome = digits === "1" ? "answered" : digits === "2" ? "callback_requested" : "not_interested"
     const label = digits === "1" ? "Interested; team follow-up requested" : digits === "2" ? "Requested a call back" : "Opted out of future automated calls"
     const note = `Automated campaign call: ${label}. Response recorded ${now}.`
@@ -80,12 +83,18 @@ export async function POST(request: Request): Promise<Response> {
       })
     }
     await finishAzeraCampaignIfDone(recipient.campaign_id)
+    await removeCampaignAudio(recipient.speech_audio_path)
     return endCall(digits === "3" ? "Your number has been removed from automated MartPoint calls. Goodbye." : digits === "2" ? "Thank you. Our team will call you back. Goodbye." : "Thank you. Our team will follow up with you. Goodbye.")
   }
 
-  if (recipient.response_digit) return endCall("Thank you for your time. Goodbye.")
+  if (recipient.response_digit) { await removeCampaignAudio(recipient.speech_audio_path); return endCall("Thank you for your time. Goodbye.") }
   const attempt = Number(url.searchParams.get("attempt") || "0")
-  if (attempt > 1) return endCall("We did not receive a response. Thank you for your time. Goodbye.")
+  if (attempt > 1) { await removeCampaignAudio(recipient.speech_audio_path); return endCall("We did not receive a response. Thank you for your time. Goodbye.") }
   const script = String(recipient.personalized_script || "Hello, this is Azera, MartPoint's automated assistant, following up on your enquiry.")
-  return askForResponse(request, script, attempt + 1)
+  let audioUrl = ""
+  if (recipient.speech_audio_path) {
+    try { audioUrl = await createCampaignAudioUrl(recipient.speech_audio_path) }
+    catch { return endCall("Sorry, we cannot play this follow-up message right now. Goodbye.") }
+  }
+  return askForResponse(request, script, attempt + 1, audioUrl)
 }

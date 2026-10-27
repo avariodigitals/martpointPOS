@@ -4,6 +4,7 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { africaBrowserConfig } from "@/lib/africa-browser-voice"
 import { buildCampaignScript, getCampaignCandidates, resolveCampaignBusinessId, type CampaignPurpose } from "@/lib/azera-campaigns"
 import { getAiProviderStatus } from "@/lib/ai-chat"
+import { isNaijaTtsEnabled, NAIJA_VOICES, type NaijaLanguage } from "@/lib/naija-tts"
 import { isSupabaseConfigured, supabase } from "@/lib/supabase"
 
 export const dynamic = "force-dynamic"
@@ -14,6 +15,9 @@ const createSchema = z.object({
   goal: z.string().trim().min(8).max(500),
   audienceDays: z.number().int().min(1).max(365).default(14),
   maxCalls: z.number().int().min(1).max(100).default(25),
+  speechProvider: z.enum(["africa_talking", "naija_speech"]).default("africa_talking"),
+  speechLanguage: z.enum(["en", "ha", "ig", "yo"]).default("en"),
+  speechVoice: z.string().trim().min(1).max(40).default("idera"),
 })
 
 export async function GET(request: Request) {
@@ -48,7 +52,7 @@ export async function GET(request: Request) {
     ])
     if (error) return NextResponse.json({ error: "Could not load campaigns." }, { status: 503 })
     const cfg = await africaBrowserConfig(businessId)
-    return NextResponse.json({ campaigns, ready: Boolean(cfg.apiKey && cfg.username && cfg.username !== "sandbox" && cfg.phone), callWindow: "configured voice business hours", aiProviderConfigured: aiStatus.configured }, { headers: { "Cache-Control": "private, no-store" } })
+    return NextResponse.json({ campaigns, ready: Boolean(cfg.apiKey && cfg.username && cfg.username !== "sandbox" && cfg.phone), naijaTtsReady: isNaijaTtsEnabled(), callWindow: "configured voice business hours", aiProviderConfigured: aiStatus.configured }, { headers: { "Cache-Control": "private, no-store" } })
   } catch {
     return NextResponse.json({ error: "Campaign data is temporarily unavailable." }, { status: 503 })
   }
@@ -60,18 +64,24 @@ export async function POST(request: Request) {
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Call campaigns need the database configured." }, { status: 503 })
   try {
     const body = createSchema.parse(await request.json())
+    if (!NAIJA_VOICES[body.speechLanguage as NaijaLanguage]?.includes(body.speechVoice)) return NextResponse.json({ error: "Choose a supported voice for the selected language." }, { status: 400 })
+    if (body.speechProvider === "naija_speech" && !isNaijaTtsEnabled()) return NextResponse.json({ error: "Add the Naija Speech API key to the server environment before creating this campaign." }, { status: 409 })
+    if (body.speechProvider === "africa_talking" && body.speechLanguage !== "en") return NextResponse.json({ error: "Choose Naija Speech for Hausa, Igbo or Yoruba campaign audio." }, { status: 400 })
     const businessId = await resolveCampaignBusinessId()
     if (!businessId) return NextResponse.json({ error: "Map the Africa’s Talking virtual number to a MartPoint business in Azera Settings first." }, { status: 409 })
     const candidates = await getCampaignCandidates(body.purpose as CampaignPurpose, body.audienceDays)
     if (!candidates.length) return NextResponse.json({ error: "No eligible contacts match this campaign. Check the age, estimate/quote status, phone number, and suppression list." }, { status: 422 })
     const bounded = candidates.slice(0, body.maxCalls)
-    const script = await buildCampaignScript({ purpose: body.purpose, goal: body.goal, product: bounded[0]?.productInterest || "MartPoint" })
+    const script = await buildCampaignScript({ purpose: body.purpose, goal: body.goal, product: bounded[0]?.productInterest || "MartPoint", language: body.speechProvider === "naija_speech" ? body.speechLanguage as NaijaLanguage : "en" })
     const { data: campaign, error } = await supabase.from("azera_call_campaigns").insert({
       business_id: businessId,
       name: body.name,
       purpose: body.purpose,
       goal: body.goal,
       script_template: script,
+      speech_provider: body.speechProvider,
+      speech_language: body.speechLanguage,
+      speech_voice: body.speechVoice,
       audience_days: body.audienceDays,
       max_calls: body.maxCalls,
       target_count: bounded.length,

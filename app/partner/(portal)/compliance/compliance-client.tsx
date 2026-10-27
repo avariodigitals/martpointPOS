@@ -29,6 +29,7 @@ export function PartnerComplianceClient({ documents, score }: { documents: Compl
   const [message, setMessage] = useState("")
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const [selectedFiles, setSelectedFiles] = useState<Record<string, File | null>>({})
+  const [bankFields, setBankFields] = useState<Record<string, { bankName: string; accountName: string; accountNumber: string }>>({})
 
   async function uploadDoc(docId: string) {
     const file = selectedFiles[docId]
@@ -49,6 +50,27 @@ export function PartnerComplianceClient({ documents, score }: { documents: Compl
       } else {
         setMessage(data.error || "Failed to upload document.")
       }
+    } finally {
+      setUploading((prev) => ({ ...prev, [docId]: false }))
+    }
+  }
+
+  async function submitBankDetails(docId: string) {
+    setUploading((prev) => ({ ...prev, [docId]: true }))
+    setMessage("")
+    try {
+      const res = await fetch("/api/partner/compliance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId, ...(bankFields[docId] || {}) }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setMessage(data.error || "Could not submit bank details."); return }
+      setMessage("Bank details submitted securely. The MartPoint team will review them.")
+      setBankFields((prev) => ({ ...prev, [docId]: { bankName: "", accountName: "", accountNumber: "" } }))
+      router.refresh()
+    } catch {
+      setMessage("Could not submit bank details. Please try again.")
     } finally {
       setUploading((prev) => ({ ...prev, [docId]: false }))
     }
@@ -94,8 +116,12 @@ export function PartnerComplianceClient({ documents, score }: { documents: Compl
                   doc={d}
                   uploading={uploading[d.id] || false}
                   selectedFile={selectedFiles[d.id] || null}
+                  bankFields={bankFields[d.id] || { bankName: "", accountName: "", accountNumber: "" }}
                   onFileChange={(file) => setSelectedFiles((prev) => ({ ...prev, [d.id]: file }))}
+                  onBankFieldChange={(field, value) => setBankFields((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { bankName: "", accountName: "", accountNumber: "" }), [field]: value } }))}
                   onUpload={() => uploadDoc(d.id)}
+                  onSubmitBank={() => submitBankDetails(d.id)}
+                  saving={uploading[d.id] || false}
                 />
               ))}
             </div>
@@ -114,8 +140,12 @@ export function PartnerComplianceClient({ documents, score }: { documents: Compl
                   doc={d}
                   uploading={uploading[d.id] || false}
                   selectedFile={selectedFiles[d.id] || null}
+                  bankFields={bankFields[d.id] || { bankName: "", accountName: "", accountNumber: "" }}
                   onFileChange={(file) => setSelectedFiles((prev) => ({ ...prev, [d.id]: file }))}
+                  onBankFieldChange={(field, value) => setBankFields((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { bankName: "", accountName: "", accountNumber: "" }), [field]: value } }))}
                   onUpload={() => uploadDoc(d.id)}
+                  onSubmitBank={() => submitBankDetails(d.id)}
+                  saving={uploading[d.id] || false}
                 />
               ))}
             </div>
@@ -132,16 +162,25 @@ function ComplianceDocRow({
   selectedFile,
   onFileChange,
   onUpload,
+  bankFields,
+  onBankFieldChange,
+  onSubmitBank,
+  saving,
 }: {
   doc: ComplianceDoc
   uploading: boolean
   selectedFile: File | null
   onFileChange: (file: File | null) => void
   onUpload: () => void
+  bankFields: { bankName: string; accountName: string; accountNumber: string }
+  onBankFieldChange: (field: "bankName" | "accountName" | "accountNumber", value: string) => void
+  onSubmitBank: () => void
+  saving: boolean
 }) {
   const isVerified = doc.verification_status === "VERIFIED" || doc.verification_status === "APPROVED"
   const isRejected = doc.verification_status === "REJECTED" || doc.verification_status === "EXPIRED"
   const isSubmitted = doc.verification_status === "SUBMITTED" || doc.verification_status === "UNDER_REVIEW"
+  const isBankDetails = /bank/i.test(doc.document_type)
 
   const icon = isVerified ? <CheckCircle className="w-5 h-5 text-green-600" /> :
                isRejected ? <XCircle className="w-5 h-5 text-red-600" /> :
@@ -165,13 +204,23 @@ function ComplianceDocRow({
           <span className={`inline-block text-[10px] uppercase px-1.5 py-0.5 rounded-full font-medium mt-1 ${badgeColor}`}>{enumLabel(doc.verification_status)}</span>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 w-full sm:w-auto">
         {doc.signedUrl && (
           <a href={doc.signedUrl} target="_blank" rel="noopener noreferrer">
             <Button size="sm" variant="outline"><Download className="w-3.5 h-3.5 mr-1" /> View</Button>
           </a>
         )}
-        {!isVerified && (
+        {isBankDetails && !isVerified && (!isSubmitted || isRejected) ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:min-w-[440px]">
+            <input aria-label="Bank name" placeholder="Bank name" className="rounded-md border border-input bg-background px-3 py-2 text-sm" value={bankFields.bankName} onChange={(e) => onBankFieldChange("bankName", e.target.value)} />
+            <input aria-label="Account holder name" placeholder="Account holder name" className="rounded-md border border-input bg-background px-3 py-2 text-sm" value={bankFields.accountName} onChange={(e) => onBankFieldChange("accountName", e.target.value)} />
+            <input aria-label="Account number" inputMode="numeric" autoComplete="off" placeholder="Account number" className="rounded-md border border-input bg-background px-3 py-2 text-sm" value={bankFields.accountNumber} onChange={(e) => onBankFieldChange("accountNumber", e.target.value.replace(/[^\d ]/g, ""))} />
+            <Button size="sm" onClick={onSubmitBank} disabled={saving || bankFields.bankName.trim().length < 2 || bankFields.accountName.trim().length < 2 || bankFields.accountNumber.replace(/\D/g, "").length < 9}>
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Submit bank details"}
+            </Button>
+            <p className="sm:col-span-2 text-xs text-muted-foreground">Enter the details here; no document upload is needed. Details are sent securely for MartPoint review.</p>
+          </div>
+        ) : !isBankDetails && !isVerified && (
           <div className="flex items-center gap-2">
             <input
               type="file"

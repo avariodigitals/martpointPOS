@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, LifeBuoy, ArrowLeft, Send } from "lucide-react"
-import { enumLabel, ticketStatusLabel } from "@/lib/utils"
+import { enumLabel, supportCategoryLabel, ticketEventValueLabel, ticketStatusLabel } from "@/lib/utils"
 
 interface Ticket {
   id: string
@@ -191,7 +191,7 @@ export default function CustomerTicketDetailPage({
               </div>
               <div>
                 <p className="text-muted-foreground">Category</p>
-                <p className="font-medium">{enumLabel(ticket.category)}</p>
+                <p className="font-medium">{supportCategoryLabel(ticket.category)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Updated</p>
@@ -260,7 +260,7 @@ export default function CustomerTicketDetailPage({
                   <li key={e.id} className="flex items-start gap-2 p-2 rounded-md bg-muted/20">
                     <span className="font-medium">{enumLabel(e.event_type)}</span>
                     {e.previous_value !== null && e.new_value !== null && e.previous_value !== undefined && e.new_value !== undefined && (
-                      <span className="text-muted-foreground">{e.previous_value} → {e.new_value}</span>
+                      <span className="text-muted-foreground">{ticketEventValueLabel(e.previous_value)} → {ticketEventValueLabel(e.new_value)}</span>
                     )}
                     <span className="text-xs text-muted-foreground ml-auto">{formatDate(e.created_at)}</span>
                   </li>

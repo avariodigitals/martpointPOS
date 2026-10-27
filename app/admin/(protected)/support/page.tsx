@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, LifeBuoy, ArrowRight, Plus, X } from "lucide-react"
-import { enumLabel, ticketStatusLabel } from "@/lib/utils"
+import { enumLabel, supportCategoryLabel, ticketStatusLabel } from "@/lib/utils"
 
 interface BusinessInfo {
   business_name?: string | null
@@ -144,7 +144,7 @@ export default function AdminSupportPage() {
       fetch(`/api/admin/businesses?search=${encodeURIComponent(businessQuery)}`)
         .then((r) => r.json())
         .then((data) => {
-          setBusinessResults(Array.isArray(data.businesses) ? data.businesses.map((b: any) => ({ id: b.id, business_name: b.businessName })) : [])
+          setBusinessResults(Array.isArray(data.businesses) ? data.businesses.map((b: { id: string; businessName: string }) => ({ id: b.id, business_name: b.businessName })) : [])
         })
         .catch(() => setBusinessResults([]))
     }, 300)
@@ -264,7 +264,7 @@ export default function AdminSupportPage() {
                 <div>
                   <label className="block text-xs font-medium mb-1">Category</label>
                   <select value={createCategory} onChange={(e) => setCreateCategory(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                    {CATEGORIES.filter((c) => c).map((c) => <option key={c} value={c}>{enumLabel(c)}</option>)}
+                    {CATEGORIES.filter((c) => c).map((c) => <option key={c} value={c}>{supportCategoryLabel(c)}</option>)}
                   </select>
                 </div>
                 <div>
@@ -333,7 +333,7 @@ export default function AdminSupportPage() {
             <div>
               <label className="block text-xs font-medium mb-1">Category</label>
               <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                {CATEGORIES.map((c) => <option key={c || "all"} value={c}>{c ? enumLabel(c) : "All"}</option>)}
+                {CATEGORIES.map((c) => <option key={c || "all"} value={c}>{c ? supportCategoryLabel(c) : "All"}</option>)}
               </select>
             </div>
             <div>
@@ -391,7 +391,7 @@ export default function AdminSupportPage() {
                       <td className="px-4 py-2 max-w-xs truncate">{t.subject}</td>
                       <td className="px-4 py-2">
                         <span className="text-[10px] tracking-wider px-1.5 py-0.5 rounded font-medium bg-muted">
-                          {enumLabel(t.category)}
+                          {supportCategoryLabel(t.category)}
                         </span>
                       </td>
                       <td className="px-4 py-2">

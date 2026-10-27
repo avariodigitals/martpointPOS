@@ -5,8 +5,7 @@ import { sendEmail, REPLY_TO } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { recordStatusHistory, sendApplicationStatusEmail } from "./partners"
 import { uploadPartnerDocument, createSignedDocUrl } from "./partner-documents"
-
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
+import { publicUrl } from "./public-url"
 
 export interface ComplianceDocWithToken {
   id: string
@@ -21,6 +20,7 @@ export interface ComplianceDocWithToken {
   verified_at: string | null
   verified_by: string | null
   notes: string | null
+  submittedFields?: Record<string, string>
   signedUrl: string | null
   latestToken: {
     hash: string
@@ -96,6 +96,7 @@ export async function listApplicationComplianceDocuments(applicationId: string):
         verified_at: (d.verified_at as string) || null,
         verified_by: (d.verified_by as string) || null,
         notes: (d.notes as string) || null,
+        submittedFields: (d.submitted_fields as Record<string, string>) || {},
         signedUrl,
         latestToken: latest
           ? {
@@ -214,7 +215,7 @@ export async function requestApplicationComplianceDocuments(
         .eq("id", docId)
     }
 
-    const uploadUrl = `${baseUrl}/partners/upload-compliance?token=${token}`
+    const uploadUrl = publicUrl(`/partners/upload-compliance?token=${encodeURIComponent(token)}`)
 
     requested.push({
       id: docId,
@@ -337,7 +338,7 @@ export async function resendComplianceUploadToken(
 
   if (tokenErr) return { ok: false, error: "Failed to create upload token" }
 
-  const uploadUrl = `${baseUrl}/partners/upload-compliance?token=${token}`
+  const uploadUrl = publicUrl(`/partners/upload-compliance?token=${encodeURIComponent(token)}`)
   const tpl = await renderEmailTemplate("compliance_doc_reminder", {
     fullName: (app.full_name as string) || (app.business_name as string) || "there",
     reference: (app.reference_number as string) || "",
@@ -439,6 +440,7 @@ export async function getComplianceDocumentByToken(token: string): Promise<{
     status: string
     reference: string
     applicantName: string
+    isBankDetails: boolean
   }
 }> {
   if (!isSupabaseConfigured()) return { ok: false, error: "This service is temporarily unavailable. Please try again later." }
@@ -494,8 +496,47 @@ export async function getComplianceDocumentByToken(token: string): Promise<{
       status: doc.verification_status as string,
       reference: (app.reference_number as string) || "",
       applicantName: (app.full_name as string) || (app.business_name as string) || "",
+      isBankDetails: /bank/i.test(String(doc.document_type)),
     },
   }
+}
+
+export async function submitComplianceBankDetailsByToken(token: string, input: {
+  bankName: string
+  accountName: string
+  accountNumber: string
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "This service is temporarily unavailable. Please try again later." }
+  const bankName = input.bankName.trim()
+  const accountName = input.accountName.trim()
+  const accountNumber = input.accountNumber.replace(/\s/g, "")
+  if (bankName.length < 2 || bankName.length > 120) return { ok: false, error: "Enter the bank name" }
+  if (accountName.length < 2 || accountName.length > 160) return { ok: false, error: "Enter the account holder name" }
+  if (!/^\d{9,17}$/.test(accountNumber)) return { ok: false, error: "Enter a valid account number" }
+
+  const { data: tokenRow } = await supabase.from("partner_document_upload_tokens")
+    .select("id, partner_document_id, used_at, expires_at").eq("token_hash", hashToken(token)).single()
+  if (!tokenRow || tokenRow.used_at || (tokenRow.expires_at && tokenRow.expires_at < now())) {
+    return { ok: false, error: "This compliance link is invalid, expired, or already used. Please request a new one." }
+  }
+  const { data: doc } = await supabase.from("partner_documents").select("id, document_type, verification_status")
+    .eq("id", tokenRow.partner_document_id).single()
+  if (!doc || !/bank/i.test(String(doc.document_type))) return { ok: false, error: "This request does not accept bank details" }
+  if (["VERIFIED", "APPROVED"].includes(String(doc.verification_status))) return { ok: false, error: "This request has already been approved" }
+
+  const { error } = await supabase.from("partner_documents").update({
+    submitted_fields: { bankName, accountName, accountNumber },
+    original_filename: "Bank details submitted securely",
+    mime_type: "application/json",
+    file_size: 0,
+    storage_path: "",
+    verification_status: "SUBMITTED",
+    uploaded_at: now(),
+    updated_at: now(),
+  }).eq("id", doc.id)
+  if (error) return { ok: false, error: "Could not submit bank details" }
+  await supabase.from("partner_document_upload_tokens").update({ used_at: now(), updated_at: now() }).eq("id", tokenRow.id)
+  return { ok: true }
 }
 
 export async function submitComplianceDocumentByToken(

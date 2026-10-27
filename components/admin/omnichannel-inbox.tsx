@@ -29,7 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, enumLabel } from "@/lib/utils";
 import {
   useWebRTCCall,
   AzeraCallUI,
@@ -1116,7 +1116,7 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
                       </h2>
                       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Icon className="h-3 w-3" />{" "}
-                        {channelLabel(selected.channel)} · {selected.status}
+                        {channelLabel(selected.channel)} · {enumLabel(selected.status)}
                       </p>
                     </div>
                   </div>
@@ -1362,12 +1362,12 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
                     onChange={(event) => setTicketCategory(event.target.value)}
                     className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
                   >
-                    <option>OTHER</option>
-                    <option>SOFTWARE</option>
-                    <option>POS</option>
-                    <option>INVENTORY</option>
-                    <option>LOGIN_ACCOUNT</option>
-                    <option>BILLING</option>
+                    <option value="OTHER">Other</option>
+                    <option value="SOFTWARE">Software</option>
+                    <option value="POS">Point of sale (POS)</option>
+                    <option value="INVENTORY">Inventory</option>
+                    <option value="LOGIN_ACCOUNT">Login &amp; account access</option>
+                    <option value="BILLING">Billing</option>
                   </select>
                 </label>
               </div>

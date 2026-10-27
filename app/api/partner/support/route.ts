@@ -3,6 +3,7 @@ import { requirePartnerSession } from "@/lib/partner-auth"
 import {
   canPartnerViewTicket,
   canPartnerManageTicket,
+  presentSupportTicketEvents,
   addMessage,
   changeStatus,
   escalateTicket,
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
           .order("created_at", { ascending: false }),
       ])
 
-      return ok({ ticket, messages: messages || [], events: events || [] })
+      return ok({ ticket, messages: messages || [], events: await presentSupportTicketEvents(events || []) })
     }
 
     const { data, error } = await supabase

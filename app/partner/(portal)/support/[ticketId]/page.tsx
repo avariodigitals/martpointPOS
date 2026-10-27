@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, LifeBuoy, ArrowLeft, Send } from "lucide-react"
-import { enumLabel } from "@/lib/utils"
+import { enumLabel, supportCategoryLabel, ticketEventValueLabel, ticketStatusLabel } from "@/lib/utils"
 
 interface BusinessInfo {
   business_name?: string | null
@@ -219,18 +219,18 @@ export default function PartnerSupportDetailPage({
                 <div>
                   <p className="text-muted-foreground">Status</p>
                   <span className={`inline-flex text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[ticket.status]}`}>
-                    {ticket.status}
+                    {ticketStatusLabel(ticket.status, true)}
                   </span>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Priority</p>
                   <span className={`inline-flex text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[ticket.priority]}`}>
-                    {ticket.priority}
+                    {enumLabel(ticket.priority)}
                   </span>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Category</p>
-                  <p className="font-medium">{enumLabel(ticket.category)}</p>
+                  <p className="font-medium">{supportCategoryLabel(ticket.category)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Updated</p>
@@ -293,7 +293,7 @@ export default function PartnerSupportDetailPage({
                       <span className="font-medium">{enumLabel(e.event_type)}</span>
                       {e.previous_value !== undefined && e.new_value !== undefined && e.previous_value !== null && e.new_value !== null && (
                         <span className="text-muted-foreground">
-                          {e.previous_value} → {e.new_value}
+                          {ticketEventValueLabel(e.previous_value)} → {ticketEventValueLabel(e.new_value)}
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground ml-auto">{formatDate(e.created_at)}</span>

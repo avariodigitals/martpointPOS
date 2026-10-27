@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCustomerSupportSession } from "@/lib/customer-support-auth"
-import { getSlaState } from "@/lib/support"
+import { getSlaState, presentSupportTicketEvents } from "@/lib/support"
 import { supabase } from "@/lib/supabase"
 
 function ok<T>(data: T) {
@@ -48,7 +48,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return ok({
       ticket: { ...data, sla_state: slaState },
       messages: messages || [],
-      events: events || [],
+      events: await presentSupportTicketEvents(events || []),
     })
   } catch (e) {
     return err(String(e), 500)

@@ -3,33 +3,14 @@ import { productLabel } from "./product-labels"
 import { getPartnerSession } from "./partner-auth"
 import { sendEmail, REPLY_TO } from "./email"
 import { brandedEmailHtml, escapeHtml } from "./email-templates"
+import { publicUrl } from "./public-url"
 
 const DEFAULT_PARTNER_PORTAL_PATH = "/partner/quotes"
 
 /** Email clients require an absolute URL. Never emit a relative portal path
  * (or an invalid configured base such as `http://`) into an href. */
 function partnerPublicUrl(link?: string | null): string {
-  const value = link?.trim() || DEFAULT_PARTNER_PORTAL_PATH
-  if (/^https?:\/\//i.test(value)) {
-    try {
-      const absolute = new URL(value)
-      if (absolute.hostname) return absolute.toString()
-    } catch {
-      // Fall through to the safe portal URL below.
-    }
-  }
-
-  const configured = process.env.NEXT_PUBLIC_BASE_URL?.trim() || "https://martpoint.com.ng"
-  let base = "https://martpoint.com.ng"
-  try {
-    const parsed = new URL(configured)
-    if (["http:", "https:"].includes(parsed.protocol) && parsed.hostname) base = parsed.origin
-  } catch {
-    // Keep the known public domain if deployment configuration is malformed.
-  }
-
-  const path = value.startsWith("/") ? value : DEFAULT_PARTNER_PORTAL_PATH
-  return new URL(path, `${base}/`).toString()
+  return publicUrl(link, DEFAULT_PARTNER_PORTAL_PATH)
 }
 
 async function pushPartnerInAppNotification(input: {

@@ -9,6 +9,7 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import { createAdminNotification } from "./admin-notifications"
 import { sendEmail } from "./email"
 import { getPartnerSession } from "./partner-auth"
+import { publicUrl } from "./public-url"
 
 export const REFERRAL_NOTIFICATION_EVENTS = [
   "APPLICATION_SUBMITTED",
@@ -139,10 +140,11 @@ export async function emitReferralNotification(input: ReferralNotificationInput)
   // 3. Best-effort email
   if (input.emailTo) {
     try {
+      const emailLink = input.link ? publicUrl(input.link) : null
       await sendEmail({
         to: input.emailTo,
         subject: input.emailSubject || input.title,
-        text: [input.title, "", input.body || "", input.link ? `\n${input.link}` : ""].join("\n"),
+        text: [input.title, "", input.body || "", emailLink ? `\nOpen MartPoint: ${emailLink}` : ""].join("\n"),
         route: "partner_application",
       })
     } catch (err) {

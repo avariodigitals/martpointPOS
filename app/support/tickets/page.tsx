@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, LifeBuoy, Plus, ArrowRight, AlertCircle, Send } from "lucide-react"
-import { enumLabel, ticketStatusLabel } from "@/lib/utils"
+import { enumLabel, supportCategoryLabel, ticketStatusLabel } from "@/lib/utils"
 
 interface Ticket {
   id: string
@@ -160,7 +160,7 @@ export default function CustomerTicketsPage() {
                   <div>
                     <label className="block text-xs font-medium mb-1">Category</label>
                     <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                      {CATEGORIES.map((c) => <option key={c} value={c}>{enumLabel(c)}</option>)}
+                      {CATEGORIES.map((c) => <option key={c} value={c}>{supportCategoryLabel(c)}</option>)}
                     </select>
                   </div>
                   <div>
@@ -237,7 +237,7 @@ export default function CustomerTicketsPage() {
                           </span>
                         </div>
                         <p className="text-sm mt-0.5">{t.subject}</p>
-                        <p className="text-xs text-muted-foreground">{enumLabel(t.category)} · Opened {formatDate(t.created_at)}</p>
+                        <p className="text-xs text-muted-foreground">{supportCategoryLabel(t.category)} · Opened {formatDate(t.created_at)}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         {t.sla_state && (

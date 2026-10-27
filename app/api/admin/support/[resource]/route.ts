@@ -14,6 +14,7 @@ import {
   changePriority,
   escalateTicket,
   getSlaState,
+  presentSupportTicketEvents,
   type SupportTicket,
   type SupportTicketStatus,
   type SupportPriority,
@@ -211,11 +212,11 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
       if (!ticketId) return err("Missing ticketId")
       const { data, error } = await supabase
         .from("support_ticket_events")
-        .select("*")
+        .select("id, ticket_id, event_type, actor_type, previous_value, new_value, created_at")
         .eq("ticket_id", ticketId)
         .order("created_at", { ascending: false })
       if (error) return err(error.message, 500)
-      return ok(data)
+      return ok(await presentSupportTicketEvents(data || []))
     }
 
     if (resource === "sla") {

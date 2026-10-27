@@ -3,6 +3,7 @@ import { isSensitiveSupportCategory } from "./support-permissions"
 import { canPartnerAccessBusiness } from "./partner-auth"
 import { resolveAdminTasks } from "./tasks"
 import { notifyAllAdmins, notifyAdminUser } from "./admin-notifications"
+import { enumLabel, supportCategoryLabel, ticketStatusLabel } from "./utils"
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPES
@@ -426,6 +427,46 @@ export async function addEvent(
     new_value: newValue,
     metadata,
     created_at: now(),
+  })
+}
+
+/** Replace internal assignee UUIDs and enum values before ticket events reach a portal. */
+export async function presentSupportTicketEvents<T extends Record<string, unknown>>(events: T[]): Promise<T[]> {
+  if (!events.length) return []
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const userIds = new Set<string>()
+  const partnerIds = new Set<string>()
+  for (const event of events) {
+    if (!["previous_value", "new_value"].some((key) => typeof event[key] === "string" && uuidPattern.test(event[key] as string))) continue
+    if (event.event_type === "ASSIGNED" || event.event_type === "REASSIGNED") {
+      for (const key of ["previous_value", "new_value"]) if (typeof event[key] === "string" && uuidPattern.test(event[key] as string)) userIds.add(event[key] as string)
+    }
+    if (event.event_type === "PARTNER_ASSIGNED" || event.event_type === "PARTNER_REMOVED") {
+      for (const key of ["previous_value", "new_value"]) if (typeof event[key] === "string" && uuidPattern.test(event[key] as string)) partnerIds.add(event[key] as string)
+    }
+  }
+  const [usersResult, partnersResult] = await Promise.all([
+    userIds.size ? supabase.from("users").select("id,name").in("id", [...userIds]) : Promise.resolve({ data: [] }),
+    partnerIds.size ? supabase.from("partners").select("id,business_name,partner_id").in("id", [...partnerIds]) : Promise.resolve({ data: [] }),
+  ])
+  const userNames = new Map((usersResult.data || []).map((row) => [row.id as string, row.name as string]))
+  const partnerNames = new Map((partnersResult.data || []).map((row) => [row.id as string, (row.business_name || row.partner_id || "Partner") as string]))
+
+  return events.map((event) => {
+    const output: Record<string, unknown> = { ...event }
+    const assignmentKind = event.event_type === "ASSIGNED" || event.event_type === "REASSIGNED" ? "user" : event.event_type === "PARTNER_ASSIGNED" || event.event_type === "PARTNER_REMOVED" ? "partner" : null
+    for (const key of ["previous_value", "new_value"] as const) {
+      const value = event[key]
+      if (typeof value !== "string") continue
+      if (uuidPattern.test(value)) {
+        const label = assignmentKind === "user" ? userNames.get(value) || "Team member" : assignmentKind === "partner" ? partnerNames.get(value) || "Partner" : "Reference"
+        output[key] = label
+      } else if (event.event_type === "STATUS_CHANGED") output[key] = ticketStatusLabel(value)
+      else if (event.event_type === "PRIORITY_CHANGED") output[key] = enumLabel(value)
+      else if (event.event_type === "CATEGORY_CHANGED") output[key] = supportCategoryLabel(value)
+      else if (/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/.test(value)) output[key] = enumLabel(value)
+    }
+    return output as T
   })
 }
 

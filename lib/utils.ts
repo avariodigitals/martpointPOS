@@ -67,3 +67,37 @@ export function ticketStatusLabel(status: string, forRequester = false): string 
   const map = forRequester ? TICKET_STATUS_LABELS_REQUESTER : TICKET_STATUS_LABELS
   return map[status] || enumLabel(status)
 }
+
+/** Human-facing support category labels; enum values remain internal API/database codes. */
+export const SUPPORT_CATEGORY_LABELS: Record<string, string> = {
+  SOFTWARE: "Software",
+  LOGIN_ACCOUNT: "Login & account access",
+  POS: "Point of sale (POS)",
+  INVENTORY: "Inventory",
+  PRODUCTS: "Products",
+  REPORTS: "Reports",
+  ONLINE_STORE: "Online store",
+  CONFIGURATION: "Setup & configuration",
+  TRAINING: "Training",
+  BILLING: "Billing",
+  LICENSING: "Licensing",
+  SECURITY: "Security",
+  PRIVACY_DATA: "Privacy & data",
+  HARDWARE_GUIDANCE: "Hardware help",
+  FEATURE_REQUEST: "Feature request",
+  PARTNER_COMPLAINT: "Partner concern",
+  CREATOR_NETWORK: "Creator network",
+  OTHER: "Other",
+}
+
+export function supportCategoryLabel(category: string | null | undefined): string {
+  if (!category) return "—"
+  return SUPPORT_CATEGORY_LABELS[category] || enumLabel(category)
+}
+
+/** Preserve ordinary prose/IDs, but translate stored enum-shaped ticket values. */
+export function ticketEventValueLabel(value: string | null | undefined): string {
+  if (!value) return value || ""
+  if (Object.hasOwn(SUPPORT_CATEGORY_LABELS, value)) return supportCategoryLabel(value)
+  return /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/.test(value) ? enumLabel(value) : value
+}

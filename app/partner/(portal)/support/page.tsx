@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, LifeBuoy, ArrowRight, Plus, X } from "lucide-react"
+import { enumLabel, supportCategoryLabel, ticketStatusLabel } from "@/lib/utils"
 
 interface BusinessInfo {
   business_name?: string | null
@@ -174,17 +175,17 @@ export default function PartnerSupportPage() {
                       <td className="px-4 py-2 max-w-xs truncate">{t.subject}</td>
                       <td className="px-4 py-2">
                         <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium bg-muted">
-                          {t.category}
+                          {supportCategoryLabel(t.category)}
                         </span>
                       </td>
                       <td className="px-4 py-2">
                         <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[t.priority] || "bg-gray-100"}`}>
-                          {t.priority}
+                          {enumLabel(t.priority)}
                         </span>
                       </td>
                       <td className="px-4 py-2">
                         <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[t.status] || "bg-gray-100"}`}>
-                          {t.status}
+                          {ticketStatusLabel(t.status, true)}
                         </span>
                       </td>
                       <td className="px-4 py-2">

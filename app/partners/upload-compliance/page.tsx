@@ -12,6 +12,7 @@ interface DocInfo {
   status: string
   reference: string
   applicantName: string
+  isBankDetails: boolean
 }
 
 function UploadComplianceContent() {
@@ -24,6 +25,7 @@ function UploadComplianceContent() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [done, setDone] = useState(false)
+  const [bankDetails, setBankDetails] = useState({ bankName: "", accountName: "", accountNumber: "" })
 
   useEffect(() => {
     if (!token) {
@@ -47,20 +49,18 @@ function UploadComplianceContent() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!token || !selectedFile) return
-    if (selectedFile.size > 4 * 1024 * 1024) {
+    if (!token || (!doc?.isBankDetails && !selectedFile)) return
+    if (selectedFile && selectedFile.size > 4 * 1024 * 1024) {
       setError("File is too large. Maximum size is 4 MB.")
       return
     }
     setUploading(true)
     setError("")
 
-    const formData = new FormData()
-    formData.append("token", token)
-    formData.append("file", selectedFile)
-
     try {
-      const res = await fetch("/api/partners/compliance-upload", { method: "POST", body: formData })
+      const res = doc?.isBankDetails
+        ? await fetch("/api/partners/compliance-upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...bankDetails }) })
+        : await fetch("/api/partners/compliance-upload", { method: "POST", body: (() => { const form = new FormData(); form.append("token", token); if (selectedFile) form.append("file", selectedFile); return form })() })
       const data = await res.json()
       if (res.ok) {
         setDone(true)
@@ -103,7 +103,12 @@ function UploadComplianceContent() {
                 <p><span className="text-muted-foreground">Application reference:</span> {doc.reference}</p>
                 <p><span className="text-muted-foreground">Document requested:</span> {doc.document_type}</p>
               </div>
-              <div>
+              {doc.isBankDetails ? <div className="space-y-3">
+                <label className="block text-sm font-medium">Bank name<input required minLength={2} maxLength={120} value={bankDetails.bankName} onChange={(e) => setBankDetails((v) => ({ ...v, bankName: e.target.value }))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2" /></label>
+                <label className="block text-sm font-medium">Account holder name<input required minLength={2} maxLength={160} value={bankDetails.accountName} onChange={(e) => setBankDetails((v) => ({ ...v, accountName: e.target.value }))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2" /></label>
+                <label className="block text-sm font-medium">Account number<input required inputMode="numeric" autoComplete="off" minLength={9} maxLength={20} value={bankDetails.accountNumber} onChange={(e) => setBankDetails((v) => ({ ...v, accountNumber: e.target.value.replace(/[^\d ]/g, "") }))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2" /></label>
+                <p className="text-xs text-muted-foreground">Submit the details as text. No bank document upload is required.</p>
+              </div> : <div>
                 <label className="block text-sm font-medium mb-1">Upload file</label>
                 <input
                   type="file"
@@ -112,10 +117,10 @@ function UploadComplianceContent() {
                   className="w-full text-sm"
                 />
                 <p className="text-xs text-muted-foreground mt-1">PDF, image, Word. Max 4 MB.</p>
-              </div>
-              <Button type="submit" disabled={uploading || !selectedFile} className="w-full">
+              </div>}
+              <Button type="submit" disabled={uploading || (doc.isBankDetails ? bankDetails.bankName.trim().length < 2 || bankDetails.accountName.trim().length < 2 || bankDetails.accountNumber.replace(/\D/g, "").length < 9 : !selectedFile)} className="w-full">
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-                Submit Document
+                {doc.isBankDetails ? "Submit Bank Details" : "Submit Document"}
               </Button>
             </form>
           ) : null}

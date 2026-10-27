@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { getComplianceDocumentByToken, submitComplianceDocumentByToken } from "@/lib/partner-compliance"
+import { getComplianceDocumentByToken, submitComplianceBankDetailsByToken, submitComplianceDocumentByToken } from "@/lib/partner-compliance"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -24,6 +24,17 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (request.headers.get("content-type")?.includes("application/json")) {
+      const body = await request.json()
+      if (typeof body.token !== "string") return NextResponse.json({ error: "Token is required" }, { status: 400 })
+      const result = await submitComplianceBankDetailsByToken(body.token, {
+        bankName: typeof body.bankName === "string" ? body.bankName : "",
+        accountName: typeof body.accountName === "string" ? body.accountName : "",
+        accountNumber: typeof body.accountNumber === "string" ? body.accountNumber : "",
+      })
+      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+      return NextResponse.json({ success: true })
+    }
     const formData = await request.formData()
     const token = formData.get("token") as string | null
     const file = formData.get("file") as File | null

@@ -59,6 +59,7 @@ interface ComplianceDocRow {
   signedUrl: string | null
   latestToken: { hash: string; expiresAt: string; usedAt: string | null } | null
   notes: string | null
+  submittedFields?: Record<string, string>
 }
 
 interface DocRow {
@@ -1110,6 +1111,15 @@ export function ApplicationDetail({ id }: { id: string }) {
                       <a href={d.signedUrl} target="_blank" rel="noopener noreferrer" className="inline-flex">
                         <Button size="sm" variant="outline"><Download className="w-3.5 h-3.5 mr-1" /> View File</Button>
                       </a>
+                    )}
+
+                    {d.submittedFields && Object.keys(d.submittedFields).length > 0 && (
+                      <div className="rounded-md bg-muted/30 p-3 text-sm space-y-1">
+                        <p className="font-medium">Submitted bank details</p>
+                        <p>Bank: {d.submittedFields.bankName || "—"}</p>
+                        <p>Account holder: {d.submittedFields.accountName || "—"}</p>
+                        <p>Account number: {d.submittedFields.accountNumber || "—"}</p>
+                      </div>
                     )}
 
                     <div className="flex flex-wrap items-center gap-2 pt-1">

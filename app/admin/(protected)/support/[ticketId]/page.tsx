@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, LifeBuoy, ArrowLeft, Send, Check } from "lucide-react"
-import { enumLabel, ticketStatusLabel } from "@/lib/utils"
+import { enumLabel, supportCategoryLabel, ticketEventValueLabel, ticketStatusLabel } from "@/lib/utils"
 
 interface BusinessSummary {
   business_name?: string | null
@@ -332,7 +332,7 @@ export default function AdminSupportDetailPage({
                 </div>
                 <div>
                   <p className="text-muted-foreground">Category</p>
-                  <p className="font-medium">{enumLabel(ticket.category)}</p>
+                  <p className="font-medium">{supportCategoryLabel(ticket.category)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">SLA state</p>
@@ -409,7 +409,7 @@ export default function AdminSupportDetailPage({
                       <span className="font-medium">{enumLabel(e.event_type)}</span>
                       {e.previous_value !== undefined && e.new_value !== undefined && (
                         <span className="text-muted-foreground">
-                          {e.previous_value} → {e.new_value}
+                          {ticketEventValueLabel(e.previous_value)} → {ticketEventValueLabel(e.new_value)}
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground ml-auto">{formatDate(e.created_at)}</span>
@@ -535,7 +535,7 @@ export default function AdminSupportDetailPage({
                 <label className="block text-xs font-medium">Change priority</label>
                 <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                   <option value="">Select priority</option>
-                  {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {PRIORITIES.map((p) => <option key={p} value={p}>{enumLabel(p)}</option>)}
                 </select>
                 <Button size="sm" className="w-full" onClick={() => postAction("change_priority", { priority: newPriority })} disabled={!newPriority || saving}>
                   Change Priority
@@ -546,7 +546,7 @@ export default function AdminSupportDetailPage({
                 <label className="block text-xs font-medium">Change category</label>
                 <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                   <option value="">Select category</option>
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {CATEGORIES.map((c) => <option key={c} value={c}>{supportCategoryLabel(c)}</option>)}
                 </select>
                 <Button size="sm" className="w-full" onClick={() => postAction("update", { category: newCategory })} disabled={!newCategory || saving}>
                   Change Category

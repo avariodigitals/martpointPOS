@@ -948,6 +948,55 @@ export async function submitComplianceDocument(
   return { ok: true }
 }
 
+export async function submitPartnerBankDetails(input: {
+  docId: string
+  partnerId: string
+  partnerUserId: string
+  bankName: string
+  accountName: string
+  accountNumber: string
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Database not configured" }
+  const accountNumber = input.accountNumber.replace(/\s/g, "")
+  if (input.bankName.trim().length < 2 || input.bankName.trim().length > 120) return { ok: false, error: "Enter the bank name" }
+  if (input.accountName.trim().length < 2 || input.accountName.trim().length > 160) return { ok: false, error: "Enter the account holder name" }
+  if (!/^\d{9,17}$/.test(accountNumber)) return { ok: false, error: "Enter a valid account number" }
+
+  const { data: doc, error: lookupError } = await supabase
+    .from("partner_documents")
+    .select("id, partner_id, document_type, verification_status")
+    .eq("id", input.docId)
+    .eq("partner_id", input.partnerId)
+    .single()
+  if (lookupError || !doc) return { ok: false, error: "Compliance request not found" }
+  if (!/bank/i.test(String(doc.document_type))) return { ok: false, error: "This request does not accept bank details" }
+  if (["VERIFIED", "APPROVED"].includes(String(doc.verification_status))) return { ok: false, error: "This request has already been approved" }
+
+  const { error } = await supabase.from("partner_documents").update({
+    submitted_fields: {
+      bankName: input.bankName.trim(),
+      accountName: input.accountName.trim(),
+      accountNumber,
+    },
+    original_filename: "Bank details submitted securely",
+    mime_type: "application/json",
+    file_size: 0,
+    storage_path: "",
+    verification_status: "SUBMITTED",
+    uploaded_at: now(),
+    requested_by: input.partnerUserId,
+  }).eq("id", input.docId).eq("partner_id", input.partnerId)
+  if (error) return { ok: false, error: "Could not submit bank details" }
+
+  await recordAudit({ actorType: "PARTNER", actorId: input.partnerUserId }, {
+    action: AUDIT_ACTIONS.PARTNER_COMPLIANCE_DOCUMENT_SUBMITTED,
+    entityType: AUDIT_ENTITIES.PARTNER_DOCUMENT,
+    entityId: input.docId,
+    metadata: { partnerId: input.partnerId, submissionType: "typed_bank_details" },
+  })
+  return { ok: true }
+}
+
 export async function createSignedComplianceDocUrl(
   storagePath: string
 ): Promise<string | null> {

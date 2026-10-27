@@ -8,6 +8,7 @@ import { ArrowRight, CheckCircle2, Clock3, FileText, Loader2, Pencil, Plus, Rece
 import { enumLabel } from "@/lib/utils"
 import { formatMoney } from "@/lib/money-format"
 import { quoteTemplateOptions, resolveQuoteTemplate } from "@/lib/quote-templates"
+import { QuoteStatusCorrectionButton, QuoteStatusCorrectionInbox } from "@/components/admin/quote-status-correction"
 
 type Tab = "requests" | "create" | "issued" | "accepted" | "conversion"
 
@@ -490,6 +491,7 @@ export default function PartnerQuotesPage() {
                       {actionBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Receipt className="mr-1 h-3.5 w-3.5" />} Convert to invoice
                     </Button>
                   )}
+                  {mode === "accepted" && !invoice && <QuoteStatusCorrectionButton sourceType="finance_quote" quoteId={quote.id} quoteNumber={quote.quote_number} />}
                   {mode === "conversion" && !invoice && quote.status === "ACCEPTED" && (
                     <Button size="sm" onClick={() => void runQuoteAction(quote, "convert")} disabled={actionBusy}>
                       {actionBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Receipt className="mr-1 h-3.5 w-3.5" />} Create invoice
@@ -507,6 +509,7 @@ export default function PartnerQuotesPage() {
 
   return (
     <div className="space-y-6">
+      <QuoteStatusCorrectionInbox />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><FileText className="h-5 w-5" /> Partner Quotes</h2>

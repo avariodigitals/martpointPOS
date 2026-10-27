@@ -31,6 +31,7 @@ import { industryOptions, resolveIndustryName } from "@/lib/industries"
 import { resolveQuoteTemplate, quoteTemplateOptions } from "@/lib/quote-templates"
 import { buildEstimatorOutput, estimatorCatalogItems } from "@/lib/internal-estimator"
 import { resolveCloudPlans, type ResolvedCloudPlan } from "@/lib/pricing-plans"
+import { QuoteStatusCorrectionButton, QuoteStatusCorrectionInbox } from "@/components/admin/quote-status-correction"
 
 interface Lead {
   id: string
@@ -576,6 +577,7 @@ export default function QuotationsPage() {
 
   return (
     <div className="space-y-6">
+      <QuoteStatusCorrectionInbox />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -715,6 +717,7 @@ export default function QuotationsPage() {
                               <ArrowRightLeft className="w-3.5 h-3.5" />
                             </button>
                           )}
+                          {qt.status === "ACCEPTED" && <QuoteStatusCorrectionButton sourceType="lead_quote" quoteId={qt.id} quoteNumber={qt.quote_number} />}
                           {(qt.status === "CHANGE_REQUESTED" || qt.status === "COUNTER_OFFERED") && (
                             <button
                               onClick={() => openReview(qt)}

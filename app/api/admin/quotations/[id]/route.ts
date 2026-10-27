@@ -73,7 +73,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       notesInternal,
       paymentTerms,
       industry,
-      status,
       items,
       discountType,
       discountValue,
@@ -87,7 +86,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       notesInternal?: string
       paymentTerms?: string
       industry?: string
-      status?: string
       items: Array<{ description: string; quantity: number; unitPrice: number; discount?: number; tax?: number; taxRate?: number | null }>
       discountType?: string
       discountValue?: number
@@ -118,7 +116,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       tax: Number(it.tax) || 0,
     })), { type: quoteDiscountType, value: quoteDiscountValue })
 
-    const allowedStatuses = ["DRAFT", "SENT", "ACCEPTED", "DECLINED", "EXPIRED", "CONVERTED", "CHANGE_REQUESTED", "COUNTER_OFFERED", "REVISED"]
     const updatePayload: Record<string, unknown> = {
       title: title || "",
       valid_until: validUntil || null,
@@ -135,9 +132,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     }
     if (industry !== undefined) {
       updatePayload.industry = industry ? resolveIndustryName(industry) : null
-    }
-    if (status && allowedStatuses.includes(status as string)) {
-      updatePayload.status = status
     }
     if (typeof allowChanges === "boolean") {
       updatePayload.allow_changes = allowChanges

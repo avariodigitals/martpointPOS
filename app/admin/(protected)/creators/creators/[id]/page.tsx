@@ -8,38 +8,94 @@ import { Loader2, ArrowLeft, Ban, CheckCircle2, AlertTriangle, ExternalLink } fr
 import { enumLabel } from "@/lib/utils"
 import { CallCreatorButton } from "@/components/admin/call-creator-button"
 import { SupportTicketsPanel } from "@/components/admin/support-tickets-panel"
+import { CreatorCallsTab } from "@/components/admin/creator-calls-tab"
+import { CreatorMeetingsTab } from "@/components/admin/creator-meetings-tab"
 
 interface Creator {
-  id: string; creatorId: string; referralCode: string; fullName: string; email: string
-  phone: string | null; whatsapp: string | null; state: string | null; city: string | null
-  primaryCategory: string | null; bio: string | null; status: string
-  levelLabel: string | null; activatedAt: string | null; lastLoginAt: string | null
+  id: string
+  creatorId: string
+  referralCode: string
+  fullName: string
+  email: string
+  phone: string | null
+  whatsapp: string | null
+  state: string | null
+  city: string | null
+  primaryCategory: string | null
+  bio: string | null
+  status: string
+  levelLabel: string | null
+  activatedAt: string | null
+  lastLoginAt: string | null
   applicationId: string
 }
 interface Stats {
-  approvedContent: number; pendingSubmissions: number; clicks: number; leads: number
-  demoBookings: number; signups: number; conversions: number; paidRewardsKobo: number
+  approvedContent: number
+  pendingSubmissions: number
+  clicks: number
+  leads: number
+  demoBookings: number
+  signups: number
+  conversions: number
+  paidRewardsKobo: number
 }
-interface Note { id: string; note: string; authorName: string | null; createdAt: string }
-interface Social { id: string; platform: string; profile_url: string; followers: number | null }
+interface Note {
+  id: string
+  note: string
+  authorName: string | null
+  createdAt: string
+}
+interface Social {
+  id: string
+  platform: string
+  profile_url: string
+  followers: number | null
+}
 interface SocialRequest {
-  id: string; social_profile_id: string | null; request_type: "ADD" | "UPDATE" | "REMOVE"
+  id: string
+  social_profile_id: string | null
+  request_type: "ADD" | "UPDATE" | "REMOVE"
   payload: { platform?: string; profileUrl?: string; username?: string | null; followers?: number | null }
-  note: string | null; status: string; created_at: string
+  note: string | null
+  status: string
+  created_at: string
 }
-interface Flag { id: string; type: string; severity: string; description: string; status: string; created_at: string }
+interface Flag {
+  id: string
+  type: string
+  severity: string
+  description: string
+  status: string
+  created_at: string
+}
 interface LearningProgressRow {
-  contentId: string; title: string; type: string; required: boolean
-  status: string; score: number | null; videoPercent: number
-  completedAt: string | null; lastActivityAt: string | null
+  contentId: string
+  title: string
+  type: string
+  required: boolean
+  status: string
+  score: number | null
+  videoPercent: number
+  completedAt: string | null
+  lastActivityAt: string | null
 }
 interface AttemptRow {
-  contentId: string; title: string; score: number; passed: boolean
-  attemptNumber: number; submittedAt: string
+  contentId: string
+  title: string
+  score: number
+  passed: boolean
+  attemptNumber: number
+  submittedAt: string
 }
 interface LearningDetail {
   readiness: string
-  onboarding: { pct: number; requiredTotal: number; requiredDone: number; completedAt: string | null; readinessLabel: string }
+  onboarding: {
+    pct: number
+    requiredTotal: number
+    requiredDone: number
+    completedAt: string | null
+    readinessLabel: string
+  }
   progress: LearningProgressRow[]
   attempts: AttemptRow[]
   downloads: number
@@ -51,7 +107,7 @@ const READINESS_LABELS: Record<string, string> = {
   NOT_STARTED: "Not started",
   IN_PROGRESS: "Onboarding in progress",
   ASSESSMENT_REQUIRED: "Assessment required",
-  READY: "Creator Ready",
+  READY: "Creator Ready"
 }
 
 type LearningApiPayload = {
@@ -64,9 +120,21 @@ type LearningApiPayload = {
   }
   lessons?: Array<{
     content?: { id?: string; title?: string; type?: string; required?: boolean }
-    progress?: { status?: string; score?: number | null; progressPct?: number; completedAt?: string | null; startedAt?: string | null } | null
+    progress?: {
+      status?: string
+      score?: number | null
+      progressPct?: number
+      completedAt?: string | null
+      startedAt?: string | null
+    } | null
   }>
-  attempts?: Array<{ contentTitle?: string; score?: number | null; passed?: boolean; attemptNo?: number; submittedAt?: string }>
+  attempts?: Array<{
+    contentTitle?: string
+    score?: number | null
+    passed?: boolean
+    attemptNo?: number
+    submittedAt?: string
+  }>
   resourceDownloads?: number
 }
 
@@ -83,7 +151,7 @@ function normalizeLearning(input: unknown): LearningDetail | null {
       requiredTotal: ob.requiredTotal ?? 0,
       requiredDone: ob.requiredCompleted ?? 0,
       completedAt: ob.completedAt ?? null,
-      readinessLabel: (ob.readiness ? READINESS_LABELS[ob.readiness] : null) || ob.readiness || "Not started",
+      readinessLabel: (ob.readiness ? READINESS_LABELS[ob.readiness] : null) || ob.readiness || "Not started"
     },
     progress: (d.lessons || []).map((l) => ({
       contentId: l.content?.id || "",
@@ -94,7 +162,7 @@ function normalizeLearning(input: unknown): LearningDetail | null {
       score: l.progress?.score ?? null,
       videoPercent: l.progress?.progressPct ?? 0,
       completedAt: l.progress?.completedAt ?? null,
-      lastActivityAt: l.progress?.startedAt ?? null,
+      lastActivityAt: l.progress?.startedAt ?? null
     })),
     attempts: (d.attempts || []).map((a) => ({
       contentId: "",
@@ -102,9 +170,9 @@ function normalizeLearning(input: unknown): LearningDetail | null {
       score: a.score ?? 0,
       passed: !!a.passed,
       attemptNumber: a.attemptNo ?? 0,
-      submittedAt: a.submittedAt || "",
+      submittedAt: a.submittedAt || ""
     })),
-    downloads: d.resourceDownloads ?? 0,
+    downloads: d.resourceDownloads ?? 0
   }
 }
 
@@ -125,6 +193,7 @@ export default function AdminCreatorDetailPage() {
   const [reason, setReason] = useState("")
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState("")
+  const [activeTab, setActiveTab] = useState<"profile" | "calls" | "meetings">("profile")
   const [notif, setNotif] = useState({ title: "", body: "", sendEmail: false })
 
   const load = useCallback(() => {
@@ -159,12 +228,18 @@ export default function AdminCreatorDetailPage() {
         }
         setLoading(false)
       })
-      .catch(() => { if (!cancelled) setLoading(false) })
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
     fetch(`/api/admin/creators/creators/${id}/learning`)
-      .then((res) => res.ok ? res.json() : null)
-      .then((d) => { if (!cancelled) setLearning(normalizeLearning(d)) })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d) => {
+        if (!cancelled) setLearning(normalizeLearning(d))
+      })
       .catch(() => {})
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   async function resetLearning() {
@@ -174,7 +249,7 @@ export default function AdminCreatorDetailPage() {
       const res = await fetch(`/api/admin/creators/creators/${id}/learning`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reset" }),
+        body: JSON.stringify({ action: "reset" })
       })
       const d = await res.json()
       setToast(res.ok ? "Learning progress reset" : d.error || "Failed")
@@ -194,7 +269,7 @@ export default function AdminCreatorDetailPage() {
       const res = await fetch(`/api/admin/creators/creators/${id}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, reason: reason || null }),
+        body: JSON.stringify({ status, reason: reason || null })
       })
       const d = await res.json()
       setToast(res.ok ? `Creator ${status.toLowerCase().replace("_", " ")}` : d.error || "Failed")
@@ -211,12 +286,16 @@ export default function AdminCreatorDetailPage() {
       const res = await fetch(`/api/admin/creators/social-requests/${requestId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, reviewNote: reqNotes[requestId]?.trim() || null }),
+        body: JSON.stringify({ action, reviewNote: reqNotes[requestId]?.trim() || null })
       })
       const d = await res.json()
       setToast(res.ok ? `Request ${action === "approve" ? "approved" : "declined"}` : d.error || "Failed")
       if (res.ok) {
-        setReqNotes((n) => { const next = { ...n }; delete next[requestId]; return next })
+        setReqNotes((n) => {
+          const next = { ...n }
+          delete next[requestId]
+          return next
+        })
         await load()
       }
     } finally {
@@ -226,7 +305,11 @@ export default function AdminCreatorDetailPage() {
   }
 
   if (loading) {
-    return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
   if (!creator) return <p className="text-muted-foreground py-16 text-center">Creator not found.</p>
 
@@ -236,10 +319,16 @@ export default function AdminCreatorDetailPage() {
         <Button variant="ghost" size="sm" onClick={() => router.push("/admin/creators/creators")}>
           <ArrowLeft className="w-4 h-4 mr-1" /> Back
         </Button>
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">
-            {creator.fullName} <span className="text-sm font-mono text-muted-foreground">{creator.creatorId}</span>
-          </h2>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="min-w-0 text-xl font-bold tracking-tight">
+              {creator.fullName}{" "}
+              <span className="text-sm font-mono text-muted-foreground">{creator.creatorId}</span>
+            </h2>
+            <div className="shrink-0">
+              <CallCreatorButton id={id} name={creator.fullName} phone={creator.phone} />
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground">
             {creator.levelLabel || "Starter"} · {enumLabel(creator.status)} · ref {creator.referralCode}
           </p>
@@ -248,257 +337,436 @@ export default function AdminCreatorDetailPage() {
 
       {toast && <p className="rounded-md bg-muted px-4 py-2 text-sm">{toast}</p>}
 
-      <SupportTicketsPanel type="creator" id={creator.id}/>
+      <div role="tablist" aria-label="Creator profile sections" className="flex flex-wrap gap-2 border-b">
+        {(["profile", "calls", "meetings"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            onClick={() => setActiveTab(tab)}
+            className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === tab ? "border-retail text-retail" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            {enumLabel(tab)}
+          </button>
+        ))}
+      </div>
+      {activeTab === "calls" ? (
+        <CreatorCallsTab key={id} id={id} />
+      ) : activeTab === "meetings" ? (
+        creator.applicationId ? (
+          <CreatorMeetingsTab
+            key={creator.applicationId}
+            applicationId={creator.applicationId}
+            name={creator.fullName}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No original application linked. Ask an administrator to repair this creator’s application link
+            before scheduling.
+          </p>
+        )
+      ) : (
+        <>
+          <SupportTicketsPanel type="creator" id={creator.id} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Details</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-              <div><span className="text-muted-foreground">Email:</span> {creator.email}</div>
-              <div><span className="text-muted-foreground">Phone:</span> {creator.phone || "—"}</div>
-              <div className="col-span-2"><CallCreatorButton id={id} name={creator.fullName} phone={creator.phone} /></div>
-              <div><span className="text-muted-foreground">Location:</span> {[creator.city, creator.state].filter(Boolean).join(", ") || "—"}</div>
-              <div><span className="text-muted-foreground">Category:</span> {creator.primaryCategory || "—"}</div>
-              <div><span className="text-muted-foreground">Activated:</span> {creator.activatedAt ? new Date(creator.activatedAt).toLocaleDateString("en-GB") : "—"}</div>
-              <div><span className="text-muted-foreground">Last login:</span> {creator.lastLoginAt ? new Date(creator.lastLoginAt).toLocaleString("en-GB") : "Never logged in"}</div>
-              <div className="col-span-2">
-                <span className="text-muted-foreground">Application:</span>{" "}
-                <a href={`/admin/creators/applications/${creator.applicationId}`} className="text-retail hover:underline text-xs">view original application →</a>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Performance</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-3 sm:grid-cols-4 gap-3 text-center">
-              {[
-                ["Approved", stats?.approvedContent ?? 0],
-                ["In review", stats?.pendingSubmissions ?? 0],
-                ["Clicks", stats?.clicks ?? 0],
-                ["Leads", stats?.leads ?? 0],
-                ["Demos", stats?.demoBookings ?? 0],
-                ["Sign-ups", stats?.signups ?? 0],
-                ["Customers", stats?.conversions ?? 0],
-                ["Paid", `₦${((stats?.paidRewardsKobo ?? 0) / 100).toLocaleString("en-NG")}`],
-              ].map(([label, v]) => (
-                <div key={label as string} className="rounded-lg border p-3">
-                  <p className="text-lg font-bold">{v}</p>
-                  <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">Onboarding &amp; Learning</CardTitle>
-                {learning && (
-                  <Button size="sm" variant="outline" className="text-red-600" disabled={busy} onClick={resetLearning}>
-                    Reset progress
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!learning ? (
-                <p className="text-sm text-muted-foreground">Loading learning data…</p>
-              ) : (
-                <>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="font-medium">{learning.onboarding.readinessLabel}</span>
-                        <span className="text-muted-foreground">
-                          {learning.onboarding.requiredDone}/{learning.onboarding.requiredTotal} required · {learning.onboarding.pct}%
-                        </span>
-                      </div>
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full bg-retail rounded-full" style={{ width: `${learning.onboarding.pct}%` }} />
-                      </div>
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Details</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Email:</span> {creator.email}
                   </div>
-                  {learning.progress.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Not started — no lesson activity yet.</p>
+                  <div>
+                    <span className="text-muted-foreground">Phone:</span> {creator.phone || "—"}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Location:</span>{" "}
+                    {[creator.city, creator.state].filter(Boolean).join(", ") || "—"}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Category:</span> {creator.primaryCategory || "—"}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Activated:</span>{" "}
+                    {creator.activatedAt ? new Date(creator.activatedAt).toLocaleDateString("en-GB") : "—"}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Last login:</span>{" "}
+                    {creator.lastLoginAt
+                      ? new Date(creator.lastLoginAt).toLocaleString("en-GB")
+                      : "Never logged in"}
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Application:</span>{" "}
+                    <a
+                      href={`/admin/creators/applications/${creator.applicationId}`}
+                      className="text-retail hover:underline text-xs"
+                    >
+                      view original application →
+                    </a>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Performance</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-3 sm:grid-cols-4 gap-3 text-center">
+                  {[
+                    ["Approved", stats?.approvedContent ?? 0],
+                    ["In review", stats?.pendingSubmissions ?? 0],
+                    ["Clicks", stats?.clicks ?? 0],
+                    ["Leads", stats?.leads ?? 0],
+                    ["Demos", stats?.demoBookings ?? 0],
+                    ["Sign-ups", stats?.signups ?? 0],
+                    ["Customers", stats?.conversions ?? 0],
+                    ["Paid", `₦${((stats?.paidRewardsKobo ?? 0) / 100).toLocaleString("en-NG")}`]
+                  ].map(([label, v]) => (
+                    <div key={label as string} className="rounded-lg border p-3">
+                      <p className="text-lg font-bold">{v}</p>
+                      <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">Onboarding &amp; Learning</CardTitle>
+                    {learning && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600"
+                        disabled={busy}
+                        onClick={resetLearning}
+                      >
+                        Reset progress
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {!learning ? (
+                    <p className="text-sm text-muted-foreground">Loading learning data…</p>
                   ) : (
-                    <div className="divide-y rounded-lg border">
-                      {learning.progress.map((p) => (
-                        <div key={p.contentId} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">{p.title}</p>
-                            <p className="text-muted-foreground">
-                              {p.type}{p.required ? " · required" : ""}
-                              {p.type === "VIDEO" && p.videoPercent > 0 ? ` · ${Math.round(p.videoPercent)}% watched` : ""}
-                            </p>
+                    <>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="font-medium">{learning.onboarding.readinessLabel}</span>
+                            <span className="text-muted-foreground">
+                              {learning.onboarding.requiredDone}/{learning.onboarding.requiredTotal} required
+                              · {learning.onboarding.pct}%
+                            </span>
                           </div>
-                          <span className={`shrink-0 rounded-full px-2 py-0.5 font-medium ${p.status === "COMPLETED" ? "bg-green-100 text-green-700" : p.status === "IN_PROGRESS" ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}>
-                            {p.status === "COMPLETED" ? "Done" : p.status === "IN_PROGRESS" ? "In progress" : "—"}
-                            {p.score != null ? ` · ${p.score}%` : ""}
-                          </span>
+                          <div className="h-2 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full bg-retail rounded-full"
+                              style={{ width: `${learning.onboarding.pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      {learning.progress.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Not started — no lesson activity yet.</p>
+                      ) : (
+                        <div className="divide-y rounded-lg border">
+                          {learning.progress.map((p) => (
+                            <div
+                              key={p.contentId}
+                              className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-medium truncate">{p.title}</p>
+                                <p className="text-muted-foreground">
+                                  {p.type}
+                                  {p.required ? " · required" : ""}
+                                  {p.type === "VIDEO" && p.videoPercent > 0
+                                    ? ` · ${Math.round(p.videoPercent)}% watched`
+                                    : ""}
+                                </p>
+                              </div>
+                              <span
+                                className={`shrink-0 rounded-full px-2 py-0.5 font-medium ${p.status === "COMPLETED" ? "bg-green-100 text-green-700" : p.status === "IN_PROGRESS" ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}
+                              >
+                                {p.status === "COMPLETED"
+                                  ? "Done"
+                                  : p.status === "IN_PROGRESS"
+                                    ? "In progress"
+                                    : "—"}
+                                {p.score != null ? ` · ${p.score}%` : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {learning.attempts.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">
+                            Assessment attempts
+                          </p>
+                          <div className="divide-y rounded-lg border">
+                            {learning.attempts.map((a, i) => (
+                              <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
+                                <span>
+                                  {a.title} · attempt {a.attemptNumber}
+                                </span>
+                                <span
+                                  className={
+                                    a.passed ? "text-green-700 font-medium" : "text-red-600 font-medium"
+                                  }
+                                >
+                                  {a.score}% {a.passed ? "· passed" : "· failed"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {learning.downloads} resource download{learning.downloads === 1 ? "" : "s"} tracked
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Social Profiles</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {socials.length === 0 && <p className="text-sm text-muted-foreground">None linked.</p>}
+                  {socials.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between rounded-lg border p-3 text-sm"
+                    >
+                      <p className="font-medium">{s.platform}</p>
+                      <a
+                        href={s.profile_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-retail hover:underline inline-flex items-center gap-1 break-all"
+                      >
+                        {s.profile_url} <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  ))}
+
+                  {socialRequests.length > 0 && (
+                    <div className="pt-2 space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">Pending change requests</p>
+                      {socialRequests.map((r) => (
+                        <div
+                          key={r.id}
+                          className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-sm space-y-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium">
+                              {enumLabel(r.request_type)} profile
+                              {r.payload.platform ? ` · ${enumLabel(r.payload.platform)}` : ""}
+                            </p>
+                            <span className="text-[10px] text-muted-foreground">
+                              {new Date(r.created_at).toLocaleDateString("en-GB")}
+                            </span>
+                          </div>
+                          {r.request_type !== "REMOVE" && r.payload.profileUrl && (
+                            <p className="text-xs break-all">
+                              {r.payload.profileUrl}
+                              {r.payload.username ? ` · ${r.payload.username}` : ""}
+                              {r.payload.followers != null
+                                ? ` · ${r.payload.followers.toLocaleString()} followers`
+                                : ""}
+                            </p>
+                          )}
+                          {r.note && <p className="text-xs text-muted-foreground italic">“{r.note}”</p>}
+                          <input
+                            className={inputCls}
+                            placeholder="Review note (required to decline)"
+                            value={reqNotes[r.id] || ""}
+                            onChange={(e) => setReqNotes((n) => ({ ...n, [r.id]: e.target.value }))}
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => decideSocialRequest(r.id, "approve")}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600"
+                              disabled={busy}
+                              onClick={() => decideSocialRequest(r.id, "reject")}
+                            >
+                              Decline
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
-                  {learning.attempts.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Assessment attempts</p>
-                      <div className="divide-y rounded-lg border">
-                        {learning.attempts.map((a, i) => (
-                          <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
-                            <span>{a.title} · attempt {a.attemptNumber}</span>
-                            <span className={a.passed ? "text-green-700 font-medium" : "text-red-600 font-medium"}>
-                              {a.score}% {a.passed ? "· passed" : "· failed"}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Manage</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <textarea
+                    className={inputCls}
+                    rows={2}
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Reason (required to suspend/remove)"
+                  />
+                  {creator.status !== "ACTIVE" && creator.status !== "REMOVED" && (
+                    <Button size="sm" className="w-full" disabled={busy} onClick={() => setStatus("ACTIVE")}>
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Reactivate
+                    </Button>
                   )}
-                  <p className="text-xs text-muted-foreground">{learning.downloads} resource download{learning.downloads === 1 ? "" : "s"} tracked</p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+                  {creator.status === "ACTIVE" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-amber-700"
+                      disabled={busy || !reason.trim()}
+                      onClick={() => setStatus("SUSPENDED")}
+                    >
+                      <Ban className="w-3.5 h-3.5 mr-1" /> Suspend
+                    </Button>
+                  )}
+                  {creator.status !== "REMOVED" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-red-600"
+                      disabled={busy || !reason.trim()}
+                      onClick={() => setStatus("REMOVED")}
+                    >
+                      Remove Creator
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Social Profiles</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {socials.length === 0 && <p className="text-sm text-muted-foreground">None linked.</p>}
-              {socials.map((s) => (
-                <div key={s.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
-                  <p className="font-medium">{s.platform}</p>
-                  <a href={s.profile_url} target="_blank" rel="noopener noreferrer" className="text-xs text-retail hover:underline inline-flex items-center gap-1 break-all">
-                    {s.profile_url} <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              ))}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Send notification</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <input
+                    className={inputCls}
+                    placeholder="Title"
+                    value={notif.title}
+                    onChange={(e) => setNotif((n) => ({ ...n, title: e.target.value }))}
+                  />
+                  <textarea
+                    className={inputCls}
+                    rows={3}
+                    placeholder="Message"
+                    value={notif.body}
+                    onChange={(e) => setNotif((n) => ({ ...n, body: e.target.value }))}
+                  />
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      className="h-3.5 w-3.5"
+                      checked={notif.sendEmail}
+                      onChange={(e) => setNotif((n) => ({ ...n, sendEmail: e.target.checked }))}
+                    />
+                    Also send as email
+                  </label>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={busy || !notif.title.trim() || !notif.body.trim()}
+                    onClick={async () => {
+                      setBusy(true)
+                      setToast("")
+                      try {
+                        const res = await fetch("/api/admin/creators/broadcast", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            audience: "SELECTED",
+                            creatorIds: [id],
+                            title: notif.title,
+                            body: notif.body,
+                            sendEmail: notif.sendEmail
+                          })
+                        })
+                        const d = await res.json()
+                        setToast(res.ok ? "Notification sent." : d.error || "Failed to send.")
+                        if (res.ok) setNotif({ title: "", body: "", sendEmail: false })
+                      } finally {
+                        setBusy(false)
+                        setTimeout(() => setToast(""), 4000)
+                      }
+                    }}
+                  >
+                    Send to this creator
+                  </Button>
+                </CardContent>
+              </Card>
 
-              {socialRequests.length > 0 && (
-                <div className="pt-2 space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">Pending change requests</p>
-                  {socialRequests.map((r) => (
-                    <div key={r.id} className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-sm space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium">
-                          {enumLabel(r.request_type)} profile
-                          {r.payload.platform ? ` · ${enumLabel(r.payload.platform)}` : ""}
-                        </p>
-                        <span className="text-[10px] text-muted-foreground">{new Date(r.created_at).toLocaleDateString("en-GB")}</span>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" /> Risk Flags
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {flags.length === 0 && <p className="text-sm text-muted-foreground">No flags.</p>}
+                  {flags.map((f) => (
+                    <div key={f.id} className="rounded-lg border p-3 text-xs">
+                      <div className="flex justify-between">
+                        <span className="font-medium">{enumLabel(f.type)}</span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 ${f.status === "OPEN" ? "bg-red-100 text-red-700" : "bg-muted"}`}
+                        >
+                          {enumLabel(f.status)}
+                        </span>
                       </div>
-                      {r.request_type !== "REMOVE" && r.payload.profileUrl && (
-                        <p className="text-xs break-all">
-                          {r.payload.profileUrl}
-                          {r.payload.username ? ` · ${r.payload.username}` : ""}
-                          {r.payload.followers != null ? ` · ${r.payload.followers.toLocaleString()} followers` : ""}
-                        </p>
-                      )}
-                      {r.note && <p className="text-xs text-muted-foreground italic">“{r.note}”</p>}
-                      <input
-                        className={inputCls}
-                        placeholder="Review note (required to decline)"
-                        value={reqNotes[r.id] || ""}
-                        onChange={(e) => setReqNotes((n) => ({ ...n, [r.id]: e.target.value }))}
-                      />
-                      <div className="flex gap-2">
-                        <Button size="sm" disabled={busy} onClick={() => decideSocialRequest(r.id, "approve")}>Approve</Button>
-                        <Button size="sm" variant="outline" className="text-red-600" disabled={busy} onClick={() => decideSocialRequest(r.id, "reject")}>Decline</Button>
-                      </div>
+                      <p className="text-muted-foreground mt-1">{f.description}</p>
                     </div>
                   ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                </CardContent>
+              </Card>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Manage</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <textarea className={inputCls} rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required to suspend/remove)" />
-              {creator.status !== "ACTIVE" && creator.status !== "REMOVED" && (
-                <Button size="sm" className="w-full" disabled={busy} onClick={() => setStatus("ACTIVE")}>
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Reactivate
-                </Button>
-              )}
-              {creator.status === "ACTIVE" && (
-                <Button size="sm" variant="outline" className="w-full text-amber-700" disabled={busy || !reason.trim()} onClick={() => setStatus("SUSPENDED")}>
-                  <Ban className="w-3.5 h-3.5 mr-1" /> Suspend
-                </Button>
-              )}
-              {creator.status !== "REMOVED" && (
-                <Button size="sm" variant="outline" className="w-full text-red-600" disabled={busy || !reason.trim()} onClick={() => setStatus("REMOVED")}>
-                  Remove Creator
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Send notification</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <input className={inputCls} placeholder="Title" value={notif.title} onChange={(e) => setNotif((n) => ({ ...n, title: e.target.value }))} />
-              <textarea className={inputCls} rows={3} placeholder="Message" value={notif.body} onChange={(e) => setNotif((n) => ({ ...n, body: e.target.value }))} />
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <input type="checkbox" className="h-3.5 w-3.5" checked={notif.sendEmail} onChange={(e) => setNotif((n) => ({ ...n, sendEmail: e.target.checked }))} />
-                Also send as email
-              </label>
-              <Button
-                size="sm" className="w-full" disabled={busy || !notif.title.trim() || !notif.body.trim()}
-                onClick={async () => {
-                  setBusy(true)
-                  setToast("")
-                  try {
-                    const res = await fetch("/api/admin/creators/broadcast", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ audience: "SELECTED", creatorIds: [id], title: notif.title, body: notif.body, sendEmail: notif.sendEmail }),
-                    })
-                    const d = await res.json()
-                    setToast(res.ok ? "Notification sent." : d.error || "Failed to send.")
-                    if (res.ok) setNotif({ title: "", body: "", sendEmail: false })
-                  } finally {
-                    setBusy(false)
-                    setTimeout(() => setToast(""), 4000)
-                  }
-                }}
-              >
-                Send to this creator
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-600" /> Risk Flags</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {flags.length === 0 && <p className="text-sm text-muted-foreground">No flags.</p>}
-              {flags.map((f) => (
-                <div key={f.id} className="rounded-lg border p-3 text-xs">
-                  <div className="flex justify-between">
-                    <span className="font-medium">{enumLabel(f.type)}</span>
-                    <span className={`rounded-full px-2 py-0.5 ${f.status === "OPEN" ? "bg-red-100 text-red-700" : "bg-muted"}`}>{enumLabel(f.status)}</span>
-                  </div>
-                  <p className="text-muted-foreground mt-1">{f.description}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Internal Notes</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {notes.length === 0 && <p className="text-sm text-muted-foreground">No notes.</p>}
-              {notes.map((n) => (
-                <div key={n.id} className="rounded-lg border p-3 text-xs">
-                  <p>{n.note}</p>
-                  <p className="text-muted-foreground mt-1">{n.authorName || "—"} · {new Date(n.createdAt).toLocaleString("en-GB")}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Internal Notes</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {notes.length === 0 && <p className="text-sm text-muted-foreground">No notes.</p>}
+                  {notes.map((n) => (
+                    <div key={n.id} className="rounded-lg border p-3 text-xs">
+                      <p>{n.note}</p>
+                      <p className="text-muted-foreground mt-1">
+                        {n.authorName || "—"} · {new Date(n.createdAt).toLocaleString("en-GB")}
+                      </p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

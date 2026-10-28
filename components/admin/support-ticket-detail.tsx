@@ -21,7 +21,7 @@ import EmailRichEditor from "@/components/admin/email-rich-editor"
 import { SupportRequesterPicker } from "@/components/admin/support-requester-picker"
 import type { SupportRequester } from "@/lib/support-requester"
 import { htmlToText } from "@/lib/email-html"
-import { enumLabel, supportCategoryLabel, ticketStatusLabel, ticketEventValueLabel } from "@/lib/utils"
+import { cn, enumLabel, supportCategoryLabel, ticketStatusLabel, ticketEventValueLabel } from "@/lib/utils"
 
 export type Ticket = {
   id: string
@@ -104,7 +104,11 @@ const categories = [
 ]
 const inputClass = "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
 const buttonClass =
-  "inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium transition hover:bg-muted disabled:opacity-50"
+  "inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+const primaryButtonClass = cn(
+  buttonClass,
+  "border-blue-600 bg-blue-600 text-white hover:border-blue-700 hover:bg-blue-700 hover:text-white"
+)
 const richClass =
   "text-sm leading-relaxed break-words [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-blue-600 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_img]:max-w-full [&_pre]:overflow-x-auto [&_table]:max-w-full"
 function fmt(value?: string) {
@@ -491,7 +495,7 @@ export default function SupportTicketDetail({
                   Awaiting partner
                 </button>
                 <button
-                  className={`${buttonClass} border-blue-600 bg-blue-600 text-white hover:bg-blue-700`}
+                  className={primaryButtonClass}
                   disabled={saving || !recipient}
                   onClick={() => void action("change_status", { status: "RESOLVED" })}
                 >
@@ -531,7 +535,7 @@ export default function SupportTicketDetail({
                     setInternal(false)
                     setFiles([])
                   }}
-                  className={`${buttonClass} ${!internal ? "border-blue-200 bg-blue-50 text-blue-700" : ""}`}
+                  className={cn(buttonClass, !internal && "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800")}
                 >
                   <Mail className="h-3.5 w-3.5" />
                   Reply to requester
@@ -543,7 +547,7 @@ export default function SupportTicketDetail({
                       setInternal(true)
                       setFiles([])
                     }}
-                    className={`${buttonClass} ${internal ? "border-amber-300 bg-amber-50" : ""}`}
+                    className={cn(buttonClass, internal && "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 hover:text-amber-900")}
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
                     Internal note
@@ -605,7 +609,7 @@ export default function SupportTicketDetail({
                     saving || uploading || (!htmlToText(reply) && !files.length) || (!internal && !recipient)
                   }
                   onClick={() => void sendReply()}
-                  className={`${buttonClass} bg-blue-600 text-white hover:bg-blue-700`}
+                  className={primaryButtonClass}
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {internal ? "Save internal note" : "Send reply & email"}
@@ -830,7 +834,7 @@ export default function SupportTicketDetail({
                 </label>
                 <button
                   disabled={saving || !owner || !requesterName.trim()}
-                  className={`${buttonClass} w-full bg-blue-600 text-white`}
+                  className={`${primaryButtonClass} w-full`}
                   onClick={() =>
                     void action("link_requester", {
                       requesterType: owner?.type,

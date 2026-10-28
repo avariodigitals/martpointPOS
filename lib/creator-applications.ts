@@ -12,18 +12,25 @@ import {
   mapCreatorApplication,
   PRIVACY_VERSION,
   type CreatorApplicationStatus,
-  type CreatorPlatform,
+  type CreatorPlatform
 } from "./creators"
 import { createCreatorAuthToken } from "./creator-auth"
 import {
   sendCreatorNotification,
   buildCreatorInterviewIcs,
-  pushCreatorNotification,
+  pushCreatorNotification
 } from "./creator-notifications"
-import { getGoogleSettings, isGoogleConnected, createMeetEvent } from "./google-calendar"
+import { getGoogleSettings, isGoogleConnected, createMeetEvent, deleteCalendarEvent } from "./google-calendar"
+import { getUserById } from "./admin-auth"
+import { getEmailSettings, sendEmail, REPLY_TO } from "./email"
+import { renderCreatorEmail } from "./creator-email"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "./audit"
 import { notifyAllAdmins } from "./admin-notifications"
-import { summarizeCreatorQuestions, type CreatorQuestionTrackingRow, type CreatorReplyFilter } from "./creator-question-summary"
+import {
+  summarizeCreatorQuestions,
+  type CreatorQuestionTrackingRow,
+  type CreatorReplyFilter
+} from "./creator-question-summary"
 
 const SITE_URL = () => (process.env.NEXT_PUBLIC_SITE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
 
@@ -101,13 +108,13 @@ export async function submitCreatorApplication(
         accurate: true,
         publicContentReview: true,
         networkRules: true,
-        noGuarantee: true,
+        noGuarantee: true
       },
       consent_version: PRIVACY_VERSION,
       consented_at: now,
       status: "SUBMITTED",
       status_history: [{ status: "SUBMITTED", at: now, by: null }],
-      submitted_at: now,
+      submitted_at: now
     })
     .select("id")
     .single()
@@ -130,8 +137,8 @@ export async function submitCreatorApplication(
     email: {
       route: "creator_application",
       subject: `New Creator Application — ${reference}`,
-      text: `A new creator application needs review.\n\nReference: ${reference}\nApplicant: ${input.fullName}\n\nOpen Creator Applications in the Admin Portal:\n/admin/creators/applications/${applicationId}`,
-    },
+      text: `A new creator application needs review.\n\nReference: ${reference}\nApplicant: ${input.fullName}\n\nOpen Creator Applications in the Admin Portal:\n/admin/creators/applications/${applicationId}`
+    }
   })
 
   if (input.socialProfiles.length > 0) {
@@ -144,7 +151,7 @@ export async function submitCreatorApplication(
         followers: p.followers ?? null,
         typical_views: p.typicalViews ?? null,
         typical_engagement: p.typicalEngagement || null,
-        is_primary: p.isPrimary ?? i === 0,
+        is_primary: p.isPrimary ?? i === 0
       }))
     )
   }
@@ -169,8 +176,13 @@ export async function changeCreatorApplicationStatus(
   if (!row) return false
 
   const history = [
-    ...((row.status_history as { status: string; at: string; by?: string | null; reason?: string | null }[]) || []),
-    { status, at: new Date().toISOString(), by: actor.name ?? null, reason: reason ?? null },
+    ...((row.status_history as {
+      status: string
+      at: string
+      by?: string | null
+      reason?: string | null
+    }[]) || []),
+    { status, at: new Date().toISOString(), by: actor.name ?? null, reason: reason ?? null }
   ]
 
   const { error } = await supabase
@@ -182,7 +194,7 @@ export async function changeCreatorApplicationStatus(
       reviewed_by_name: actor.name ?? null,
       reviewed_at: new Date().toISOString(),
       decision_reason: reason ?? null,
-      updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     })
     .eq("id", applicationId)
   return !error
@@ -202,15 +214,19 @@ export interface CreatorInterview {
   notes: string | null
   result: string | null
   createdAt: string
+  meetingKind: "interview" | "meeting"
+  title: string | null
+  inviteStatus: string
 }
 
 export async function listInterviews(applicationId: string): Promise<CreatorInterview[]> {
   if (!isSupabaseConfigured()) return []
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("creator_interviews")
     .select("*")
     .eq("application_id", applicationId)
     .order("created_at", { ascending: false })
+  if (error) throw new Error("Could not load creator meetings")
   return (data || []).map((r) => ({
     id: r.id as string,
     applicationId: r.application_id as string,
@@ -223,6 +239,9 @@ export async function listInterviews(applicationId: string): Promise<CreatorInte
     notes: (r.notes as string | null) ?? null,
     result: (r.result as string | null) ?? null,
     createdAt: r.created_at as string,
+    meetingKind: r.meeting_kind === "meeting" ? "meeting" : "interview",
+    title: (r.title as string | null) ?? null,
+    inviteStatus: (r.invite_status as string) || "unknown"
   }))
 }
 
@@ -236,47 +255,76 @@ export async function scheduleCreatorInterview(input: {
   interviewerId?: string | null
   interviewerName?: string | null
   notes?: string | null
+  meetingKind?: "interview" | "meeting"
+  title?: string
+  requireGoogleMeet?: boolean
   actor: { id: string; name: string }
-}): Promise<{ ok: boolean; interviewId?: string; error?: string }> {
+}): Promise<{
+  ok: boolean
+  interviewId?: string
+  meetingUrl?: string | null
+  warning?: string
+  error?: string
+}> {
   if (!isSupabaseConfigured()) return { ok: false, error: "Service unavailable" }
 
   const { data: app } = await supabase
     .from("creator_applications")
     .select("*")
     .eq("id", input.applicationId)
+    .is("deleted_at", null)
     .maybeSingle()
   if (!app) return { ok: false, error: "Application not found" }
   const application = mapCreatorApplication(app)
+  const kind = input.meetingKind || "interview"
+  const title =
+    input.title?.trim() ||
+    `MartPoint Creator ${kind === "meeting" ? "Meeting" : "Interview"} — ${application.fullName}`
+  if (!Number.isFinite(Date.parse(input.scheduledAt)) || Date.parse(input.scheduledAt) <= Date.now())
+    return { ok: false, error: "Choose a future meeting time" }
+  if (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 10 || input.durationMinutes > 240)
+    return { ok: false, error: "Choose a duration between 10 and 240 minutes" }
 
   // Attach a Google Meet link when the workspace Google account is connected.
   let meetingUrl: string | null = null
   let googleEventId: string | null = null
   try {
     const gs = await getGoogleSettings()
+    if (input.requireGoogleMeet && !isGoogleConnected(gs))
+      return { ok: false, error: "Connect Google in Settings → Google Meet before scheduling this meeting" }
     if (isGoogleConnected(gs)) {
       const start = new Date(input.scheduledAt)
       const end = new Date(start.getTime() + input.durationMinutes * 60_000)
       const ev = await createMeetEvent({
-        summary: `MartPoint Creator Interview — ${application.fullName}`,
-        description: `Creator Network interview for ${application.referenceNumber}.`,
+        summary: title,
+        description: `Creator Network ${kind} for ${application.referenceNumber}.${input.notes ? `\n\n${input.notes}` : ""}`,
         start,
         end,
         timezone: "Africa/Lagos",
         attendeeEmail: application.email,
         attendeeName: application.fullName,
-        sendUpdates: false, // we send our own branded invite with .ics
+        sendUpdates: kind === "meeting" // Google invitation plus our branded ICS; legacy interviews keep their existing invite.
       })
       meetingUrl = ev.meetLink
       googleEventId = ev.eventId
     }
   } catch (err) {
     console.error("[creators] meet link failed:", err)
+    if (input.requireGoogleMeet)
+      return {
+        ok: false,
+        error:
+          err instanceof Error ? err.message : "Google Meet could not be created. No meeting was scheduled."
+      }
   }
 
   const { data: interview, error } = await supabase
     .from("creator_interviews")
     .insert({
       application_id: input.applicationId,
+      meeting_kind: kind,
+      title,
+      invite_status: "pending",
       status: "SCHEDULED",
       scheduled_at: input.scheduledAt,
       duration_minutes: input.durationMinutes,
@@ -287,16 +335,26 @@ export async function scheduleCreatorInterview(input: {
       interviewer_name: input.interviewerName || input.actor.name,
       notes: input.notes || null,
       created_by: input.actor.id,
-      created_by_name: input.actor.name,
+      created_by_name: input.actor.name
     })
     .select("id")
     .single()
 
   if (error || !interview) {
+    if (googleEventId)
+      await deleteCalendarEvent(googleEventId).catch((cleanupError) =>
+        console.error("[creators] orphan calendar cleanup failed", cleanupError)
+      )
     return { ok: false, error: "Failed to schedule interview" }
   }
 
-  await changeCreatorApplicationStatus(input.applicationId, "INTERVIEW_SCHEDULED", input.actor)
+  if (
+    kind === "interview" &&
+    !application.createdCreatorId &&
+    !["APPROVED", "REJECTED", "REMOVED", "SUSPENDED"].includes(application.status)
+  ) {
+    await changeCreatorApplicationStatus(input.applicationId, "INTERVIEW_SCHEDULED", input.actor)
+  }
 
   // Email invite with ICS attachment (best-effort)
   const when = new Date(input.scheduledAt).toLocaleString("en-GB", {
@@ -306,43 +364,91 @@ export async function scheduleCreatorInterview(input: {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Africa/Lagos"
   })
   const ics = buildCreatorInterviewIcs({
     id: interview.id as string,
-    summary: `MartPoint Creator Interview — ${application.fullName}`,
+    summary: title,
     start: new Date(input.scheduledAt),
     durationMinutes: input.durationMinutes,
     attendeeEmail: application.email,
     attendeeName: application.fullName,
     meetingLink: meetingUrl,
-    location: input.meetingLocation || null,
+    location: input.meetingLocation || null
   })
-  void sendCreatorNotification({
-    template: "creator_interview_invite",
-    to: application.email,
-    applicationId: input.applicationId,
-    // Copy the Digital team so creator interviews are traceable per function.
-    cc: "digitals@martpoint.com.ng",
-    vars: {
-      fullName: application.fullName,
-      reference: application.referenceNumber,
-      interviewWhen: when,
-      durationMinutes: input.durationMinutes,
-      joinLine: meetingUrl ? `Join link: ${meetingUrl}\n` : "",
-      joinBlock: meetingUrl
-        ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;"><tr><td style="border-radius:8px; background-color:#0057FF; text-align:center;"><a href="${meetingUrl}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Join Video Interview</a></td></tr></table>`
-        : "",
-      locationLine: input.meetingLocation ? `Location: ${input.meetingLocation}\n` : "",
-      locationBlock: input.meetingLocation
-        ? `<p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Location</p><p style="font-size:15px; font-weight:600; color:#111827; margin:0;">${input.meetingLocation}</p>`
-        : "",
-      notes: input.notes || "",
-      statusUrl: `${SITE_URL()}/creators/application-status`,
-    },
-    attachments: [ics],
-  })
-
-  return { ok: true, interviewId: interview.id as string }
+  let sent = false
+  try {
+    if (kind === "meeting") {
+      const [sender, settings] = await Promise.all([getUserById(input.actor.id), getEmailSettings()])
+      const body = `Hello ${application.fullName},\n\nYou are invited to ${title}.\n\nWhen: ${when} (Nigeria time, WAT)\nDuration: ${input.durationMinutes} minutes\n${meetingUrl ? `Google Meet: ${meetingUrl}\n` : ""}${input.notes ? `\nAgenda: ${input.notes}\n` : ""}\nPlease use the attached calendar invitation to save the meeting.`
+      const content = await renderCreatorEmail(body, sender?.signatureHtml || "<p>MartPoint Creator Team</p>")
+      sent = await sendEmail({
+        to: application.email,
+        subject: title,
+        ...content,
+        replyTo: REPLY_TO.creators,
+        route: "creator_application",
+        useRouteRecipients: false,
+        attachments: [ics]
+      })
+      await supabase
+        .from("creator_application_emails")
+        .insert({
+          application_id: input.applicationId,
+          direction: "outbound",
+          from_email: settings.fromEmail,
+          to_email: application.email,
+          subject: title,
+          body_text: content.text,
+          body_html: content.html,
+          status: sent ? "sent" : "failed",
+          provider: settings.provider,
+          sent_by: input.actor.id,
+          sent_by_name: input.actor.name,
+          metadata: { meeting_id: interview.id, reply_to: REPLY_TO.creators }
+        })
+    } else
+      sent = await sendCreatorNotification({
+        template: "creator_interview_invite",
+        to: application.email,
+        applicationId: input.applicationId,
+        // Copy the Digital team so creator interviews are traceable per function.
+        cc: "digitals@martpoint.com.ng",
+        vars: {
+          fullName: application.fullName,
+          reference: application.referenceNumber,
+          interviewWhen: when,
+          durationMinutes: input.durationMinutes,
+          joinLine: meetingUrl ? `Join link: ${meetingUrl}\n` : "",
+          joinBlock: meetingUrl
+            ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;"><tr><td style="border-radius:8px; background-color:#0057FF; text-align:center;"><a href="${meetingUrl}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Join Video Interview</a></td></tr></table>`
+            : "",
+          locationLine: input.meetingLocation ? `Location: ${input.meetingLocation}\n` : "",
+          locationBlock: input.meetingLocation
+            ? `<p style="font-size:14px; color:#6b7280; margin:0 0 4px;">Location</p><p style="font-size:15px; font-weight:600; color:#111827; margin:0;">${input.meetingLocation}</p>`
+            : "",
+          notes: input.notes || "",
+          statusUrl: `${SITE_URL()}/creators/application-status`
+        },
+        attachments: [ics]
+      })
+  } catch (emailError) {
+    console.error("[creators] meeting invite failed", emailError)
+  }
+  const { error: inviteSaveError } = await supabase
+    .from("creator_interviews")
+    .update({ invite_status: sent ? "accepted" : "failed" })
+    .eq("id", interview.id)
+  return {
+    ok: true,
+    interviewId: interview.id as string,
+    meetingUrl,
+    warning: !sent
+      ? "Meeting saved, but its invitation email was not accepted. Share the join link and check Email Settings; do not schedule it again."
+      : inviteSaveError
+        ? "Invitation accepted, but delivery status could not be saved."
+        : undefined
+  }
 }
 
 /* ───────────────────────────  Approval → Creator activation  ─────────────────────────── */
@@ -379,16 +485,15 @@ export async function approveCreatorApplication(
           status_reason: null,
           activated_at: restoredAt,
           activated_by: actor.id,
-          updated_at: restoredAt,
+          updated_at: restoredAt
         })
         .eq("id", existingCreator.id)
       if (restoreError) return { ok: false, error: "Could not restore the creator account" }
 
       await changeCreatorApplicationStatus(applicationId, "APPROVED", actor)
       const tokenResult = await createCreatorAuthToken(existingCreator.id as string, "SET_PASSWORD", actor.id)
-      const setPasswordUrl = tokenResult.ok && tokenResult.token
-        ? `${SITE_URL()}/creator/set-password/${tokenResult.token}`
-        : ""
+      const setPasswordUrl =
+        tokenResult.ok && tokenResult.token ? `${SITE_URL()}/creator/set-password/${tokenResult.token}` : ""
       void sendCreatorNotification({
         template: "creator_approved",
         to: application.email,
@@ -401,23 +506,32 @@ export async function approveCreatorApplication(
           referralCode: existingCreator.referral_code as string,
           trackingUrl: creatorTrackingUrl(existingCreator.referral_code as string),
           setPasswordUrl,
-          loginUrl: `${SITE_URL()}/creator/login`,
-        },
+          loginUrl: `${SITE_URL()}/creator/login`
+        }
       })
       await pushCreatorNotification({
         creatorId: existingCreator.id as string,
         type: "ACCOUNT",
         title: "Your creator account is approved again",
         body: "Your application has completed review. Complete onboarding to unlock challenges.",
-        link: "/creator",
+        link: "/creator"
       })
       await recordAudit(ctx, {
         action: AUDIT_ACTIONS.CREATOR_APPROVED,
         entityType: AUDIT_ENTITIES.CREATOR_APPLICATION,
         entityId: applicationId,
-        metadata: { creatorId: existingCreator.id, creatorCode: existingCreator.creator_id, referralCode: existingCreator.referral_code, restored: true },
+        metadata: {
+          creatorId: existingCreator.id,
+          creatorCode: existingCreator.creator_id,
+          referralCode: existingCreator.referral_code,
+          restored: true
+        }
       })
-      return { ok: true, creatorId: existingCreator.id as string, creatorCode: existingCreator.creator_id as string }
+      return {
+        ok: true,
+        creatorId: existingCreator.id as string,
+        creatorCode: existingCreator.creator_id as string
+      }
     }
     return { ok: false, error: "Application already approved" }
   }
@@ -453,7 +567,7 @@ export async function approveCreatorApplication(
       status: "PENDING_ACTIVATION",
       level_id: starter?.id ?? null,
       activated_at: now,
-      activated_by: actor.id,
+      activated_by: actor.id
     })
     .select("id")
     .single()
@@ -474,15 +588,14 @@ export async function approveCreatorApplication(
     supabase
       .from("creator_applications")
       .update({ created_creator_id: creatorUuid, updated_at: now })
-      .eq("id", applicationId),
+      .eq("id", applicationId)
   ])
   await changeCreatorApplicationStatus(applicationId, "APPROVED", actor)
 
   // First-login token → set-password email.
   const tokenResult = await createCreatorAuthToken(creatorUuid, "SET_PASSWORD", actor.id)
-  const setPasswordUrl = tokenResult.ok && tokenResult.token
-    ? `${SITE_URL()}/creator/set-password/${tokenResult.token}`
-    : ""
+  const setPasswordUrl =
+    tokenResult.ok && tokenResult.token ? `${SITE_URL()}/creator/set-password/${tokenResult.token}` : ""
 
   void sendCreatorNotification({
     template: "creator_approved",
@@ -496,8 +609,8 @@ export async function approveCreatorApplication(
       referralCode: codes.referralCode,
       trackingUrl: creatorTrackingUrl(codes.referralCode),
       setPasswordUrl,
-      loginUrl: `${SITE_URL()}/creator/login`,
-    },
+      loginUrl: `${SITE_URL()}/creator/login`
+    }
   })
 
   await pushCreatorNotification({
@@ -505,14 +618,14 @@ export async function approveCreatorApplication(
     type: "ACCOUNT",
     title: "Welcome to the MartPoint Creator Network",
     body: "Your application was approved. Complete onboarding to unlock challenges.",
-    link: "/creator",
+    link: "/creator"
   })
 
   await recordAudit(ctx, {
     action: AUDIT_ACTIONS.CREATOR_APPROVED,
     entityType: AUDIT_ENTITIES.CREATOR_APPLICATION,
     entityId: applicationId,
-    metadata: { creatorId: creatorUuid, creatorCode: codes.creatorId, referralCode: codes.referralCode },
+    metadata: { creatorId: creatorUuid, creatorCode: codes.creatorId, referralCode: codes.referralCode }
   })
 
   return { ok: true, creatorId: creatorUuid, creatorCode: codes.creatorId }
@@ -527,7 +640,7 @@ export async function revokeCreatorApproval(
   applicationId: string,
   actor: { id: string; name: string },
   ctx: AuditContext,
-  reason: string,
+  reason: string
 ): Promise<{ ok: boolean; error?: string }> {
   if (!isSupabaseConfigured()) return { ok: false, error: "Service unavailable" }
   const trimmedReason = reason.trim()
@@ -539,7 +652,8 @@ export async function revokeCreatorApproval(
     .eq("id", applicationId)
     .maybeSingle()
   if (!row) return { ok: false, error: "Application not found" }
-  if (!row.created_creator_id) return { ok: false, error: "This application has no creator account to suspend." }
+  if (!row.created_creator_id)
+    return { ok: false, error: "This application has no creator account to suspend." }
 
   const { data: creator } = await supabase
     .from("creators")
@@ -547,7 +661,8 @@ export async function revokeCreatorApproval(
     .eq("id", row.created_creator_id)
     .maybeSingle()
   if (!creator) return { ok: false, error: "The linked creator account could not be found." }
-  if (creator.status === "REMOVED") return { ok: false, error: "A removed creator account cannot be reopened from this application." }
+  if (creator.status === "REMOVED")
+    return { ok: false, error: "A removed creator account cannot be reopened from this application." }
 
   const now = new Date().toISOString()
   const { error: creatorError } = await supabase
@@ -560,7 +675,11 @@ export async function revokeCreatorApproval(
   if (!changed) {
     await supabase
       .from("creators")
-      .update({ status: creator.status, status_reason: creator.status_reason ?? null, updated_at: new Date().toISOString() })
+      .update({
+        status: creator.status,
+        status_reason: creator.status_reason ?? null,
+        updated_at: new Date().toISOString()
+      })
       .eq("id", creator.id)
     return { ok: false, error: "Creator was suspended, but the application could not return to review." }
   }
@@ -569,13 +688,18 @@ export async function revokeCreatorApproval(
     action: AUDIT_ACTIONS.CREATOR_SUSPENDED,
     entityType: AUDIT_ENTITIES.CREATOR,
     entityId: creator.id as string,
-    metadata: { applicationId, reference: row.reference_number, reason: trimmedReason, reversedApproval: true },
+    metadata: {
+      applicationId,
+      reference: row.reference_number,
+      reason: trimmedReason,
+      reversedApproval: true
+    }
   })
   await recordAudit(ctx, {
     action: AUDIT_ACTIONS.CREATOR_APPLICATION_STATUS_CHANGED,
     entityType: AUDIT_ENTITIES.CREATOR_APPLICATION,
     entityId: applicationId,
-    metadata: { status: "MANUAL_REVIEW", reason: trimmedReason, reversedApproval: true },
+    metadata: { status: "MANUAL_REVIEW", reason: trimmedReason, reversedApproval: true }
   })
 
   await notifyAllAdmins({
@@ -585,7 +709,7 @@ export async function revokeCreatorApproval(
     deep_link: `/admin/creators/applications/${applicationId}`,
     source_type: "creator_application",
     source_id: applicationId,
-    roles: ["Admin", "Digital Marketer"],
+    roles: ["Admin", "Digital Marketer"]
   }).catch((error) => {
     console.error("[creator] approval-revoked admin notification failed", error)
   })
@@ -601,15 +725,15 @@ export async function revokeCreatorApproval(
       title: "An update to your MartPoint Creator application",
       body: `Your Creator Network approval has been placed on hold while we complete a further review. Reason: ${trimmedReason}`,
       linkUrl: `Check your application status: ${statusUrl}`,
-      portalUrl: statusUrl,
-    },
+      portalUrl: statusUrl
+    }
   })
   await pushCreatorNotification({
     creatorId: creator.id as string,
     type: "ACCOUNT",
     title: "Your creator approval is on hold",
     body: "Your account is temporarily suspended while your application returns to review.",
-    link: "/creator",
+    link: "/creator"
   })
 
   return { ok: true }
@@ -636,7 +760,7 @@ export async function addCreatorAdminNote(
     creator_id: input.creatorId ?? null,
     note: input.note,
     created_by: actor.id,
-    created_by_name: actor.name,
+    created_by_name: actor.name
   })
   return !error
 }
@@ -646,7 +770,11 @@ export async function listCreatorAdminNotes(filter: {
   creatorId?: string
 }): Promise<CreatorAdminNote[]> {
   if (!isSupabaseConfigured()) return []
-  let q = supabase.from("creator_admin_notes").select("*").order("created_at", { ascending: false }).limit(100)
+  let q = supabase
+    .from("creator_admin_notes")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(100)
   if (filter.applicationId) q = q.eq("application_id", filter.applicationId)
   if (filter.creatorId) q = q.eq("creator_id", filter.creatorId)
   const { data } = await q
@@ -656,7 +784,7 @@ export async function listCreatorAdminNotes(filter: {
     creatorId: (r.creator_id as string | null) ?? null,
     note: r.note as string,
     authorName: (r.created_by_name as string | null) ?? null,
-    createdAt: r.created_at as string,
+    createdAt: r.created_at as string
   }))
 }
 
@@ -688,7 +816,10 @@ export async function deleteCreatorApplication(
   if (!row) return { ok: false, error: "Application not found" }
   if (row.deleted_at) return { ok: false, error: "Application is already deleted" }
   if (row.created_creator_id) {
-    return { ok: false, error: "This application was approved and has a creator account — suspend the creator instead." }
+    return {
+      ok: false,
+      error: "This application was approved and has a creator account — suspend the creator instead."
+    }
   }
 
   const now = new Date().toISOString()
@@ -706,8 +837,8 @@ export async function deleteCreatorApplication(
       reference: row.reference_number,
       applicant: row.full_name,
       status: row.status,
-      reason: reason ?? null,
-    },
+      reason: reason ?? null
+    }
   })
 
   return { ok: true }
@@ -722,14 +853,14 @@ export interface CreatorApplicationListFilters {
   response?: CreatorReplyFilter | null
 }
 
-export async function listCreatorApplications(
-  filters: CreatorApplicationListFilters = {}
-) {
+export async function listCreatorApplications(filters: CreatorApplicationListFilters = {}) {
   return (await listCreatorApplicationsPage(filters, 1, 500)).applications
 }
 
 export async function listCreatorApplicationsPage(
-  filters: CreatorApplicationListFilters = {}, page = 1, pageSize = 25,
+  filters: CreatorApplicationListFilters = {},
+  page = 1,
+  pageSize = 25
 ) {
   if (!isSupabaseConfigured()) throw new Error("Creator application tracking is unavailable")
   const safePage = Math.max(1, Math.floor(page) || 1)
@@ -741,7 +872,10 @@ export async function listCreatorApplicationsPage(
     : ""
   let query = supabase
     .from("creator_applications")
-    .select(`*,question_rounds:creator_application_question_rounds(status,submitted_at,first_viewed_at,initial_email_status,next_reminder_at)${filterEmbed}`, { count: "exact" })
+    .select(
+      `*,question_rounds:creator_application_question_rounds(status,submitted_at,first_viewed_at,initial_email_status,next_reminder_at)${filterEmbed}`,
+      { count: "exact" }
+    )
     .is("deleted_at", null)
     .order("submitted_at", { ascending: false })
     .order("id", { ascending: false })
@@ -754,18 +888,29 @@ export async function listCreatorApplicationsPage(
   }
   if (filters.response === "not_sent") query = query.is("response_filter", null)
   else if (filters.response) {
-    const status = filters.response === "needs_review" ? "Submitted" : filters.response === "reviewed" ? "Reviewed" : "Sent"
+    const status =
+      filters.response === "needs_review"
+        ? "Submitted"
+        : filters.response === "reviewed"
+          ? "Reviewed"
+          : "Sent"
     query = query.eq("response_filter.status", status)
     if (filters.response === "opened") query = query.not("response_filter.first_viewed_at", "is", null)
     if (filters.response === "not_opened") query = query.is("response_filter.first_viewed_at", null)
-    if (filters.response === "email_failed") query = query.eq("response_filter.initial_email_status", "FAILED")
+    if (filters.response === "email_failed")
+      query = query.eq("response_filter.initial_email_status", "FAILED")
   }
 
   const { data, count, error } = await query.range((safePage - 1) * safePageSize, safePage * safePageSize - 1)
   if (error) throw new Error("Could not load creator application response tracking")
   const rows = (data || []) as unknown as Record<string, unknown>[]
   const apps = rows.map(mapCreatorApplication)
-  const summaries = new Map(rows.map((row) => [row.id as string, summarizeCreatorQuestions((row.question_rounds || []) as CreatorQuestionTrackingRow[])]))
+  const summaries = new Map(
+    rows.map((row) => [
+      row.id as string,
+      summarizeCreatorQuestions((row.question_rounds || []) as CreatorQuestionTrackingRow[])
+    ])
+  )
   if (!apps.length) return { applications: [], total: count || 0, page: safePage, pageSize: safePageSize }
 
   // Attach latest AI score + primary platform for list display.
@@ -780,7 +925,7 @@ export async function listCreatorApplicationsPage(
     supabase
       .from("creator_social_profiles")
       .select("application_id, platform, is_primary")
-      .in("application_id", ids),
+      .in("application_id", ids)
   ])
 
   const latestReview = new Map<string, { score: number; rec: string }>()
@@ -796,16 +941,23 @@ export async function listCreatorApplicationsPage(
     if (p.is_primary || !primaryPlatform.has(appId)) primaryPlatform.set(appId, p.platform as string)
   }
 
-  return { total: count || 0, page: safePage, pageSize: safePageSize, applications: apps.map((a) => ({
-    ...a,
-    primaryPlatform: primaryPlatform.get(a.id) ?? null,
-    aiScore: latestReview.get(a.id)?.score ?? null,
-    aiRecommendation: latestReview.get(a.id)?.rec ?? null,
-    questionSummary: summaries.get(a.id)!,
-  })) }
+  return {
+    total: count || 0,
+    page: safePage,
+    pageSize: safePageSize,
+    applications: apps.map((a) => ({
+      ...a,
+      primaryPlatform: primaryPlatform.get(a.id) ?? null,
+      aiScore: latestReview.get(a.id)?.score ?? null,
+      aiRecommendation: latestReview.get(a.id)?.rec ?? null,
+      questionSummary: summaries.get(a.id)!
+    }))
+  }
 }
 
-export async function listCreators(filters: { status?: string | null; q?: string | null; state?: string | null } = {}) {
+export async function listCreators(
+  filters: { status?: string | null; q?: string | null; state?: string | null } = {}
+) {
   if (!isSupabaseConfigured()) return []
   let query = supabase
     .from("creators")
@@ -818,7 +970,9 @@ export async function listCreators(filters: { status?: string | null; q?: string
   if (filters.state) query = query.eq("state", filters.state)
   if (filters.q) {
     const q = filters.q.replace(/[%_]/g, "")
-    query = query.or(`full_name.ilike.%${q}%,email.ilike.%${q}%,creator_id.ilike.%${q}%,referral_code.ilike.%${q}%`)
+    query = query.or(
+      `full_name.ilike.%${q}%,email.ilike.%${q}%,creator_id.ilike.%${q}%,referral_code.ilike.%${q}%`
+    )
   }
   const { data } = await query
   const { mapCreator } = await import("./creators")
@@ -839,10 +993,16 @@ export async function getCreatorNetworkStats(): Promise<{
   rewardsPaidKobo: number
 }> {
   const empty = {
-    totalApplications: 0, pendingReview: 0, approvalRate: 0, activeCreators: 0,
+    totalApplications: 0,
+    pendingReview: 0,
+    approvalRate: 0,
+    activeCreators: 0,
     creatorsByState: [] as { state: string; count: number }[],
     applicationsByState: [] as { state: string; count: number }[],
-    activeChallenges: 0, pendingSubmissions: 0, totalLeads: 0, rewardsPaidKobo: 0,
+    activeChallenges: 0,
+    pendingSubmissions: 0,
+    totalLeads: 0,
+    rewardsPaidKobo: 0
   }
   if (!isSupabaseConfigured()) return empty
 
@@ -852,7 +1012,7 @@ export async function getCreatorNetworkStats(): Promise<{
     supabase.from("creator_challenges").select("id").eq("status", "ACTIVE"),
     supabase.from("creator_submissions").select("id").in("status", ["SUBMITTED", "UNDER_REVIEW"]),
     supabase.from("leads").select("id").not("creator_id", "is", null),
-    supabase.from("creator_rewards").select("amount_kobo").eq("status", "PAID"),
+    supabase.from("creator_rewards").select("amount_kobo").eq("status", "PAID")
   ])
 
   const appRows = apps.data || []
@@ -872,7 +1032,9 @@ export async function getCreatorNetworkStats(): Promise<{
   return {
     totalApplications: appRows.length,
     pendingReview: appRows.filter((a) =>
-      ["SUBMITTED", "AI_REVIEWED", "MANUAL_REVIEW", "INTERVIEW_REQUESTED", "INTERVIEW_SCHEDULED"].includes(a.status as string)
+      ["SUBMITTED", "AI_REVIEWED", "MANUAL_REVIEW", "INTERVIEW_REQUESTED", "INTERVIEW_SCHEDULED"].includes(
+        a.status as string
+      )
     ).length,
     approvalRate: decided.length ? Math.round((approved / decided.length) * 100) : 0,
     activeCreators: creatorRows.filter((c) => c.status === "ACTIVE").length,
@@ -881,7 +1043,7 @@ export async function getCreatorNetworkStats(): Promise<{
     activeChallenges: (challenges.data || []).length,
     pendingSubmissions: (subs.data || []).length,
     totalLeads: (leads.data || []).length,
-    rewardsPaidKobo: (rewards.data || []).reduce((s, r) => s + ((r.amount_kobo as number) || 0), 0),
+    rewardsPaidKobo: (rewards.data || []).reduce((s, r) => s + ((r.amount_kobo as number) || 0), 0)
   }
 }
 
@@ -901,9 +1063,18 @@ export async function getCreatorOverviewStats(creatorId: string): Promise<{
   onboardingStatus: string
 }> {
   const empty = {
-    approvedContent: 0, pendingSubmissions: 0, clicks: 0, leads: 0, demoBookings: 0,
-    signups: 0, conversions: 0, pendingRewardsKobo: 0, approvedRewardsKobo: 0,
-    paidRewardsKobo: 0, onboardingProgress: 0, onboardingStatus: "NOT_STARTED",
+    approvedContent: 0,
+    pendingSubmissions: 0,
+    clicks: 0,
+    leads: 0,
+    demoBookings: 0,
+    signups: 0,
+    conversions: 0,
+    pendingRewardsKobo: 0,
+    approvedRewardsKobo: 0,
+    paidRewardsKobo: 0,
+    onboardingProgress: 0,
+    onboardingStatus: "NOT_STARTED"
   }
   if (!isSupabaseConfigured()) return empty
 
@@ -911,7 +1082,11 @@ export async function getCreatorOverviewStats(creatorId: string): Promise<{
     supabase.from("creator_submissions").select("status").eq("creator_id", creatorId),
     supabase.from("creator_referrals").select("event_type").eq("creator_id", creatorId),
     supabase.from("creator_rewards").select("status, amount_kobo").eq("creator_id", creatorId),
-    supabase.from("creator_onboarding").select("status, progress_pct").eq("creator_id", creatorId).maybeSingle(),
+    supabase
+      .from("creator_onboarding")
+      .select("status, progress_pct")
+      .eq("creator_id", creatorId)
+      .maybeSingle()
   ])
 
   const subRows = subs.data || []
@@ -921,16 +1096,23 @@ export async function getCreatorOverviewStats(creatorId: string): Promise<{
 
   return {
     approvedContent: subRows.filter((s) => s.status === "APPROVED").length,
-    pendingSubmissions: subRows.filter((s) => ["SUBMITTED", "UNDER_REVIEW"].includes(s.status as string)).length,
+    pendingSubmissions: subRows.filter((s) => ["SUBMITTED", "UNDER_REVIEW"].includes(s.status as string))
+      .length,
     clicks: count("CLICK"),
     leads: count("LEAD"),
     demoBookings: count("DEMO"),
     signups: count("SIGNUP"),
     conversions: count("CUSTOMER"),
-    pendingRewardsKobo: rewardRows.filter((r) => r.status === "PENDING").reduce((s, r) => s + ((r.amount_kobo as number) || 0), 0),
-    approvedRewardsKobo: rewardRows.filter((r) => r.status === "APPROVED" || r.status === "PROCESSING").reduce((s, r) => s + ((r.amount_kobo as number) || 0), 0),
-    paidRewardsKobo: rewardRows.filter((r) => r.status === "PAID").reduce((s, r) => s + ((r.amount_kobo as number) || 0), 0),
+    pendingRewardsKobo: rewardRows
+      .filter((r) => r.status === "PENDING")
+      .reduce((s, r) => s + ((r.amount_kobo as number) || 0), 0),
+    approvedRewardsKobo: rewardRows
+      .filter((r) => r.status === "APPROVED" || r.status === "PROCESSING")
+      .reduce((s, r) => s + ((r.amount_kobo as number) || 0), 0),
+    paidRewardsKobo: rewardRows
+      .filter((r) => r.status === "PAID")
+      .reduce((s, r) => s + ((r.amount_kobo as number) || 0), 0),
     onboardingProgress: (onboarding.data?.progress_pct as number) ?? 0,
-    onboardingStatus: (onboarding.data?.status as string) ?? "NOT_STARTED",
+    onboardingStatus: (onboarding.data?.status as string) ?? "NOT_STARTED"
   }
 }

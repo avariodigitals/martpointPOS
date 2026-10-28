@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState, type ElementType } from "react"
-import { LogOut, Menu, X } from "lucide-react"
+import { ChevronDown, LogOut, Menu, X } from "lucide-react"
 import { PortalNotificationBell } from "@/components/shared/portal-notification-bell"
 
 export interface PortalNavItem {
@@ -14,6 +14,7 @@ export interface PortalNavItem {
 export interface PortalNavSection {
   label?: string
   items: PortalNavItem[]
+  collapsible?: boolean
 }
 
 interface PortalMobileNavProps {
@@ -29,6 +30,7 @@ interface PortalMobileNavProps {
   logoutLabel?: string
   notificationEndpoint?: string
   profileHref?: string
+  accordion?: boolean
 }
 
 const MAX_INITIALS = 2
@@ -60,8 +62,18 @@ export function PortalMobileNav({
   logoutLabel = "Sign out",
   notificationEndpoint,
   profileHref,
+  accordion = false
 }: PortalMobileNavProps) {
   const [moreOpen, setMoreOpen] = useState(false)
+  const activeSection = sections.find(
+    (section) => section.collapsible !== false && section.items.some((item) => isItemActive(item.href))
+  )?.label
+  const [selection, setSelection] = useState<{
+    activeSection: string | undefined
+    open: string | undefined
+  } | null>(null)
+  const expandedSection =
+    selection && selection.activeSection === activeSection ? selection.open : activeSection
 
   useEffect(() => {
     if (!moreOpen) return
@@ -162,36 +174,58 @@ export function PortalMobileNav({
             </div>
 
             <div className="overflow-y-auto px-3 py-3">
-              {sections.map((section, sectionIndex) => (
-                <div key={section.label ?? sectionIndex} className="mb-3 last:mb-0">
-                  {section.label && (
-                    <p className="px-3 pb-1 pt-2 text-[10px] font-semibold normal-case tracking-wide text-slate-600">
-                      {section.label}
-                    </p>
-                  )}
-                  <div className="grid grid-cols-2 gap-1">
-                    {section.items.map((item) => {
-                      const Icon = item.icon
-                      const active = isItemActive(item.href)
-                      return (
-                        <Link
-                          key={`${item.href}-${item.label}`}
-                          href={item.href}
-                          onClick={() => setMoreOpen(false)}
-                          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                            active
-                              ? "bg-retail-soft text-retail"
-                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                          }`}
+              {sections.map((section, sectionIndex) => {
+                const foldable = accordion && section.collapsible !== false && !!section.label
+                const open = !foldable || expandedSection === section.label
+                return (
+                  <div key={section.label ?? sectionIndex} className="mb-3 last:mb-0">
+                    {section.label &&
+                      (foldable ? (
+                        <button
+                          type="button"
+                          aria-expanded={open}
+                          onClick={() =>
+                            setSelection({ activeSection, open: open ? undefined : section.label })
+                          }
+                          className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-3 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
                         >
-                          <Icon className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{item.label}</span>
-                        </Link>
-                      )
-                    })}
+                          <span>{section.label}</span>
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform ${open ? "" : "-rotate-90"}`}
+                          />
+                        </button>
+                      ) : (
+                        <p className="px-3 pb-1 pt-2 text-[10px] font-semibold normal-case tracking-wide text-slate-600">
+                          {section.label}
+                        </p>
+                      ))}
+                    {open && (
+                      <div className="grid grid-cols-2 gap-1">
+                        {section.items.map((item) => {
+                          const Icon = item.icon
+                          const active = isItemActive(item.href)
+                          return (
+                            <Link
+                              key={`${item.href}-${item.label}`}
+                              href={item.href}
+                              onClick={() => setMoreOpen(false)}
+                              aria-current={active ? "page" : undefined}
+                              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                                active
+                                  ? "bg-retail-soft text-retail"
+                                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                              }`}
+                            >
+                              <Icon className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{item.label}</span>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
               <button
                 type="button"
                 onClick={() => void onLogout()}

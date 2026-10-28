@@ -1,0 +1,382 @@
+[
+  {
+    "href": "/admin",
+    "page": "dashboard"
+  },
+  {
+    "href": "/admin/tasks",
+    "page": "tasks"
+  },
+  {
+    "href": "/admin/reports",
+    "page": "analytics"
+  },
+  {
+    "href": "/admin/audit",
+    "page": "admin"
+  },
+  {
+    "href": "/admin/leads",
+    "page": "leads"
+  },
+  {
+    "href": "/admin/calendar",
+    "page": "leads"
+  },
+  {
+    "href": "/admin/quotations",
+    "page": "quotations"
+  },
+  {
+    "href": "/admin/quotations?estimator=1",
+    "page": "quotations"
+  },
+  {
+    "href": "/admin/customers",
+    "page": "customers"
+  },
+  {
+    "href": "/admin/businesses",
+    "page": "businesses"
+  },
+  {
+    "href": "/admin/onboarding",
+    "page": "onboarding"
+  },
+  {
+    "href": "/admin/customer-success",
+    "page": "customer_success"
+  },
+  {
+    "href": "/admin/support",
+    "page": "support"
+  },
+  {
+    "href": "/admin/azera",
+    "page": "azera"
+  },
+  {
+    "href": "/admin/azera/campaigns",
+    "page": "azera"
+  },
+  {
+    "href": "/admin/azera/knowledge",
+    "page": "azera"
+  },
+  {
+    "href": "/admin/azera/settings",
+    "page": "azera"
+  },
+  {
+    "href": "/admin/azera/voice-agents",
+    "page": "settings"
+  },
+  {
+    "href": "/admin/azera/voicemails",
+    "page": "azera"
+  },
+  {
+    "href": "/admin/azera/reports",
+    "page": "support"
+  },
+  {
+    "href": "/admin/google-reviews",
+    "page": "support"
+  },
+  {
+    "href": "/admin/partners",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/partners/applications",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/partners/leads",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/partners/quotes",
+    "page": "partner_quotes"
+  },
+  {
+    "href": "/admin/partners/referrals",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/partners/prospects",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/partners/payout-requests",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/partners/bank-changes",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/partners/grades",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/partners/branding-requests",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/partners/resources",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/partners/guide",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/partners/assessments",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/compliance",
+    "page": "compliance"
+  },
+  {
+    "href": "/admin/finance",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/reports",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/accounts",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/chart-of-accounts",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/invoices",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/payments",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/catalog",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/transactions?type=expense",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/transactions?type=income",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/categories",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/commission-close",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/finance/books-review",
+    "page": "finance"
+  },
+  {
+    "href": "/admin/incidents",
+    "page": "support"
+  },
+  {
+    "href": "/admin/status",
+    "page": "status"
+  },
+  {
+    "href": "/admin/careers",
+    "page": "careers.dashboard.view"
+  },
+  {
+    "href": "/admin/careers/vacancies",
+    "page": "careers.vacancies.view"
+  },
+  {
+    "href": "/admin/careers/applications",
+    "page": "careers.applications.view"
+  },
+  {
+    "href": "/admin/careers/talent-pool",
+    "page": "careers.talent_pool.view"
+  },
+  {
+    "href": "/admin/careers/assessments",
+    "page": "careers.assessments.manage"
+  },
+  {
+    "href": "/admin/careers/deployments",
+    "page": "careers.deployments.view"
+  },
+  {
+    "href": "/admin/careers/role-templates",
+    "page": "careers.role_templates.view"
+  },
+  {
+    "href": "/admin/careers/commissions",
+    "page": "careers.commissions.view"
+  },
+  {
+    "href": "/admin/careers/pipeline",
+    "page": "careers.performance.view"
+  },
+  {
+    "href": "/admin/careers/performance",
+    "page": "careers.performance.view"
+  },
+  {
+    "href": "/admin/careers/reports",
+    "page": "careers.dashboard.view"
+  },
+  {
+    "href": "/admin/careers/settings",
+    "page": "careers.settings.manage"
+  },
+  {
+    "href": "/admin/creators",
+    "page": "creator.view"
+  },
+  {
+    "href": "/admin/creators/applications",
+    "page": "creator.view"
+  },
+  {
+    "href": "/admin/creators/creators",
+    "page": "creator.view"
+  },
+  {
+    "href": "/admin/creators/interviews",
+    "page": "creator.interview.manage"
+  },
+  {
+    "href": "/admin/creators/challenges",
+    "page": "creator.challenge.manage"
+  },
+  {
+    "href": "/admin/creators/submissions",
+    "page": "creator.submission.review"
+  },
+  {
+    "href": "/admin/creators/leaderboard",
+    "page": "creator.view"
+  },
+  {
+    "href": "/admin/creators/rewards",
+    "page": "creator.reward.manage"
+  },
+  {
+    "href": "/admin/creators/learning",
+    "page": "creator.learning.manage"
+  },
+  {
+    "href": "/admin/creators/kit",
+    "page": "creator.resource.manage"
+  },
+  {
+    "href": "/admin/creators/guides",
+    "page": "creator.learning.manage"
+  },
+  {
+    "href": "/admin/creators/faqs",
+    "page": "creator.learning.manage"
+  },
+  {
+    "href": "/admin/support?category=CREATOR_NETWORK",
+    "page": "creator.view"
+  },
+  {
+    "href": "/admin/creators/reports",
+    "page": "creator.report.view"
+  },
+  {
+    "href": "/admin/creators/settings",
+    "page": "creator.settings.manage"
+  },
+  {
+    "href": "/admin/marketing",
+    "page": "marketing"
+  },
+  {
+    "href": "/admin/marketing/audiences",
+    "page": "marketing"
+  },
+  {
+    "href": "/admin/marketing/suppressions",
+    "page": "marketing"
+  },
+  {
+    "href": "/admin/seo",
+    "page": "seo"
+  },
+  {
+    "href": "/admin/blog",
+    "page": "blog"
+  },
+  {
+    "href": "/admin/faqs",
+    "page": "faqs"
+  },
+  {
+    "href": "/admin/tracker",
+    "page": "tracker"
+  },
+  {
+    "href": "/admin/tracker/referrers",
+    "page": "tracker"
+  },
+  {
+    "href": "/admin/analytics",
+    "page": "analytics"
+  },
+  {
+    "href": "/admin/brochure",
+    "page": "partners"
+  },
+  {
+    "href": "/admin/settings",
+    "page": "settings"
+  },
+  {
+    "href": "/admin/city-requests",
+    "page": "businesses"
+  },
+  {
+    "href": "/admin/integrations",
+    "page": "integrations"
+  },
+  {
+    "href": "/admin/settings/email",
+    "page": "settings"
+  },
+  {
+    "href": "/admin/settings/email-routes",
+    "page": "settings"
+  },
+  {
+    "href": "/admin/settings/email-templates",
+    "page": "settings"
+  },
+  {
+    "href": "/admin/settings/client-checkins",
+    "page": "settings"
+  },
+  {
+    "href": "/admin/email-logs",
+    "page": "settings"
+  },
+  {
+    "href": "/admin/users",
+    "page": "users"
+  }
+]

@@ -3,15 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { readableRoleText } from "@/lib/utils"
-import {
-  ChevronDown,
-  LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Search,
-  X,
-  type LucideIcon,
-} from "lucide-react"
+import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, Search, X, type LucideIcon } from "lucide-react"
 
 export interface PortalNavItem {
   href: string
@@ -23,6 +15,8 @@ export interface PortalNavSection {
   /** Omit for a flat menu — those items render with no section header. */
   label?: string
   items: PortalNavItem[]
+  /** A small always-visible group, e.g. the admin's daily shortcuts. */
+  collapsible?: boolean
 }
 
 interface PortalSidebarProps {
@@ -42,6 +36,8 @@ interface PortalSidebarProps {
   storageKey: string
   isItemActive: (href: string) => boolean
   showFooterUser?: boolean
+  /** Opt-in: one workflow section open at a time; other portals keep their preferences. */
+  accordion?: boolean
 }
 
 function initialsOf(value: string): string {
@@ -74,10 +70,20 @@ export function PortalSidebar({
   storageKey,
   isItemActive,
   showFooterUser = true,
+  accordion = false
 }: PortalSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean> | null>(null)
   const [query, setQuery] = useState("")
+  const activeSection = sections.find(
+    (section) => section.collapsible !== false && section.items.some((item) => isItemActive(item.href))
+  )?.label
+  const [selection, setSelection] = useState<{
+    activeSection: string | undefined
+    open: string | undefined
+  } | null>(null)
+  const expandedSection =
+    selection && selection.activeSection === activeSection ? selection.open : activeSection
 
   // Hydrate from localStorage after mount so the first client render matches the server.
   // null openSections = not yet hydrated → fall back to "section with the active page is open".
@@ -111,21 +117,25 @@ export function PortalSidebar({
           ...section,
           items: section.items.filter(
             (item) =>
-              item.label.toLowerCase().includes(term) ||
-              (section.label || "").toLowerCase().includes(term),
-          ),
+              item.label.toLowerCase().includes(term) || (section.label || "").toLowerCase().includes(term)
+          )
         }))
         .filter((section) => section.items.length > 0)
     : sections
 
   const isSectionOpen = (section: PortalNavSection) => {
-    if (!section.label) return true // flat menu — nothing to fold
+    if (!section.label || section.collapsible === false) return true
+    if (accordion) return section.label === expandedSection
     if (openSections && section.label in openSections) return openSections[section.label]
     return section.items.some((item) => isItemActive(item.href))
   }
 
   const toggleSection = (section: PortalNavSection, currentlyOpen: boolean) => {
     if (!section.label) return
+    if (accordion) {
+      setSelection({ activeSection, open: currentlyOpen ? undefined : section.label })
+      return
+    }
     const next = { ...(openSections || {}), [section.label]: !currentlyOpen }
     setOpenSections(next)
     try {
@@ -226,17 +236,25 @@ export function PortalSidebar({
               key={section.label || `flat-${index}`}
               className={collapsed && index > 0 ? "border-t border-slate-200 pt-1" : ""}
             >
-              {section.label && !collapsed && (
-                <button
-                  type="button"
-                  onClick={() => toggleSection(section, open)}
-                  aria-expanded={open}
-                  className={`mb-0.5 flex w-full items-center justify-between rounded px-2 py-1 text-[11px] font-semibold normal-case tracking-wide text-slate-600 transition-colors hover:text-slate-950 ${FOCUS_RING}`}
-                >
-                  {section.label}
-                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
-                </button>
-              )}
+              {section.label &&
+                !collapsed &&
+                (section.collapsible === false ? (
+                  <p className="mb-1 px-2 py-1 text-[11px] font-semibold tracking-wide text-slate-600">
+                    {section.label}
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section, open)}
+                    aria-expanded={open}
+                    className={`mb-0.5 flex w-full items-center justify-between gap-2 rounded px-2 py-1 text-left text-[11px] font-semibold normal-case tracking-wide text-slate-600 transition-colors hover:text-slate-950 ${FOCUS_RING}`}
+                  >
+                    {section.label}
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`}
+                    />
+                  </button>
+                ))}
               {open && (
                 <div className={collapsed ? "space-y-1" : "space-y-0.5"}>
                   {section.items.map((item) => {
@@ -280,46 +298,50 @@ export function PortalSidebar({
       </nav>
 
       {/* Optional footer — admin uses the workspace header; partner/creator portals may keep account controls here. */}
-      {showFooterUser && <div className={`shrink-0 border-t border-slate-200 ${collapsed ? "p-2" : "px-3 py-4"}`}>
-        {collapsed ? (
-          <div className="flex flex-col items-center gap-2">
-            <span
-              aria-hidden
-              title={userName}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-retail-soft text-[10px] font-semibold text-retail ring-1 ring-inset ring-retail/15"
-            >
-              {initialsOf(userName)}
-            </span>
-            <button
-              type="button"
-              onClick={onLogout}
-              title={logoutLabel}
-              aria-label={logoutLabel}
-              className={`rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 ${FOCUS_RING}`}
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="mb-3 px-3">
-              <p className="truncate text-[13px] font-medium text-slate-800">{userName}</p>
-              {userMeta && (
-                <p className="truncate text-[10px] normal-case tracking-wide text-slate-500">{readableRoleText(userMeta)}</p>
-              )}
-              {footerNote && <p className="mt-1 truncate text-[10px] text-slate-400">{footerNote}</p>}
+      {showFooterUser && (
+        <div className={`shrink-0 border-t border-slate-200 ${collapsed ? "p-2" : "px-3 py-4"}`}>
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-2">
+              <span
+                aria-hidden
+                title={userName}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-retail-soft text-[10px] font-semibold text-retail ring-1 ring-inset ring-retail/15"
+              >
+                {initialsOf(userName)}
+              </span>
+              <button
+                type="button"
+                onClick={onLogout}
+                title={logoutLabel}
+                aria-label={logoutLabel}
+                className={`rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 ${FOCUS_RING}`}
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onLogout}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950 ${FOCUS_RING}`}
-            >
-              <LogOut className="h-4 w-4" />
-              {logoutLabel}
-            </button>
-          </>
-        )}
-      </div>}
+          ) : (
+            <>
+              <div className="mb-3 px-3">
+                <p className="truncate text-[13px] font-medium text-slate-800">{userName}</p>
+                {userMeta && (
+                  <p className="truncate text-[10px] normal-case tracking-wide text-slate-500">
+                    {readableRoleText(userMeta)}
+                  </p>
+                )}
+                {footerNote && <p className="mt-1 truncate text-[10px] text-slate-400">{footerNote}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={onLogout}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950 ${FOCUS_RING}`}
+              >
+                <LogOut className="h-4 w-4" />
+                {logoutLabel}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </aside>
   )
 }

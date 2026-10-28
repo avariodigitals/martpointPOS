@@ -17,6 +17,9 @@ const TYPE_ICONS: Record<string, typeof CheckCircle2> = {
   SLA_BREACH: XCircle,
 }
 
+const outlineActionClass = "bg-card text-foreground hover:bg-muted hover:text-foreground"
+const primaryActionClass = "bg-blue-600 text-white hover:bg-blue-700 hover:text-white"
+
 export default function TasksPage() {
   const [tasks, setTasks] = useState<AdminTask[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,7 +44,8 @@ export default function TasksPage() {
   }
 
   useEffect(() => {
-    loadTasks()
+    const timer = window.setTimeout(() => void loadTasks(), 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
   const filtered = useMemo(() => {
@@ -86,7 +90,7 @@ export default function TasksPage() {
           </h2>
           <p className="text-muted-foreground">Generated admin tasks from across the platform.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadTasks}>Refresh</Button>
+        <Button variant="outline" size="sm" className={outlineActionClass} onClick={loadTasks}>Refresh</Button>
       </div>
 
       {message && (
@@ -134,18 +138,18 @@ export default function TasksPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {t.deep_link && (
-                        <Button size="sm" variant="outline" asChild>
+                        <Button size="sm" variant="outline" className={outlineActionClass} asChild>
                           <Link href={t.deep_link}>
                             <ExternalLink className="w-3.5 h-3.5 mr-1" />
                             Open
                           </Link>
                         </Button>
                       )}
-                      <Button size="sm" onClick={() => markStatus(t, "DONE")}>
+                      <Button size="sm" className={primaryActionClass} onClick={() => markStatus(t, "DONE")}>
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                         Done
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => markStatus(t, "DISMISSED")}>
+                      <Button size="sm" variant="outline" className={outlineActionClass} onClick={() => markStatus(t, "DISMISSED")}>
                         <XCircle className="w-3.5 h-3.5 mr-1" />
                         Dismiss
                       </Button>

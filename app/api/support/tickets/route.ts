@@ -59,6 +59,8 @@ export async function POST(request: Request) {
 
     const ticket = await createTicket({
       business_id: session.businessId,
+      requester_name: session.contactName,
+      requester_email: session.email,
       created_by_type: "CUSTOMER",
       created_by_id: session.businessId,
       source: "DIRECT",

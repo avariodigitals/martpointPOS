@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { isSupabaseConfigured } from "@/lib/supabase"
 import { fileInboundLeadEmail } from "@/lib/lead-emails-inbound"
+import { fileInboundSupportEmail } from "@/lib/support-email-inbound"
 
 /* ───────────────────────────  Inbound email webhook  ───────────────────────────
  * Receives inbound email from the provider's inbound-parse service and files it
@@ -111,7 +112,8 @@ export async function POST(request: Request) {
 
     let matched = 0
     for (const email of emails) {
-      if (await fileInboundLeadEmail({ ...email, provider: "webhook" })) matched++
+      if (await fileInboundSupportEmail({ ...email,provider:"webhook" })) matched++
+      else if (await fileInboundLeadEmail({ ...email, provider: "webhook" })) matched++
     }
 
     return NextResponse.json({ ok: true, matched })

@@ -4,6 +4,10 @@ import { canPartnerAccessBusiness } from "./partner-auth"
 import { resolveAdminTasks } from "./tasks"
 import { notifyAllAdmins, notifyAdminUser } from "./admin-notifications"
 import { enumLabel, supportCategoryLabel, ticketStatusLabel } from "./utils"
+import { sendResolutionSatisfactionEmail, sendTicketRequesterEmail, recordTicketEmail, ticketSender, type TicketEmail } from "./support-ticket-email"
+import { getSupportRequester, resolveChatTicketRequester, REQUESTER_FIELDS, type RequesterType } from "./support-requester"
+import { sanitizeSupportHtml } from "./support-html"
+import { htmlToText } from "./email-html"
 
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPES
@@ -19,10 +23,14 @@ export type SupportTicket = {
   id: string
   ticket_number: string
   business_id?: string | null
+  lead_id?: string | null
   creator_id?: string | null
   partner_id?: string | null
   requester_partner_id?: string | null
   complained_about_partner_id?: string | null
+  requester_name?: string | null
+  requester_email?: string | null
+  requester_on_behalf_of?: string | null
   created_by_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM"
   created_by_id?: string | null
   source: string
@@ -49,10 +57,18 @@ export type SupportMessage = {
   author_type: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM"
   author_id?: string | null
   message: string
+  message_html?: string | null
+  author_name?: string | null
+  signature_html?: string | null
+  email_status?: string
+  email_error?: string | null
+  email_recipient?: string | null
   visibility: "PUBLIC" | "INTERNAL"
   attachment_path?: string | null
   created_at: string
 }
+
+type TicketEmailForNotification = TicketEmail
 
 export type SupportEvent = {
   id: string
@@ -261,6 +277,7 @@ export async function canPartnerManageTicket(partnerId: string, ticket: SupportT
 
 export async function createTicket(input: {
   business_id?: string | null
+  lead_id?: string | null
   creator_id?: string | null
   partner_id?: string | null
   requester_partner_id?: string | null
@@ -272,8 +289,27 @@ export async function createTicket(input: {
   priority: SupportPriority
   subject: string
   description?: string | null
+  requester_name?: string | null
+  requester_email?: string | null
+  requester_on_behalf_of?: string | null
 }) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
+
+  const payload = { ...input }
+  if (payload.business_id && payload.source === "OMNICHANNEL") {
+    const account = await getSupportRequester("business",payload.business_id)
+    if (account?.name.trim().toLowerCase() === "martpoint support") {
+      const owner = await resolveChatTicketRequester({ name: payload.requester_name, email: payload.requester_email })
+      payload.business_id = null
+      payload[REQUESTER_FIELDS[owner.type]] = owner.id
+    }
+  }
+  const owners = (Object.keys(REQUESTER_FIELDS) as RequesterType[]).filter((type) => Boolean(payload[REQUESTER_FIELDS[type]]))
+  if (owners.length !== 1) throw new Error("Select the lead, partner, creator or business this ticket is for")
+  const owner = await getSupportRequester(owners[0],payload[REQUESTER_FIELDS[owners[0]]] as string)
+  if (!owner) throw new Error("The selected requester profile no longer exists")
+  payload.requester_name ||= owner.contactName || owner.name
+  payload.requester_email ||= owner.email || null
 
   const ticketNumber = await nextSupportTicketNumber()
   const firstResponseDue = await calculateSlaDue(input.priority, new Date().toISOString(), "first_response")
@@ -282,7 +318,7 @@ export async function createTicket(input: {
   const { data, error } = await supabase
     .from("support_tickets")
     .insert({
-      ...input,
+      ...payload,
       ticket_number: ticketNumber,
       status: "NEW",
       first_response_due_at: firstResponseDue,
@@ -314,6 +350,8 @@ export async function createTicket(input: {
     },
   })
 
+  await sendSupportUpdate(data.id,"We have received your support request. Our team will review it and keep you informed of progress.",input.created_by_type === "ADMIN" ? input.created_by_id || undefined : undefined)
+
   return data as SupportTicket
 }
 
@@ -323,9 +361,34 @@ export async function addMessage(
   authorId: string | null | undefined,
   message: string,
   visibility: "PUBLIC" | "INTERNAL" = "PUBLIC",
-  attachmentPath?: string | null
+  attachmentPath?: string | null,
+  options: { html?: string | null; attachmentIds?: string[]; providerMessageId?: string | null } = {}
 ) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
+  const { data: ticketRow, error: ticketError } = await supabase.from("support_tickets").select("*").eq("id",ticketId).single()
+  if (ticketError || !ticketRow) throw new Error("Ticket not found")
+  const staffReply = authorType === "ADMIN" || (authorType === "PARTNER" && !ticketRow.requester_partner_id)
+  const rich = options.html ? sanitizeSupportHtml(options.html) : null
+  const plain = rich ? htmlToText(rich) : message.trim()
+  if (!plain && !options.attachmentIds?.length) throw new Error("Write a reply or attach a file")
+  if (plain.length > 50000 || (rich?.length || 0) > 100000) throw new Error("This reply is too long")
+  let senderName = ticketRow.requester_name || (authorType === "SYSTEM" ? "MartPoint Support" : "Requester")
+  if (authorType === "ADMIN") senderName = (await ticketSender(authorId)).name
+  if (authorType === "PARTNER" && authorId) {
+    const { data: user } = await supabase.from("partner_users").select("full_name").eq("id",authorId).maybeSingle()
+    senderName = user?.full_name || "Partner"
+  }
+  const attachments: { filename: string; content: string }[] = []
+  if (options.attachmentIds?.length) {
+    if (options.attachmentIds.length > 3) throw new Error("Attach up to three files per reply")
+    const { data: files, error } = await supabase.from("support_attachments").select("id,storage_path,original_name,is_internal").eq("ticket_id",ticketId).in("id",options.attachmentIds)
+    if (error || files?.length !== options.attachmentIds.length || (visibility === "PUBLIC" && files.some((f) => f.is_internal))) throw new Error("One or more attachments are unavailable for this reply")
+    for (const file of files) {
+      const { data: bytes, error: downloadError } = await supabase.storage.from("support-attachments").download(file.storage_path)
+      if (downloadError || !bytes) throw new Error("Could not read a reply attachment")
+      attachments.push({ filename: file.original_name, content: Buffer.from(await bytes.arrayBuffer()).toString("base64") })
+    }
+  }
 
   const { data, error } = await supabase
     .from("support_ticket_messages")
@@ -333,7 +396,12 @@ export async function addMessage(
       ticket_id: ticketId,
       author_type: authorType,
       author_id: authorId,
-      message,
+      message: plain || "Attachment",
+      message_html: rich,
+      author_name: senderName,
+      attachment_ids: options.attachmentIds || [],
+      provider_message_id: options.providerMessageId || null,
+      email_status: staffReply && visibility === "PUBLIC" ? "pending" : "not_required",
       visibility,
       attachment_path: attachmentPath || null,
       created_at: now(),
@@ -342,6 +410,7 @@ export async function addMessage(
     .single()
 
   if (error || !data) throw new Error(`Message creation failed: ${error?.message || "unknown"}`)
+  await supabase.from("support_tickets").update({ updated_at: now() }).eq("id",ticketId)
 
   if (visibility === "INTERNAL") {
     await logSupportAudit(authorType, authorId, "SUPPORT_INTERNAL_NOTE_ADDED", ticketId)
@@ -405,6 +474,37 @@ export async function addMessage(
     })
   }
 
+  if (visibility === "PUBLIC" && staffReply) {
+    const ticket = ticketRow as TicketEmail
+    if (ticket) {
+      try {
+        const result = await sendTicketRequesterEmail({
+          ticket,
+          message: plain || "Please see the attached file.",
+          messageHtml: rich,
+          actorId: authorId,
+          subjectPrefix: "New reply",
+          messageId: data.id,
+          attachments,
+        })
+        const delivery = { signature_html: result.signature, email_status: result.status, email_error: result.error, email_recipient: result.email || null, email_sent_at: result.sent ? now() : null }
+        const { error: deliveryError } = await supabase.from("support_ticket_messages").update(delivery).eq("id",data.id)
+        Object.assign(data,delivery)
+        if (deliveryError) throw new Error("Could not save the email outcome")
+        if (!result.sent && !result.skipped) console.error("[support-ticket-email] reply email was not delivered", ticket.ticket_number)
+      } catch (error) {
+        console.error("[support-ticket-email] reply email failed:", error)
+        const failure = { email_status: "failed", email_error: "Email could not be sent. Retry this update." }
+        await supabase.from("support_ticket_messages").update(failure).eq("id",data.id)
+        Object.assign(data,failure)
+      }
+    }
+  }
+
+  if (visibility === "PUBLIC" && !staffReply && authorType !== "SYSTEM" && ["RESOLVED","WAITING_CUSTOMER","CLOSED"].includes(ticketRow.status)) {
+    await changeStatus(ticketId,"IN_PROGRESS",authorType,authorId || undefined)
+  }
+
   return data as SupportMessage
 }
 
@@ -430,6 +530,14 @@ export async function addEvent(
   })
 }
 
+export async function sendSupportUpdate(ticketId: string, message: string, actorId?: string) {
+  const { data: ticket } = await supabase.from("support_tickets").select("*").eq("id",ticketId).single()
+  if (!ticket) throw new Error("Ticket not found")
+  const result = await sendTicketRequesterEmail({ ticket,message,actorId })
+  await recordTicketEmail(ticket,message,result,actorId)
+  return result
+}
+
 /** Replace internal assignee UUIDs and enum values before ticket events reach a portal. */
 export async function presentSupportTicketEvents<T extends Record<string, unknown>>(events: T[]): Promise<T[]> {
   if (!events.length) return []
@@ -445,6 +553,8 @@ export async function presentSupportTicketEvents<T extends Record<string, unknow
       for (const key of ["previous_value", "new_value"]) if (typeof event[key] === "string" && uuidPattern.test(event[key] as string)) partnerIds.add(event[key] as string)
     }
   }
+  const actorIds=events.filter(event=>event.actor_type==="ADMIN"&&typeof event.actor_id==="string").map(event=>event.actor_id as string)
+  for(const id of actorIds)userIds.add(id)
   const [usersResult, partnersResult] = await Promise.all([
     userIds.size ? supabase.from("users").select("id,name").in("id", [...userIds]) : Promise.resolve({ data: [] }),
     partnerIds.size ? supabase.from("partners").select("id,business_name,partner_id").in("id", [...partnerIds]) : Promise.resolve({ data: [] }),
@@ -454,6 +564,7 @@ export async function presentSupportTicketEvents<T extends Record<string, unknow
 
   return events.map((event) => {
     const output: Record<string, unknown> = { ...event }
+    output.actor_name=event.actor_type==="ADMIN"?userNames.get(String(event.actor_id))||"Support team":event.actor_type==="SYSTEM"?"MartPoint Support":enumLabel(String(event.actor_type || "Requester"))
     const assignmentKind = event.event_type === "ASSIGNED" || event.event_type === "REASSIGNED" ? "user" : event.event_type === "PARTNER_ASSIGNED" || event.event_type === "PARTNER_REMOVED" ? "partner" : null
     for (const key of ["previous_value", "new_value"] as const) {
       const value = event[key]
@@ -485,12 +596,14 @@ export async function assignPartner(
   if ((ticket as SupportTicket).complained_about_partner_id === partnerId) throw new Error("Cannot assign the complained-about partner to the complaint")
 
   const prev = (ticket as SupportTicket).assigned_partner_id
+  const {data:partnerAgent,error:partnerAgentError}=await supabase.from("partner_users").select("id").eq("id",partnerUserId).eq("partner_id",partnerId).eq("status","ACTIVE").maybeSingle()
+  if(partnerAgentError||!partnerAgent)throw new Error("Select an active teammate from this partner")
   const { data, error } = await supabase
     .from("support_tickets")
     .update({
       assigned_partner_id: partnerId,
       assigned_partner_user_id: partnerUserId,
-      status: "ASSIGNED",
+      status: ["NEW","ASSIGNED"].includes(ticket.status) ? "ASSIGNED" : ticket.status,
       updated_at: now(),
     })
     .eq("id", ticketId)
@@ -502,6 +615,7 @@ export async function assignPartner(
   await resolveAdminTasks("SUPPORT_TICKET", ticketId, ["SUPPORT_UNASSIGNED"])
   await addEvent(ticketId, "PARTNER_ASSIGNED", actorType, actorId, { partner_id: partnerId }, prev || undefined, partnerId)
   await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_PARTNER_ASSIGNED", ticketId)
+  await sendSupportUpdate(ticketId,"Your support request has been assigned to our partner support team.",actorType === "ADMIN" ? actorId : undefined)
   return data as SupportTicket
 }
 
@@ -521,7 +635,7 @@ export async function removePartner(
     .update({
       assigned_partner_id: null,
       assigned_partner_user_id: null,
-      status: "NEW",
+      status: ["NEW","ASSIGNED"].includes(ticket.status) ? "NEW" : ticket.status,
       updated_at: now(),
     })
     .eq("id", ticketId)
@@ -531,33 +645,55 @@ export async function removePartner(
   if (error || !data) throw new Error(`Removal failed: ${error?.message || "unknown"}`)
 
   await addEvent(ticketId, "PARTNER_REMOVED", actorType, actorId, {}, prev || undefined, undefined)
+  await sendSupportUpdate(ticketId,"Your support request has been returned to the MartPoint support team.",actorType === "ADMIN" ? actorId : undefined)
   return data as SupportTicket
 }
 
 export async function changeStatus(
   ticketId: string,
   newStatus: SupportTicketStatus,
-  actorType: "ADMIN" | "PARTNER" | "CUSTOMER" | "SYSTEM",
-  actorId: string | undefined
+  actorType: "ADMIN" | "PARTNER" | "CUSTOMER" | "CREATOR" | "SYSTEM",
+  actorId: string | undefined,
+  options: { skipEmail?: boolean; allowUnconfirmedClose?: boolean; expectedUpdatedAt?: string } = {}
 ) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
 
   const { data: ticket } = await supabase.from("support_tickets").select("*").eq("id", ticketId).single()
   if (!ticket) throw new Error("Ticket not found")
   const t = ticket as SupportTicket
+  if (t.status === newStatus) return t
+  if (options.expectedUpdatedAt && t.updated_at !== options.expectedUpdatedAt) throw new Error("This ticket has new activity; automatic closure was cancelled")
+  if (newStatus === "CLOSED" && ticket.satisfaction_response !== "satisfied" && !options.allowUnconfirmedClose) throw new Error("Resolve the ticket and request customer confirmation before closing it")
 
   const updates: Record<string, unknown> = { status: newStatus, updated_at: now() }
-  if (newStatus === "RESOLVED") updates.resolved_at = now()
-  if (newStatus === "CLOSED") updates.closed_at = now()
+  if (newStatus === "RESOLVED") {
+    updates.resolved_at = now()
+    updates.auto_close_at = null
+    updates.final_closure_notice_sent_at = null
+    updates.resolution_actor_id = actorType === "ADMIN" ? actorId || null : ticket.assigned_admin_user_id || null
+    updates.satisfaction_token_hash = null
+    updates.satisfaction_sent_at = null
+    updates.satisfaction_reminder_sent_at = null
+    updates.satisfaction_response = null
+    updates.satisfaction_responded_at = null
+  }
+  if (newStatus === "CLOSED") { updates.closed_at = now(); updates.auto_close_at = null }
+  if (!["RESOLVED","CLOSED","CANCELLED"].includes(newStatus)) {
+    updates.closed_at = null; updates.resolved_at = null; updates.auto_close_at = null
+    updates.satisfaction_token_hash = null; updates.followup_claim = null; updates.followup_claim_expires_at = null
+  }
 
   const { data, error } = await supabase
     .from("support_tickets")
     .update(updates)
     .eq("id", ticketId)
+    .eq("updated_at",t.updated_at)
     .select()
     .single()
 
   if (error || !data) throw new Error(`Status change failed: ${error?.message || "unknown"}`)
+
+  if(t.status==="RESOLVED"||newStatus==="RESOLVED")await supabase.from("support_ticket_feedback_tokens").update({used_at:now()}).eq("ticket_id",ticketId).is("used_at",null)
 
   await addEvent(ticketId, "STATUS_CHANGED", actorType, actorId, {}, t.status, newStatus)
 
@@ -570,13 +706,34 @@ export async function changeStatus(
   await notifyAllAdmins({
     type: "SUPPORT_TICKET_STATUS_CHANGED",
     title: "Support ticket status changed",
-    message: `${t.ticket_number}: ${t.status} → ${newStatus}`,
+    message: `${t.ticket_number}: ${ticketStatusLabel(t.status)} → ${ticketStatusLabel(newStatus)}`,
     deep_link: `/admin/support/${ticketId}`,
     source_type: "support_ticket",
     source_id: ticketId,
     exclude_admin_user_id: actorType === "ADMIN" ? actorId : undefined,
     roles: ["Admin", "Customer Care", "Tech"],
   })
+
+  if (options.skipEmail) return data as SupportTicket
+  if (newStatus === "RESOLVED") {
+    const satisfaction = await sendResolutionSatisfactionEmail(data as TicketEmailForNotification,actorType === "ADMIN" ? actorId : undefined)
+    if (!satisfaction.sent && !satisfaction.skipped) console.error("[support-ticket-email] resolution survey email was not delivered", t.ticket_number)
+  } else {
+    const requesterTicket = data as TicketEmailForNotification
+    try {
+      const statusMessage = `The status of your support request has changed to ${ticketStatusLabel(newStatus, true)}.`
+      const result = await sendTicketRequesterEmail({
+        ticket: requesterTicket,
+        message: statusMessage,
+        actorId: actorType === "ADMIN" ? actorId : undefined,
+        subjectPrefix: "Ticket status update",
+      })
+      await recordTicketEmail(requesterTicket,statusMessage,result,actorType === "ADMIN" ? actorId : undefined)
+      if (!result.sent && !result.skipped) console.error("[support-ticket-email] status email was not delivered", t.ticket_number)
+    } catch (error) {
+      console.error("[support-ticket-email] status email failed:", error)
+    }
+  }
 
   return data as SupportTicket
 }
@@ -612,6 +769,7 @@ export async function changePriority(
 
   await addEvent(ticketId, "PRIORITY_CHANGED", actorType, actorId, {}, t.priority, newPriority)
   await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_PRIORITY_CHANGED", ticketId)
+  await sendSupportUpdate(ticketId,`The priority of your support request is now ${enumLabel(newPriority)}.`,actorType === "ADMIN" ? actorId : undefined)
   await notifyAllAdmins({
     type: "SUPPORT_TICKET_PRIORITY_CHANGED",
     title: "Support ticket priority changed",
@@ -632,11 +790,11 @@ export async function escalateTicket(
   actorId: string
 ) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
+  await changeStatus(ticketId,"ESCALATED",actorType,actorId,{skipEmail:true})
 
   const { data, error } = await supabase
     .from("support_tickets")
     .update({
-      status: "ESCALATED",
       assigned_partner_id: null,
       assigned_partner_user_id: null,
       updated_at: now(),
@@ -649,6 +807,7 @@ export async function escalateTicket(
 
   await addEvent(ticketId, "ESCALATED", actorType, actorId, { reason })
   await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_ESCALATED", ticketId)
+  await sendSupportUpdate(ticketId,"Your support request has been escalated to our senior support team.",actorType === "ADMIN" ? actorId : undefined)
   await notifyAllAdmins({
     type: "SUPPORT_TICKET_ESCALATED",
     title: "Support ticket escalated",
@@ -673,6 +832,8 @@ export async function assignAdmin(
   const { data: ticket } = await supabase.from("support_tickets").select("*").eq("id", ticketId).single()
   if (!ticket) throw new Error("Ticket not found")
   const t = ticket as SupportTicket
+  const {data:agent,error:agentError}=await supabase.from("users").select("id").eq("id",adminUserId).eq("status","ACTIVE").in("role",["Admin","Customer Care","Tech"]).maybeSingle()
+  if(agentError||!agent)throw new Error("Select an active support teammate")
 
   const { data, error } = await supabase
     .from("support_tickets")
@@ -690,6 +851,7 @@ export async function assignAdmin(
   await resolveAdminTasks("SUPPORT_TICKET", ticketId, ["SUPPORT_UNASSIGNED"])
   await addEvent(ticketId, "ASSIGNED", actorType, actorId, {}, t.assigned_admin_user_id || undefined, adminUserId)
   await logSupportAudit(actorType, actorId, "SUPPORT_TICKET_ASSIGNED", ticketId)
+  await sendSupportUpdate(ticketId,"A member of our support team has been assigned to your request.",actorType === "ADMIN" ? actorId : undefined)
   await notifyAdminUser({
     admin_user_id: adminUserId,
     type: "SUPPORT_TICKET_ASSIGNED",

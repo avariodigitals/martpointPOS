@@ -24,6 +24,9 @@ export default async function CreatorTicketPage({ params }: { params: Promise<{ 
         id: m.id,
         author_type: m.author_type,
         message: m.message,
+        message_html:m.message_html,
+        author_name:m.author_name,
+        signature_html:m.signature_html,
         created_at: m.created_at,
       }))}
     />

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Image from "@tiptap/extension-image"
@@ -28,7 +28,8 @@ interface EmailRichEditorProps {
   value: string
   onChange: (html: string) => void
   /** Upload an image, return the public URL to insert. */
-  onUploadImage: (file: File) => Promise<string | null>
+  onUploadImage?: (file: File) => Promise<string | null>
+  allowImages?: boolean
   /** Minimum height of the editable area in px. */
   minHeight?: number
 }
@@ -52,6 +53,8 @@ function ToolbarButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-label={title}
+      aria-pressed={active === undefined ? undefined : active}
       className={`p-1.5 rounded transition-colors disabled:opacity-40 ${
         active ? "bg-retail/15 text-retail" : "text-muted-foreground hover:text-foreground hover:bg-muted"
       }`}
@@ -61,7 +64,7 @@ function ToolbarButton({
   )
 }
 
-export default function EmailRichEditor({ value, onChange, onUploadImage, minHeight = 220 }: EmailRichEditorProps) {
+export default function EmailRichEditor({ value, onChange, onUploadImage, allowImages = true, minHeight = 220 }: EmailRichEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
@@ -72,15 +75,22 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, minHei
     ],
     content: value,
     immediatelyRender: false,
+    shouldRerenderOnTransaction: true,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: {
+        spellcheck: "true",
+        "aria-label": "Message editor",
         class:
           "prose-sm max-w-none px-3 py-2 outline-none text-sm [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:my-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:my-2 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_a]:text-retail [&_a]:underline [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded",
         style: `min-height:${minHeight}px`,
       },
     },
   })
+
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) editor.commands.setContent(value || "", { emitUpdate:false })
+  }, [editor,value])
 
   const setLink = () => {
     if (!editor) return
@@ -106,7 +116,7 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, minHei
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ""
-    if (!file || !editor) return
+    if (!file || !editor || !onUploadImage) return
     setUploading(true)
     try {
       const url = await onUploadImage(file)
@@ -161,12 +171,12 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, minHei
         <ToolbarButton title="Remove link" onClick={() => editor?.chain().focus().unsetLink().run()} disabled={!editor?.isActive("link")}>
           <Link2Off className="w-4 h-4" />
         </ToolbarButton>
-        <ToolbarButton title="Insert image (upload)" onClick={pickImage} disabled={uploading}>
+        {allowImages && <><ToolbarButton title="Insert image (upload)" onClick={pickImage} disabled={uploading || !onUploadImage}>
           {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
         </ToolbarButton>
         <ToolbarButton title="Insert image from URL" onClick={insertImageUrl}>
           <ImagePlus className="w-4 h-4" />
-        </ToolbarButton>
+        </ToolbarButton></>}
         <span className="w-px h-4 bg-border mx-1" />
         <ToolbarButton title="Undo" onClick={() => editor?.chain().focus().undo().run()} disabled={!editor?.can().undo()}>
           <Undo2 className="w-4 h-4" />

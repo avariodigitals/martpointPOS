@@ -16,6 +16,7 @@ import { ONBOARDING_STAGES } from "@/lib/businesses"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
 import { LocationFields } from "@/components/location-fields"
 import { enumLabel, roleLabel } from "@/lib/utils"
+import { SupportTicketsPanel } from "@/components/admin/support-tickets-panel"
 
 interface Props {
   business: Business
@@ -52,7 +53,7 @@ const TABS: Tab[] = [
   { key: "finance", label: "Finance", icon: Landmark, enabled: true, href: (id: string) => `/admin/businesses/${id}/finance` },
   { key: "deployment", label: "Deployment", icon: Lock, enabled: true },
   { key: "partner", label: "Partner", icon: Lock, enabled: false },
-  { key: "support", label: "Support", icon: Headset, enabled: true, href: (id: string) => `/admin/businesses/${id}/support` },
+  { key: "support", label: "Support", icon: Headset, enabled: true },
   { key: "customer-success", label: "Customer Success", icon: HeartHandshake, enabled: true, href: (id: string) => `/admin/businesses/${id}/customer-success` },
   { key: "compliance", label: "Compliance", icon: ShieldCheck, enabled: true, href: (id: string) => `/admin/businesses/${id}/compliance` },
   { key: "incidents", label: "Incidents", icon: AlertTriangle, enabled: true, href: (id: string) => `/admin/businesses/${id}/incidents` },
@@ -493,6 +494,8 @@ export function BusinessDetail({
           )
         })}
       </div>
+
+      {tab === "support" && <SupportTicketsPanel type="business" id={business.id}/>}
 
       {tab === "overview" && (
         <Card>

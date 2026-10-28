@@ -45,7 +45,7 @@ export const TICKET_STATUS_LABELS: Record<string, string> = {
   WAITING_CUSTOMER: "Waiting on customer",
   WAITING_PARTNER: "Waiting on partner",
   ESCALATED: "Escalated",
-  RESOLVED: "Resolved",
+  RESOLVED: "Awaiting confirmation",
   CLOSED: "Closed",
   CANCELLED: "Cancelled",
 }
@@ -58,7 +58,7 @@ export const TICKET_STATUS_LABELS_REQUESTER: Record<string, string> = {
   WAITING_CUSTOMER: "Waiting for your reply",
   WAITING_PARTNER: "With our team",
   ESCALATED: "Escalated to senior team",
-  RESOLVED: "Resolved",
+  RESOLVED: "Please confirm resolution",
   CLOSED: "Closed",
   CANCELLED: "Cancelled",
 }

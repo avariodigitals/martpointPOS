@@ -1,5 +1,7 @@
 "use client"
 
+import { SupportConversationEntry } from "@/components/shared/support-conversation-entry"
+
 import { use, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -215,19 +217,11 @@ export default function CustomerTicketDetailPage({
               {messages.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No messages yet.</p>
               ) : (
-                messages.map((m) => (
-                  <div key={m.id} className="p-3 rounded-md border border-border bg-muted/20">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <span className="font-medium text-foreground">{m.author_type}</span>
-                      <span>· {formatDate(m.created_at)}</span>
-                    </div>
-                    <p className="text-sm whitespace-pre-wrap">{m.message}</p>
-                  </div>
-                ))
+                [...messages].sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)).map(m=><SupportConversationEntry key={m.id} message={m}/>)
               )}
             </div>
 
-            {!["RESOLVED", "CLOSED", "CANCELLED"].includes(ticket.status) ? (
+            {!["CLOSED", "CANCELLED"].includes(ticket.status) ? (
               <div className="space-y-3">
                 <textarea
                   value={reply}

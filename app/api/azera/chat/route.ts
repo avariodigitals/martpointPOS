@@ -445,6 +445,13 @@ export async function POST(request: Request) {
       : complaintReason || (salesFollowUp ? "sales_follow_up_requested" : null)
 
     if (conv.ticket_id) {
+      if (customer_name || customer_email) {
+        await supabase.from("support_tickets").update({
+          ...(customer_name ? { requester_name: String(customer_name).trim() } : {}),
+          ...(customer_email ? { requester_email: String(customer_email).trim().toLowerCase() } : {}),
+          updated_at: new Date().toISOString(),
+        }).eq("id", conv.ticket_id)
+      }
       await addTicketMessage(conv.ticket_id, "CUSTOMER", null, message.trim(), "PUBLIC").catch((ticketMessageError) => {
         console.error("[Azera ticket conversation sync failed]", ticketMessageError)
       })
@@ -709,6 +716,8 @@ export async function POST(request: Request) {
             ticketNumber = existingTicket?.ticket_number || null
           } else {
             try {
+              const contactEmail=(typeof customer_email==="string"?customer_email.trim():"") || message.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || ""
+              if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail))throw new Error("support_requester_email_required")
               const category = /security|hacked|data loss|unauthori[sz]ed/i.test(message)
                 ? "SECURITY"
                 : /billing|refund|chargeback|payment|invoice/i.test(message)
@@ -727,6 +736,8 @@ export async function POST(request: Request) {
                 category,
                 priority: reason === "sensitive_or_business_critical" ? "URGENT" : reason === "customer_complaint" ? "HIGH" : "NORMAL",
                 subject: `Azera follow-up — ${customer_name || (queue === "sales" ? "Sales enquiry" : "Customer support")}`,
+                requester_name: typeof customer_name === "string" ? customer_name.trim() || null : conv.customer_name || null,
+                requester_email: contactEmail.toLowerCase(),
                 description: summary,
               })
               ticketId = ticket.id
@@ -734,6 +745,7 @@ export async function POST(request: Request) {
               await addTicketMessage(ticket.id, "SYSTEM", null, summary, "PUBLIC")
             } catch (ticketError) {
               console.error("[Azera offline ticket creation failed]", ticketError)
+              if(ticketError instanceof Error&&ticketError.message==="support_requester_email_required")offlineReply="I’ve saved the details of your issue. Please share your name and email address so I can attach the support ticket to your profile and send you updates."
             }
           }
           if (ticketId && ticketNumber) {

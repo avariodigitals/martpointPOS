@@ -5,6 +5,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/support-ticket-followups",
+      "schedule": "15 * * * *"
+    },
+    {
       "path": "/api/cron/email-sync",
       "schedule": "*/10 * * * *"
     },

@@ -6,7 +6,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from "./supabase"
-import { createTicket, addMessage, getSlaState, type SupportTicket, type SupportMessage } from "./support"
+import { createTicket, addMessage, changeStatus, getSlaState, type SupportTicket, type SupportMessage } from "./support"
 
 export const CREATOR_TICKET_CATEGORY = "CREATOR_NETWORK"
 
@@ -59,9 +59,12 @@ export async function createCreatorTicket(input: {
   message: string
 }): Promise<{ ok: boolean; ticket?: SupportTicket; error?: string }> {
   try {
+    const { data: creator } = await supabase.from("creators").select("full_name,email").eq("id", input.creatorId).maybeSingle()
     const ticket = await createTicket({
       business_id: null,
       creator_id: input.creatorId,
+      requester_name: creator?.full_name || null,
+      requester_email: creator?.email || null,
       created_by_type: "CREATOR",
       created_by_id: input.creatorId,
       source: "PORTAL",
@@ -91,10 +94,7 @@ export async function replyToCreatorTicket(
     await addMessage(ticketId, "CREATOR", creatorId, message, "PUBLIC")
     // A creator reply on a ticket waiting on them re-opens it for the team.
     if (ticket.status === "WAITING_CUSTOMER" || ticket.status === "RESOLVED") {
-      await supabase
-        .from("support_tickets")
-        .update({ status: "IN_PROGRESS", updated_at: new Date().toISOString() })
-        .eq("id", ticketId)
+      await changeStatus(ticketId, "IN_PROGRESS", "CREATOR", creatorId)
     }
     return { ok: true }
   } catch (err) {

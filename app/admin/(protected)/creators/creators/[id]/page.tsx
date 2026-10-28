@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Ban, CheckCircle2, AlertTriangle, ExternalLink } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 import { CallCreatorButton } from "@/components/admin/call-creator-button"
+import { SupportTicketsPanel } from "@/components/admin/support-tickets-panel"
 
 interface Creator {
   id: string; creatorId: string; referralCode: string; fullName: string; email: string
@@ -246,6 +247,8 @@ export default function AdminCreatorDetailPage() {
       </div>
 
       {toast && <p className="rounded-md bg-muted px-4 py-2 text-sm">{toast}</p>}
+
+      <SupportTicketsPanel type="creator" id={creator.id}/>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">

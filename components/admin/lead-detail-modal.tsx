@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { SupportTicketsPanel } from "@/components/admin/support-tickets-panel"
 import { Button } from "@/components/ui/button"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
 import { buildLeadEmailTemplate, buildLeadEmailSubject, LEAD_EMAIL_STAGES, type LeadEmailStageKey } from "@/lib/lead-email-templates"
@@ -103,7 +104,7 @@ interface QuestionRound {
   createdAt: string | null
 }
 
-type Tab = "overview" | "edit" | "notes" | "email" | "questionnaire" | "additional" | "meeting" | "actions"
+type Tab = "overview" | "edit" | "notes" | "email" | "questionnaire" | "additional" | "meeting" | "actions" | "support"
 
 interface LeadEmailMessage {
   id: string
@@ -358,11 +359,13 @@ export function LeadDetailModal({
 
     // Seed the composer with a generated subject so the admin never faces a
     // blank field — but never overwrite a subject they've already typed.
-    setEmailSubjectEdited(false)
-    setEmailForm((p) => (p.subject.trim() ? p : { ...p, subject: buildLeadEmailSubject(null, lead.businessName) }))
+    const seedTimer=window.setTimeout(()=>{
+      setEmailSubjectEdited(false)
+      setEmailForm((p) => (p.subject.trim() ? p : { ...p, subject: buildLeadEmailSubject(null, lead.businessName) }))
+    },0)
 
-    return () => { cancelled = true }
-  }, [tab, lead.id, emailsReloadKey])
+    return () => { cancelled = true;window.clearTimeout(seedTimer) }
+  }, [tab, lead.id, lead.businessName, emailsReloadKey])
 
   useEffect(() => {
     if (tab !== "email" || inboxMailbox) return
@@ -434,7 +437,7 @@ export function LeadDetailModal({
   useEffect(() => {
     if (tab !== "notes") return
     let cancelled = false
-    setLeadNotesLoading(true)
+    const loadingTimer=window.setTimeout(()=>setLeadNotesLoading(true),0)
     fetch(`/api/admin/leads/${lead.id}/notes`)
       .then((res) => res.json())
       .then((data) => {
@@ -446,9 +449,10 @@ export function LeadDetailModal({
         if (!cancelled) setLeadNotesMessage("Failed to load notes")
       })
       .finally(() => {
+        window.clearTimeout(loadingTimer)
         if (!cancelled) setLeadNotesLoading(false)
       })
-    return () => { cancelled = true }
+    return () => { cancelled = true;window.clearTimeout(loadingTimer) }
   }, [tab, lead.id])
 
   const flashLeadNotes = (text: string) => {
@@ -1083,6 +1087,7 @@ export function LeadDetailModal({
     { id: "edit", label: "Edit", icon: <Pencil className="w-3.5 h-3.5" /> },
     { id: "notes", label: "Notes", icon: <MessageSquare className="w-3.5 h-3.5" /> },
     { id: "email", label: "Email", icon: <Mail className="w-3.5 h-3.5" /> },
+    { id: "support", label: "Support tickets", icon: <MessageSquare className="w-3.5 h-3.5" /> },
     { id: "questionnaire", label: "Questionnaire", icon: <ClipboardList className="w-3.5 h-3.5" /> },
     { id: "additional", label: "Additional Questions", icon: <MessageSquarePlus className="w-3.5 h-3.5" /> },
     { id: "meeting", label: "Meeting", icon: <Video className="w-3.5 h-3.5" /> },
@@ -1191,6 +1196,7 @@ export function LeadDetailModal({
 
         {/* ─── Body ─── */}
         <div className="flex-1 overflow-y-auto p-6">
+          {tab === "support" && <SupportTicketsPanel type="lead" id={lead.id}/>}
           {/* ─── Overview ─── */}
           {tab === "overview" && (
             <div className="space-y-6">

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { isConversationIdentityMatch } from "@/lib/azera-identity"
+import { isConversationIdentityMatch, isMerchantBusinessInputMatch } from "@/lib/azera-identity"
 import { tokenFromRequest, verifyConversationToken } from "@/lib/azera-public-auth"
 
 export async function POST(request: Request) {
@@ -14,7 +14,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Rating must be between 1 and 5" }, { status: 400 })
     }
     const claims = verifyConversationToken(tokenFromRequest(request, conversation_token))
-    if (!claims || !business_id || !external_id) return NextResponse.json({ success: false, error: "Conversation authorization is required" }, { status: 401 })
+    if (!claims || !business_id || !external_id)
+      return NextResponse.json(
+        { success: false, error: "Conversation authorization is required" },
+        { status: 401 }
+      )
 
     const { data: conversation, error: findError } = await supabase
       .from("azera_conversations")
@@ -29,12 +33,22 @@ export async function POST(request: Request) {
     if (!conversation) {
       return NextResponse.json({ success: true, conversation: null })
     }
-    if (!isConversationIdentityMatch(claims, conversation) || conversation.business_id !== business_id || conversation.external_id !== external_id) {
+    if (
+      !isConversationIdentityMatch(claims, conversation) ||
+      !(await isMerchantBusinessInputMatch(request, business_id, conversation.business_id)) ||
+      conversation.external_id !== external_id
+    ) {
       return NextResponse.json({ success: false, error: "Conversation not found" }, { status: 404 })
     }
 
     if (rating !== undefined) {
-      const labels: Record<number, string> = { 1: "Very unhappy", 2: "Unhappy", 3: "Okay", 4: "Happy", 5: "Very happy" }
+      const labels: Record<number, string> = {
+        1: "Very unhappy",
+        2: "Unhappy",
+        3: "Okay",
+        4: "Happy",
+        5: "Very happy"
+      }
       const { error: ratingError } = await supabase.from("azera_messages").insert({
         conversation_id: conversation.id,
         author_type: "system",
@@ -42,7 +56,7 @@ export async function POST(request: Request) {
         direction: "inbound",
         message_type: "system",
         metadata: { event: "customer_rating", rating, rating_label: labels[rating] },
-        created_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
       })
       if (ratingError) {
         console.error("[Azera customer rating error]", ratingError)
@@ -52,7 +66,12 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabase
       .from("azera_conversations")
-      .update({ status: "closed", waiting_for_agent: false, ai_enabled: true, updated_at: new Date().toISOString() })
+      .update({
+        status: "closed",
+        waiting_for_agent: false,
+        ai_enabled: true,
+        updated_at: new Date().toISOString()
+      })
       .eq("id", conversation.id)
       .select("id, status, updated_at")
       .single()

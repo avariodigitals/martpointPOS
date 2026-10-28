@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, ArrowLeft, Users, Shield, FileText, Network, Activity, Settings, Check, X, Target, Wrench, LifeBuoy, Coins, BarChart3, Download, Plus, UploadCloud, Trash2, BookOpen, BadgeCheck } from "lucide-react"
+import { Loader2, ArrowLeft, Users, Shield, FileText, Network, Activity, Settings, Check, X, Target, Wrench, Coins, BarChart3, Download, Plus, UploadCloud, Trash2, BookOpen, BadgeCheck } from "lucide-react"
 import { PARTNER_USER_ROLES, PARTNER_ROLE_LABELS, type PartnerUserRole, ORG_CAPABILITY_LABELS, type PartnerOrgCapability, relevantPartnerTabs } from "@/lib/partner-permissions"
 import { referralAdminCan } from "@/lib/referral-permissions"
 import { PARTNER_BADGE_TIERS, PARTNER_BADGE_TIER_LABELS, type PartnerBadgeTier } from "@/lib/partner-badges"
@@ -14,6 +14,7 @@ import { AgreementForm } from "../applications/[id]/agreement-form"
 import { PartnerAssignments } from "@/components/admin/partner-assessments/partner-assignments"
 import { PartnerStandingPanel } from "./standing-panel"
 import { enumLabel, roleLabel } from "@/lib/utils"
+import { SupportTicketsPanel } from "@/components/admin/support-tickets-panel"
 
 const CAPABILITIES = Object.keys(ORG_CAPABILITY_LABELS) as PartnerOrgCapability[]
 
@@ -1462,23 +1463,10 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
       )}
 
       {tab === "support" && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><LifeBuoy className="w-4 h-4" /> Support Tickets</CardTitle></CardHeader>
-          <CardContent>
-            {loading360 ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : ((d360?.supportTickets as Record<string, unknown>[]) || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No support tickets linked to this partner.</p>
-            ) : (
-              <div className="space-y-2">
-                {((d360?.supportTickets as Record<string, unknown>[]) || []).map((t) => (
-                  <div key={t.id as string} className="flex items-center justify-between text-sm p-2 border-b border-border last:border-0">
-                    <span><span className="font-mono text-xs">{t.ticket_number as string}</span> · {t.subject as string} <span className="text-muted-foreground">· {(t.businesses as Record<string, unknown>)?.business_name as string} · {t.priority as string}</span></span>
-                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${t.status === "ESCALATED" ? "bg-red-50 text-red-700" : t.status === "RESOLVED" || t.status === "CLOSED" ? "bg-green-100 text-green-800" : "bg-blue-50 text-blue-700"}`}>{enumLabel(t.status as string)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <SupportTicketsPanel type="partner" id={partnerId}/>
+          <details className="rounded-xl border p-4"><summary className="cursor-pointer text-sm font-medium">Customer tickets assigned to this partner</summary><div className="mt-3 space-y-2">{((d360?.supportTickets as Record<string,unknown>[])||[]).filter(t=>t.requester_partner_id!==partnerId).map(t=><Link key={String(t.id)} href={`/admin/support/${t.id}`} className="block rounded-lg border p-3 text-sm">{String(t.ticket_number)} · {String(t.subject)} <span className="ml-2 text-xs text-muted-foreground">{enumLabel(String(t.status))}</span></Link>)}</div></details>
+        </div>
       )}
 
       {tab === "commissions" && (

@@ -20,7 +20,7 @@ export async function resolveChatBusinessId(
   request: Request,
   source: ChatSource,
   requestedId: unknown,
-  identity?: { email?: unknown; phone?: unknown; name?: unknown },
+  identity?: { email?: unknown; phone?: unknown; name?: unknown }
 ): Promise<{ id?: string; error?: string; status?: number }> {
   if (source === "public_site") {
     // Keep the server authoritative, but accept the public-site variable as a
@@ -56,7 +56,9 @@ export async function resolveChatBusinessId(
 
   // Before the mapping table is populated, use only a unique exact match on
   // trusted PHP store contact data. The browser never supplies these values.
-  const email = String(identity?.email || "").trim().toLowerCase()
+  const email = String(identity?.email || "")
+    .trim()
+    .toLowerCase()
   const phone = String(identity?.phone || "").trim()
   const name = String(identity?.name || "").trim()
   if (!email && !phone) return { error: "This merchant store is not mapped", status: 409 }
@@ -83,8 +85,30 @@ export async function resolveChatBusinessId(
 
 export function isConversationIdentityMatch(
   claims: { conversationId: string; businessId: string; externalId: string },
-  conversation: { id: string; business_id: string; external_id: string },
+  conversation: { id: string; business_id: string; external_id: string }
 ): boolean {
-  return claims.conversationId === conversation.id && claims.businessId === conversation.business_id && claims.externalId === conversation.external_id
+  return (
+    claims.conversationId === conversation.id &&
+    claims.businessId === conversation.business_id &&
+    claims.externalId === conversation.external_id
+  )
 }
 
+/** Legacy PHP IDs are local integers, not canonical business UUIDs. Never
+ * accept one merely because a token exists: resolve the authenticated bridge
+ * store and require that it owns the same business as the conversation. */
+export async function isMerchantBusinessInputMatch(
+  request: Request,
+  requestedId: unknown,
+  businessId: string
+): Promise<boolean> {
+  const input = String(requestedId ?? "").trim()
+  if (input === businessId) return true
+  if (!/^[1-9]\d*$/.test(input) || input !== request.headers.get("x-martpoint-store-id")) return false
+  const resolved = await resolveChatBusinessId(request, "retail_app", input, {
+    email: request.headers.get("x-martpoint-store-email"),
+    phone: request.headers.get("x-martpoint-store-phone"),
+    name: request.headers.get("x-martpoint-store-name")
+  })
+  return resolved.id === businessId
+}

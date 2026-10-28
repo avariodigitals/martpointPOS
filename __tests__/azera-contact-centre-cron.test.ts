@@ -20,6 +20,10 @@ vi.mock("@/lib/supabase", () => ({
 }));
 vi.mock("@/lib/admin-notifications", () => ({ notifyAllAdmins: mocks.notify }));
 vi.mock("@/lib/azera-realtime", () => ({ hangupRealtimeCall: mocks.hangup }));
+// These provider jobs have their own suites. Do not let local Cloudflare
+// credentials or an unmocked campaign RPC change this scheduler unit fixture.
+vi.mock("@/lib/cloudflare-rtc", () => ({ cloudflareSfuConfigured: () => false }));
+vi.mock("@/lib/azera-campaign-worker", () => ({ dispatchAzeraCampaignCall: vi.fn(async () => ({ dispatched: false })) }));
 import { GET } from "@/app/api/cron/azera-contact-centre/route";
 import { GET as voicemailRetention } from "@/app/api/cron/azera-voicemails/route";
 const request = (authorised = true) =>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ticketStatusLabel } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Send } from "lucide-react"
+import { SupportConversationEntry } from "@/components/shared/support-conversation-entry"
 
 interface Ticket {
   id: string
@@ -92,19 +93,7 @@ export function TicketThread({ ticket, messages }: { ticket: Ticket; messages: M
         <CardHeader><CardTitle className="text-sm font-medium">Conversation</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           {messages.length === 0 && <p className="text-sm text-muted-foreground">No messages yet.</p>}
-          {messages.map((m) => {
-            const mine = m.author_type === "CREATOR"
-            return (
-              <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[85%] rounded-lg px-4 py-3 text-sm ${mine ? "bg-retail/10 border border-retail/20" : "bg-muted border"}`}>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-                    {mine ? "You" : "MartPoint Creator Team"} · {fmt(m.created_at)}
-                  </p>
-                  <p className="whitespace-pre-wrap">{m.message}</p>
-                </div>
-              </div>
-            )
-          })}
+          {[...messages].sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)).map(m=><SupportConversationEntry key={m.id} message={m}/>)}
         </CardContent>
       </Card>
 

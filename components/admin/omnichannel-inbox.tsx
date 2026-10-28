@@ -12,6 +12,8 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
+import { SupportRequesterPicker } from "@/components/admin/support-requester-picker";
+import type { SupportRequester } from "@/lib/support-requester";
 import {
   Bot,
   CheckCircle2,
@@ -157,6 +159,10 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
   const followMessages = useRef(true);
   const [showTicket, setShowTicket] = useState(false);
   const [ticketSubject, setTicketSubject] = useState("");
+  const [ticketRequesterName, setTicketRequesterName] = useState("");
+  const [ticketRequesterEmail, setTicketRequesterEmail] = useState("");
+  const [ticketOnBehalfOf, setTicketOnBehalfOf] = useState("");
+  const [ticketOwner,setTicketOwner]=useState<SupportRequester|null>(null);
   const [ticketPriority, setTicketPriority] = useState("NORMAL");
   const [ticketCategory, setTicketCategory] = useState("OTHER");
   const [ticketSaving, setTicketSaving] = useState(false);
@@ -744,6 +750,11 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
             subject: ticketSubject,
             category: ticketCategory,
             priority: ticketPriority,
+            requesterName: ticketRequesterName.trim(),
+            requesterEmail: ticketRequesterEmail.trim(),
+            requesterOnBehalfOf: ticketOnBehalfOf.trim() || null,
+            requesterType:ticketOwner?.type,
+            requesterId:ticketOwner?.id,
           }),
         },
       );
@@ -755,6 +766,9 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
       );
       setShowTicket(false);
       setTicketSubject("");
+      setTicketRequesterName("");
+      setTicketRequesterEmail("");
+      setTicketOnBehalfOf("");
       await loadConversations();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create ticket");
@@ -1284,7 +1298,15 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
                   phone: selected.customer_phone,
                 });
             }}
-            onTicket={() => setShowTicket(true)}
+            onTicket={() => {
+              if (!selected) return
+              setTicketRequesterName(selected.customer_name || "")
+              const requesterMessage = [...messages].reverse().find((item) => item.author_type === "customer" && typeof item.metadata?.customer_email === "string")
+              setTicketRequesterEmail(typeof requesterMessage?.metadata?.customer_email === "string" ? requesterMessage.metadata.customer_email : "")
+              setTicketOnBehalfOf("")
+              setTicketOwner(null)
+              setShowTicket(true)
+            }}
             onUpload={() => void requestUpload()}
             onInvite={() => void inviteTechnical()}
           />
@@ -1332,6 +1354,20 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
               </button>
             </div>
             <div className="space-y-3">
+              <p className="rounded-lg bg-blue-50 p-3 text-xs leading-relaxed text-blue-900">Select the person’s profile below. If you leave the profile unselected, we’ll match their email or create a lead contact for this support request.</p>
+              <SupportRequesterPicker value={ticketOwner} onChange={owner=>{setTicketOwner(owner);if(owner){setTicketRequesterName(owner.contactName||owner.name);setTicketRequesterEmail(owner.email)}}}/>
+              <label className="block text-xs font-medium text-slate-700">
+                Who is this ticket for? *
+                <input value={ticketRequesterName} onChange={(event) => setTicketRequesterName(event.target.value)} placeholder="Customer or contact name" className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" />
+              </label>
+              <label className="block text-xs font-medium text-slate-700">
+                Email for ticket updates *
+                <input type="email" value={ticketRequesterEmail} onChange={(event) => setTicketRequesterEmail(event.target.value)} placeholder="name@example.com" className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" />
+              </label>
+              <label className="block text-xs font-medium text-slate-700">
+                On behalf of (optional)
+                <input value={ticketOnBehalfOf} onChange={(event) => setTicketOnBehalfOf(event.target.value)} placeholder="A colleague, customer, or business" className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" />
+              </label>
               <label className="block text-xs font-medium text-slate-700">
                 Subject
                 <input
@@ -1373,7 +1409,7 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
               </div>
               <button
                 onClick={() => void createTicket()}
-                disabled={ticketSaving}
+                disabled={ticketSaving || !ticketRequesterName.trim() || !ticketRequesterEmail.includes("@")}
                 className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0A0F1C] text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
               >
                 {ticketSaving ? (

@@ -4,6 +4,10 @@ import { ArrowRight, Mail, ShieldCheck, UserCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getSession, getUserById } from "@/lib/admin-auth"
 import { roleLabel } from "@/lib/utils"
+import { ProfileSignatureEditor } from "@/components/admin/profile-signature-editor"
+import { sanitizeSupportHtml } from "@/lib/support-html"
+import { getProfileSignatureTemplate } from "@/lib/profile-signature"
+import { usesSupportPhone } from "@/lib/email-signature"
 
 export const dynamic = "force-dynamic"
 
@@ -12,6 +16,9 @@ export default async function AdminProfilePage() {
   if (!session) redirect("/admin/login?expired=1")
 
   const user = await getUserById(session.userId)
+  const template = await getProfileSignatureTemplate(user || {
+    name: session.name, username: session.username, role: session.role, email: "",
+  })
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -65,6 +72,7 @@ export default async function AdminProfilePage() {
           </CardContent>
         </Card>
       </div>
+      <ProfileSignatureEditor initialSignature={sanitizeSupportHtml(user?.signatureHtml || "")} initialTemplate={template} hasSavedTemplate={Boolean(user?.signatureTemplate)} profilePhone={user?.phone || ""} supportPhone={usesSupportPhone(user?.role || session.role)} />
     </div>
   )
 }

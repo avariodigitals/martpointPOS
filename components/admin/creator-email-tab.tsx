@@ -4,6 +4,11 @@ import { useEffect, useState } from "react"
 import { Eye, Loader2, Mail, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import EmailRichEditor from "@/components/admin/email-rich-editor"
+import { EmailLayoutSwitch } from "@/components/admin/email-layout-switch"
+import type { EmailLayout } from "@/lib/email-layout"
+import { htmlToText } from "@/lib/email-html"
+import { EmailDraftControls, useEmailDraft } from "@/components/admin/email-draft-controls"
 
 interface CreatorEmail {
   id: string
@@ -24,6 +29,8 @@ export function CreatorEmailTab({ applicationId, name, email }: { applicationId:
   const [loading, setLoading] = useState(true)
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
+  const [layout, setLayout] = useState<EmailLayout>("normal")
+  const draft = useEmailDraft("creators", applicationId)
   const [busy, setBusy] = useState<"send" | "preview" | null>(null)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
@@ -49,12 +56,12 @@ export function CreatorEmailTab({ applicationId, name, email }: { applicationId:
     try {
       const response = await fetch(`/api/admin/creators/applications/${applicationId}/emails`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, body }),
+        body: JSON.stringify({ subject, body: htmlToText(body), bodyHtml: body, layout }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Email could not be sent")
       setMessages((current) => [...current, data.email])
-      setSubject(""); setBody("")
+      if (data.sent) { await draft.remove(); setSubject(""); setBody(""); setPreview("") }
       if (data.warning) setError(data.warning)
       else setNotice(`Email sent to ${email}. Reply-To is creators@martpoint.com.ng.`)
     } catch (cause) {
@@ -68,7 +75,7 @@ export function CreatorEmailTab({ applicationId, name, email }: { applicationId:
     setBusy("preview"); setError("")
     try {
       const response = await fetch(`/api/admin/creators/applications/${applicationId}/emails/preview`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: htmlToText(body), bodyHtml: body, layout }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Preview could not be rendered")
@@ -87,22 +94,25 @@ export function CreatorEmailTab({ applicationId, name, email }: { applicationId:
         <CardContent className="space-y-4">
           <div className="text-sm"><span className="text-muted-foreground">To:</span> {email}</div>
           <p className="text-xs text-muted-foreground">This is a normal email, separate from Additional Questions. Your email signature and the MartPoint banner are added automatically. Reply-To is creators@martpoint.com.ng; replies are filed here when that mailbox is connected to the email sync.</p>
+          <EmailLayoutSwitch value={layout} disabled={!!busy} onChange={(value) => { setLayout(value); setPreview("") }} />
+          <EmailDraftControls manager={draft} disabled={!!busy}
+            getDraft={() => ({ subject, bodyHtml: body, layout, attachments: [] })}
+            onRestore={(saved) => { setSubject(saved.subject); setBody(saved.bodyHtml); setLayout(saved.layout); setPreview("") }} />
           <div>
             <label className="mb-1 block text-xs font-medium">Subject</label>
             <input className={inputCls} value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={500} placeholder="Email subject" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium">Message</label>
-            <textarea className={`${inputCls} min-h-48 resize-y`} value={body} onChange={(event) => setBody(event.target.value)} maxLength={20000} placeholder={`Hi ${name},\n\nWrite your message here…`} />
-            <p className="mt-1 text-right text-[11px] text-muted-foreground">Simple email text · {body.length}/20,000</p>
+            <EmailRichEditor value={body} onChange={(value) => { setBody(value); setPreview("") }} allowImages={false} disabled={!!busy} minHeight={280} />
           </div>
           {error && <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           {notice && <p role="status" className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{notice}</p>}
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="outline" onClick={showPreview} disabled={!!busy || !body.trim()}>
+            <Button variant="outline" onClick={showPreview} disabled={!!busy || !htmlToText(body).trim()}>
               {busy === "preview" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}Preview
             </Button>
-            <Button onClick={send} disabled={!!busy || !subject.trim() || !body.trim() || !email}>
+            <Button onClick={send} disabled={!!busy || draft.busy || draft.loading || !subject.trim() || !htmlToText(body).trim() || htmlToText(body).length > 20000 || body.length > 50000 || !email}>
               {busy === "send" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}Send email
             </Button>
           </div>

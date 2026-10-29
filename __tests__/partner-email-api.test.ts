@@ -232,4 +232,13 @@ describe("partner email routes", () => {
     expect(data.html).toContain("footerbanner.png")
     expect(m.send).not.toHaveBeenCalled()
   })
+  it("keeps the normal email preview and sent document identical", async () => {
+    const styledInput = { ...input, layout: "normal" }
+    const previewData = await (await preview(request(styledInput), params)).json()
+    m.result.mockResolvedValueOnce({ data: null }).mockResolvedValueOnce({ data: row }).mockResolvedValueOnce({ data: { ...row, status: "accepted" } })
+    expect((await POST(request(styledInput), params)).status).toBe(200)
+    expect(m.send.mock.calls[0][0].html).toBe(previewData.html)
+    expect(previewData.html).toContain('data-martpoint-layout="normal"')
+    expect(previewData.html).not.toContain("linear-gradient")
+  })
 })

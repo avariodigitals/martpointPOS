@@ -2,8 +2,8 @@ import { z } from "zod"
 import { supabase } from "@/lib/supabase"
 import { buildSignatureHtml, escapeHtml, htmlToText } from "@/lib/email-html"
 import { sanitizeSupportHtml } from "@/lib/support-html"
-import { ensureBrandedHtml } from "@/lib/email-templates"
-import { getEmailFooterSettings } from "@/lib/settings"
+import type { EmailLayout } from "@/lib/email-layout"
+import { renderCorrespondenceHtml } from "@/lib/email-correspondence"
 
 export interface PartnerEmailRecipient {
   email: string
@@ -49,17 +49,14 @@ export function buildPartnerEmailContent(bodyHtml: string, signatureHtml: string
   }
 }
 
-export async function renderPartnerEmail(bodyHtml: string, signatureHtml: string, senderName: string) {
+export async function renderPartnerEmail(bodyHtml: string, signatureHtml: string, senderName: string, layout: EmailLayout = "branded") {
   const content = buildPartnerEmailContent(bodyHtml, signatureHtml, senderName)
-  const footer = await getEmailFooterSettings()
   return {
     text: content.text,
-    html: ensureBrandedHtml(content.html, {
-      text: content.text,
+    html: await renderCorrespondenceHtml(content.html, content.text, layout, {
       eyebrow: "Partner Network",
       title: "Message from MartPoint",
       signoff: "MartPoint Partner Team",
-      footer
     })
   }
 }

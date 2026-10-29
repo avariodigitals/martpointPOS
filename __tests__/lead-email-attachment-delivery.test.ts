@@ -6,6 +6,7 @@ vi.mock("@/lib/email", () => ({
   isSmtpConfigured: () => true, REPLY_TO: { sales: "sales@martpoint.com.ng" }
 }))
 vi.mock("@/lib/email-smtp", () => ({ sendEmailViaSmtp: m.smtp }))
+vi.mock("@/lib/settings", () => ({ getEmailFooterSettings: async () => ({ companyName: "MartPoint" }) }))
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
   supabase: { from: () => ({ insert: m.insert }) }
@@ -26,6 +27,16 @@ beforeEach(() => {
 })
 
 describe("lead document delivery", () => {
+  it("sends a normal rich email without rewrapping it in a card and keeps its attachments", async () => {
+    const result = await sendLeadEmail({ ...input, bodyHtml: "<p>Hello <strong>Ade</strong></p>", layout: "normal", signatureHtml: "<p>Ada</p>" })
+    const message = m.send.mock.calls[0][0]
+    expect(message.skipBranding).toBe(true)
+    expect(message.attachments).toEqual([attachment])
+    expect(message.html).toContain('data-martpoint-layout="normal"')
+    expect(message.html).toContain("<strong>Ade</strong>")
+    expect(message.html).not.toContain("linear-gradient")
+    expect(result.email?.metadata?.layout).toBe("normal")
+  })
   it("passes intact attachment bytes to the provider and records filenames and sizes without storing file content in the thread", async () => {
     const result = await sendLeadEmail(input)
     expect(result.sent).toBe(true)

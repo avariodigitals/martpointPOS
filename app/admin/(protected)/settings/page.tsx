@@ -8,6 +8,7 @@ import { GoogleMeetSettingsCard } from "@/components/admin/google-meet-settings-
 import { DriveSettingsCard } from "@/components/admin/drive-settings-card"
 
 interface GeneralSettings {
+  supportPhone: string
   contactEmail: string
   whatsappNumber: string
   phone: string
@@ -131,6 +132,7 @@ interface OmnichannelSettings {
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<GeneralSettings>({
+    supportPhone: "",
     contactEmail: "",
     whatsappNumber: "",
     phone: "",
@@ -596,6 +598,13 @@ export default function AdminSettingsPage() {
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="+2348037978230"
                 />
+              </div>
+              <div>
+                <label htmlFor="support-phone" className="block text-sm font-medium mb-1">Support Phone Number</label>
+                <input id="support-phone" type="tel" value={settings.supportPhone || ""}
+                  onChange={(e) => setSettings({ ...settings, supportPhone: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                <p className="mt-1 text-xs text-muted-foreground">Used in Customer Care and Tech email signatures. Falls back to Phone Number when empty.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Bank Details</label>

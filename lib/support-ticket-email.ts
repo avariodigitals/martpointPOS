@@ -1,5 +1,6 @@
 import crypto from "crypto"
 import { getUserById } from "@/lib/admin-auth"
+import { resolveProfileSignature } from "@/lib/profile-signature"
 import { sendEmail, REPLY_TO, getEmailSettings } from "@/lib/email"
 import { appendSignatureToHtml, bodyTextToHtml, htmlToText, escapeHtml } from "@/lib/email-html"
 import { sanitizeSupportHtml } from "@/lib/support-html"
@@ -36,7 +37,7 @@ export async function ticketSender(actorId?: string | null) {
     actorId ? getUserById(actorId) : Promise.resolve(null)
   ])
   const signature = actor
-    ? actor.signatureHtml?.trim() ||
+    ? (await resolveProfileSignature(actor)) ||
       `<p><strong>${escapeHtml(actor.name || actor.username)}</strong><br>MartPoint Support</p>`
     : settings.signatureHtml?.trim() ||
       (settings.signature

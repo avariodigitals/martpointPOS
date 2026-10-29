@@ -274,10 +274,35 @@ ${body}
 }
 
 /**
- * Absolute URL of the WHITE MartPoint logo for dark backgrounds (email headers).
- * Defaults to `/logo-white.png` on the site (the white logo asset in `public/`).
- * Override with `EMAIL_LOGO_WHITE_URL` if the asset moves or is hosted on a CDN.
+ * Personal correspondence: white canvas, configured footer and banner.
  */
+export function normalEmailHtml(body: string, opts: { footer?: EmailFooterOptions; title?: string } = {}): string {
+  const footer = opts.footer || defaultEmailFooter()
+  const company = footer.companyName || "MartPoint"
+  const website = (footer.website || "martpoint.com.ng").replace(/^https?:\/\//, "").replace(/\/$/, "")
+  const contact = [
+    footer.contactEmail ? `<a href="mailto:${escapeHtml(footer.contactEmail)}">${escapeHtml(footer.contactEmail)}</a>` : "",
+    footer.phone ? `<a href="tel:${escapeHtml(footer.phone.replace(/[^\d+]/g, ""))}">${escapeHtml(footer.phone)}</a>` : "",
+    footer.whatsappNumber ? `<a href="https://wa.me/${footer.whatsappNumber.replace(/\D/g, "")}">WhatsApp</a>` : "",
+    `<a href="https://${escapeHtml(website)}">${escapeHtml(website)}</a>`,
+  ].filter(Boolean).join(" &middot; ")
+  const social = Object.entries(footer.social || {})
+    .filter(([key, url]) => SOCIAL_META[key] && url?.trim())
+    .map(([key, url]) => `<a href="${escapeHtml(url!)}">${SOCIAL_META[key].label}</a>`).join(" &middot; ")
+  const { banner } = buildEmailFooter("", footer)
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(opts.title || "Message from MartPoint")}</title>
+<style>p{margin:0 0 12px}a{color:#0057ff}img{max-width:100%;height:auto}blockquote{margin:12px 0;padding-left:16px;border-left:2px solid #ddd}h2{font-size:20px}h3{font-size:17px}</style></head>
+<body data-martpoint-layout="normal" style="margin:0;padding:16px;background-color:#ffffff;color:#111827;font:14px/1.6 Arial,Helvetica,sans-serif;text-align:left;">
+<div style="max-width:720px;">${body}</div>
+<div style="max-width:600px;margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font:12px/1.6 Arial,Helvetica,sans-serif;color:#6b7280;">
+<p><strong>${escapeHtml(company)}</strong><br>MartPoint — the operating system for growing African businesses.</p>
+<p>${contact}</p>${footer.address ? `<p>${escapeHtml(footer.address)}</p>` : ""}${social ? `<p>${social}</p>` : ""}
+<p>&copy; ${new Date().getFullYear()} ${escapeHtml(company)}. All rights reserved.</p>
+${banner}</div></body></html>`
+}
+
+/** Absolute URL of the white logo used on branded email headers. */
 export function getEmailWhiteLogoUrl(): string | undefined {
   const configured = (process.env.EMAIL_LOGO_WHITE_URL || "").trim()
   if (configured) return configured
@@ -300,6 +325,7 @@ export function ensureBrandedHtml(
   // A branded email always contains the MartPoint gradient header (with or
   // without the white logo image) and the branded footer tagline.
   const alreadyBranded =
+    /data-martpoint-layout="normal"/i.test(html || "") ||
     /linear-gradient\(135deg,\s*#0057FF/i.test(html || "") ||
     /MartPoint &middot; martpoint\.com\.ng/i.test(html || "")
 

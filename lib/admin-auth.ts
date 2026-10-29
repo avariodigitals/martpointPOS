@@ -48,6 +48,8 @@ function mapUser(row: Record<string, unknown>): User {
     email: (row.email as string) || "",
     name: row.name as string,
     signatureHtml: (row.signature_html as string) || "",
+    phone: (row.phone as string) || "",
+    signatureTemplate: (row.signature_template as User["signatureTemplate"]) || null,
     passwordHash: row.password_hash as string,
     role: row.role as UserRole,
     status: (row.status as "ACTIVE" | "DISABLED") ?? "ACTIVE",
@@ -130,7 +132,13 @@ export async function updateUser(
   if (updates.username) updateData.username = updates.username
   if (updates.email !== undefined) updateData.email = updates.email.trim().toLowerCase() || null
   if (updates.name) updateData.name = updates.name
-  if (updates.signatureHtml !== undefined) updateData.signature_html = updates.signatureHtml
+  if (updates.signatureHtml !== undefined) {
+    updateData.signature_html = updates.signatureHtml
+    // Editing a custom signature in team management replaces the generated template.
+    updateData.signature_template = updates.signatureTemplate ?? null
+  }
+  if (updates.phone !== undefined) updateData.phone = updates.phone.trim()
+  if (updates.signatureTemplate !== undefined) updateData.signature_template = updates.signatureTemplate
   if (updates.role) updateData.role = updates.role
   if (updates.status) updateData.status = updates.status
   if (updates.password) updateData.password_hash = hashPassword(updates.password)

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Image from "@tiptap/extension-image"
+import { htmlToText } from "@/lib/email-html"
 import {
   Bold,
   Italic,
@@ -22,6 +23,9 @@ import {
   Heading3,
   Minus,
   Loader2,
+  Pilcrow,
+  Eraser,
+  X,
 } from "lucide-react"
 
 interface EmailRichEditorProps {
@@ -32,6 +36,7 @@ interface EmailRichEditorProps {
   allowImages?: boolean
   /** Minimum height of the editable area in px. */
   minHeight?: number
+  disabled?: boolean
 }
 
 function ToolbarButton({
@@ -64,17 +69,21 @@ function ToolbarButton({
   )
 }
 
-export default function EmailRichEditor({ value, onChange, onUploadImage, allowImages = true, minHeight = 220 }: EmailRichEditorProps) {
+export default function EmailRichEditor({ value, onChange, onUploadImage, allowImages = true, minHeight = 220, disabled = false }: EmailRichEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [urlPanel, setUrlPanel] = useState<"link" | "image" | null>(null)
+  const [url, setUrl] = useState("")
+  const [urlError, setUrlError] = useState("")
 
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Image.configure({ inline: false }),
+      ...(allowImages ? [Image.configure({ inline: false })] : []),
     ],
     content: value,
     immediatelyRender: false,
+    editable: !disabled,
     shouldRerenderOnTransaction: true,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
@@ -82,7 +91,7 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
         spellcheck: "true",
         "aria-label": "Message editor",
         class:
-          "prose-sm max-w-none px-3 py-2 outline-none text-sm [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:my-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:my-2 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_a]:text-retail [&_a]:underline [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded",
+          "prose-sm max-w-none px-4 py-4 outline-none text-sm leading-7 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:my-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:my-2 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_a]:text-retail [&_a]:underline [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded",
         style: `min-height:${minHeight}px`,
       },
     },
@@ -92,25 +101,39 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
     if (editor && value !== editor.getHTML()) editor.commands.setContent(value || "", { emitUpdate:false })
   }, [editor,value])
 
+  useEffect(() => { editor?.setEditable(!disabled) }, [editor, disabled])
+
   const setLink = () => {
     if (!editor) return
-    const previous = editor.getAttributes("link").href
-    const url = window.prompt("Link URL:", previous || "https://")
-    if (url === null) return
-    if (url === "" || url === "https://") {
-      editor.chain().focus().unsetLink().run()
-      return
-    }
-    editor.chain().focus().setLink({ href: url }).run()
+    setUrl(editor.getAttributes("link").href || "https://")
+    setUrlError("")
+    setUrlPanel("link")
   }
 
   const pickImage = () => fileRef.current?.click()
 
   const insertImageUrl = () => {
     if (!editor) return
-    const url = window.prompt("Image URL:", "https://")
-    if (!url || url === "https://") return
-    editor.chain().focus().setImage({ src: url }).run()
+    setUrl("https://")
+    setUrlError("")
+    setUrlPanel("image")
+  }
+
+  const applyUrl = () => {
+    if (!editor || disabled) return
+    const value = url.trim()
+    try {
+      const parsed = new URL(value)
+      const protocols = urlPanel === "image" ? ["http:", "https:"] : ["http:", "https:", "mailto:", "tel:"]
+      if (!protocols.includes(parsed.protocol)) throw new Error("Unsupported URL")
+      if (urlPanel === "image") editor.chain().focus().setImage({ src: value }).run()
+      else if (editor.state.selection.empty && !editor.isActive("link")) {
+        editor.chain().focus().insertContent([{ type: "text", text: value, marks: [{ type: "link", attrs: { href: value } }] }]).run()
+      } else editor.chain().focus().extendMarkRange("link").setLink({ href: value }).run()
+      setUrlPanel(null)
+    } catch {
+      setUrlError(urlPanel === "image" ? "Enter a complete http:// or https:// image URL." : "Enter a complete web, mailto: or tel: link.")
+    }
   }
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,9 +152,13 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
   }
 
   return (
-    <div className="rounded-md border border-input bg-background">
+    <div className={`overflow-hidden rounded-lg border border-input bg-background focus-within:ring-2 focus-within:ring-primary/20 ${disabled ? "opacity-70" : ""}`}>
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5">
+      <fieldset disabled={disabled || !editor} className="border-0 p-0">
+      <div role="toolbar" aria-label="Email formatting" className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/30 px-2 py-2">
+        <ToolbarButton title="Normal paragraph" onClick={() => editor?.chain().focus().setParagraph().run()} active={editor?.isActive("paragraph")}>
+          <Pilcrow className="w-4 h-4" />
+        </ToolbarButton>
         <ToolbarButton title="Heading" onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} active={editor?.isActive("heading", { level: 2 })}>
           <Heading2 className="w-4 h-4" />
         </ToolbarButton>
@@ -184,9 +211,32 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
         <ToolbarButton title="Redo" onClick={() => editor?.chain().focus().redo().run()} disabled={!editor?.can().redo()}>
           <Redo2 className="w-4 h-4" />
         </ToolbarButton>
+        <ToolbarButton title="Clear formatting" onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}>
+          <Eraser className="w-4 h-4" />
+        </ToolbarButton>
       </div>
+      {urlPanel && (
+        <div className="space-y-2 border-b bg-muted/20 p-3">
+          <label className="block text-xs font-medium">
+            {urlPanel === "image" ? "Image URL" : "Link address"}
+            <input type="url" aria-label={urlPanel === "image" ? "Image URL" : "Link address"} value={url} onChange={(event) => { setUrl(event.target.value); setUrlError("") }}
+              onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); applyUrl() } if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setUrlPanel(null) } }}
+              className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm" />
+          </label>
+          {urlError && <p role="alert" className="text-xs text-destructive">{urlError}</p>}
+          <div className="flex gap-2">
+            <button type="button" onClick={applyUrl} className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground">{urlPanel === "image" ? "Insert image" : "Apply link"}</button>
+            <button type="button" onClick={() => setUrlPanel(null)} className="flex items-center gap-1 px-2 text-xs"><X className="h-3 w-3" />Cancel</button>
+          </div>
+        </div>
+      )}
+      </fieldset>
 
       <EditorContent editor={editor} />
+      <div className="flex flex-wrap justify-between gap-2 border-t px-3 py-2 text-[11px] text-muted-foreground">
+        <span>Ctrl / ⌘ + B bold · I italic · Z undo</span>
+        <span>{htmlToText(value).length.toLocaleString()} characters</span>
+      </div>
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={handleFile} />
     </div>
   )

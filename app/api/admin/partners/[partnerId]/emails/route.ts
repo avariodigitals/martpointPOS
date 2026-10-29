@@ -1,3 +1,4 @@
+import { resolveProfileSignature } from "@/lib/profile-signature"
 import { NextResponse } from "next/server"
 import { createHash, randomUUID } from "crypto"
 import { z } from "zod"
@@ -10,6 +11,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { htmlToText } from "@/lib/email-html"
 import { sanitizeSupportHtml } from "@/lib/support-html"
+import { EMAIL_LAYOUTS } from "@/lib/email-layout"
 import {
   loadPartnerEmailContext,
   mapPartnerEmail,
@@ -19,6 +21,7 @@ import {
 
 type Context = { params: Promise<{ partnerId: string }> }
 const schema = z.object({
+  layout: z.enum(EMAIL_LAYOUTS).optional(),
   recipient: z.email().transform((email) => email.toLowerCase()),
   subject: z
     .string()
@@ -79,7 +82,7 @@ export async function POST(request: Request, { params }: Context) {
   if (!htmlToText(sanitizeSupportHtml(input.bodyHtml)).trim())
     return NextResponse.json({ error: "Message is required" }, { status: 400 })
   const fingerprint = createHash("sha256")
-    .update(JSON.stringify([session.userId, input.recipient, input.subject, input.bodyHtml]))
+    .update(JSON.stringify([session.userId, input.recipient, input.subject, input.bodyHtml, ...(input.layout ? [input.layout] : [])]))
     .digest("hex")
   try {
     // A network retry must never send the same message twice.
@@ -121,7 +124,7 @@ export async function POST(request: Request, { params }: Context) {
       ? settings.smtp.fromEmail || settings.smtp.user || settings.fromEmail || REPLY_TO.partners
       : settings.fromEmail || process.env.RESEND_FROM_EMAIL || REPLY_TO.partners
     const senderName = actor?.name || session.name || session.username
-    const content = await renderPartnerEmail(input.bodyHtml, actor?.signatureHtml || "", senderName)
+    const content = await renderPartnerEmail(input.bodyHtml, await resolveProfileSignature(actor), senderName, input.layout)
     const messageId = `<partner-${randomUUID()}@martpoint.com.ng>`
     // Persist first: no mail leaves if the history cannot be recorded.
     const saved = await supabase
@@ -141,7 +144,7 @@ export async function POST(request: Request, { params }: Context) {
         request_hash: fingerprint,
         sent_by: session.userId,
         sent_by_name: senderName,
-        metadata: { reply_to: "partners@martpoint.com.ng" }
+        metadata: { reply_to: "partners@martpoint.com.ng", layout: input.layout || "branded" }
       })
       .select(PARTNER_EMAIL_FIELDS)
       .single()

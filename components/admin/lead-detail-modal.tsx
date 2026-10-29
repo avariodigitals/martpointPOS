@@ -1,7 +1,13 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { LEAD_EMAIL_ATTACHMENT_HINT, MAX_LEAD_EMAIL_ATTACHMENT_BYTES, MAX_LEAD_EMAIL_ATTACHMENTS } from "@/lib/lead-email-attachments"
+import { base64ByteLength, LEAD_EMAIL_ATTACHMENT_HINT, MAX_LEAD_EMAIL_ATTACHMENT_BYTES, MAX_LEAD_EMAIL_ATTACHMENTS } from "@/lib/lead-email-attachments"
+import { EmailDraftControls, useEmailDraft } from "@/components/admin/email-draft-controls"
+import EmailRichEditor from "@/components/admin/email-rich-editor"
+import { EmailLayoutSwitch } from "@/components/admin/email-layout-switch"
+import type { EmailLayout } from "@/lib/email-layout"
+import { htmlToText, textToHtml } from "@/lib/email-html"
+import { leadReplyRecipients } from "@/lib/lead-email-reply"
 import { SupportTicketsPanel } from "@/components/admin/support-tickets-panel"
 import { Button } from "@/components/ui/button"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
@@ -263,12 +269,15 @@ export function LeadDetailModal({
   const [emailsReloadKey, setEmailsReloadKey] = useState(0)
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null)
   const [replyContext, setReplyContext] = useState<{ emailId: string; replyAll: boolean } | null>(null)
+  const [ownEmailAddresses, setOwnEmailAddresses] = useState<string[] | null>(null)
   // True once the admin types their own subject; auto-fill then stands down.
   const [emailSubjectEdited, setEmailSubjectEdited] = useState(false)
   const [inboxMailbox, setInboxMailbox] = useState<{ configured: boolean; mailbox: string } | null>(null)
   const [inboxChecking, setInboxChecking] = useState(false)
   const [inboxSummary, setInboxSummary] = useState("")
   const [emailForm, setEmailForm] = useState({ subject: "", body: "" })
+  const [emailLayout, setEmailLayout] = useState<EmailLayout>("normal")
+  const emailDraft = useEmailDraft("leads", lead.id)
   const [emailTemplateKey, setEmailTemplateKey] = useState<LeadEmailStageKey | null>(null)
   const [emailTemplateIndustry, setEmailTemplateIndustry] = useState(
     lead.industry || resolveIndustryName(lead.businessType) || "",
@@ -352,6 +361,7 @@ export function LeadDetailModal({
           setEmails([])
         } else {
           setEmails([...(data.emails || [])].reverse())
+          setOwnEmailAddresses(Array.isArray(data.ownAddresses) ? data.ownAddresses : null)
         }
       })
       .catch(() => {
@@ -910,13 +920,18 @@ export function LeadDetailModal({
     fullName: lead.fullName,
     businessName: lead.businessName,
   }
+  const replyOriginal = replyContext ? emails.find((email) => email.id === replyContext.emailId) : null
+  const replyRecipients = replyOriginal && ownEmailAddresses
+    ? leadReplyRecipients(replyOriginal, lead, ownEmailAddresses, !!replyContext?.replyAll)
+    : null
+  const replyReady = !replyContext || !!replyRecipients
   const appliedEmailTemplate = emailTemplateKey
     ? buildLeadEmailTemplate(emailTemplateKey, emailTemplateIndustry, emailTemplateVars)
     : null
   const emailTemplateUnedited = Boolean(
     appliedEmailTemplate &&
       emailForm.subject === appliedEmailTemplate.subject &&
-      emailForm.body === appliedEmailTemplate.text,
+      htmlToText(emailForm.body) === htmlToText(textToHtml(appliedEmailTemplate.text)),
   )
 
   const applyEmailTemplate = (key: LeadEmailStageKey, industry = emailTemplateIndustry) => {
@@ -924,7 +939,7 @@ export function LeadDetailModal({
     setEmailTemplateKey(key)
     setEmailForm((p) => ({
       subject: emailSubjectEdited ? p.subject : tpl.subject,
-      body: tpl.text,
+      body: textToHtml(tpl.text),
     }))
   }
 
@@ -932,7 +947,7 @@ export function LeadDetailModal({
    * branded template shell or plain body + settings signature — shown in the
    * Preview panel without sending anything. */
   const handlePreviewEmail = async () => {
-    if (!emailForm.subject.trim() || !emailForm.body.trim()) return
+    if (!emailForm.subject.trim() || !htmlToText(emailForm.body).trim()) return
     setPreviewLoading(true)
     setEmailsError("")
     try {
@@ -941,7 +956,9 @@ export function LeadDetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subject: emailForm.subject.trim(),
-          body: emailForm.body,
+          body: htmlToText(emailForm.body),
+          bodyHtml: emailForm.body,
+          layout: emailLayout,
           template:
             emailTemplateKey && emailTemplateUnedited
               ? { key: emailTemplateKey, industry: emailTemplateIndustry || undefined }
@@ -959,7 +976,7 @@ export function LeadDetailModal({
   }
 
   const handleSendEmail = async () => {
-    if (sendingEmail || attachmentReadLock.current || !emailForm.subject.trim() || !emailForm.body.trim()) return
+    if (sendingEmail || attachmentReadLock.current || !replyReady || !emailForm.subject.trim() || !htmlToText(emailForm.body).trim()) return
     setSendingEmail(true)
     setEmailsError("")
     try {
@@ -968,7 +985,9 @@ export function LeadDetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subject: emailForm.subject.trim(),
-          body: emailForm.body,
+          body: htmlToText(emailForm.body),
+          bodyHtml: emailForm.body,
+          layout: emailLayout,
           template:
             emailTemplateKey && emailTemplateUnedited
               ? { key: emailTemplateKey, industry: emailTemplateIndustry || undefined }
@@ -987,6 +1006,7 @@ export function LeadDetailModal({
           setEmailsError("Delivery failed — check email settings. Your message and attachments have been kept for retry.")
           return
         }
+        await emailDraft.remove()
         setEmailSubjectEdited(false)
         setEmailForm({ subject: buildLeadEmailSubject(null, lead.businessName), body: "" })
         setEmailTemplateKey(null)
@@ -1069,6 +1089,7 @@ export function LeadDetailModal({
     setEmailSubjectEdited(true)
     setEmailForm({ subject, body: "" })
     setExpandedEmailId(msg.id)
+    requestAnimationFrame(() => document.getElementById("lead-email-composer")?.scrollIntoView({ behavior: "smooth", block: "start" }))
   }
 
   const productLabel =
@@ -1654,7 +1675,7 @@ export function LeadDetailModal({
                         {open && (
                           <div className="px-4 pb-4 space-y-3">
                             <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                              <span className="min-w-0 truncate">
+                              <span className="min-w-0 break-all">
                                 {msg.direction === "outbound" ? "You" : msg.fromEmail || "Lead"} → {msg.direction === "outbound" ? msg.toEmail : "you"}
                               </span>
                               <div className="flex items-center gap-3 shrink-0">
@@ -1693,6 +1714,9 @@ export function LeadDetailModal({
                                 )}
                               </div>
                             </div>
+                            {typeof msg.metadata?.cc === "string" && msg.metadata.cc && (
+                              <p className="break-all text-xs text-muted-foreground"><span className="font-medium">Cc:</span> {msg.metadata.cc}</p>
+                            )}
                             {msg.bodyText ? (
                               <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{msg.bodyText}</p>
                             ) : (
@@ -1723,7 +1747,7 @@ export function LeadDetailModal({
                 <p role="alert" className="text-sm text-destructive">{emailsError}</p>
               )}
 
-                <div className="rounded-lg border border-border p-4 space-y-3">
+                <div id="lead-email-composer" className="rounded-lg border border-border p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className={labelClass}>{replyContext ? (replyContext.replyAll ? "Reply all" : "Reply") : "New message"}</p>
                   {replyContext && (
@@ -1742,6 +1766,37 @@ export function LeadDetailModal({
                 </div>
 
                 {/* Packaged, industry-specific email templates */}
+                <div className="space-y-2 rounded-md border bg-muted/10 p-3">
+                  <div>
+                    <p className="text-xs font-medium">To</p>
+                    <div aria-label="Email To recipients" className={`${inputClass} mt-1 flex flex-wrap gap-1.5`}>
+                      {(replyContext ? replyRecipients?.to || [] : [lead.email, lead.additionalEmail].filter(Boolean)).map((address) => <span key={address} className="break-all rounded bg-muted px-2 py-1">{address}</span>)}
+                      {replyContext && !replyReady && <span>Loading reply recipients…</span>}
+                    </div>
+                  </div>
+                  {(replyContext?.replyAll || !!replyRecipients?.cc.length) && (
+                    <div>
+                      <p className="text-xs font-medium">Cc</p>
+                      <div aria-label="Email Cc recipients" className={`${inputClass} mt-1 flex flex-wrap gap-1.5`}>
+                        {replyRecipients?.cc.map((address) => <span key={address} className="break-all rounded bg-muted px-2 py-1">{address}</span>)}
+                        {!replyRecipients?.cc.length && <span className="text-muted-foreground">{replyReady ? "No additional Cc recipients" : "Loading copied recipients…"}</span>}
+                      </div>
+                    </div>
+                  )}
+                  {replyContext && <p className="text-xs text-muted-foreground">{replyReady ? "These are the recipients that will receive your reply. Your own mailbox and duplicate addresses are excluded." : "Load the email thread to confirm recipients before sending."}</p>}
+                </div>
+                <EmailLayoutSwitch value={emailLayout} disabled={sendingEmail || previewLoading} onChange={(layout) => { setEmailLayout(layout); setEmailPreview(null) }} />
+                <EmailDraftControls manager={emailDraft} disabled={sendingEmail || readingAttachments || previewLoading}
+                  getDraft={() => ({ subject: emailForm.subject, bodyHtml: emailForm.body, layout: emailLayout, replyContext, attachments: emailAttachments.map(({ filename, content }) => ({ filename, content })) })}
+                  onRestore={(draft) => {
+                    setEmailForm({ subject: draft.subject, body: draft.bodyHtml })
+                    setEmailLayout(draft.layout)
+                    setEmailSubjectEdited(true)
+                    setReplyContext(draft.replyContext || null)
+                    setEmailTemplateKey(null)
+                    setEmailAttachments(draft.attachments.map((file) => ({ ...file, size: base64ByteLength(file.content) })))
+                    setEmailPreview(null)
+                  }} />
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground">Templates</p>
@@ -1786,14 +1841,14 @@ export function LeadDetailModal({
                     <p className="text-[11px] text-muted-foreground">
                       {emailTemplateUnedited ? (
                         <>
-                          Sends as a branded HTML email
+                          Template copy loaded
                           {appliedEmailTemplate.industry ? (
                             <> tailored to <span className="font-medium text-foreground">{appliedEmailTemplate.industry}</span></>
                           ) : null}
-                          . Editing the copy below switches it to a simple email.
+                          . Edit it below and choose either email style.
                         </>
                       ) : (
-                        <>Copy edited — this will send as a simple email instead of the branded HTML template.</>
+                        <>Your edited copy and formatting will be kept in the selected email style.</>
                       )}{" "}
                       <button
                         type="button"
@@ -1816,13 +1871,14 @@ export function LeadDetailModal({
                   placeholder={`Subject — e.g. MartPoint for ${lead.businessName || "your business"}`}
                   className={inputClass}
                 />
-                <textarea
-                  rows={5}
+                <EmailRichEditor
                   value={emailForm.body}
-                  onChange={(e) => setEmailForm((p) => ({ ...p, body: e.target.value }))}
-                  placeholder={`Write your reply to ${lead.fullName}...`}
-                  className={`${inputClass} resize-y`}
+                  onChange={(html) => { setEmailForm((p) => ({ ...p, body: html })); setEmailPreview(null) }}
+                  allowImages={false}
+                  disabled={sendingEmail}
+                  minHeight={280}
                 />
+                <p className="text-xs text-muted-foreground">Your signature, MartPoint footer and banner are added automatically. Preview shows the email as it will be sent.</p>
 
                 {/* Documents sent with this message. */}
                 <div className="space-y-2">
@@ -1878,7 +1934,7 @@ export function LeadDetailModal({
                       variant="outline"
                       size="sm"
                       onClick={handlePreviewEmail}
-                      disabled={previewLoading || !emailForm.subject.trim() || !emailForm.body.trim()}
+                      disabled={sendingEmail || previewLoading || !emailForm.subject.trim() || !htmlToText(emailForm.body).trim()}
                     >
                       {previewLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Eye className="w-4 h-4 mr-1.5" />}
                       Preview
@@ -1886,7 +1942,7 @@ export function LeadDetailModal({
                     <Button
                       size="sm"
                       onClick={handleSendEmail}
-                      disabled={sendingEmail || readingAttachments || !emailForm.subject.trim() || !emailForm.body.trim()}
+                      disabled={sendingEmail || readingAttachments || emailDraft.busy || emailDraft.loading || !replyReady || emailForm.body.length > 50000 || !emailForm.subject.trim() || !htmlToText(emailForm.body).trim()}
                     >
                       {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Mail className="w-4 h-4 mr-1.5" />}
                       Send Email

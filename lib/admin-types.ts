@@ -17,6 +17,8 @@ export interface User {
   email: string
   name: string
   signatureHtml: string
+  phone?: string
+  signatureTemplate?: import("./email-signature").SignatureTemplate | null
   passwordHash: string
   role: UserRole
   status: "ACTIVE" | "DISABLED"

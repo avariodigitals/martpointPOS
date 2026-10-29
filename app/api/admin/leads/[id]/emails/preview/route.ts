@@ -1,6 +1,8 @@
+import { resolveProfileSignature } from "@/lib/profile-signature"
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { authorizeAdmin } from "@/lib/admin-auth"
+import { authorizeAdmin, getUserById } from "@/lib/admin-auth"
+import { emailComposerFields } from "@/lib/email-correspondence"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { leadTemplateBrandedHtml, renderLeadEmail } from "@/lib/lead-email-outbound"
 import { LEAD_EMAIL_STAGE_KEYS } from "@/lib/lead-email-templates"
@@ -8,6 +10,7 @@ import { ensureBrandedHtml, type EmailFooterOptions } from "@/lib/email-template
 import { getEmailFooterSettings } from "@/lib/settings"
 
 const postSchema = z.object({
+  ...emailComposerFields,
   subject: z.string().max(500).optional(),
   body: z.string().min(1, "Message body is required"),
   /** Same packaging rule as the send route: an unedited template previews as
@@ -45,8 +48,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (leadError || !lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 })
 
     const template = parsed.data.template
-    const html = template ? leadTemplateBrandedHtml(template, lead) : undefined
-    const rendered = await renderLeadEmail({ body: parsed.data.body, html, noSignature: Boolean(template) })
+    const html = template && parsed.data.layout !== "normal" && !parsed.data.bodyHtml ? leadTemplateBrandedHtml(template, lead) : undefined
+    const actor = await getUserById(auth.session.userId)
+    const rendered = await renderLeadEmail({
+      body: parsed.data.body, bodyHtml: parsed.data.bodyHtml, layout: parsed.data.layout,
+      html, noSignature: Boolean(html),
+      signatureHtml: (await resolveProfileSignature(actor)) || "<p><strong>MartPoint Sales Team</strong></p>",
+    })
 
     // sendEmail wraps every outgoing message in the branded shell with the
     // live footer settings; a full branded template passes through untouched,

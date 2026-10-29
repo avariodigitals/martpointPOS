@@ -15,6 +15,9 @@ import { escapeHtml, htmlToText, bodyTextToHtml, buildSignatureHtml, appendSigna
 import { brandedEmailHtml } from "./email-templates"
 import { buildLeadEmailTemplate, type LeadEmailStageKey } from "./lead-email-templates"
 import { base64ByteLength } from "./lead-email-attachments"
+import type { EmailLayout } from "./email-layout"
+import { renderCorrespondenceHtml } from "./email-correspondence"
+import { sanitizeSupportHtml } from "./support-html"
 
 export { escapeHtml }
 
@@ -60,6 +63,8 @@ export interface SendLeadEmailInput {
   body: string
   /** Optional pre-rendered HTML. Defaults to the escaped text body. */
   html?: string
+  bodyHtml?: string
+  layout?: EmailLayout
   /** Skip appending the mailbox signature. */
   noSignature?: boolean
   /** Carbon-copy recipients (visible to all). */
@@ -136,7 +141,7 @@ export function resolveLeadSenders(settings: EmailSettings, senderName?: string)
  * block. Shared by sendLeadEmail and the admin preview endpoint so "Preview"
  * always matches the real delivery. */
 export async function renderLeadEmail(
-  input: Pick<SendLeadEmailInput, "body" | "html" | "noSignature" | "signatureHtml">,
+  input: Pick<SendLeadEmailInput, "body" | "html" | "bodyHtml" | "layout" | "noSignature" | "signatureHtml">,
   settings?: EmailSettings,
 ): Promise<{ text: string; html: string }> {
   const s = settings || (await getEmailSettings())
@@ -144,16 +149,19 @@ export async function renderLeadEmail(
   // fallback. The text part always gets a derived plain-text version, like a
   // normal mail client signature.
   const hasSignatureOverride = input.signatureHtml !== undefined
-  const signatureHtml = hasSignatureOverride ? input.signatureHtml!.trim() : s.signatureHtml.trim()
+  const signatureHtml = sanitizeSupportHtml(hasSignatureOverride ? input.signatureHtml!.trim() : s.signatureHtml.trim())
   const signatureText = (signatureHtml ? htmlToText(signatureHtml) : hasSignatureOverride ? "" : s.signature).trim()
   const hasSignature =
     !input.noSignature && Boolean(signatureText || /<img\b/i.test(signatureHtml))
 
-  const text = hasSignature ? `${input.body}\n\n-- \n${signatureText}` : input.body
+  const bodyHtml = input.bodyHtml !== undefined ? sanitizeSupportHtml(input.bodyHtml) : undefined
+  const body = bodyHtml !== undefined ? htmlToText(bodyHtml) : input.body
+  const text = hasSignature ? `${body}\n\n-- \n${signatureText}` : body
   const signatureBlock = hasSignature ? buildSignatureHtml(signatureHtml, signatureText) : ""
-  const html = input.html
+  let html = input.html
     ? appendSignatureToHtml(input.html, signatureBlock)
-    : `${bodyTextToHtml(input.body)}${signatureBlock}`
+    : `${bodyHtml ?? bodyTextToHtml(body)}${signatureBlock}`
+  if (input.layout) html = await renderCorrespondenceHtml(html, text, input.layout, { eyebrow: "Sales", signoff: "MartPoint Sales" })
   return { text, html }
 }
 
@@ -203,11 +211,12 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
       replyTo,
       cc: input.cc,
       attachments: input.attachments,
+      skipBranding: !!input.layout,
       headers,
     })
   const sendSmtp = (sender: string) =>
     sendEmailViaSmtp(
-      { subject: input.subject, text: textBody, html, replyTo: sender, cc: input.cc, attachments: input.attachments, headers },
+      { subject: input.subject, text: textBody, html, replyTo: sender, cc: input.cc, attachments: input.attachments, headers, skipBranding: !!input.layout },
       settings,
       sender,
       Array.isArray(input.to) ? input.to : [input.to],
@@ -242,6 +251,7 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
       provider_message_id: sent ? messageId : null,
       metadata: {
         ...(input.metadata || {}),
+        ...(input.layout ? { layout: input.layout } : {}),
         cc: input.cc ? (Array.isArray(input.cc) ? input.cc.join(", ") : input.cc) : null,
         attachments: (input.attachments || []).map((file) => ({
           filename: file.filename,

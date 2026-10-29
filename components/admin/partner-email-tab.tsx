@@ -7,6 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import EmailRichEditor from "@/components/admin/email-rich-editor"
 import { htmlToText } from "@/lib/email-html"
 import type { PartnerEmailRecipient } from "@/lib/partner-email"
+import { EmailLayoutSwitch } from "@/components/admin/email-layout-switch"
+import type { EmailLayout } from "@/lib/email-layout"
+import { EmailDraftControls, useEmailDraft } from "@/components/admin/email-draft-controls"
 
 interface PartnerEmail {
   id: string
@@ -39,6 +42,8 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
   const [hasMore, setHasMore] = useState(false)
   const [subject, setSubject] = useState("")
   const [bodyHtml, setBodyHtml] = useState("")
+  const [layout, setLayout] = useState<EmailLayout>("normal")
+  const draft = useEmailDraft("partners", partnerId)
   const [busy, setBusy] = useState<"send" | "preview" | null>(null)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
@@ -101,19 +106,20 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
     setBusy("send")
     setError("")
     setNotice("")
-    const content = JSON.stringify([recipient, subject, bodyHtml])
+    const content = JSON.stringify([recipient, subject, bodyHtml, layout])
     if (attempt.current?.content !== content) attempt.current = { content, id: crypto.randomUUID() }
     try {
       const response = await fetch(`/api/admin/partners/${partnerId}/emails`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipient, subject, bodyHtml, requestId: attempt.current.id })
+        body: JSON.stringify({ recipient, subject, bodyHtml, layout, requestId: attempt.current.id })
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Email could not be sent")
       if (!mounted.current) return
       setMessages((current) => [data.email, ...current.filter((item) => item.id !== data.email.id)])
       if (data.sent) {
+        await draft.remove()
         setSubject("")
         setBodyHtml("")
         setPreview("")
@@ -140,7 +146,7 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
       const response = await fetch(`/api/admin/partners/${partnerId}/emails/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bodyHtml })
+        body: JSON.stringify({ bodyHtml, layout })
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Preview could not be rendered")
@@ -183,6 +189,10 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
               Send a normal email, separate from compliance requests. Your personal email signature and the
               MartPoint banner are included automatically. Replies go to partners@martpoint.com.ng.
             </p>
+            <EmailLayoutSwitch value={layout} disabled={!!busy} onChange={(value) => { setLayout(value); setPreview("") }} />
+            <EmailDraftControls manager={draft} disabled={!!busy}
+              getDraft={() => ({ subject, bodyHtml, layout, recipient, attachments: [] })}
+              onRestore={(saved) => { setSubject(saved.subject); setBodyHtml(saved.bodyHtml); setLayout(saved.layout); setRecipient(saved.recipient || recipients[0]?.email || ""); setPreview("") }} />
             <div>
               <label id="partner-email-to-label" htmlFor="partner-email-to" className="mb-1 block text-sm font-medium">
                 To
@@ -283,6 +293,7 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
                     setPreview("")
                   }}
                   allowImages={false}
+                  disabled={!!busy}
                   minHeight={240}
                 />
               </fieldset>
@@ -301,7 +312,7 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
               </Button>
               <Button
                 onClick={send}
-                disabled={!!busy || !recipient || !subject.trim() || !validBody || bodyHtml.length > 50000}
+                disabled={!!busy || draft.busy || draft.loading || !recipient || !subject.trim() || !validBody || bodyHtml.length > 50000}
               >
                 {busy === "send" ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

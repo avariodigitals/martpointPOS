@@ -1,3 +1,4 @@
+import { resolveProfileSignature } from "@/lib/profile-signature"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { authorizeAdmin, getUserById } from "@/lib/admin-auth"
@@ -5,6 +6,7 @@ import { isSupabaseConfigured } from "@/lib/supabase"
 import { htmlToText } from "@/lib/email-html"
 import { sanitizeSupportHtml } from "@/lib/support-html"
 import { loadPartnerEmailContext, renderPartnerEmail } from "@/lib/partner-email"
+import { EMAIL_LAYOUTS } from "@/lib/email-layout"
 
 export async function POST(request: Request, { params }: { params: Promise<{ partnerId: string }> }) {
   const { session, denied } = await authorizeAdmin("partners", "manage")
@@ -14,7 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ par
   if (!z.uuid().safeParse(partnerId).success)
     return NextResponse.json({ error: "Invalid partner" }, { status: 400 })
   const parsed = z
-    .object({ bodyHtml: z.string().max(50000) })
+    .object({ bodyHtml: z.string().max(50000), layout: z.enum(EMAIL_LAYOUTS).optional() })
     .safeParse(await request.json().catch(() => null))
   if (!parsed.success || !htmlToText(sanitizeSupportHtml(parsed.data.bodyHtml)).trim())
     return NextResponse.json({ error: "Write a message first" }, { status: 400 })
@@ -25,8 +27,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ par
     return NextResponse.json(
       await renderPartnerEmail(
         parsed.data.bodyHtml,
-        actor?.signatureHtml || "",
-        actor?.name || session.name || session.username
+        await resolveProfileSignature(actor),
+        actor?.name || session.name || session.username,
+        parsed.data.layout,
       )
     )
   } catch {

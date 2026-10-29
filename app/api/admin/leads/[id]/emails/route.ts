@@ -1,3 +1,4 @@
+import { resolveProfileSignature } from "@/lib/profile-signature"
 import { NextResponse } from "next/server"
 import { authorizeAdmin, getUserById } from "@/lib/admin-auth"
 import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
@@ -7,8 +8,11 @@ import { getEmailSettings } from "@/lib/email"
 import { LEAD_EMAIL_STAGE_KEYS } from "@/lib/lead-email-templates"
 import { z } from "zod"
 import { leadEmailAttachmentsSchema } from "@/lib/lead-email-attachments"
+import { emailComposerFields } from "@/lib/email-correspondence"
+import { extractEmailAddresses as extractAddresses, leadReplyRecipients } from "@/lib/lead-email-reply"
 
 const postSchema = z.object({
+  ...emailComposerFields,
   subject: z.string().trim().min(1, "Subject is required").max(500),
   body: z.string().trim().min(1, "Message body is required").max(50000),
   /** Packaged industry template to render as a branded HTML email. Only sent
@@ -24,9 +28,10 @@ const postSchema = z.object({
   replyAll: z.boolean().optional(),
 })
 
-function extractAddresses(value: unknown): string[] {
-  if (typeof value !== "string") return []
-  return [...new Set((value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map((address) => address.toLowerCase()))]
+async function ownEmailAddresses(name?: string): Promise<string[]> {
+  const settings = await getEmailSettings()
+  const sender = resolveLeadSenders(settings, name)
+  return [...new Set([sender.from, sender.replyTo, settings.fromEmail, settings.smtp.fromEmail, settings.smtp.user].flatMap(extractAddresses))]
 }
 
 function metadataValue(metadata: unknown, key: string): unknown {
@@ -61,7 +66,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   }
 
   const emails = (data || []).map((row) => mapLeadEmail(row as Record<string, unknown>))
-  return NextResponse.json({ emails })
+  return NextResponse.json({ emails, ownAddresses: await ownEmailAddresses(auth.session.name) })
 }
 
 /* ─── POST send an email to the lead ─── */
@@ -106,36 +111,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       if (originalError || !original) return NextResponse.json({ error: "Original email not found" }, { status: 404 })
 
-      const settings = await getEmailSettings()
-      const sender = resolveLeadSenders(settings, auth.session.name)
-      const ownAddresses = new Set([
-        ...extractAddresses(sender.from),
-        ...extractAddresses(sender.replyTo),
-        ...extractAddresses(settings.fromEmail),
-        ...extractAddresses(settings.smtp.fromEmail),
-        ...extractAddresses(settings.smtp.user),
-      ])
-      const originalTo = extractAddresses(original.to_email)
-      const originalFrom = extractAddresses(original.from_email)
-      const originalCc = extractAddresses(metadataValue(original.metadata, "cc"))
-
-      recipients = original.direction === "inbound" ? originalFrom : originalTo
-      if (parsed.data.replyAll) {
-        cc = [
-          ...originalTo,
-          ...originalCc,
-          ...(lead.email ? [lead.email as string] : []),
-          ...(lead.additional_email ? [lead.additional_email as string] : []),
-        ]
-          .flatMap((value) => extractAddresses(value))
-          .filter((address) => !ownAddresses.has(address) && !recipients.some((to) => to.toLowerCase() === address))
-      }
-
-      if (recipients.length === 0) {
-        recipients = [lead.email as string, lead.additional_email as string | null].filter(
-          (email): email is string => Boolean(email),
-        )
-      }
+      const reply = leadReplyRecipients(
+        { direction: original.direction, fromEmail: original.from_email, toEmail: original.to_email, metadata: original.metadata },
+        { email: lead.email, additionalEmail: lead.additional_email },
+        await ownEmailAddresses(auth.session.name), Boolean(parsed.data.replyAll),
+      )
+      recipients = reply.to
+      cc = reply.cc
 
       const originalSubject = String(original.subject || "").trim()
       subject = originalSubject && /^re:/i.test(originalSubject) ? originalSubject : `Re: ${originalSubject || parsed.data.subject}`
@@ -158,7 +140,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const template = parsed.data.template
     let html: string | undefined
     let noSignature = false
-    if (template) {
+    if (template && parsed.data.layout !== "normal" && !parsed.data.bodyHtml) {
       html = leadTemplateBrandedHtml(template, lead)
       // The branded shell signs off ("Best regards, MartPoint Sales") and
       // carries the contact footer, so the mailbox signature would duplicate it.
@@ -171,13 +153,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       cc: [...new Set(cc)],
       subject,
       body: parsed.data.body,
+      bodyHtml: parsed.data.bodyHtml,
+      layout: parsed.data.layout,
       html,
       noSignature,
       attachments: parsed.data.attachments,
       // "Send as": the customer sees the salesperson's name, but the address
       // stays the shared mailbox so the reply lands in the synced inbox.
       senderName: auth.session.name,
-      signatureHtml: (await getUserById(auth.session.userId))?.signatureHtml || "<p><strong>MartPoint Sales Team</strong></p>",
+      signatureHtml: (await resolveProfileSignature(await getUserById(auth.session.userId))) || "<p><strong>MartPoint Sales Team</strong></p>",
       metadata: {
         ...(template ? { template: template.key, industry: template.industry || (lead.industry as string | null) || null } : {}),
         ...(replyMetadata || {}),

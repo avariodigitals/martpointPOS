@@ -49,6 +49,7 @@ function getDefaultSettings() {
       hotjarId: "",
     },
     general: {
+      supportPhone: "",
       contactEmail: "hello@martpoint.com.ng",
       whatsappNumber: "+2348037978230",
       phone: "+2348037978230",

@@ -15,6 +15,7 @@ import { getEmailSettings, isImapConfigured, type EmailSettings } from "./email"
 import { fileInboundLeadEmail } from "./lead-emails-inbound"
 import { fileInboundCreatorEmail } from "./creator-emails-inbound"
 import { fileInboundSupportEmail } from "./support-email-inbound"
+import { fileInboundPartnerEmail, isPartnerMailbox } from "./partner-emails-inbound"
 
 export const LEAD_INBOX_SYNC_FLAG = "$MartpointLeadMail"
 
@@ -143,6 +144,11 @@ export async function syncLeadInbox(preloadedSettings?: EmailSettings): Promise<
             references: Array.isArray(parsed.references) ? parsed.references.join(" ") : parsed.references || null,
             sentAt: parsed.date ? parsed.date.toISOString() : null,
             provider: "imap",
+          }
+          if (isPartnerMailbox(inbound.to)) {
+            if (await fileInboundPartnerEmail(inbound)) base.imported++
+            await client.messageFlagsAdd(uid, [LEAD_INBOX_SYNC_FLAG], { uid: true })
+            continue
           }
           const filedSupport=await fileInboundSupportEmail(inbound)
           if(filedSupport)base.imported++

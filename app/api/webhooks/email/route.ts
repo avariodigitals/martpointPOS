@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { isSupabaseConfigured } from "@/lib/supabase"
 import { fileInboundLeadEmail } from "@/lib/lead-emails-inbound"
 import { fileInboundSupportEmail } from "@/lib/support-email-inbound"
+import { fileInboundPartnerEmail, isPartnerMailbox } from "@/lib/partner-emails-inbound"
 
 /* ───────────────────────────  Inbound email webhook  ───────────────────────────
  * Receives inbound email from the provider's inbound-parse service and files it
@@ -112,6 +113,18 @@ export async function POST(request: Request) {
 
     let matched = 0
     for (const email of emails) {
+      if (isPartnerMailbox(email.to)) {
+        if (!secret) {
+          return NextResponse.json({ error: "Partner email webhook authentication is not configured" }, { status: 503 })
+        }
+        try {
+          if (await fileInboundPartnerEmail({ ...email, provider: "webhook" })) matched++
+        } catch (error) {
+          console.error("[Partner email webhook]", error)
+          return NextResponse.json({ error: "Could not save partner email; please retry" }, { status: 500 })
+        }
+        continue
+      }
       if (await fileInboundSupportEmail({ ...email,provider:"webhook" })) matched++
       else if (await fileInboundLeadEmail({ ...email, provider: "webhook" })) matched++
     }

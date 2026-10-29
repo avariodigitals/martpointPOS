@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Users, Shield, FileText, Network, Activity, Settings, Check, X, Target, Wrench, Coins, BarChart3, Download, Plus, UploadCloud, Trash2, BookOpen, BadgeCheck } from "lucide-react"
@@ -15,11 +15,13 @@ import { PartnerAssignments } from "@/components/admin/partner-assessments/partn
 import { PartnerStandingPanel } from "./standing-panel"
 import { enumLabel, roleLabel } from "@/lib/utils"
 import { SupportTicketsPanel } from "@/components/admin/support-tickets-panel"
+import { PartnerEmailTab } from "@/components/admin/partner-email-tab"
 
 const CAPABILITIES = Object.keys(ORG_CAPABILITY_LABELS) as PartnerOrgCapability[]
 
 const TAB_LABELS: Record<string, string> = {
   overview: "Overview",
+  email: "Email",
   users: "Users",
   capabilities: "Capabilities",
   leads: "Leads",
@@ -44,7 +46,13 @@ const DOC_CATEGORIES = [
 
 export function PartnerDetail({ partnerId, role }: { partnerId: string; role: string }) {
   const router = useRouter()
-  const [tab, setTab] = useState("overview")
+  const searchParams = useSearchParams()
+  const tab = searchParams.get("tab") || "overview"
+  function setTab(nextTab: string) {
+    const query = new URLSearchParams(searchParams.toString())
+    query.set("tab", nextTab)
+    router.replace(`?${query.toString()}`, { scroll: false })
+  }
   const [loading, setLoading] = useState(true)
   const [partner, setPartner] = useState<Record<string, unknown> | null>(null)
   const [capabilities, setCapabilities] = useState<string[]>([])
@@ -662,6 +670,8 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
           </button>
         ))}
       </div>
+
+      {tab === "email" && <PartnerEmailTab key={partnerId} partnerId={partnerId} name={String(partner.business_name || partner.display_name || "partner")} />}
 
       {tab === "overview" && (
         <div className="space-y-6">

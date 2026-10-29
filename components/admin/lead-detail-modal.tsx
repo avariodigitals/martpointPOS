@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { LEAD_EMAIL_ATTACHMENT_HINT, MAX_LEAD_EMAIL_ATTACHMENT_BYTES, MAX_LEAD_EMAIL_ATTACHMENTS } from "@/lib/lead-email-attachments"
 import { SupportTicketsPanel } from "@/components/admin/support-tickets-panel"
 import { Button } from "@/components/ui/button"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
@@ -273,6 +274,9 @@ export function LeadDetailModal({
     lead.industry || resolveIndustryName(lead.businessType) || "",
   )
   const [emailAttachments, setEmailAttachments] = useState<{ filename: string; content: string; size: number }[]>([])
+  const [readingAttachments, setReadingAttachments] = useState(false)
+  const attachmentInput = useRef<HTMLInputElement>(null)
+  const attachmentReadLock = useRef(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [emailPreview, setEmailPreview] = useState<{ subject: string; html: string } | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -955,7 +959,7 @@ export function LeadDetailModal({
   }
 
   const handleSendEmail = async () => {
-    if (!emailForm.subject.trim() || !emailForm.body.trim()) return
+    if (sendingEmail || attachmentReadLock.current || !emailForm.subject.trim() || !emailForm.body.trim()) return
     setSendingEmail(true)
     setEmailsError("")
     try {
@@ -979,13 +983,16 @@ export function LeadDetailModal({
       const data = await res.json()
       if (data.email) {
         setEmails((prev) => [data.email, ...prev])
+        if (!data.sent) {
+          setEmailsError("Delivery failed — check email settings. Your message and attachments have been kept for retry.")
+          return
+        }
         setEmailSubjectEdited(false)
         setEmailForm({ subject: buildLeadEmailSubject(null, lead.businessName), body: "" })
         setEmailTemplateKey(null)
         setEmailAttachments([])
         setEmailPreview(null)
         setReplyContext(null)
-        if (!data.sent) setEmailsError("Email saved to thread but delivery failed — check email settings.")
       } else {
         setEmailsError(data.error || "Failed to send email")
       }
@@ -996,36 +1003,47 @@ export function LeadDetailModal({
     }
   }
 
-  const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024 // 8 MB per file
-
   const handleAddAttachments = async (files: FileList | null) => {
-    if (!files || files.length === 0) return
-    setEmailsError("")
-    const next: { filename: string; content: string; size: number }[] = []
-    for (const file of Array.from(files)) {
-      if (file.size > MAX_ATTACHMENT_BYTES) {
-        setEmailsError(`"${file.name}" is larger than 8 MB and was skipped.`)
-        continue
-      }
-      const content = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-          const result = String(reader.result || "")
-          resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : result)
-        }
-        reader.onerror = () => reject(reader.error)
-        reader.readAsDataURL(file)
-      }).catch(() => "")
-      if (content) next.push({ filename: file.name, content, size: file.size })
+    if (!files || files.length === 0 || sendingEmail || attachmentReadLock.current) return
+    const selected = Array.from(files)
+    if (emailAttachments.length + selected.length > MAX_LEAD_EMAIL_ATTACHMENTS) {
+      setEmailsError("Up to 5 attachments per email. Remove a file before adding more.")
+      return
     }
-    setEmailAttachments((prev) => {
-      const merged = [...prev, ...next]
-      if (merged.length > 5) {
-        setEmailsError("Up to 5 attachments per email.")
-        return merged.slice(0, 5)
+    if (emailAttachments.reduce((sum, file) => sum + file.size, 0) + selected.reduce((sum, file) => sum + file.size, 0) > MAX_LEAD_EMAIL_ATTACHMENT_BYTES) {
+      setEmailsError("Attachments must be 3 MB combined or smaller. Choose smaller files or remove an attachment.")
+      return
+    }
+    setEmailsError("")
+    attachmentReadLock.current = true
+    setReadingAttachments(true)
+    const next: { filename: string; content: string; size: number }[] = []
+    try {
+      for (const file of selected) {
+        if (!file.size) throw new Error(`"${file.name}" is empty. Choose a non-empty file.`)
+        if (emailAttachments.some((item) => item.filename === file.name) || next.some((item) => item.filename === file.name)) {
+          throw new Error(`"${file.name}" is already attached. Rename it to attach a different document with the same name.`)
+        }
+        const content = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => {
+            const result = String(reader.result || "")
+            resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : result)
+          }
+          reader.onerror = () => reject(new Error(`Could not read "${file.name}". Please select it again.`))
+          reader.onabort = () => reject(new Error(`Reading "${file.name}" was cancelled.`))
+          reader.readAsDataURL(file)
+        })
+        if (!content) throw new Error(`Could not read "${file.name}". Please select it again.`)
+        next.push({ filename: file.name, content, size: file.size })
       }
-      return merged
-    })
+      setEmailAttachments((prev) => [...prev, ...next])
+    } catch (error) {
+      setEmailsError(error instanceof Error ? error.message : "Could not read the selected files. Please try again.")
+    } finally {
+      attachmentReadLock.current = false
+      setReadingAttachments(false)
+    }
   }
 
   const removeAttachment = (filename: string) => {
@@ -1598,6 +1616,12 @@ export function LeadDetailModal({
                   {emails.map((msg) => {
                     const open = expandedEmailId === msg.id
                     const preview = (msg.bodyText || "").replace(/\s+/g, " ").trim()
+                    const attachments = Array.isArray(msg.metadata?.attachments)
+                      ? msg.metadata.attachments.flatMap((file: unknown) => {
+                          if (!file || typeof file !== "object" || !("filename" in file) || typeof file.filename !== "string") return []
+                          return [{ filename: file.filename, size: "size" in file && typeof file.size === "number" ? file.size : null }]
+                        })
+                      : []
                     return (
                       <div key={msg.id} className={open ? "bg-muted/20" : "bg-background"}>
                         <button
@@ -1674,6 +1698,19 @@ export function LeadDetailModal({
                             ) : (
                               <p className="text-sm text-muted-foreground italic">No message body stored for this entry.</p>
                             )}
+                            {attachments.length > 0 && (
+                              <div className="rounded-md border border-border p-3">
+                                <p className="mb-2 text-xs font-medium">Attachments</p>
+                                <ul className="space-y-1 text-xs text-muted-foreground">
+                                  {attachments.map((file, index) => (
+                                    <li key={`${file.filename}-${index}`} className="flex items-center gap-1.5">
+                                      <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                                      <span className="break-all">{file.filename}{file.size !== null ? ` (${Math.max(1, Math.round(file.size / 1024))} KB)` : ""}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1683,7 +1720,7 @@ export function LeadDetailModal({
               )}
 
               {emailsError && (
-                <p className="text-sm text-destructive">{emailsError}</p>
+                <p role="alert" className="text-sm text-destructive">{emailsError}</p>
               )}
 
                 <div className="rounded-lg border border-border p-4 space-y-3">
@@ -1787,7 +1824,7 @@ export function LeadDetailModal({
                   className={`${inputClass} resize-y`}
                 />
 
-                {/* Attachments — e.g. request a document from the lead */}
+                {/* Documents sent with this message. */}
                 <div className="space-y-2">
                   {emailAttachments.length > 0 && (
                     <ul className="space-y-1.5">
@@ -1801,6 +1838,7 @@ export function LeadDetailModal({
                           <button
                             type="button"
                             onClick={() => removeAttachment(a.filename)}
+                            disabled={sendingEmail || readingAttachments}
                             className="text-muted-foreground hover:text-destructive shrink-0"
                             title="Remove attachment"
                           >
@@ -1810,19 +1848,23 @@ export function LeadDetailModal({
                       ))}
                     </ul>
                   )}
-                  <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
-                    <Paperclip className="w-3.5 h-3.5" />
-                    Attach file (max 5, 8&nbsp;MB each)
+                  <Button type="button" variant="outline" size="sm" disabled={sendingEmail || readingAttachments || emailAttachments.length >= MAX_LEAD_EMAIL_ATTACHMENTS} onClick={() => attachmentInput.current?.click()}>
+                    {readingAttachments ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Paperclip className="mr-1.5 h-4 w-4" />}
+                    {readingAttachments ? "Preparing attachments…" : "Attach documents"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">{LEAD_EMAIL_ATTACHMENT_HINT}</p>
                     <input
+                      ref={attachmentInput}
                       type="file"
                       multiple
+                      aria-label="Attach documents to lead email"
+                      disabled={sendingEmail || readingAttachments}
                       className="hidden"
                       onChange={(e) => {
                         void handleAddAttachments(e.target.files)
                         e.target.value = ""
                       }}
                     />
-                  </label>
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
@@ -1844,7 +1886,7 @@ export function LeadDetailModal({
                     <Button
                       size="sm"
                       onClick={handleSendEmail}
-                      disabled={sendingEmail || !emailForm.subject.trim() || !emailForm.body.trim()}
+                      disabled={sendingEmail || readingAttachments || !emailForm.subject.trim() || !emailForm.body.trim()}
                     >
                       {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Mail className="w-4 h-4 mr-1.5" />}
                       Send Email

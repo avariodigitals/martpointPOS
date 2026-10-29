@@ -193,6 +193,7 @@ export function partnerCapabilityFlags(capabilities: PartnerOrgCapability[]): Pa
 
 export const PARTNER_360_TABS = [
   "overview",
+  "email",
   "users",
   "capabilities",
   "leads",
@@ -213,7 +214,7 @@ export type Partner360Tab = (typeof PARTNER_360_TABS)[number]
 
 /**
  * Which 360 tabs are relevant given the partner's granted capabilities.
- * Overview, Users, Capabilities, Compliance, Performance and Activity always apply.
+ * Overview, Email, Users, Capabilities, Compliance, Performance and Activity always apply.
  */
 export function relevantPartnerTabs(capabilities: PartnerOrgCapability[]): Partner360Tab[] {
   const flags = partnerCapabilityFlags(capabilities)

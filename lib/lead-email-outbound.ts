@@ -14,6 +14,7 @@ import { sendEmailViaSmtp } from "./email-smtp"
 import { escapeHtml, htmlToText, bodyTextToHtml, buildSignatureHtml, appendSignatureToHtml } from "./email-html"
 import { brandedEmailHtml } from "./email-templates"
 import { buildLeadEmailTemplate, type LeadEmailStageKey } from "./lead-email-templates"
+import { base64ByteLength } from "./lead-email-attachments"
 
 export { escapeHtml }
 
@@ -242,6 +243,10 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
       metadata: {
         ...(input.metadata || {}),
         cc: input.cc ? (Array.isArray(input.cc) ? input.cc.join(", ") : input.cc) : null,
+        attachments: (input.attachments || []).map((file) => ({
+          filename: file.filename,
+          size: base64ByteLength(file.content),
+        })),
       },
     })
     .select()

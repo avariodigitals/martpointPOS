@@ -6,16 +6,11 @@ import { sendLeadEmail, mapLeadEmail, leadTemplateBrandedHtml, resolveLeadSender
 import { getEmailSettings } from "@/lib/email"
 import { LEAD_EMAIL_STAGE_KEYS } from "@/lib/lead-email-templates"
 import { z } from "zod"
-
-const attachmentSchema = z.object({
-  filename: z.string().trim().min(1).max(255),
-  /** base64-encoded file content. */
-  content: z.string().min(1).max(10_000_000),
-})
+import { leadEmailAttachmentsSchema } from "@/lib/lead-email-attachments"
 
 const postSchema = z.object({
-  subject: z.string().min(1, "Subject is required"),
-  body: z.string().min(1, "Message body is required"),
+  subject: z.string().trim().min(1, "Subject is required").max(500),
+  body: z.string().trim().min(1, "Message body is required").max(50000),
   /** Packaged industry template to render as a branded HTML email. Only sent
    *  when the composer copy is untouched — edited copy goes out as text. */
   template: z
@@ -24,7 +19,7 @@ const postSchema = z.object({
       industry: z.string().trim().max(120).optional(),
     })
     .optional(),
-  attachments: z.array(attachmentSchema).max(5, "Up to 5 attachments per email").optional(),
+  attachments: leadEmailAttachmentsSchema.optional(),
   replyToEmailId: z.string().uuid().optional(),
   replyAll: z.boolean().optional(),
 })

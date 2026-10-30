@@ -5,6 +5,7 @@ import { CookieConsentLoader } from "@/components/cookie-consent-loader";
 import { CreatorRefCapture } from "@/components/creator-ref-capture";
 import { OrganizationSchema, WebsiteSchema, SiteNavigationSchema } from "@/components/structured-data";
 import { PublicChatWidget } from "@/components/shared/public-chat-widget";
+import { AdminToastProvider } from "@/components/admin/admin-toast";
 import { readSettings } from "@/lib/settings";
 import "./globals.css";
 
@@ -104,15 +105,17 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://static.hotjar.com" />
       </head>
       <body className="min-h-full flex flex-col font-sans">
-        <OrganizationSchema />
-        <WebsiteSchema />
-        <SiteNavigationSchema />
-        <AnalyticsData />
-        <TrackingScript />
-        {children}
-        <CreatorRefCapture />
-        <CookieConsentLoader />
-        <PublicChatWidget />
+        <AdminToastProvider>
+          <OrganizationSchema />
+          <WebsiteSchema />
+          <SiteNavigationSchema />
+          <AnalyticsData />
+          <TrackingScript />
+          {children}
+          <CreatorRefCapture />
+          <CookieConsentLoader />
+          <PublicChatWidget />
+        </AdminToastProvider>
       </body>
     </html>
   );

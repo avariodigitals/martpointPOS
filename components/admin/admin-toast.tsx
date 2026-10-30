@@ -20,7 +20,7 @@ import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react"
  * session has expired (previously the "session expired" event was dispatched but
  * had no listener, so users were silently redirected with no explanation).
  *
- * Mounted once in the admin protected layout via <AdminToastProvider>.
+ * Mounted once in the root layout via <AdminToastProvider>.
  */
 
 type ToastVariant = "info" | "success" | "warning" | "error"
@@ -110,6 +110,30 @@ export function AdminToastProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo(() => ({ toast, dismiss }), [toast, dismiss])
+
+  // Keep older call sites on the shared, non-blocking in-app notification UI
+  // while they are migrated to useToast(). This replaces the browser's modal
+  // alert everywhere in the Next.js app, including public and portal routes.
+  useEffect(() => {
+    const originalAlert = window.alert
+    const modernAlert = (message?: unknown) => {
+      const content = String(message ?? "")
+      const [firstLine, ...rest] = content.split(/\r?\n/)
+      const title = firstLine.trim() || "Notification"
+      const description = rest.join("\n").trim() || undefined
+      const normalized = content.toLowerCase()
+      const variant: ToastVariant = /\b(failed|failure|error|could not|unable to)\b/.test(normalized)
+        ? "error"
+        : /\b(success|saved|submitted|complete|completed)\b/.test(normalized)
+          ? "success"
+          : "info"
+      toast({ title, description, variant, duration: variant === "error" ? 7000 : 5000 })
+    }
+    window.alert = modernAlert
+    return () => {
+      if (window.alert === modernAlert) window.alert = originalAlert
+    }
+  }, [toast])
 
   return (
     <ToastContext.Provider value={value}>

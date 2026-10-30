@@ -69,8 +69,10 @@ Do **not** set it as the virtual number's main callback: GetDigits uses it
 automatically. Keep the main Callback/Events URLs as documented below.
 
 Press 1 saves explicit consent; press 2 continues on the same selected route
-without recording. Silence/timeout also continues without recording through a
-Redirect after GetDigits (AT does not call callbackUrl when no input arrives).
+without recording. Silence or an invalid key repeats the consent prompt once;
+if there is still no valid response, the call ends without recording or
+transferring. A Redirect after GetDigits reports silence because AT does not
+call callbackUrl when no input arrives.
 Duplicate or late responses cannot overwrite a stored choice or redial an
 already connected call. Existing call history is not backfilled as consent.
 GetDigits input delivered to the Events URL for a pending native incoming call
@@ -89,7 +91,9 @@ local passing tests do not change the live telephone line.
 
 ### Browser phones and the production callback (migration 137)
 
-Apply `137_africa_browser_agents.sql` after 136 and deploy the Next.js changes.
+Apply `137_africa_browser_agents.sql` after 136, then migrations 141 and 160,
+and deploy the Next.js changes. Migration 160 enables simultaneous browser-agent
+ring groups for inbound calls.
 No SIP password, VPS or LiveKit subscription is required for this browser path.
 Africa's Talking must activate Voice/WebRTC for the live application/number;
 normal provider telephone charges still apply.
@@ -122,14 +126,18 @@ without a successful heartbeat. A failed SDK registration is never advertised
 as ready. The receiving token renews while idle; provider expiry during an
 active call is surfaced as a disconnection, not silently claimed as connected.
 
-The callback routes the selected department to an available registered agent,
-then tries the department's configured telephone/SIP fallbacks sequentially.
+The callback rings every available registered browser agent assigned to the
+selected department at the same time, together with that department's configured
+telephone/SIP fallback destinations. The first person to answer gets the call;
+the other browser agents are released. Calls skip agents already handling a
+call or already ringing for another caller.
 Department names/keys containing Sales/Demo map to Sales; Support/Tech to
 Support; Onboarding/Billing to Onboarding. Other names and a menu-disabled
 default route use General enquiries. Set appropriate business hours and keep
-offline/no-answer greetings or voicemail configured. One agent is reserved
-atomically per inbound call; other calls skip busy agents. The existing seven
-SIP accounts may still be used in softphones or as fallback destinations, but
+offline/no-answer greetings or voicemail configured. The selected queue must
+match the caller's menu choice. Intended agents need an Online status on Admin →
+Azera → Voice agents and must keep Receive calls enabled in an open tab. The
+existing seven SIP accounts may still be used in softphones or as fallback destinations, but
 are not the credentials for this browser phone.
 
 For an outgoing browser call, the provider sends `clientDialedNumber` and the
@@ -173,10 +181,11 @@ In Admin → Azera → Settings → Phone Calls:
 
 With working-hours departments and recording enabled, the sequence is now:
 **welcome → recording choice → department options → connecting → Dial**.
-Consent 1/2 is consumed separately and cannot select Sales/Support. Silence at
-consent continues without recording; silence at the department menu retries up
-to the configured limit, then uses the default route/voicemail. The no-input
-Redirect is necessary because AT does not post an empty GetDigits result.
+Consent 1/2 is consumed separately and cannot select Sales/Support. Silence or
+an invalid key at consent repeats the prompt once, then ends the call without
+transferring; silence at the department menu retries up to the configured
+limit, then uses the default route/voicemail. The no-input Redirect is necessary
+because AT does not post an empty GetDigits result.
 
 Legacy combined greeting/menu text is split at the first option sentence. With
 recording enabled, the separate options use text-to-speech so a combined welcome

@@ -31,11 +31,23 @@ export async function GET() {
     .eq("enabled", true)
     .maybeSingle();
   if (assignmentError) return reply({ error: "Apply migration 141 before enabling voice assignments." }, 503);
-  const { data: call } = await supabase.from("azera_calls")
+  let { data: call } = await supabase.from("azera_calls")
     .select("id,status,customer_phone,selected_department,answered_at")
     .eq("agent_user_id", session.userId).eq("sip_provider", "africas_talking")
     .eq("direction", "inbound").in("status", ["ringing", "active"])
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!call) {
+    const { data: offered } = await supabase.from("azera_africa_browser_call_rings")
+      .select("call_id").eq("user_id", session.userId).eq("state", "ringing")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (offered?.call_id) {
+      const { data: offeredCall } = await supabase.from("azera_calls")
+        .select("id,status,customer_phone,selected_department,answered_at")
+        .eq("id", offered.call_id).eq("sip_provider", "africas_talking")
+        .eq("direction", "inbound").in("status", ["ringing", "active"]).maybeSingle();
+      if (offeredCall?.status === "ringing") call = offeredCall;
+    }
+  }
   let caller: { kind: "lead" | "business"; name: string; businessName?: string } | null = null;
   if (call?.customer_phone) {
     const [leadResult, businessResult] = await Promise.all([

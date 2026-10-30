@@ -25,6 +25,27 @@ export async function africaBrowserDestination(callId: string, businessId: strin
   }
 }
 
+/** All eligible agents in a queue for one simultaneous inbound ring group. */
+export async function africaBrowserDestinations(callId: string, businessId: string, department: string) {
+  try {
+    const config = await africaBrowserConfig(businessId);
+    if (!/^[a-zA-Z0-9_-]+$/.test(config.username)) return [];
+    const { data, error } = await supabase.rpc("azera_route_africa_browser_group", {
+      p_call: callId, p_queue: africaDepartmentQueue(department),
+    });
+    if (!error && Array.isArray(data)) {
+      return data.filter((name: unknown): name is string =>
+        typeof name === "string" && /^[a-zA-Z0-9_-]+$/.test(name),
+      ).map((name: string) => `${config.username}.${name}`);
+    }
+    // Keep compatibility with deployments before migration 160.
+    const legacy = await africaBrowserDestination(callId, businessId, department);
+    return legacy ? [legacy] : [];
+  } catch {
+    return [];
+  }
+}
+
 export function browserCallerIdentity(caller: string) {
   return /^[a-zA-Z0-9_-]+\.mp_[a-zA-Z0-9_-]+$/.test(caller);
 }

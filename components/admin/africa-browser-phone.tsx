@@ -11,7 +11,7 @@ export function AfricaBrowserPhone() {
   const enabled = useRef(false);
   const outbound = useRef(false);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"dial" | "receive">("dial");
+  const [tab, setTab] = useState<"dial" | "receive">("receive");
   const [number, setNumber] = useState("");
   const [name, setName] = useState("");
   const [context, setContext] = useState<BrowserDialRequest | null>(null);

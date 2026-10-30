@@ -27,17 +27,23 @@ export async function GET() {
   if (!isSupabaseConfigured()) return reply({ businessId: null, agents: [] });
   const id = await businessId();
   if (!id) return reply({ error: "No business is configured for Azera." }, 400);
-  const [users, assignments] = await Promise.all([
+  const [users, assignments, phones] = await Promise.all([
     supabase.from("users").select("id,name,username,email,role,status").in("role", allowedRoles).eq("status", "ACTIVE").order("name"),
     supabase.from("azera_voice_agent_assignments").select("user_id,queues,enabled,updated_at").eq("business_id", id),
+    supabase.from("azera_africa_browser_agents").select("user_id,business_id,ready,last_seen_at,queues").eq("business_id", id),
   ]);
   if (assignments.error) return reply({ error: "Apply migration 141 before managing voice agents." }, 503);
   const assignmentMap = new Map((assignments.data || []).map(row => [row.user_id, row]));
+  if (phones.error) return reply({ error: "Apply migration 137 before checking browser-phone availability." }, 503);
+  const phoneMap = new Map((phones.data || []).map(row => [row.user_id, row]));
+  const now = Date.now();
   return reply({ businessId: id, agents: (users.data || []).map(user => ({
     ...user,
     queues: assignmentMap.get(user.id)?.queues || [],
     enabled: assignmentMap.get(user.id)?.enabled === true,
     updated_at: assignmentMap.get(user.id)?.updated_at || null,
+    browserPhoneReady: phoneMap.get(user.id)?.ready === true &&
+      Date.parse(phoneMap.get(user.id)?.last_seen_at || "") > now - 60_000,
   })) });
 }
 

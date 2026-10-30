@@ -5,7 +5,7 @@ import {
   recordedDialAction,
 } from "@/lib/africa-recording-actions";
 import { importAfricaCallRecording } from "@/lib/africa-call-recording";
-import { africaBrowserDestination, browserCallerIdentity, preparedAfricaOutbound } from "@/lib/africa-browser-routing";
+import { africaBrowserDestinations, browserCallerIdentity, preparedAfricaOutbound } from "@/lib/africa-browser-routing";
 import { normalizeOutboundPhone } from "@/lib/azera-outbound";
 import { departmentMenuAction, splitVoiceMenuGreeting } from "@/lib/africa-voice-menu";
 import { POST as receiveVoiceEvent } from "@/app/api/africastalking/voice/events/route";
@@ -79,6 +79,7 @@ async function recordAttempts(
   now: string,
 ) {
   if (!destinations.length) return;
+  const parallel = hasBrowserDestination(destinations);
   await supabase.from("azera_call_attempts").insert(
     destinations.map((destination, index) => ({
       call_id: callId,
@@ -86,14 +87,17 @@ async function recordAttempts(
       department_key: departmentKey,
       destination,
       attempt_number: index + 1,
-      // Africa's Talking <Dial sequential="true"> tries one destination at a
-      // time. Reserving every later fallback as dialing made concurrent calls
-      // falsely treat unused lines as busy.
-      status: index === 0 ? "dialing" : "queued",
+      // Parallel ring groups reserve every leg. Sequential fallbacks reserve
+      // only the destination currently being tried.
+      status: parallel || index === 0 ? "dialing" : "queued",
       started_at: now,
       created_at: now,
     })),
   );
+}
+
+function hasBrowserDestination(destinations: string[]) {
+  return destinations.some((destination) => /^[a-zA-Z0-9_-]+\.mp_agent_[a-f0-9]+$/i.test(destination));
 }
 
 async function destinationsAreBusy(
@@ -174,6 +178,7 @@ export async function POST(request: Request): Promise<Response> {
   const requestUrl = new URL(request.url);
   const actionStage = requestUrl.searchParams.get("stage");
   const consentTimeout = requestUrl.searchParams.get("consent-timeout") === "1";
+  const consentRetry = Math.min(2, Math.max(0, Number(requestUrl.searchParams.get("consent-retry")) || 0));
   const menuTimeout = actionStage === "department-menu" && requestUrl.searchParams.get("menu-timeout") === "1";
   const callbackMenuAttempt = requestUrl.searchParams.get("menu-attempt");
   const dtmfDigits = pick(payload, "dtmfDigits", "digits", "userInput", "input")
@@ -305,15 +310,12 @@ export async function POST(request: Request): Promise<Response> {
     const optionsPrompt = menuOptions(departments);
     const menuText = config.recordCalls && existing?.recording_choice
       ? optionsPrompt : menuPrompt(config.greeting, departments);
-    // Reserve an available browser agent atomically. General/default calls
-    // prefer the browser, while a selected department tries configured SIP
-    // destinations first and keeps the browser as fallback.
-    const withBrowser = async (targets: string[], department = "default", sipFirst = false) => {
-      const browser = await africaBrowserDestination(callId!, businessId, department);
-      if (!browser) return targets;
-      return sipFirst
-        ? [...targets.filter(target => target !== browser), browser]
-        : [browser, ...targets.filter(target => target !== browser)];
+    // Reserve every available browser agent in this queue. Browser agents and
+    // configured phone/SIP fallbacks ring together; the first answer takes it.
+    const withBrowser = async (targets: string[], department = "default") => {
+      const browsers = await africaBrowserDestinations(callId!, businessId, department);
+      if (!browsers.length) return targets;
+      return [...browsers, ...targets.filter(target => !browsers.includes(target))];
     };
     const requestConsent = async (department: string, greeting: string[] = []) => {
       const { error } = await supabase.from("azera_calls")
@@ -379,6 +381,21 @@ export async function POST(request: Request): Promise<Response> {
     const consentRoute = actionStage === "recording-consent" || awaitingConsent ||
       Boolean(existing?.recording_consent_requested_at && existing.recording_choice && existing.selected_department);
     if (consentRoute) {
+      // Silence or an invalid key is not consent to record and must not silently
+      // transfer the caller. Repeat the prompt once, then end without dialing.
+      if (!existing?.recording_choice && (consentTimeout || !["1", "2"].includes(dtmfDigits))) {
+        await finishAfricaWebhookEvent(webhookEventId, "processed");
+        const nextRetry = consentTimeout ? consentRetry : consentRetry + 1;
+        if (nextRetry < 2) {
+          return voiceXml([
+            say("Please choose an option to continue."),
+            recordingConsentAction(request.url, config.recordingNotice, nextRetry),
+          ]);
+        }
+        return voiceXml([
+          say("We did not receive a valid response. This call will now end."),
+        ]);
+      }
       const pendingAge = existing?.recording_consent_requested_at
         ? Date.now() - Date.parse(existing.recording_consent_requested_at) : Infinity;
       if (awaitingConsent && !consentTimeout && actionStage !== "recording-consent" && !dtmfDigits && pendingAge < 8_000) {
@@ -427,7 +444,7 @@ export async function POST(request: Request): Promise<Response> {
       }
       let targets =
         selected === "after-hours"
-          ? [config.afterHoursDestination].filter(Boolean)
+          ? await withBrowser([config.afterHoursDestination].filter(Boolean), "support")
           : selected && selected !== "default"
             ? departments.find((item) => item.key === selected)?.numbers || []
             : config.forwardNumbers;
@@ -447,6 +464,7 @@ export async function POST(request: Request): Promise<Response> {
           config.phoneNumber || destination,
           config.waitingAudioUrl,
           accepted,
+          !hasBrowserDestination(targets),
         ),
       ]);
     }
@@ -458,13 +476,18 @@ export async function POST(request: Request): Promise<Response> {
         config.recordCalls &&
           existing?.recording_choice === "accepted" &&
           Boolean(existing.recording_consent_at),
+        !hasBrowserDestination(targets),
       );
     const consentRequired = config.recordCalls && !existing?.recording_choice;
 
     // Once the working-hours menu has started, finish that journey even if the
     // clock crosses closing time while the caller is choosing a department.
     if (!open && menuAttempts === 0) {
-      if (config.afterHoursDestination) {
+      const afterHoursTargets = await withBrowser(
+        [config.afterHoursDestination].filter(Boolean),
+        "support",
+      );
+      if (afterHoursTargets.length) {
         if (consentRequired) {
           return requestConsent("after-hours", [sayOrPlay(config.afterHoursGreeting, config.afterHoursAudioUrl)]);
         }
@@ -472,7 +495,7 @@ export async function POST(request: Request): Promise<Response> {
           callId,
           businessId,
           "after-hours",
-          [config.afterHoursDestination],
+          afterHoursTargets,
           now,
         );
         await supabase
@@ -483,7 +506,7 @@ export async function POST(request: Request): Promise<Response> {
         return voiceXml([
           sayOrPlay(config.afterHoursGreeting, config.afterHoursAudioUrl),
           dialAction(
-            [config.afterHoursDestination],
+            afterHoursTargets,
             config.phoneNumber || destination,
             config.waitingAudioUrl,
           ),
@@ -614,7 +637,7 @@ export async function POST(request: Request): Promise<Response> {
 
       const department = departments.find((item) => item.digit === digit);
       if (department) {
-        const targets = await withBrowser(department.numbers, `${department.key} ${department.label}`, true);
+        const targets = await withBrowser(department.numbers, `${department.key} ${department.label}`);
         if (await destinationsAreBusy(businessId, targets)) {
           await markCallBusy(callId, now);
           await finishAfricaWebhookEvent(webhookEventId, "processed");

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import EmailRichEditor from "@/components/admin/email-rich-editor"
 import { htmlToText, textToHtml } from "@/lib/email-html"
 import { isBadHost } from "@/lib/email-settings-guard"
+import { DEFAULT_PROFILE_SIGNATURE_HTML, renderProfileSignatureHtml } from "@/lib/email-signature"
+import { sanitizeSupportHtml } from "@/lib/support-html"
 import { Loader2, Save, Mail, ArrowLeft, Code2 } from "lucide-react"
 
 interface SmtpForm {
@@ -35,6 +37,7 @@ interface EmailSettingsForm {
   notifyEmail: string
   signature: string
   signatureHtml: string
+  profileSignatureHtmlTemplate: string
   smtp: SmtpForm
   imap: ImapForm
 }
@@ -51,6 +54,7 @@ export default function EmailSettingsPage() {
     notifyEmail: "",
     signature: "",
     signatureHtml: "",
+    profileSignatureHtmlTemplate: DEFAULT_PROFILE_SIGNATURE_HTML,
     smtp: { ...emptySmtp },
     imap: { ...emptyImap },
   })
@@ -76,6 +80,7 @@ export default function EmailSettingsPage() {
             signature: data.email.signature || "",
             // Migrate a legacy plain-text signature into the rich editor.
             signatureHtml: data.email.signatureHtml || textToHtml(data.email.signature || ""),
+            profileSignatureHtmlTemplate: data.email.profileSignatureHtmlTemplate || DEFAULT_PROFILE_SIGNATURE_HTML,
             smtp: {
               host: smtp.host || "",
               port: String(smtp.port || "465"),
@@ -256,7 +261,7 @@ export default function EmailSettingsPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium mb-1">From Email</label>
+                <label className="block text-sm font-medium mb-1">Default From Email</label>
                 <input
                   type="text"
                   value={settings.fromEmail}
@@ -269,6 +274,7 @@ export default function EmailSettingsPage() {
                   {settings.provider === "brevo"
                     ? " The sender domain must be verified in Brevo."
                     : " The domain must be verified in Resend."}
+                  {" This controls the visible sender for general mail; it does not forward hello@ mail. Lead notifications are routed under Email Routes, and replies to Lead emails go to sales@martpoint.com.ng."}
                 </p>
               </div>
 
@@ -342,6 +348,30 @@ export default function EmailSettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Formatting, links and images (e.g. your logo) are preserved in the email. Leave empty for no signature.
               </p>
+            </CardContent>
+          </Card>
+
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Team Member Profile Signature</CardTitle>
+              <CardDescription>
+                Admin controls the shared HTML layout here. Profile details fill its placeholders; the same rendered signature is used in lead, partner and creator email.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">HTML signature template</p>
+              </div>
+              <textarea rows={12} value={settings.profileSignatureHtmlTemplate} onChange={(event) => setSettings({ ...settings, profileSignatureHtmlTemplate: event.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono" />
+              <div>
+                <p className="mb-2 text-xs font-medium text-muted-foreground">Preview with example profile details</p>
+                <iframe title="Team member signature template preview" sandbox="" className="h-64 w-full rounded-md border bg-white" srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font:14px/1.6 Arial,sans-serif;color:#111827;padding:12px}img{max-width:100%;height:auto}a{color:#0057ff}</style></head><body>${renderProfileSignatureHtml(sanitizeSupportHtml(settings.profileSignatureHtmlTemplate), { name: "MartPoint Team Member", title: "Sales", email: "person@martpoint.com.ng", phone: "+234 800 000 0000", company: "MartPoint", extra: "" })}</body></html>`} />
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Available placeholders</p>
+                <p className="mt-1"><code>{"{{name}}"}</code> · <code>{"{{title}}"}</code> · <code>{"{{email}}"}</code> · <code>{"{{phone}}"}</code> · <code>{"{{company}}"}</code> · <code>{"{{email_link}}"}</code> · <code>{"{{phone_link}}"}</code></p>
+                <p className="mt-1">Use <code>{"{{email_link}}"}</code> and <code>{"{{phone_link}}"}</code> to render clickable contact details. Phone comes from the user profile; support roles use the current Support Phone setting.</p>
+              </div>
             </CardContent>
           </Card>
 

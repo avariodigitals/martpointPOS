@@ -16,12 +16,17 @@ const ROUTES: RouteDef[] = [
   {
     key: "lead_submission",
     label: "Lead / Quote Request",
-    description: "Public lead capture forms (e.g. homepage, pricing)",
+    description: "Lead notifications, including LeadsRite imports; applicant replies go to the Sales mailbox",
   },
   {
     key: "career_application",
     label: "Careers / CV",
     description: "Career applications with CV attachments",
+  },
+  {
+    key: "creator_application",
+    label: "Creator Applications",
+    description: "Internal notices for creator applications; applicant replies go to the Creators mailbox",
   },
   {
     key: "partner_application",
@@ -129,7 +134,7 @@ export default function EmailRoutesPage() {
             <CardHeader>
               <CardTitle>Recipient Routing</CardTitle>
               <CardDescription>
-                Leave a route empty to fall back to the general Notify Email in Email Settings. Separate multiple addresses with commas.
+                Each field shows its current recipient. Clear a route to use the general Notify Email in Email Settings. Separate multiple addresses with commas.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -141,7 +146,7 @@ export default function EmailRoutesPage() {
                     value={routes[route.key] || ""}
                     onChange={(e) => setRoutes((prev) => ({ ...prev, [route.key]: e.target.value }))}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    placeholder="admin@martpoint.com.ng, sales@martpoint.com.ng"
+                    placeholder={route.key === "lead_submission" ? "sales@martpoint.com.ng" : route.key === "creator_application" ? "creators@martpoint.com.ng" : "admin@martpoint.com.ng"}
                   />
                   <p className="text-xs text-muted-foreground mt-1">{route.description}</p>
                 </div>

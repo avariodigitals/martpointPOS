@@ -269,6 +269,8 @@ export function LeadDetailModal({
   const [emailsReloadKey, setEmailsReloadKey] = useState(0)
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null)
   const [replyContext, setReplyContext] = useState<{ emailId: string; replyAll: boolean } | null>(null)
+  const [replyToInput, setReplyToInput] = useState("")
+  const [replyCcInput, setReplyCcInput] = useState("")
   const [ownEmailAddresses, setOwnEmailAddresses] = useState<string[] | null>(null)
   // True once the admin types their own subject; auto-fill then stands down.
   const [emailSubjectEdited, setEmailSubjectEdited] = useState(false)
@@ -925,6 +927,11 @@ export function LeadDetailModal({
     ? leadReplyRecipients(replyOriginal, lead, ownEmailAddresses, !!replyContext?.replyAll)
     : null
   const replyReady = !replyContext || !!replyRecipients
+  useEffect(() => {
+    if (!replyContext || !replyRecipients) return
+    setReplyToInput(replyRecipients.to.join(", "))
+    setReplyCcInput(replyRecipients.cc.join(", "))
+  }, [replyContext?.emailId, replyContext?.replyAll, replyRecipients?.to.join(","), replyRecipients?.cc.join(",")])
   const appliedEmailTemplate = emailTemplateKey
     ? buildLeadEmailTemplate(emailTemplateKey, emailTemplateIndustry, emailTemplateVars)
     : null
@@ -997,6 +1004,10 @@ export function LeadDetailModal({
             : undefined,
           replyToEmailId: replyContext?.emailId,
           replyAll: replyContext?.replyAll || undefined,
+          ...(replyContext ? {
+            toRecipients: replyToInput.split(/[;,]/).map((address) => address.trim()).filter(Boolean),
+            ccRecipients: replyCcInput.split(/[;,]/).map((address) => address.trim()).filter(Boolean),
+          } : {}),
         }),
       })
       const data = await res.json()
@@ -1769,30 +1780,31 @@ export function LeadDetailModal({
                 <div className="space-y-2 rounded-md border bg-muted/10 p-3">
                   <div>
                     <p className="text-xs font-medium">To</p>
-                    <div aria-label="Email To recipients" className={`${inputClass} mt-1 flex flex-wrap gap-1.5`}>
-                      {(replyContext ? replyRecipients?.to || [] : [lead.email, lead.additionalEmail].filter(Boolean)).map((address) => <span key={address} className="break-all rounded bg-muted px-2 py-1">{address}</span>)}
-                      {replyContext && !replyReady && <span>Loading reply recipients…</span>}
-                    </div>
+                    {replyContext ? <input aria-label="Email To recipients" type="text" value={replyToInput} onChange={(event) => setReplyToInput(event.target.value)} placeholder="name@example.com, another@example.com" disabled={!replyReady || sendingEmail} className={`${inputClass} mt-1 w-full`} /> : <div aria-label="Email To recipients" className={`${inputClass} mt-1 flex flex-wrap gap-1.5`}>
+                      {[lead.email, lead.additionalEmail].filter(Boolean).map((address) => <span key={address} className="break-all rounded bg-muted px-2 py-1">{address}</span>)}
+                    </div>}
                   </div>
-                  {(replyContext?.replyAll || !!replyRecipients?.cc.length) && (
+                  {(!!replyContext || !!replyRecipients?.cc.length) && (
                     <div>
                       <p className="text-xs font-medium">Cc</p>
-                      <div aria-label="Email Cc recipients" className={`${inputClass} mt-1 flex flex-wrap gap-1.5`}>
+                      {replyContext ? <input aria-label="Email Cc recipients" type="text" value={replyCcInput} onChange={(event) => setReplyCcInput(event.target.value)} placeholder="Optional; separate addresses with commas" disabled={!replyReady || sendingEmail} className={`${inputClass} mt-1 w-full`} /> : <div aria-label="Email Cc recipients" className={`${inputClass} mt-1 flex flex-wrap gap-1.5`}>
                         {replyRecipients?.cc.map((address) => <span key={address} className="break-all rounded bg-muted px-2 py-1">{address}</span>)}
-                        {!replyRecipients?.cc.length && <span className="text-muted-foreground">{replyReady ? "No additional Cc recipients" : "Loading copied recipients…"}</span>}
-                      </div>
+                        {!replyRecipients?.cc.length && <span className="text-muted-foreground">No additional Cc recipients</span>}
+                      </div>}
                     </div>
                   )}
-                  {replyContext && <p className="text-xs text-muted-foreground">{replyReady ? "These are the recipients that will receive your reply. Your own mailbox and duplicate addresses are excluded." : "Load the email thread to confirm recipients before sending."}</p>}
+                  {replyContext && <p className="text-xs text-muted-foreground">{replyReady ? "Edit recipients as needed. Separate multiple addresses with commas or semicolons." : "Load the email thread to confirm recipients before sending."}</p>}
                 </div>
                 <EmailLayoutSwitch value={emailLayout} disabled={sendingEmail || previewLoading} onChange={(layout) => { setEmailLayout(layout); setEmailPreview(null) }} />
                 <EmailDraftControls manager={emailDraft} disabled={sendingEmail || readingAttachments || previewLoading}
-                  getDraft={() => ({ subject: emailForm.subject, bodyHtml: emailForm.body, layout: emailLayout, replyContext, attachments: emailAttachments.map(({ filename, content }) => ({ filename, content })) })}
+                  getDraft={() => ({ subject: emailForm.subject, bodyHtml: emailForm.body, layout: emailLayout, replyContext, toRecipients: replyToInput, ccRecipients: replyCcInput, attachments: emailAttachments.map(({ filename, content }) => ({ filename, content })) })}
                   onRestore={(draft) => {
                     setEmailForm({ subject: draft.subject, body: draft.bodyHtml })
                     setEmailLayout(draft.layout)
                     setEmailSubjectEdited(true)
                     setReplyContext(draft.replyContext || null)
+                    setReplyToInput(draft.toRecipients || "")
+                    setReplyCcInput(draft.ccRecipients || "")
                     setEmailTemplateKey(null)
                     setEmailAttachments(draft.attachments.map((file) => ({ ...file, size: base64ByteLength(file.content) })))
                     setEmailPreview(null)

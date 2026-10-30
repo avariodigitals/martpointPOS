@@ -1,6 +1,8 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { inboundMessageKey, type InboundLeadEmail } from "@/lib/lead-emails-inbound"
 import { notifyAllAdmins } from "@/lib/admin-notifications"
+import { REPLY_TO } from "@/lib/email"
+import { mirrorConversationMessageToMailbox } from "@/lib/admin-mailbox-correspondence"
 
 /** File a reply to creators@ against the matching creator application. */
 export async function fileInboundCreatorEmail(email: InboundLeadEmail): Promise<boolean> {
@@ -30,6 +32,28 @@ export async function fileInboundCreatorEmail(email: InboundLeadEmail): Promise<
   if (error) {
     console.error("[creator-emails] inbound insert failed:", error.message)
     return false
+  }
+  try {
+    const refs = `${email.inReplyTo || ""} ${email.references || ""}`.match(/<[^<>\s]+>/g) || []
+    await mirrorConversationMessageToMailbox({
+      mailboxEmail: REPLY_TO.creators,
+      threadKey: refs[0] || messageKey || `creator-${application.id}`,
+      messageId: messageKey,
+      providerMessageId: messageKey || `creator-email:${inserted.id}`,
+      direction: "inbound",
+      fromEmail: email.from,
+      to: email.to,
+      cc: email.cc || undefined,
+      subject: email.subject || "(no subject)",
+      text: email.text || "",
+      html: email.html || "",
+      provider: email.provider || "imap",
+      createdAt: email.sentAt || null,
+      inReplyTo: email.inReplyTo,
+      references: email.references,
+    })
+  } catch (mirrorError) {
+    console.error("[creator emails] could not mirror inbound message to Mailbox:", mirrorError)
   }
   try {
     await notifyAllAdmins({

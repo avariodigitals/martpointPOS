@@ -1,7 +1,7 @@
 /* ───────────────────  Outbound lead email (server-only)  ───────────────────
  * Sends a message to a lead through the transactional provider (Resend/Brevo)
- * for deliverability and sending logs, with From and Reply-To on the admin's
- * sales mailbox so replies land in that inbox and the IMAP sync files them
+ * for deliverability and sending logs. The public From address (normally
+ * hello@) stays visible, Reply-To routes to Sales, and IMAP sync files replies
  * back into the lead thread. SMTP is only the fallback when no provider API
  * key is configured. Files every message into lead_emails.
  * Shared by the Email tab and meeting invites.
@@ -18,6 +18,7 @@ import { base64ByteLength } from "./lead-email-attachments"
 import type { EmailLayout } from "./email-layout"
 import { renderCorrespondenceHtml } from "./email-correspondence"
 import { sanitizeSupportHtml } from "./support-html"
+import { mirrorSentMessageToMailbox } from "./admin-mailbox-correspondence"
 
 export { escapeHtml }
 
@@ -104,35 +105,19 @@ function parseSenderAddress(raw: string | undefined): { address: string; name: s
 export interface LeadSenders {
   from: string
   replyTo: string
-  /** Account-level sender, used when the mailbox is unusable or refused. */
-  safeFrom: string
 }
 
-/** From/Reply-To for lead mail. The mailbox username carries the mail when the
- *  "From Email" field holds only a display name ("MartPoint Solutions"), so a
- *  half-typed Settings → Email entry can't produce a From address the provider
- *  rejects.
- *
- *  `senderName` implements "send as": the signed-in salesperson fronts the
- *  shared mailbox, so the customer sees a person while every reply still lands
- *  in the one inbox the IMAP sync reads. */
+/** Lead email keeps the configured public sender (normally hello@) while
+ *  directing replies to the Sales shared inbox. `senderName` personalizes the
+ *  visible From name without changing the delivery address. */
 export function resolveLeadSenders(settings: EmailSettings, senderName?: string): LeadSenders {
-  const fromEmail = (settings.smtp.fromEmail || "").trim()
-  const mailboxAddress = parseSenderAddress(fromEmail) || parseSenderAddress(settings.smtp.user)
-  // A "From Email" entry without an address in it is a display name.
-  const configuredName = parseSenderAddress(fromEmail)?.name || (fromEmail.includes("@") ? "" : fromEmail)
-  const displayName = (senderName || "").trim() || configuredName
   const accountSender =
     parseSenderAddress(settings.fromEmail) ||
     parseSenderAddress(process.env.RESEND_FROM_EMAIL) ||
     { address: "hello@martpoint.com.ng", name: "MartPoint" }
-
-  const safeFrom = `${accountSender.name || "MartPoint"} <${accountSender.address}>`
-  if (!mailboxAddress) return { from: safeFrom, replyTo: REPLY_TO.sales, safeFrom }
-
-  const from = `${displayName || "MartPoint"} <${mailboxAddress.address}>`
-  // Replies must reach the mailbox the IMAP sync reads — never the sender.
-  return { from, replyTo: from, safeFrom }
+  const displayName = (senderName || "").trim() || accountSender.name || "MartPoint"
+  const from = `${displayName} <${accountSender.address}>`
+  return { from, replyTo: REPLY_TO.sales }
 }
 
 /* Renders the parts exactly as the lead receives them: the text part with the
@@ -185,16 +170,13 @@ export function leadTemplateBrandedHtml(
 
 export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLeadEmailResult> {
   const settings = await getEmailSettings()
-  // Lead mail goes out through the transactional provider (Resend/Brevo) for
-  // deliverability and sending logs. From and Reply-To stay on the admin's
-  // sales mailbox, so a plain Reply lands in the real inbox and the IMAP sync
-  // files it back into the lead thread. SMTP only carries the mail when no
-  // provider API key is configured.
+  // Lead mail keeps the public From address (normally hello@), while every
+  // reply goes to the Sales inbox that IMAP sync files into the lead thread.
   const useProvider =
     settings.provider === "brevo"
       ? Boolean(settings.brevoApiKey || process.env.BREVO_API_KEY)
       : Boolean(settings.resendApiKey || process.env.RESEND_API_KEY)
-  const { from, replyTo, safeFrom } = resolveLeadSenders(settings, input.senderName)
+  const { from, replyTo } = resolveLeadSenders(settings, input.senderName)
 
   const { text: textBody, html } = await renderLeadEmail(input, settings)
   const messageId = input.headers?.["Message-ID"] || `<lead-${crypto.randomUUID()}@martpoint.com.ng>`
@@ -216,23 +198,15 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
     })
   const sendSmtp = (sender: string) =>
     sendEmailViaSmtp(
-      { subject: input.subject, text: textBody, html, replyTo: sender, cc: input.cc, attachments: input.attachments, headers, skipBranding: !!input.layout },
+      { subject: input.subject, text: textBody, html, replyTo, cc: input.cc, attachments: input.attachments, headers, skipBranding: !!input.layout },
       settings,
       sender,
       Array.isArray(input.to) ? input.to : [input.to],
     )
 
   let sent = viaProvider ? await sendProvider(from) : await sendSmtp(from)
-  let effectiveFrom = from
-  let effectiveProvider = viaProvider ? settings.provider : "smtp"
-  // The mailbox sender was refused (unverified domain, bad mailbox config).
-  // Retry through the transactional provider with the account sender so the
-  // lead still receives the message.
-  if (!sent && useProvider && safeFrom !== from) {
-    effectiveFrom = safeFrom
-    effectiveProvider = settings.provider
-    sent = await sendProvider(safeFrom)
-  }
+  const effectiveFrom = from
+  const effectiveProvider = viaProvider ? settings.provider : "smtp"
 
   if (!isSupabaseConfigured()) return { sent, email: null }
 
@@ -265,6 +239,30 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
   if (error) {
     console.error("[lead-emails] outbound insert failed:", error.message)
     return { sent, email: null, error: sent ? "Email sent but failed to save to thread" : "Failed to send email" }
+  }
+
+  if (sent) {
+    try {
+      await mirrorSentMessageToMailbox({
+        mailboxEmail: replyTo,
+        messageId,
+        fromEmail: effectiveFrom,
+        fromName: input.senderName || null,
+        to: input.to,
+        cc: input.cc,
+        subject: input.subject,
+        text: textBody,
+        html,
+        provider: effectiveProvider,
+        clientRequestId: typeof input.metadata?.request_id === "string" ? input.metadata.request_id : null,
+        leadId: input.leadId,
+        createdAt: row.created_at as string,
+      })
+    } catch (mirrorError) {
+      // The dedicated lead history remains saved; Mailbox sync will still bring
+      // the incoming response in, and this log identifies a failed sent copy.
+      console.error("[lead-emails] could not mirror sent message to Mailbox:", mirrorError)
+    }
   }
 
   return { sent, email: mapLeadEmail(row as Record<string, unknown>) }

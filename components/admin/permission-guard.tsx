@@ -23,6 +23,7 @@ const pageMap: Record<string, string> = {
   "/admin/partners": "partners",
   "/admin/partners/quotes": "partner_quotes",
   "/admin/tasks": "tasks",
+  "/admin/mailbox": "mailbox",
   "/admin/reports": "analytics",
   "/admin/audit": "admin",
   "/admin/marketing": "marketing",

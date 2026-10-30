@@ -2,6 +2,8 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { inboundMessageKey, type InboundLeadEmail } from "@/lib/lead-emails-inbound"
 import { htmlToText } from "@/lib/email-html"
 import { notifyAllAdmins } from "@/lib/admin-notifications"
+import { REPLY_TO } from "@/lib/email"
+import { mirrorConversationMessageToMailbox } from "@/lib/admin-mailbox-correspondence"
 
 export function isPartnerMailbox(to: string): boolean {
   return to
@@ -72,6 +74,29 @@ export async function fileInboundPartnerEmail(email: InboundLeadEmail): Promise<
   if (error?.code === "23505") return false
   // Throw so IMAP does not mark a temporarily failed import as processed.
   if (error) throw error
+  try {
+    const refs = `${email.inReplyTo || ""} ${email.references || ""}`.match(/<[^<>\s]+>/g) || []
+    const messageKey = inboundMessageKey(email)
+    await mirrorConversationMessageToMailbox({
+      mailboxEmail: REPLY_TO.partners,
+      threadKey: refs[0] || messageKey || `partner-${partnerId}`,
+      messageId: messageKey,
+      providerMessageId: messageKey || `partner-email:${data.id}`,
+      direction: "inbound",
+      fromEmail: sender,
+      to: email.to,
+      cc: email.cc || undefined,
+      subject: email.subject || "(no subject)",
+      text: email.text || htmlToText(email.html || ""),
+      html: email.html || "",
+      provider: email.provider || "imap",
+      createdAt: email.sentAt || null,
+      inReplyTo: email.inReplyTo,
+      references: email.references,
+    })
+  } catch (mirrorError) {
+    console.error("[partner emails] could not mirror inbound message to Mailbox:", mirrorError)
+  }
   try {
     await notifyAllAdmins({
       type: "PARTNER_EMAIL_RECEIVED",

@@ -26,6 +26,8 @@ const postSchema = z.object({
   attachments: leadEmailAttachmentsSchema.optional(),
   replyToEmailId: z.string().uuid().optional(),
   replyAll: z.boolean().optional(),
+  toRecipients: z.array(z.email().transform((email) => email.toLowerCase())).max(100).optional(),
+  ccRecipients: z.array(z.email().transform((email) => email.toLowerCase())).max(100).optional(),
 })
 
 async function ownEmailAddresses(name?: string): Promise<string[]> {
@@ -116,8 +118,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         { email: lead.email, additionalEmail: lead.additional_email },
         await ownEmailAddresses(auth.session.name), Boolean(parsed.data.replyAll),
       )
-      recipients = reply.to
-      cc = reply.cc
+      recipients = parsed.data.toRecipients ?? reply.to
+      cc = parsed.data.ccRecipients ?? reply.cc
+      recipients = [...new Set(recipients)]
+      cc = [...new Set(cc)].filter((address) => !recipients.includes(address))
+      if (!recipients.length) return NextResponse.json({ error: "Add at least one valid To address." }, { status: 400 })
 
       const originalSubject = String(original.subject || "").trim()
       subject = originalSubject && /^re:/i.test(originalSubject) ? originalSubject : `Re: ${originalSubject || parsed.data.subject}`

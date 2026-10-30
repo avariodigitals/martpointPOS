@@ -1,6 +1,7 @@
 import type { User } from "./admin-types"
 import { readSettings } from "./settings"
-import { renderSignatureTemplate, usesSupportPhone, type SignatureTemplate } from "./email-signature"
+import { DEFAULT_PROFILE_SIGNATURE_HTML, renderProfileSignatureHtml, usesSupportPhone, type SignatureTemplate } from "./email-signature"
+import { sanitizeSupportHtml } from "./support-html"
 
 export async function getProfileSignatureTemplate(user: Pick<User, "name" | "username" | "email" | "role" | "phone" | "signatureTemplate">): Promise<SignatureTemplate> {
   const settings = await readSettings()
@@ -19,8 +20,14 @@ export async function getProfileSignatureTemplate(user: Pick<User, "name" | "use
   return template
 }
 
+export async function getProfileSignatureHtmlTemplate(): Promise<string> {
+  const settings = await readSettings()
+  const email = (settings?.email || {}) as Record<string, unknown>
+  return String(email.profileSignatureHtmlTemplate || DEFAULT_PROFILE_SIGNATURE_HTML)
+}
+
 export async function resolveProfileSignature(user: User | undefined): Promise<string> {
   if (!user) return ""
-  if (!user.signatureTemplate && user.signatureHtml?.trim()) return user.signatureHtml
-  return renderSignatureTemplate(await getProfileSignatureTemplate(user))
+  const [fields, templateHtml] = await Promise.all([getProfileSignatureTemplate(user), getProfileSignatureHtmlTemplate()])
+  return renderProfileSignatureHtml(sanitizeSupportHtml(templateHtml), fields)
 }

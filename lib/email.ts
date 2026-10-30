@@ -87,6 +87,7 @@ export interface EmailSettings {
   signature: string
   /** HTML signature (from the rich editor). Takes precedence over `signature`. */
   signatureHtml: string
+  profileSignatureHtmlTemplate: string
   smtp: SmtpSettings
   imap: ImapSettings
   routes: Record<string, string>
@@ -129,7 +130,7 @@ const DEFAULT_ROUTES: Record<string, string> = {
   quote_change_request: "sales@martpoint.com.ng",
   quote_declined: "sales@martpoint.com.ng",
   career_application: "careers@martpoint.com.ng",
-  creator_application: "hello@martpoint.com.ng",
+  creator_application: "creators@martpoint.com.ng",
   partner_application: "partners@martpoint.com.ng",
   partner_quote_request: "sales@martpoint.com.ng",
   partner_lead_registration: "sales@martpoint.com.ng",
@@ -186,6 +187,7 @@ async function loadEmailSettingsFromDb(): Promise<EmailSettings> {
     notifyEmail: "",
     signature: "",
     signatureHtml: "",
+    profileSignatureHtmlTemplate: "",
     smtp: loadSmtpSettings({}),
     imap: loadImapSettings({}),
     routes: { ...DEFAULT_ROUTES },
@@ -224,6 +226,7 @@ async function loadEmailSettingsFromDb(): Promise<EmailSettings> {
       notifyEmail: String(email.notifyEmail || ""),
       signature: String(email.signature || ""),
       signatureHtml: String(email.signatureHtml || ""),
+      profileSignatureHtmlTemplate: String(email.profileSignatureHtmlTemplate || ""),
       smtp: loadSmtpSettings(smtp),
       imap: loadImapSettings(imap),
       routes: { ...DEFAULT_ROUTES, ...Object.fromEntries(Object.entries(routes).map(([k, v]) => [k, String(v)])) },
@@ -279,7 +282,9 @@ export function clearEmailSettingsCache(): void {
 
 export async function getEmailRoute(route: string): Promise<string[]> {
   const settings = await getEmailSettings()
-  const raw = settings.routes[route] || DEFAULT_ROUTES[route] || ""
+  // An explicitly cleared route should use Notify Email in sendEmail(), while
+  // a missing route still gets the application default.
+  const raw = settings.routes[route] ?? DEFAULT_ROUTES[route] ?? ""
   if (!raw) return []
   return raw
     .split(",")

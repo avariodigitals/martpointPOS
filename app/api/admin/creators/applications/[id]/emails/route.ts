@@ -8,6 +8,7 @@ import { REPLY_TO, getEmailSettings, sendEmail } from "@/lib/email"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { renderCreatorEmail } from "@/lib/creator-email"
 import { emailComposerFields } from "@/lib/email-correspondence"
+import { mirrorSentMessageToMailbox } from "@/lib/admin-mailbox-correspondence"
 
 const schema = z.object({
   ...emailComposerFields,
@@ -87,6 +88,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (insertError || !row) {
       console.error("[creator emails POST] save failed:", insertError?.message)
       return NextResponse.json({ error: sent ? "Email sent, but its history could not be saved." : "Email was not sent and its history could not be saved." }, { status: 500 })
+    }
+
+    if (sent) {
+      try {
+        await mirrorSentMessageToMailbox({
+          mailboxEmail: REPLY_TO.creators,
+          messageId,
+          fromEmail: from,
+          fromName: session.name || session.username,
+          to: String(application.email),
+          subject: parsed.data.subject,
+          text,
+          html,
+          provider: settings.provider,
+          sentBy: session.userId,
+          sentByName: session.name || session.username,
+          createdAt: row.created_at as string,
+        })
+      } catch (mirrorError) {
+        console.error("[creator emails] could not mirror sent message to Mailbox:", mirrorError)
+      }
     }
 
     await recordAudit(auditContextFromSession(session, request), {

@@ -7,6 +7,8 @@
 
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { processLead, type LeadInput } from "./process-lead"
+import { REPLY_TO } from "./email"
+import { mirrorConversationMessageToMailbox } from "./admin-mailbox-correspondence"
 
 const EXPLEE_API_BASE = "https://api.explee.com"
 const PAGE_SIZE = 100
@@ -144,6 +146,32 @@ async function syncExpleeThread(
     apiKey,
   )
   const mapped = (thread.messages || []).map((m, i) => mapExpleeMessage(m, personId, i))
+
+  // LeadsRite responses live in its API rather than the sales IMAP account.
+  // Mirror the full conversation into Sales Mailbox, deduped by provider ID,
+  // so the team can see it and continue working from the shared inbox.
+  for (const [index, message] of (thread.messages || []).entries()) {
+    const row = mapped[index]
+    const fromEmail = message.from_email?.trim()
+    if (!fromEmail) continue
+    const outbound = message.type === "sent"
+    const failed = outbound && ["failed", "bounced"].includes((message.status || "").toLowerCase())
+    if (failed) continue
+    await mirrorConversationMessageToMailbox({
+      mailboxEmail: REPLY_TO.sales,
+      threadKey: `leadsrite:${campaignId}:${personId}`,
+      messageId: message.message_id,
+      providerMessageId: String(row.provider_message_id),
+      direction: outbound ? "outbound" : "inbound",
+      fromEmail,
+      to: message.to_email || "",
+      subject: message.subject || "(no subject)",
+      text: message.body_text || "",
+      provider: "leadsrite",
+      leadId,
+      createdAt: message.ts,
+    })
+  }
 
   let filed = 0
   if (mapped.length) {

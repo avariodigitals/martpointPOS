@@ -171,6 +171,10 @@ ROLE_PERMISSIONS.Finance = [
 ]
 
 export function hasPermission(role: UserRole, page: string): boolean {
+  // Mailbox visibility is granted per inbox membership in the API. The page
+  // itself is available to every active staff role so department membership
+  // stays configurable instead of being tied to role names here.
+  if (page === "mailbox") return true
   // Admin has full access — mirrors the bypass in authorize(). The literal
   // ROLE_PERMISSIONS.Admin list doesn't enumerate granular permissions like
   // the careers.* set, so without this an Admin would lose menu items and

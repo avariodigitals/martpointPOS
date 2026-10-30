@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { isSupabaseConfigured } from "@/lib/supabase"
-import { describeSyncResult, syncLeadInbox, type LeadInboxSyncResult } from "@/lib/lead-email-sync"
+import { describeSyncResult, syncLeadInbox } from "@/lib/lead-email-sync"
+import { syncAllSharedMailboxes } from "@/lib/admin-mailbox"
 
 /* ───────────────────────────  IMAP email sync  ───────────────────────────
  * Polls the configured mailbox over IMAP and files messages into lead_emails
@@ -51,12 +52,20 @@ async function run(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: true, skipped: ["supabase not configured"] })
   }
 
-  const result: LeadInboxSyncResult = await syncLeadInbox()
+  const [result, mailboxResults] = await Promise.all([
+    syncLeadInbox(),
+    syncAllSharedMailboxes().catch((error) => {
+      console.error("[shared-mailbox-sync]", error)
+      return [{ id: "system", email: "Shared mailbox sync", imported: 0, scanned: 0, error: error instanceof Error ? error.message : "Shared mailbox sync failed." }]
+    }),
+  ])
+  const failedMailboxes = mailboxResults.filter((mailbox) => Boolean(mailbox.error))
+  for (const mailbox of failedMailboxes) console.error("[shared-mailbox-sync]", mailbox.email, mailbox.error)
   if (result.error) {
     console.error("[email-sync]", result.error)
-    return NextResponse.json({ ok: false, ...result, summary: describeSyncResult(result) }, { status: 500 })
+    return NextResponse.json({ ok: false, ...result, mailboxResults, summary: describeSyncResult(result) }, { status: 500 })
   }
-  return NextResponse.json({ ok: true, ...result, summary: describeSyncResult(result) })
+  return NextResponse.json({ ok: failedMailboxes.length === 0, ...result, mailboxResults, summary: describeSyncResult(result) }, { status: failedMailboxes.length ? 502 : 200 })
 }
 
 export const GET = run

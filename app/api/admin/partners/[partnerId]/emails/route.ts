@@ -11,6 +11,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { htmlToText } from "@/lib/email-html"
 import { sanitizeSupportHtml } from "@/lib/support-html"
+import { mirrorSentMessageToMailbox } from "@/lib/admin-mailbox-correspondence"
 import { EMAIL_LAYOUTS } from "@/lib/email-layout"
 import {
   loadPartnerEmailContext,
@@ -185,6 +186,27 @@ export async function POST(request: Request, { params }: Context) {
       .eq("id", saved.data.id)
       .select(PARTNER_EMAIL_FIELDS)
       .single()
+    if (sent) {
+      try {
+        await mirrorSentMessageToMailbox({
+          mailboxEmail: REPLY_TO.partners,
+          messageId,
+          fromEmail: from,
+          fromName: senderName,
+          to: input.recipient,
+          subject: input.subject,
+          text: content.text,
+          html: content.html,
+          provider: settings.provider,
+          sentBy: session.userId,
+          sentByName: senderName,
+          clientRequestId: input.requestId,
+          createdAt: updated.data?.created_at || saved.data.created_at,
+        })
+      } catch (mirrorError) {
+        console.error("[partner emails] could not mirror sent message to Mailbox:", mirrorError)
+      }
+    }
     await recordAudit(auditContextFromSession(session, request), {
       action: "PARTNER_EMAIL_SENT",
       entityType: "partner",

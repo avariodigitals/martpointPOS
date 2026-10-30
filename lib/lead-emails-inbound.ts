@@ -7,6 +7,8 @@
 import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { notifyAllAdmins } from "./admin-notifications"
+import { REPLY_TO } from "./email"
+import { mirrorConversationMessageToMailbox } from "./admin-mailbox-correspondence"
 
 export interface InboundLeadEmail {
   from: string
@@ -39,23 +41,28 @@ export function inboundMessageKey(email: Pick<InboundLeadEmail, "messageId" | "f
 }
 
 /** Leads reply from the address on their form, and sometimes a second one. */
-async function findLeadByAddress(address: string): Promise<{ id: string; full_name: string; business_name: string } | null> {
+export async function resolveUniqueLeadIdByAddress(address: string): Promise<string | null> {
+  const normalized = address.trim().toLowerCase()
+  if (!normalized) return null
+  const ids = new Set<string>()
   for (const column of ["email", "additional_email"] as const) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("leads")
-      .select("id, full_name, business_name")
-      .ilike(column, address)
-      .limit(1)
-      .maybeSingle()
-    if (data?.id) {
-      return {
-        id: String(data.id),
-        full_name: String(data.full_name || "Lead"),
-        business_name: String(data.business_name || "Unnamed business"),
-      }
-    }
+      .select("id")
+      .ilike(column, normalized)
+      .limit(3)
+    if (error) throw new Error(error.message)
+    for (const row of data || []) if (row.id) ids.add(String(row.id))
   }
-  return null
+  return ids.size === 1 ? [...ids][0] : null
+}
+
+async function findLeadByAddress(address: string): Promise<{ id: string; full_name: string; business_name: string } | null> {
+  const id = await resolveUniqueLeadIdByAddress(address)
+  if (!id) return null
+  const { data, error } = await supabase.from("leads").select("id, full_name, business_name").eq("id", id).maybeSingle()
+  if (error) throw new Error(error.message)
+  return data ? { id: String(data.id), full_name: String(data.full_name || "Lead"), business_name: String(data.business_name || "Unnamed business") } : null
 }
 
 /** Files an inbound email into lead_emails if the sender matches a lead.
@@ -100,6 +107,30 @@ export async function fileInboundLeadEmail(email: InboundLeadEmail): Promise<boo
   if (error) {
     console.error("[lead-emails] inbound insert failed:", error.message)
     return false
+  }
+
+  try {
+    const refs = `${email.inReplyTo || ""} ${email.references || ""}`.match(/<[^<>\s]+>/g) || []
+    await mirrorConversationMessageToMailbox({
+      mailboxEmail: REPLY_TO.sales,
+      threadKey: refs[0] || messageKey || `lead-${lead.id}`,
+      messageId: messageKey,
+      providerMessageId: messageKey || `lead-email:${inserted.id}`,
+      direction: "inbound",
+      fromEmail: email.from,
+      to: email.to,
+      cc: email.cc || undefined,
+      subject: email.subject,
+      text: email.text || "",
+      html: email.html || "",
+      provider: email.provider || "imap",
+      createdAt: email.sentAt || null,
+      leadId: lead.id,
+      inReplyTo: email.inReplyTo,
+      references: email.references,
+    })
+  } catch (mirrorError) {
+    console.error("[lead-emails] could not mirror inbound message to Mailbox:", mirrorError)
   }
 
   try {

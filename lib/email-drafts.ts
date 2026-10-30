@@ -10,6 +10,8 @@ export const emailDraftSchema = z.object({
   layout: z.enum(EMAIL_LAYOUTS),
   recipient: z.union([z.email(), z.literal("")]).optional(),
   replyContext: z.object({ emailId: z.uuid(), replyAll: z.boolean() }).nullable().optional(),
+  toRecipients: z.string().max(4000).optional(),
+  ccRecipients: z.string().max(4000).optional(),
   attachments: leadEmailAttachmentsSchema.default([]),
 })
 export type EmailDraft = z.infer<typeof emailDraftSchema>

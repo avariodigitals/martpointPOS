@@ -5,22 +5,22 @@ import { useRouter } from "next/navigation"
 import { Loader2, Save } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { renderSignatureTemplate, type SignatureTemplate } from "@/lib/email-signature"
+import { renderProfileSignatureHtml, type SignatureTemplate } from "@/lib/email-signature"
+import { sanitizeSupportHtml } from "@/lib/support-html"
 
-export function ProfileSignatureEditor({ initialSignature, initialTemplate, hasSavedTemplate, profilePhone, supportPhone }: {
-  initialSignature: string; initialTemplate: SignatureTemplate; hasSavedTemplate: boolean
-  profilePhone: string; supportPhone: boolean
+export function ProfileSignatureEditor({ initialTemplate, signatureHtmlTemplate, hasSavedTemplate, profilePhone, supportPhone }: {
+  initialTemplate: SignatureTemplate; hasSavedTemplate: boolean
+  signatureHtmlTemplate: string; profilePhone: string; supportPhone: boolean
 }) {
   const router = useRouter()
   const [template, setTemplate] = useState(initialTemplate)
   const [phone, setPhone] = useState(profilePhone)
-  const [custom, setCustom] = useState(Boolean(initialSignature && !hasSavedTemplate))
   const [saved, setSaved] = useState(hasSavedTemplate ? JSON.stringify([initialTemplate, profilePhone]) : "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
-  const signature = custom ? initialSignature : renderSignatureTemplate(template)
-  const dirty = !custom && saved !== JSON.stringify([template, phone])
+  const signature = renderProfileSignatureHtml(sanitizeSupportHtml(signatureHtmlTemplate), { ...template, phone: supportPhone ? template.phone : phone })
+  const dirty = saved !== JSON.stringify([template, phone])
 
   function change(field: keyof SignatureTemplate, value: string) {
     setTemplate((current) => ({ ...current, [field]: value }))
@@ -47,11 +47,7 @@ export function ProfileSignatureEditor({ initialSignature, initialTemplate, hasS
   return <Card id="email-signature" className="rounded-2xl border-slate-200/80 shadow-sm">
     <CardHeader><CardTitle className="text-base">Email signature</CardTitle></CardHeader>
     <CardContent className="space-y-4">
-      <p className="text-sm text-muted-foreground">Your template starts with your profile name, role, phone and email. Edit the plain text below; we format the HTML for outgoing emails. The company footer is added separately.</p>
-      {custom ? <div className="space-y-3">
-        <p className="text-sm">You have an existing custom signature. Switching to the profile template replaces it only after you save.</p>
-        <Button type="button" variant="outline" onClick={() => setCustom(false)}>Use profile template</Button>
-      </div> : <>
+      <p className="text-sm text-muted-foreground">Your Admin-managed HTML layout fills in your name, role, email and phone from your profile. Update those details here and preview the exact signature used in outgoing email.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           {([['name', 'Name'], ['title', 'Role / job title'], ['email', 'Email'], ['company', 'Company']] as const).map(([field, label]) => <div key={field}>
             <label htmlFor={`signature-${field}`} className="mb-1 block text-sm font-medium">{label}</label>
@@ -78,7 +74,6 @@ export function ProfileSignatureEditor({ initialSignature, initialTemplate, hasS
             onChange={(e) => change('extra', e.target.value)} placeholder="Optional closing or additional contact details"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
         </div>
-      </>}
       <div>
         <p className="mb-2 text-xs font-medium text-muted-foreground">Signature preview</p>
         <iframe title="Your email signature preview" sandbox="" className="h-52 w-full rounded-md border bg-white" srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font:14px/1.6 Arial,sans-serif;color:#111827;padding:12px}img{max-width:100%;height:auto}a{color:#0057ff}</style></head><body>${signature}</body></html>`} />
@@ -89,7 +84,6 @@ export function ProfileSignatureEditor({ initialSignature, initialTemplate, hasS
         <Button type="button" onClick={save} disabled={saving || !dirty || !template.name.trim()}>
           {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}Save signature
         </Button>
-        {custom === false && initialSignature && !hasSavedTemplate && <Button type="button" variant="ghost" disabled={saving} onClick={() => setCustom(true)}>Keep existing signature</Button>}
       </div>
     </CardContent>
   </Card>

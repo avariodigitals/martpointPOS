@@ -7,6 +7,7 @@ import { DEFAULT_SCHEDULING } from "@/lib/scheduling"
 import { DEFAULT_MEETING_NOTES } from "@/lib/meeting-notes"
 import { DEFAULT_DRIVE_SETTINGS } from "@/lib/drive-storage"
 import { validateEmailSettings } from "@/lib/email-settings-guard"
+import { DEFAULT_PROFILE_SIGNATURE_HTML } from "@/lib/email-signature"
 
 async function readSettings(): Promise<Record<string, unknown>> {
   if (!isSupabaseConfigured()) {
@@ -65,11 +66,13 @@ function getDefaultSettings() {
       notifyEmail: "",
       signature: "",
       signatureHtml: "",
+      profileSignatureHtmlTemplate: DEFAULT_PROFILE_SIGNATURE_HTML,
       smtp: { host: "", port: 465, secure: true, user: "", pass: "", fromEmail: "" },
       imap: { host: "", port: 993, secure: true, user: "", pass: "", mailbox: "INBOX" },
       routes: {
         lead_submission: "sales@martpoint.com.ng",
         career_application: "careers@martpoint.com.ng",
+        creator_application: "creators@martpoint.com.ng",
         partner_application: "partners@martpoint.com.ng",
         partner_quote_request: "sales@martpoint.com.ng",
         partner_lead_registration: "sales@martpoint.com.ng",

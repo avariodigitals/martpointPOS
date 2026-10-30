@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { isAdminAuthenticated, getAllUsers, createAdminInvitation, updateUser, disableUser, enableUser } from "@/lib/admin-auth"
+import { isAdminAuthenticated, getAllUsers, createAdminInvitation, updateUser, deleteUser, disableUser, enableUser } from "@/lib/admin-auth"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 import { getSession } from "@/lib/admin-auth"
 import { sendEmail } from "@/lib/email"
@@ -117,6 +117,18 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "User ID and valid status are required" }, { status: 400 })
     }
 
+    if (id === session.userId && status === "DISABLED") {
+      return NextResponse.json({ error: "You cannot deactivate your own account." }, { status: 400 })
+    }
+    if (status === "DISABLED") {
+      const users = await getAllUsers()
+      const target = users.find((user) => user.id === id)
+      if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 })
+      if (target.role === "Admin" && target.status === "ACTIVE" && users.filter((user) => user.role === "Admin" && user.status === "ACTIVE").length <= 1) {
+        return NextResponse.json({ error: "The last active Admin cannot be deactivated." }, { status: 409 })
+      }
+    }
+
     const ok = status === "ACTIVE" ? await enableUser(id) : await disableUser(id)
     if (!ok) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
@@ -140,7 +152,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-/* ─── DELETE (soft disable) ─── */
+/* ─── DELETE (permanent) ─── */
 export async function DELETE(request: Request) {
   const session = await getSession()
   if (!session) {
@@ -155,22 +167,32 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
-    const success = await disableUser(id)
+    if (id === session.userId) {
+      return NextResponse.json({ error: "You cannot delete your own account." }, { status: 400 })
+    }
+    const users = await getAllUsers()
+    const target = users.find((user) => user.id === id)
+    if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 })
+    if (target.role === "Admin" && users.filter((user) => user.role === "Admin").length <= 1) {
+      return NextResponse.json({ error: "The last Admin account cannot be deleted." }, { status: 409 })
+    }
+
+    const success = await deleteUser(id)
     if (!success) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const ctx = auditContextFromSession(session, request)
     await recordAudit(ctx, {
-      action: AUDIT_ACTIONS.ADMIN_USER_DISABLED,
+      action: AUDIT_ACTIONS.ADMIN_USER_UPDATED,
       entityType: AUDIT_ENTITIES.ADMIN_USER,
       entityId: id,
-      metadata: {},
+      metadata: { deleted: true, username: target.username },
     })
 
     return NextResponse.json({ success: true })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Failed to disable user"
+    const message = err instanceof Error ? err.message : "Failed to delete user"
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

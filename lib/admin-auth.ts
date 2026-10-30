@@ -125,10 +125,13 @@ export async function updateUser(
   updates: Partial<Omit<User, "id" | "createdAt" | "passwordHash"> & { password?: string }>
 ): Promise<User | null> {
   if (!isSupabaseConfigured()) return null
-  const { data } = await supabase.from("users").select("*").eq("id", id).single()
+  const { data, error: readError } = await supabase.from("users").select("*").eq("id", id).maybeSingle()
+  if (readError) throw new Error(`Could not load user: ${readError.message}`)
   if (!data) return null
 
-  const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  // The legacy users table has no updated_at column. Profile and team edits
+  // must only write fields that exist in the user schema.
+  const updateData: Record<string, unknown> = {}
   if (updates.username) updateData.username = updates.username
   if (updates.email !== undefined) updateData.email = updates.email.trim().toLowerCase() || null
   if (updates.name) updateData.name = updates.name
@@ -143,7 +146,8 @@ export async function updateUser(
   if (updates.status) updateData.status = updates.status
   if (updates.password) updateData.password_hash = hashPassword(updates.password)
 
-  const { data: updated } = await supabase.from("users").update(updateData).eq("id", id).select().single()
+  const { data: updated, error: updateError } = await supabase.from("users").update(updateData).eq("id", id).select().maybeSingle()
+  if (updateError) throw new Error(`Could not update user: ${updateError.message}`)
   if (!updated) return null
   return mapUser(updated)
 }
@@ -211,20 +215,23 @@ export async function acceptAdminInvitation(token: string, password: string): Pr
 
   const { error: updateError } = await supabase
     .from("users")
-    .update({ password_hash: hashPassword(password), invite_token_hash: null, invite_expires_at: null, updated_at: new Date().toISOString() })
+    .update({ password_hash: hashPassword(password), invite_token_hash: null, invite_expires_at: null })
     .eq("id", row.id)
   return updateError ? null : { username: row.username as string }
 }
 
 export async function deleteUser(id: string): Promise<boolean> {
-  return disableUser(id)
+  if (!isSupabaseConfigured()) throw new Error("User service is unavailable")
+  const { data, error } = await supabase.from("users").delete().eq("id", id).select("id").maybeSingle()
+  if (error) throw new Error(`Could not delete user: ${error.message}`)
+  return Boolean(data)
 }
 
 export async function disableUser(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error("User service is unavailable")
   const { data, error } = await supabase
     .from("users")
-    .update({ status: "DISABLED", updated_at: new Date().toISOString() })
+    .update({ status: "DISABLED" })
     .eq("id", id)
     .select("id")
     .maybeSingle()
@@ -236,7 +243,7 @@ export async function enableUser(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error("User service is unavailable")
   const { data, error } = await supabase
     .from("users")
-    .update({ status: "ACTIVE", updated_at: new Date().toISOString() })
+    .update({ status: "ACTIVE" })
     .eq("id", id)
     .select("id")
     .maybeSingle()
@@ -280,6 +287,12 @@ function isSessionPayload(value: unknown): value is SessionPayload {
     typeof v.role === "string" &&
     typeof v.name === "string"
   )
+}
+
+async function sessionUserIsActive(userId: string): Promise<boolean> {
+  if (!isSupabaseConfigured()) return true
+  const { data, error } = await supabase.from("users").select("status").eq("id", userId).maybeSingle()
+  return !error && data?.status === "ACTIVE"
 }
 
 export async function authenticateUser(username: string, password: string): Promise<SessionPayload | null> {
@@ -329,6 +342,7 @@ export async function getSession(): Promise<SessionPayload | null> {
   if (isAdminSessionExpired(payload)) {
     return null
   }
+  if (!(await sessionUserIsActive(payload.userId))) return null
   return payload
 }
 
@@ -344,6 +358,10 @@ export async function refreshSessionActivity(): Promise<SessionPayload | null> {
   const payload = verifySession(token.value, isSessionPayload)
   if (!payload) return null
   if (isAdminSessionExpired(payload)) {
+    cookieStore.delete(ADMIN_COOKIE_NAME)
+    return null
+  }
+  if (!(await sessionUserIsActive(payload.userId))) {
     cookieStore.delete(ADMIN_COOKIE_NAME)
     return null
   }

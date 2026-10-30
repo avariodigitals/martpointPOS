@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, Trash2, Users, Plus, User, Shield, Pencil } from "lucide-react"
+import { Loader2, Save, Trash2, Users, Plus, User, Shield, Pencil, UserCheck, UserX } from "lucide-react"
 import { ALL_ROLES, ROLE_DESCRIPTIONS, type UserRole } from "@/lib/admin-types"
 import { roleLabel } from "@/lib/utils"
 
@@ -14,6 +14,7 @@ type AdminUser = {
   name: string
   signatureHtml: string
   role: UserRole
+  status: "ACTIVE" | "DISABLED"
   createdAt: string
 }
 
@@ -27,6 +28,7 @@ export default function AdminUsersPage() {
   const [editing, setEditing] = useState<AdminUser | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [busyUserId, setBusyUserId] = useState<string | null>(null)
 
   const emptyForm = {
     username: "",
@@ -128,12 +130,13 @@ export default function AdminUsersPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this user?")) return
+    if (!confirm("Permanently delete this user? This cannot be undone.")) return
+    setBusyUserId(id)
     try {
       const res = await fetch(`/api/admin/users?id=${id}`, { method: "DELETE" })
       const data = await parseResponse(res)
       if (res.ok && data.success) {
-        setMessage("User deleted.")
+        setMessage("User permanently deleted.")
         fetchUsers()
       } else {
         const errorMsg = (data.error as string) || `Failed to delete user (${res.status}).`
@@ -143,6 +146,29 @@ export default function AdminUsersPage() {
     } catch (err) {
       console.error("Network or unexpected error:", err)
       setMessage("Network error. Check your connection and try again.")
+    } finally {
+      setBusyUserId(null)
+    }
+  }
+
+  const handleStatusToggle = async (user: AdminUser) => {
+    const status = user.status === "ACTIVE" ? "DISABLED" : "ACTIVE"
+    setBusyUserId(user.id)
+    setMessage("")
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user.id, status }),
+      })
+      const data = await parseResponse(res)
+      if (!res.ok) throw new Error((data.error as string) || `Could not ${status === "ACTIVE" ? "reactivate" : "deactivate"} user.`)
+      setMessage(status === "ACTIVE" ? "User reactivated." : "User deactivated.")
+      await fetchUsers()
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not update user status.")
+    } finally {
+      setBusyUserId(null)
     }
   }
 
@@ -185,7 +211,7 @@ export default function AdminUsersPage() {
       </div>
 
       {message && (
-        <p className={`text-sm ${message.includes("success") || message.includes("deleted") ? "text-success" : "text-destructive"}`}>
+        <p className={`text-sm ${/success|deleted|deactivated|reactivated/i.test(message) ? "text-success" : "text-destructive"}`}>
           {message}
         </p>
       )}
@@ -310,24 +336,38 @@ export default function AdminUsersPage() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => startEdit(user)}
+                      disabled={busyUserId === user.id}
                       className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                       title="Edit"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
                     <button
+                      onClick={() => void handleStatusToggle(user)}
+                      disabled={busyUserId === user.id}
+                      className={`p-1.5 rounded-md transition-colors ${user.status === "ACTIVE" ? "text-muted-foreground hover:bg-amber-50 hover:text-amber-700" : "text-green-700 hover:bg-green-50"}`}
+                      title={user.status === "ACTIVE" ? "Deactivate user" : "Reactivate user"}
+                      aria-label={user.status === "ACTIVE" ? `Deactivate ${user.name}` : `Reactivate ${user.name}`}
+                    >
+                      {busyUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : user.status === "ACTIVE" ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
                       onClick={() => handleDelete(user.id)}
+                      disabled={busyUserId === user.id}
                       className="p-1.5 rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
                       title="Delete"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      {busyUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <Shield className="w-3.5 h-3.5 text-retail" />
-                  <span className="text-xs font-medium text-retail bg-retail-soft px-2 py-0.5 rounded-full">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${user.status === "ACTIVE" ? "text-retail bg-retail-soft" : "text-muted-foreground bg-muted"}`}>
                     {roleLabel(user.role)}
+                  </span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${user.status === "ACTIVE" ? "text-green-700 bg-green-50" : "text-amber-700 bg-amber-50"}`}>
+                    {user.status === "ACTIVE" ? "Active" : "Deactivated"}
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">

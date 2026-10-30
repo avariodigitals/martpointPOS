@@ -71,7 +71,7 @@ export async function listMailboxesForUser(userId: string, isAdmin = false) {
   }
   const { data, error } = await supabase.from("admin_mailbox_members").select("mailbox:admin_mailboxes(id,name,email,active,created_at,last_sync_at,last_sync_error)").eq("user_id", userId)
   if (error) throw new Error(error.message)
-  return (data || []).map((row) => row.mailbox).filter((mailbox): mailbox is NonNullable<typeof mailbox> => Boolean(mailbox && mailbox.active))
+  return (data || []).flatMap((row) => Array.isArray(row.mailbox) ? row.mailbox : [row.mailbox]).filter((mailbox): mailbox is NonNullable<typeof mailbox> => Boolean(mailbox && mailbox.active))
 }
 
 function addressValues(value: unknown): string[] {
@@ -279,7 +279,7 @@ export async function syncSharedMailbox(mailbox: MailboxConfig): Promise<{ impor
     const lock = await client.getMailboxLock(mailbox.imap_folder || "INBOX")
     try {
       const uids = (await client.search({ all: true }, { uid: true })) || []
-      const uidValidity = String(client.mailbox?.uidValidity || "")
+      const uidValidity = String(client.mailbox ? client.mailbox.uidValidity : "")
       const sameMailboxEpoch = mailbox.last_synced_uid_validity === uidValidity
       const newestUid = uids.length ? Math.max(...uids) : mailbox.last_synced_uid
       const unseen = sameMailboxEpoch ? uids.filter((uid) => uid > mailbox.last_synced_uid) : uids
@@ -288,7 +288,7 @@ export async function syncSharedMailbox(mailbox: MailboxConfig): Promise<{ impor
       const pending = unseen.slice(0, 250)
       for (const uid of pending) {
         const fetched = await client.fetchOne(uid, { source: true }, { uid: true })
-        if (!fetched || fetched === false || !fetched.source) continue
+        if (!fetched || !fetched.source) continue
         const parsed = await simpleParser(fetched.source)
         scanned++
         const saved = await importMailboxMessage(mailbox, parsed as unknown as Record<string, unknown>)

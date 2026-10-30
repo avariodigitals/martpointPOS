@@ -31,7 +31,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const labelsByThread = new Map<string, { id: string; name: string; color: string }[]>()
     for (const item of labelLinks.data || []) {
       if (!item.label) continue
-      labelsByThread.set(item.thread_id, [...(labelsByThread.get(item.thread_id) || []), item.label])
+      const labels = Array.isArray(item.label) ? item.label : [item.label]
+      labelsByThread.set(item.thread_id, [...(labelsByThread.get(item.thread_id) || []), ...labels])
     }
     const result = (data || []).map((thread) => ({
       id: thread.id,

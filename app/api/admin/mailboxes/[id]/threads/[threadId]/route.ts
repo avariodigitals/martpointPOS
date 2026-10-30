@@ -18,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const { data: labelLinks, error: labelsError } = await supabase.from("admin_mailbox_thread_labels").select("label:admin_mailbox_labels(id,name,color)").eq("thread_id", threadId)
     if (labelsError) throw new Error(labelsError.message)
     await supabase.from("admin_mailbox_thread_state").upsert({ thread_id: threadId, user_id: session.userId, is_read: true }, { onConflict: "thread_id,user_id" })
-    return NextResponse.json({ thread: { ...thread, labels: (labelLinks || []).map((link) => link.label).filter(Boolean) }, messages: messages || [] })
+    return NextResponse.json({ thread: { ...thread, labels: (labelLinks || []).flatMap((link) => Array.isArray(link.label) ? link.label : [link.label]).filter(Boolean) }, messages: messages || [] })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load conversation." }, { status: 500 })
   }
@@ -60,7 +60,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
       const { data: links, error: linksError } = await supabase.from("admin_mailbox_thread_labels").select("label:admin_mailbox_labels(id,name,color)").eq("thread_id", threadId)
       if (linksError) throw new Error(linksError.message)
-      const labels = (links || []).map((link) => link.label).filter(Boolean)
+      const labels = (links || []).flatMap((link) => Array.isArray(link.label) ? link.label : [link.label]).filter(Boolean)
       const { error: updateError } = await supabase.from("admin_mailbox_threads").update(fields).eq("id", threadId).eq("mailbox_id", id)
       if (updateError) throw new Error(updateError.message)
       return NextResponse.json({ success: true, labels })

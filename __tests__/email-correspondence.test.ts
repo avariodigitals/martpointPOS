@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const m = vi.hoisted(() => ({ actor: vi.fn(), auth: vi.fn(), footer: vi.fn(), settings: vi.fn() }))
+vi.mock("@/lib/admin-mailbox-correspondence", () => ({ mirrorSentMessageToMailbox: vi.fn() }))
+vi.mock("@/lib/profile-signature", () => ({
+  resolveProfileSignature: vi.fn(async (actor: { signatureHtml?: string } | undefined) => actor?.signatureHtml || "")
+}))
 vi.mock("@/lib/settings", () => ({ getEmailFooterSettings: m.footer }))
 vi.mock("@/lib/admin-auth", () => ({ authorizeAdmin: m.auth, getUserById: m.actor }))
 vi.mock("@/lib/email", () => ({ getEmailSettings: m.settings }))

@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     const host = String(body.imapHost || "").trim()
     const username = String(body.imapUser || "").trim()
     const password = String(body.imapPassword || "")
-    const members = Array.isArray(body.members) ? [...new Set(body.members.map(String))] : []
+    const members = Array.isArray(body.members) ? [...new Set<string>(body.members.map(String))] : []
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !host || !username || !password) {
       return NextResponse.json({ error: "Name, valid inbox address, IMAP host/login/password are required." }, { status: 400 })
     }
@@ -104,7 +104,7 @@ export async function PATCH(request: Request) {
     if (Array.isArray(body.members)) {
       if (session.role !== "Admin") return NextResponse.json({ error: "Only an Admin can change mailbox membership." }, { status: 403 })
       const users = (await getAllUsers()).filter((user) => user.status === "ACTIVE")
-      const requested = [...new Set(body.members.map(String))].filter((userId: string) => users.some((user) => user.id === userId))
+      const requested = [...new Set<string>(body.members.map(String))].filter((userId) => users.some((user) => user.id === userId))
       if (!requested.length) return NextResponse.json({ error: "A mailbox must have at least one active member." }, { status: 400 })
       const { error: saveError } = await supabase.from("admin_mailbox_members").upsert(requested.map((user_id: string) => ({ mailbox_id: id, user_id, can_manage: user_id === session.userId })), { onConflict: "mailbox_id,user_id" })
       if (saveError) throw new Error(saveError.message)

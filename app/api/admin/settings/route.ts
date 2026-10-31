@@ -323,6 +323,10 @@ export async function GET() {
   const google = (settings.google as Record<string, unknown> | undefined) || {}
   return NextResponse.json({
     ...settings,
+    communications: settings.communications ? {
+      ...(settings.communications as Record<string, unknown>),
+      sms: { ...((settings.communications as { sms?: Record<string, unknown> }).sms || {}), apiKey: undefined },
+    } : undefined,
     google: { ...google, refreshToken: undefined, connected: Boolean(google.refreshToken) },
   })
 }

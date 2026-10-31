@@ -91,6 +91,7 @@ export const adminNavItems: AdminNavItem[] = [
     section: "Control Centre"
   },
   { href: "/admin/mailbox", label: "Mailbox", icon: Mail, page: "mailbox", section: "Support & Communications" },
+  { href: "/admin/communications", label: "Communications", icon: MessageCircle, page: "marketing", section: "Support & Communications" },
   { href: "/admin/reports", label: "Reports", icon: BarChart3, page: "analytics", section: "Control Centre" },
 
   // Marketing & Content

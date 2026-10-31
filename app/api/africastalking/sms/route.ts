@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { notifySupportAgents } from "@/lib/omnichannel-notifications"
+import { recordCommunicationSmsOptOut } from "@/lib/communication-sms"
 import {
   callbackSecretIsValid,
   finishAfricaWebhookEvent,
@@ -26,6 +27,13 @@ export async function POST(request: Request) {
 
   try {
     const text = pick(payload, "text", "message", "body")
+    if (from && /^(STOP|UNSUBSCRIBE|CANCEL|END|QUIT)$/i.test(text.trim())) {
+      try { await recordCommunicationSmsOptOut(from, text) }
+      catch {
+        await finishAfricaWebhookEvent(eventId, "failed", "Could not retain SMS opt-out")
+        return NextResponse.json({ error: "Could not retain opt-out" }, { status: 503 })
+      }
+    }
     if (!businessId || !from || !text || !isSupabaseConfigured()) {
       await finishAfricaWebhookEvent(eventId, "processed")
       return textResponse("")

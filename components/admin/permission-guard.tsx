@@ -27,6 +27,7 @@ const pageMap: Record<string, string> = {
   "/admin/reports": "analytics",
   "/admin/audit": "admin",
   "/admin/marketing": "marketing",
+  "/admin/communications": "marketing",
   "/admin/careers": "careers.dashboard.view",
   "/admin/careers/vacancies": "careers.vacancies.view",
   "/admin/careers/applications": "careers.applications.view",

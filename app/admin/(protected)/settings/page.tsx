@@ -555,7 +555,7 @@ export default function AdminSettingsPage() {
         <form onSubmit={handleSubmit} noValidate className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className={activeTab === "content" ? "hidden" : ""}>
             <CardHeader>
-              <CardTitle>Contact Information</CardTitle>
+              <CardTitle id="contact-settings" className="scroll-mt-6">Contact Information</CardTitle>
               <CardDescription>Used across forms and CTAs on the site.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

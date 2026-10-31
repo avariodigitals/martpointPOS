@@ -7,7 +7,7 @@ import { DEFAULT_SCHEDULING } from "@/lib/scheduling"
 import { DEFAULT_MEETING_NOTES } from "@/lib/meeting-notes"
 import { DEFAULT_DRIVE_SETTINGS } from "@/lib/drive-storage"
 import { validateEmailSettings } from "@/lib/email-settings-guard"
-import { DEFAULT_PROFILE_SIGNATURE_HTML } from "@/lib/email-signature"
+import { DEFAULT_PROFILE_SIGNATURE_HTML, DEFAULT_PROFILE_SIGNATURE_SCALE } from "@/lib/email-signature"
 
 async function readSettings(): Promise<Record<string, unknown>> {
   if (!isSupabaseConfigured()) {
@@ -67,6 +67,7 @@ function getDefaultSettings() {
       signature: "",
       signatureHtml: "",
       profileSignatureHtmlTemplate: DEFAULT_PROFILE_SIGNATURE_HTML,
+      profileSignatureScale: DEFAULT_PROFILE_SIGNATURE_SCALE,
       smtp: { host: "", port: 465, secure: true, user: "", pass: "", fromEmail: "" },
       imap: { host: "", port: 993, secure: true, user: "", pass: "", mailbox: "INBOX" },
       routes: {

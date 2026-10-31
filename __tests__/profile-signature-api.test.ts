@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const m = vi.hoisted(() => ({ session: vi.fn(), user: vi.fn(), update: vi.fn(), audit: vi.fn() }))
 vi.mock("@/lib/admin-auth", () => ({ getSession: m.session, getUserById: m.user, updateUser: m.update }))
 vi.mock("@/lib/supabase", () => ({ isSupabaseConfigured: () => true }))
-vi.mock("@/lib/settings", () => ({ readSettings: async () => ({ general: { supportPhone: "+2343333333" } }) }))
+vi.mock("@/lib/settings", () => ({ readSettings: async () => ({ general: { supportPhone: "+2343333333", whatsappNumber: "+2345555555" } }) }))
 vi.mock("@/lib/audit", () => ({
   auditContextFromSession: () => ({}), recordAudit: m.audit,
   AUDIT_ACTIONS: { ADMIN_USER_UPDATED: "ADMIN_USER_UPDATED" }, AUDIT_ENTITIES: { ADMIN_USER: "admin_user" },
@@ -23,7 +23,7 @@ describe("self-service profile signature", () => {
     const template = { name: "Ada", title: "Sales manager", email: "ada@example.test", phone: "+2341111111", company: "MartPoint", extra: "Happy to help" }
     const response = await PATCH(request({ template, profilePhone: "+2341111111" }))
     expect(response.status).toBe(200)
-    expect(m.update).toHaveBeenCalledWith("current-user", expect.objectContaining({ signatureTemplate: template, phone: "+2341111111" }))
+    expect(m.update).toHaveBeenCalledWith("current-user", expect.objectContaining({ signatureTemplate: { ...template, mobile: "+2345555555" }, phone: "+2341111111" }))
     expect(m.update.mock.calls[0][1]).not.toHaveProperty("role")
     expect((await response.json()).signatureHtml).toContain('href="mailto:ada@example.test"')
   })
@@ -35,6 +35,13 @@ describe("self-service profile signature", () => {
     expect(response.status).toBe(200)
     expect(data.template.phone).toBe("+2343333333")
     expect(data.signatureHtml).not.toContain("client number")
+  })
+  it("keeps the mobile contact managed by company settings when a profile is saved", async () => {
+    m.user.mockResolvedValueOnce({ status: "ACTIVE", name: "Ada", role: "Sales", email: "ada@example.test" })
+    const template = { name: "Ada", title: "Sales", email: "ada@example.test", phone: "+2341111111", company: "MartPoint", extra: "", mobile: "old preview number" }
+    const response = await PATCH(request({ template, profilePhone: "+2341111111" }))
+    expect(response.status).toBe(200)
+    expect((await response.json()).template.mobile).toBe("+2345555555")
   })
   it("lets a staff member save their own signature without team-management permissions", async () => {
     const response = await PATCH(request({ signatureHtml: "<p><strong>Ada</strong></p>" }))

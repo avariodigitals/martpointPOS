@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import EmailRichEditor from "@/components/admin/email-rich-editor"
 import { htmlToText, textToHtml } from "@/lib/email-html"
 import { isBadHost } from "@/lib/email-settings-guard"
-import { DEFAULT_PROFILE_SIGNATURE_HTML, renderProfileSignatureHtml } from "@/lib/email-signature"
+import { DEFAULT_PROFILE_SIGNATURE_HTML, DEFAULT_PROFILE_SIGNATURE_SCALE, getProfileSignatureScale, prepareProfileSignatureHtml, renderProfileSignatureHtml } from "@/lib/email-signature"
 import { sanitizeSupportHtml } from "@/lib/support-html"
 import { Loader2, Save, Mail, ArrowLeft, Code2 } from "lucide-react"
 
@@ -38,6 +38,7 @@ interface EmailSettingsForm {
   signature: string
   signatureHtml: string
   profileSignatureHtmlTemplate: string
+  profileSignatureScale: number
   smtp: SmtpForm
   imap: ImapForm
 }
@@ -55,6 +56,7 @@ export default function EmailSettingsPage() {
     signature: "",
     signatureHtml: "",
     profileSignatureHtmlTemplate: DEFAULT_PROFILE_SIGNATURE_HTML,
+    profileSignatureScale: DEFAULT_PROFILE_SIGNATURE_SCALE,
     smtp: { ...emptySmtp },
     imap: { ...emptyImap },
   })
@@ -62,11 +64,13 @@ export default function EmailSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
   const [sigEditSource, setSigEditSource] = useState(false)
+  const [companyMobile, setCompanyMobile] = useState("")
 
   useEffect(() => {
     fetch("/api/admin/settings", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
+        setCompanyMobile(String(data.general?.whatsappNumber || ""))
         if (data.email) {
           const provider = data.email.provider === "brevo" ? "brevo" : "resend"
           const smtp = data.email.smtp || {}
@@ -80,7 +84,8 @@ export default function EmailSettingsPage() {
             signature: data.email.signature || "",
             // Migrate a legacy plain-text signature into the rich editor.
             signatureHtml: data.email.signatureHtml || textToHtml(data.email.signature || ""),
-            profileSignatureHtmlTemplate: data.email.profileSignatureHtmlTemplate || DEFAULT_PROFILE_SIGNATURE_HTML,
+            profileSignatureHtmlTemplate: prepareProfileSignatureHtml(data.email.profileSignatureHtmlTemplate || DEFAULT_PROFILE_SIGNATURE_HTML, 100),
+            profileSignatureScale: getProfileSignatureScale(data.email.profileSignatureScale),
             smtp: {
               host: smtp.host || "",
               port: String(smtp.port || "465"),
@@ -102,6 +107,12 @@ export default function EmailSettingsPage() {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!loading && window.location.hash === "#profile-signature-template") {
+      document.getElementById("profile-signature-template")?.scrollIntoView()
+    }
+  }, [loading])
 
   const uploadSignatureImage = async (file: File): Promise<string | null> => {
     try {
@@ -351,27 +362,38 @@ export default function EmailSettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="mt-6">
+          <Card id="profile-signature-template" className="mt-6 scroll-mt-6">
             <CardHeader>
               <CardTitle>Team Member Profile Signature</CardTitle>
               <CardDescription>
-                Admin controls the shared HTML layout here. Profile details fill its placeholders; the same rendered signature is used in lead, partner and creator email.
+                Set one size and HTML layout for everyone. Profile details fill its placeholders; previews and outgoing lead, partner, creator and support emails use these settings.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <label htmlFor="profile-signature-size" className="text-sm font-medium">Shared signature size</label>
+                  <output htmlFor="profile-signature-size" className="text-sm font-semibold">{settings.profileSignatureScale}%</output>
+                </div>
+                <input id="profile-signature-size" type="range" min={40} max={100} step={1} value={settings.profileSignatureScale}
+                  onChange={(event) => setSettings((current) => ({ ...current, profileSignatureScale: Number(event.target.value) }))}
+                  className="mt-3 w-full accent-blue-600" />
+                <p className="mt-2 text-xs text-muted-foreground">Scales text, logo, banner and spacing together for every team member. The default is 65%; 100% keeps the original HTML sizes. Edit individual dimensions in the HTML below.</p>
+              </div>
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">HTML signature template</p>
               </div>
-              <textarea rows={12} value={settings.profileSignatureHtmlTemplate} onChange={(event) => setSettings({ ...settings, profileSignatureHtmlTemplate: event.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono" />
+              <textarea aria-label="Shared profile signature HTML template" rows={12} value={settings.profileSignatureHtmlTemplate} onChange={(event) => setSettings({ ...settings, profileSignatureHtmlTemplate: event.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono" />
               <div>
                 <p className="mb-2 text-xs font-medium text-muted-foreground">Preview with example profile details</p>
-                <iframe title="Team member signature template preview" sandbox="" className="h-64 w-full rounded-md border bg-white" srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font:14px/1.6 Arial,sans-serif;color:#111827;padding:12px}img{max-width:100%;height:auto}a{color:#0057ff}</style></head><body>${renderProfileSignatureHtml(sanitizeSupportHtml(settings.profileSignatureHtmlTemplate), { name: "MartPoint Team Member", title: "Sales", email: "person@martpoint.com.ng", phone: "+234 800 000 0000", company: "MartPoint", extra: "" })}</body></html>`} />
+                <iframe title="Team member signature template preview" sandbox="" className="h-[520px] w-full rounded-md border bg-white" srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font:14px/1.6 Arial,sans-serif;color:#111827;padding:12px}img{max-width:100%;height:auto}a{color:#0057ff}</style></head><body>${renderProfileSignatureHtml(sanitizeSupportHtml(prepareProfileSignatureHtml(settings.profileSignatureHtmlTemplate, settings.profileSignatureScale)), { name: "MartPoint Team Member", title: "Sales", email: "person@martpoint.com.ng", phone: "+234 800 000 0000", mobile: companyMobile, company: "MartPoint", extra: "" })}</body></html>`} />
               </div>
               <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground">Available placeholders</p>
-                <p className="mt-1"><code>{"{{name}}"}</code> · <code>{"{{title}}"}</code> · <code>{"{{email}}"}</code> · <code>{"{{phone}}"}</code> · <code>{"{{company}}"}</code> · <code>{"{{email_link}}"}</code> · <code>{"{{phone_link}}"}</code></p>
-                <p className="mt-1">Use <code>{"{{email_link}}"}</code> and <code>{"{{phone_link}}"}</code> to render clickable contact details. Phone comes from the user profile; support roles use the current Support Phone setting.</p>
+                <p className="mt-1"><code>{"{{name}}"}</code> · <code>{"{{title}}"}</code> · <code>{"{{email}}"}</code> · <code>{"{{phone}}"}</code> · <code>{"{{mobile}}"}</code> · <code>{"{{company}}"}</code> · <code>{"{{email_link}}"}</code> · <code>{"{{phone_link}}"}</code> · <code>{"{{mobile_link}}"}</code></p>
+                <p className="mt-1">Phone (T) comes from the user profile; Customer Care and Tech use the Support Phone setting. Mobile (M) comes from <Link href="/admin/settings#contact-settings" className="text-retail underline">Contact → WhatsApp Number</Link>. Use the link placeholders for clickable contacts.</p>
               </div>
+              <Button type="submit" disabled={saving}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Save shared signature settings</Button>
             </CardContent>
           </Card>
 

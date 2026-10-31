@@ -20,6 +20,10 @@ export function isBadHost(value: string | undefined | null): boolean {
  * setup (internal relay, IP literal, bare hostname) is never blocked.
  */
 export function validateEmailSettings(email: Record<string, unknown>): string | null {
+  if (email.profileSignatureScale !== undefined && (
+    typeof email.profileSignatureScale !== "number" || !Number.isFinite(email.profileSignatureScale) ||
+    email.profileSignatureScale < 40 || email.profileSignatureScale > 100
+  )) return "Profile signature size must be between 40% and 100%."
   const smtp = (email.smtp || {}) as Record<string, unknown>
   const imap = (email.imap || {}) as Record<string, unknown>
 

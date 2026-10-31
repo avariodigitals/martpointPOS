@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Loader2, Save } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,9 +9,10 @@ import { Button } from "@/components/ui/button"
 import { renderProfileSignatureHtml, type SignatureTemplate } from "@/lib/email-signature"
 import { sanitizeSupportHtml } from "@/lib/support-html"
 
-export function ProfileSignatureEditor({ initialTemplate, signatureHtmlTemplate, hasSavedTemplate, profilePhone, supportPhone }: {
+export function ProfileSignatureEditor({ initialTemplate, signatureHtmlTemplate, hasSavedTemplate, profilePhone, supportPhone, canManageTemplate = false }: {
   initialTemplate: SignatureTemplate; hasSavedTemplate: boolean
   signatureHtmlTemplate: string; profilePhone: string; supportPhone: boolean
+  canManageTemplate?: boolean
 }) {
   const router = useRouter()
   const [template, setTemplate] = useState(initialTemplate)
@@ -48,6 +50,7 @@ export function ProfileSignatureEditor({ initialTemplate, signatureHtmlTemplate,
     <CardHeader><CardTitle className="text-base">Email signature</CardTitle></CardHeader>
     <CardContent className="space-y-4">
       <p className="text-sm text-muted-foreground">Your Admin-managed HTML layout fills in your name, role, email and phone from your profile. Update those details here and preview the exact signature used in outgoing email.</p>
+      {canManageTemplate && <Link href="/admin/settings/email#profile-signature-template" className="inline-flex text-sm font-medium text-retail underline">Edit the shared template and signature size for everyone</Link>}
         <div className="grid gap-4 sm:grid-cols-2">
           {([['name', 'Name'], ['title', 'Role / job title'], ['email', 'Email'], ['company', 'Company']] as const).map(([field, label]) => <div key={field}>
             <label htmlFor={`signature-${field}`} className="mb-1 block text-sm font-medium">{label}</label>
@@ -67,6 +70,11 @@ export function ProfileSignatureEditor({ initialTemplate, signatureHtmlTemplate,
             <input id="signature-support-phone" value={template.phone} readOnly className="w-full rounded-md border bg-muted px-3 py-2 text-sm" />
             <p className="mt-1 text-xs text-muted-foreground">Managed in Admin Settings → Contact → Support Phone Number. Your signature always uses the current team number.</p>
           </div>}
+          <div>
+            <label htmlFor="signature-company-mobile" className="mb-1 block text-sm font-medium">Company WhatsApp / mobile (M)</label>
+            <input id="signature-company-mobile" value={template.mobile || ""} readOnly placeholder="Not configured" className="w-full rounded-md border bg-muted px-3 py-2 text-sm" />
+            <p className="mt-1 text-xs text-muted-foreground">From Contact → WhatsApp Number. This is a shared company contact, separate from your profile phone.{canManageTemplate && <> <Link href="/admin/settings#contact-settings" className="text-retail underline">Edit company contact</Link>.</>}</p>
+          </div>
         </div>
         <div>
           <label htmlFor="signature-extra" className="mb-1 block text-sm font-medium">Additional details</label>
@@ -76,7 +84,7 @@ export function ProfileSignatureEditor({ initialTemplate, signatureHtmlTemplate,
         </div>
       <div>
         <p className="mb-2 text-xs font-medium text-muted-foreground">Signature preview</p>
-        <iframe title="Your email signature preview" sandbox="" className="h-52 w-full rounded-md border bg-white" srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font:14px/1.6 Arial,sans-serif;color:#111827;padding:12px}img{max-width:100%;height:auto}a{color:#0057ff}</style></head><body>${signature}</body></html>`} />
+        <iframe title="Your email signature preview" sandbox="" className="h-[520px] w-full rounded-md border bg-white" srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font:14px/1.6 Arial,sans-serif;color:#111827;padding:12px}img{max-width:100%;height:auto}a{color:#0057ff}</style></head><body>${signature}</body></html>`} />
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}

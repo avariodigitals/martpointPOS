@@ -7,6 +7,28 @@ export interface SignatureTemplate {
   phone: string
   company: string
   extra: string
+  /** Shared company WhatsApp number, resolved from Contact settings. */
+  mobile?: string
+}
+
+export const DEFAULT_PROFILE_SIGNATURE_SCALE = 65
+
+export function getProfileSignatureScale(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 40 && value <= 100
+    ? value : DEFAULT_PROFILE_SIGNATURE_SCALE
+}
+
+/** Scale real email dimensions, rather than a preview-only CSS transform. */
+export function prepareProfileSignatureHtml(html: string, scale: unknown): string {
+  const ratio = getProfileSignatureScale(scale) / 100
+  const resize = (value: string) => String(Number(value) === 0 ? 0 : Math.max(1, Math.round(Number(value) * ratio)))
+  return html
+    // Upgrade the contact link shipped in the original shared template.
+    .replaceAll('<a href="https://wa.me/2348037978230" style="color:#111827;text-decoration:none">08037978230</a>', "{{mobile_link}}")
+    .replace(/\bstyle=(['"])(.*?)\1/gi, (_match, quote: string, style: string) =>
+      `style=${quote}${style.replace(/(\d+(?:\.\d+)?)px\b/gi, (_px, value: string) => `${resize(value)}px`)}${quote}`)
+    .replace(/\b(width|height)=(['"])(\d+)\2/gi, (_match, attribute: string, quote: string, value: string) =>
+      `${attribute}=${quote}${resize(value)}${quote}`)
 }
 
 export const DEFAULT_PROFILE_SIGNATURE_HTML = `<div style="max-width:1000px;padding-right:10px;border-right:3px solid #3678ff;font-family:Arial,Helvetica,sans-serif;color:#111827;font-size:15px;line-height:1.4">
@@ -14,7 +36,7 @@ export const DEFAULT_PROFILE_SIGNATURE_HTML = `<div style="max-width:1000px;padd
   <div style="padding-bottom:8px;border-bottom:1px solid #4c94a0;font-size:20px;color:#3678f5">{{name}} · MartPoint {{title}} | <a href="https://martpoint.com.ng" style="color:#120b79;text-decoration:none;font-weight:bold">www.martpoint.com.ng</a></div>
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:24px"><tr>
     <td width="180" valign="middle" style="padding:0 24px 0 0"><a href="https://martpoint.com.ng" style="display:block;width:145px;height:145px;padding:12px;background-color:#204cf2;text-align:center"><img src="https://martpoint.com.ng/logo-white.png" width="140" alt="MartPoint" style="display:block;width:140px;height:auto;margin-top:50px" /></a></td>
-    <td valign="middle" style="font-size:19px;line-height:1.55;color:#111827"><div><strong style="color:#3678f5">T:</strong> {{phone_link}}</div><div><strong style="color:#3678f5">M:</strong> <a href="https://wa.me/2348037978230" style="color:#111827;text-decoration:none">08037978230</a></div><div><strong style="color:#3678f5">E:</strong> {{email_link}}</div><div><strong style="color:#3678f5">A:</strong> MartPoint, Ikeja, Lagos, Nigeria</div>
+    <td valign="middle" style="font-size:19px;line-height:1.55;color:#111827"><div><strong style="color:#3678f5">T:</strong> {{phone_link}}</div><div><strong style="color:#3678f5">M:</strong> {{mobile_link}}</div><div><strong style="color:#3678f5">E:</strong> {{email_link}}</div><div><strong style="color:#3678f5">A:</strong> MartPoint, Ikeja, Lagos, Nigeria</div>
       <div style="margin-top:10px;font-size:14px"><a href="https://facebook.com/usemartpoint" style="color:#3678f5">Facebook</a> &nbsp; <a href="https://www.youtube.com/@usemartpoint" style="color:#e32620">YouTube</a> &nbsp; <a href="https://www.linkedin.com/company/usemartpoint" style="color:#2875a9">LinkedIn</a> &nbsp; <a href="https://instagram.com/usemartpoint" style="color:#8751a2">Instagram</a> &nbsp; <a href="https://www.tiktok.com/@usemartpoint" style="color:#111827">TikTok</a></div></td>
   </tr></table>
   <div style="margin-top:28px"><a href="https://martpoint.com.ng" style="text-decoration:none"><img src="https://martpoint.com.ng/footerbanner.png" width="1000" alt="One Platform. Every Business." style="display:block;width:100%;max-width:1000px;height:auto" /></a></div>
@@ -25,18 +47,21 @@ export const DEFAULT_PROFILE_SIGNATURE_HTML = `<div style="max-width:1000px;padd
 export function renderProfileSignatureHtml(templateHtml: string, fields: SignatureTemplate): string {
   const email = fields.email.trim()
   const phone = fields.phone.trim()
+  const mobile = (fields.mobile || "").trim()
   const values: Record<string, string> = {
     name: fields.name,
     title: fields.title,
     email,
     phone,
     company: fields.company,
+    mobile,
+    mobile_link: mobile ? `<a href="https://wa.me/${escapeHtml(mobile.replace(/\D/g, ""))}" style="color:#111827;text-decoration:none">${escapeHtml(mobile)}</a>` : "",
     email_link: email ? `<a href="mailto:${escapeHtml(email)}" style="color:#3678f5">${escapeHtml(email)}</a>` : "",
     phone_link: phone ? `<a href="tel:${escapeHtml(phone.replace(/[^+\d]/g, ""))}" style="color:#111827;text-decoration:none">${escapeHtml(phone)}</a>` : "",
   }
-  return templateHtml.replace(/\{\{(name|title|email|phone|company|email_link|phone_link)\}\}/gi, (_match, key: string) => {
+  return templateHtml.replace(/\{\{(name|title|email|phone|company|mobile|email_link|phone_link|mobile_link)\}\}/gi, (_match, key: string) => {
     const value = values[key.toLowerCase()] || ""
-    return ["email_link", "phone_link"].includes(key.toLowerCase()) ? value : escapeHtml(value)
+    return ["email_link", "phone_link", "mobile_link"].includes(key.toLowerCase()) ? value : escapeHtml(value)
   })
 }
 

@@ -2,7 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { ArrowRight, Mail, ShieldCheck, UserCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getSession, getUserById } from "@/lib/admin-auth"
+import { getSession, getUserById, hasPermission } from "@/lib/admin-auth"
 import { roleLabel } from "@/lib/utils"
 import { ProfileSignatureEditor } from "@/components/admin/profile-signature-editor"
 import { getProfileSignatureHtmlTemplate, getProfileSignatureTemplate } from "@/lib/profile-signature"
@@ -63,6 +63,9 @@ export default async function AdminProfilePage() {
             <CardTitle className="text-base">Account actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {hasPermission(session.role, "settings") && <Link href="/admin/settings/email#profile-signature-template" className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-retail/30 hover:bg-retail-soft/40 hover:text-slate-950">
+              Shared signature template & size <ArrowRight className="h-4 w-4 text-slate-400" />
+            </Link>}
             <Link href="/admin/settings" className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-retail/30 hover:bg-retail-soft/40 hover:text-slate-950">
               Workspace settings <ArrowRight className="h-4 w-4 text-slate-400" />
             </Link>
@@ -72,7 +75,7 @@ export default async function AdminProfilePage() {
           </CardContent>
         </Card>
       </div>
-      <ProfileSignatureEditor initialTemplate={template} signatureHtmlTemplate={signatureHtmlTemplate} hasSavedTemplate={Boolean(user?.signatureTemplate)} profilePhone={user?.phone || ""} supportPhone={usesSupportPhone(user?.role || session.role)} />
+      <ProfileSignatureEditor initialTemplate={template} signatureHtmlTemplate={signatureHtmlTemplate} hasSavedTemplate={Boolean(user?.signatureTemplate)} profilePhone={user?.phone || ""} supportPhone={usesSupportPhone(user?.role || session.role)} canManageTemplate={hasPermission(session.role, "settings")} />
     </div>
   )
 }

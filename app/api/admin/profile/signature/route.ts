@@ -12,6 +12,7 @@ const templateSchema = z.object({
   name: z.string().trim().min(1).max(200), title: z.string().trim().max(200),
   email: z.union([z.email(), z.literal("")]), phone: z.string().trim().max(60),
   company: z.string().trim().max(200), extra: z.string().max(2000),
+  mobile: z.string().trim().max(60).optional(),
 }).strict()
 const schema = z.union([
   z.object({ template: templateSchema, profilePhone: z.string().trim().max(60) }).strict(),

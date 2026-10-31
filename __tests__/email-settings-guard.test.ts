@@ -62,4 +62,8 @@ describe("validateEmailSettings", () => {
   it("leaves an unrelated settings payload alone", () => {
     expect(validateEmailSettings({})).toBeNull()
   })
+  it("accepts shared signature sizes in range and rejects invalid values", () => {
+    for (const profileSignatureScale of [40, 65, 100]) expect(validateEmailSettings({ profileSignatureScale })).toBeNull()
+    for (const profileSignatureScale of [0, 39, 101, "65", null, NaN]) expect(validateEmailSettings({ profileSignatureScale })).toContain("signature size")
+  })
 })

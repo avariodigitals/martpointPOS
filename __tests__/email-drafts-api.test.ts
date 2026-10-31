@@ -6,7 +6,7 @@ vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
   supabase: { from: (table: string) => {
     const query: Record<string, unknown> = {}
-    for (const method of ["select", "eq", "is", "upsert", "delete"]) query[method] = (...args: unknown[]) => { m.operations.push({ table, method, args }); return query }
+    for (const method of ["select", "eq", "is", "upsert", "update", "delete"]) query[method] = (...args: unknown[]) => { m.operations.push({ table, method, args }); return query }
     for (const method of ["single", "maybeSingle"]) query[method] = m.result
     query.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => Promise.resolve(m.result()).then(resolve, reject)
     return query
@@ -60,5 +60,49 @@ describe("private saved email drafts", () => {
     m.result.mockResolvedValueOnce({ data: { id: entityId } })
     expect((await PUT(request({ ...draft, attachments: [{ ...attachment, content: "invalid base64" }] }), params)).status).toBe(400)
     expect(m.operations.some((item) => item.method === "upsert")).toBe(false)
+  })
+  it("returns a small confirmation without echoing attachment bytes when requested", async () => {
+    m.result.mockResolvedValueOnce({ data: { id: entityId } }).mockResolvedValueOnce({ data: { updated_at: "now" } })
+    const response = await PUT(new Request("http://localhost/draft", {
+      method: "PUT", headers: { Prefer: "return=minimal" }, body: JSON.stringify(draft)
+    }), params)
+    expect(await response.json()).toEqual({ saved: { bodyHtml: draft.bodyHtml, updatedAt: "now" } })
+  })
+  it("reuses attachment bytes only from this user's exact draft revision", async () => {
+    m.result.mockResolvedValueOnce({ data: { id: entityId } })
+      .mockResolvedValueOnce({ data: { draft } }).mockResolvedValueOnce({ data: { updated_at: "next" } })
+    const fields = { ...draft, attachments: undefined }
+    const response = await PUT(request({ ...fields, subject: "Edited", attachmentsRevision: "previous" }), params)
+    expect(response.status).toBe(200)
+    expect((await response.json()).saved.draft).toEqual({ ...draft, subject: "Edited" })
+    expect(m.operations.find((item) => item.method === "update")?.args[0]).toMatchObject({ user_id: "staff-id", draft: { attachments: [attachment] } })
+    for (const [key, value] of [["user_id", "staff-id"], ["entity_type", "leads"], ["entity_id", entityId], ["updated_at", "previous"]]) {
+      expect(m.operations.filter((item) => item.table === "email_composer_drafts" && item.method === "eq" && item.args[0] === key && item.args[1] === value)).toHaveLength(2)
+    }
+  })
+  it("rejects a stale or deleted attachment revision instead of silently losing files", async () => {
+    m.result.mockResolvedValueOnce({ data: { id: entityId } }).mockResolvedValueOnce({ data: null })
+    expect((await PUT(request({ subject: "Edited", bodyHtml: "", layout: "normal", attachmentsRevision: "old" }), params)).status).toBe(409)
+    expect(m.operations.some((item) => ["update", "upsert"].includes(item.method))).toBe(false)
+  })
+  it("rejects a concurrent update after reading reusable attachments", async () => {
+    m.result.mockResolvedValueOnce({ data: { id: entityId } })
+      .mockResolvedValueOnce({ data: { draft } }).mockResolvedValueOnce({ data: null })
+    expect((await PUT(request({ subject: "Edited", bodyHtml: "", layout: "normal", attachmentsRevision: "old" }), params)).status).toBe(409)
+  })
+  it("still allows removing or replacing saved attachments", async () => {
+    for (const attachments of [[], [{ ...attachment, filename: "new.pdf" }]]) {
+      m.result.mockResolvedValueOnce({ data: { id: entityId } }).mockResolvedValueOnce({ data: { updated_at: "now" } })
+      const response = await PUT(request({ ...draft, attachments }), params)
+      expect(response.status).toBe(200)
+      expect((await response.json()).saved.draft.attachments).toEqual(attachments)
+    }
+  })
+  it("rejects mixed or malformed attachment-reuse instructions", async () => {
+    for (const body of [{ ...draft, attachmentsRevision: "old" }, { ...draft, attachmentsRevision: 42 }]) {
+      m.result.mockResolvedValueOnce({ data: { id: entityId } })
+      expect((await PUT(request(body), params)).status).toBe(400)
+    }
+    expect(m.operations.some((item) => ["update", "upsert"].includes(item.method))).toBe(false)
   })
 })

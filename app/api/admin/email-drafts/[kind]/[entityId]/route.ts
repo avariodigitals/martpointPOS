@@ -26,6 +26,10 @@ function unavailable() {
   return NextResponse.json({ error: "Could not access saved drafts. Check that migration 152 has been applied." }, { status: 500 })
 }
 
+function changedDraft() {
+  return NextResponse.json({ error: "This draft changed in another tab or was deleted. Reload the page before saving again." }, { status: 409 })
+}
+
 export async function GET(_: Request, context: Context) {
   const ctx = await contextFor(context)
   if (ctx.denied) return ctx.denied
@@ -38,14 +42,37 @@ export async function GET(_: Request, context: Context) {
 export async function PUT(request: Request, context: Context) {
   const ctx = await contextFor(context)
   if (ctx.denied) return ctx.denied
-  const parsed = emailDraftSchema.safeParse(await request.json().catch(() => null))
+  const body = await request.json().catch(() => null)
+  const reuse = z.object({ attachmentsRevision: z.string().min(1).max(64) }).safeParse(body)
+  let input = body
+  if (reuse.success) {
+    if (body.attachments !== undefined) return NextResponse.json({ error: "Supply attachments or a saved attachment revision, not both." }, { status: 400 })
+    const { data, error } = await supabase.from("email_composer_drafts")
+      .select("draft").eq("user_id", ctx.userId!).eq("entity_type", ctx.kind!).eq("entity_id", ctx.entityId!)
+      .eq("updated_at", reuse.data.attachmentsRevision).maybeSingle()
+    if (error) return unavailable()
+    if (!data) return changedDraft()
+    input = { ...body, attachments: data.draft?.attachments || [] }
+  } else if (body && typeof body === "object" && "attachmentsRevision" in body) {
+    return NextResponse.json({ error: "Invalid saved attachment revision." }, { status: 400 })
+  }
+  const parsed = emailDraftSchema.safeParse(input)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
   const draft = { ...parsed.data, bodyHtml: sanitizeSupportHtml(parsed.data.bodyHtml) }
-  const { data, error } = await supabase.from("email_composer_drafts").upsert({
+  const values = {
     user_id: ctx.userId, entity_type: ctx.kind, entity_id: ctx.entityId,
     draft, updated_at: new Date().toISOString(),
-  }, { onConflict: "user_id,entity_type,entity_id" }).select("updated_at").single()
-  if (error || !data) return unavailable()
+  }
+  const { data, error } = reuse.success
+    ? await supabase.from("email_composer_drafts").update(values)
+      .eq("user_id", ctx.userId!).eq("entity_type", ctx.kind!).eq("entity_id", ctx.entityId!)
+      .eq("updated_at", reuse.data.attachmentsRevision).select("updated_at").maybeSingle()
+    : await supabase.from("email_composer_drafts").upsert(values, { onConflict: "user_id,entity_type,entity_id" }).select("updated_at").single()
+  if (error) return unavailable()
+  if (!data) return reuse.success ? changedDraft() : unavailable()
+  if (request.headers.get("prefer") === "return=minimal") {
+    return NextResponse.json({ saved: { bodyHtml: draft.bodyHtml, updatedAt: data.updated_at } })
+  }
   return NextResponse.json({ saved: { draft, updatedAt: data.updated_at } })
 }
 

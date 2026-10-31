@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Loader2, Save } from "lucide-react"
-import { emailDraftSchema, type EmailDraft, type EmailDraftKind } from "@/lib/email-drafts"
+import { emailDraftSchema, emailDraftSavePayload, emailDraftUnchanged, type SavedEmailDraft, type EmailDraft, type EmailDraftKind } from "@/lib/email-drafts"
 
 export function useEmailDraft(kind: EmailDraftKind, entityId: string) {
-  const [saved, setSaved] = useState<{ draft: EmailDraft; updatedAt: string } | null>(null)
+  const [saved, setSaved] = useState<SavedEmailDraft | null>(null)
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadedUrl, setLoadedUrl] = useState("")
@@ -31,10 +31,15 @@ export function useEmailDraft(kind: EmailDraftKind, entityId: string) {
   async function save(draft: EmailDraft) {
     setBusy(true); setError(""); setNotice("")
     try {
-      const response = await fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) })
+      const currentSaved = loadedUrl === url ? saved : null
+      if (emailDraftUnchanged(draft, currentSaved)) {
+        setNotice("This draft is already saved to your account.")
+        return
+      }
+      const response = await fetch(url, { method: "PUT", headers: { "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify(emailDraftSavePayload(draft, currentSaved)) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Could not save draft")
-      setSaved(data.saved)
+      setSaved({ draft: { ...draft, bodyHtml: data.saved.bodyHtml }, updatedAt: data.saved.updatedAt })
       setNotice("Draft saved to your account, including attachments. Use Restore draft to continue later.")
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save draft") }
     finally { setBusy(false) }
@@ -58,7 +63,7 @@ export function EmailDraftControls({ manager, getDraft, onRestore, disabled = fa
   return <div className="space-y-2 rounded-md border border-dashed p-3">
     <div className="flex flex-wrap items-center gap-2">
       <Button type="button" variant="outline" size="sm" disabled={disabled || manager.busy || manager.loading} onClick={() => void manager.save(getDraft())}>
-        {manager.busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}Save draft
+        {manager.busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}{manager.busy ? "Saving draft…" : "Save draft"}
       </Button>
       {manager.saved && <>
         <Button type="button" variant="outline" size="sm" disabled={disabled || manager.busy} onClick={() => onRestore(manager.saved!.draft)}>Restore draft</Button>

@@ -3,9 +3,7 @@ import {
   Settings,
   Radio,
   BarChart3,
-  Search,
   FileText,
-  MousePointerClick,
   HelpCircle,
   LifeBuoy,
   Users,
@@ -13,7 +11,6 @@ import {
   Share2,
   Landmark,
   Award,
-  Globe,
   ClipboardCheck,
   Handshake,
   HeartHandshake,
@@ -32,11 +29,9 @@ import {
   Package,
   Palette,
   UserPlus,
-  Download,
   Calendar as CalendarIcon,
   MessageCircle,
   Megaphone,
-  Ban,
   BookOpen,
   Scale,
   ArrowLeftRight,
@@ -68,13 +63,13 @@ export interface AdminNavItem {
 
 export const ADMIN_SECTION_ORDER = [
   "Control Centre",
-  "Marketing & Content",
+  "Workspaces",
   "Creator Network",
   "Partner Network",
   "Sales",
   "Finance",
   "Onboarding & Customers",
-  "Support & Communications",
+  "Support & Inbox",
   "Operations",
   "People & Careers",
   "Administration"
@@ -90,63 +85,9 @@ export const adminNavItems: AdminNavItem[] = [
     page: "tasks",
     section: "Control Centre"
   },
-  { href: "/admin/mailbox", label: "Mailbox", icon: Mail, page: "mailbox", section: "Support & Communications" },
-  { href: "/admin/communications", label: "Communications", icon: MessageCircle, page: "marketing", section: "Support & Communications" },
+  { href: "/admin/mailbox", label: "Mailbox", icon: Mail, page: "mailbox", section: "Support & Inbox" },
+  { href: "/admin/growth", label: "Growth & Communications", icon: Megaphone, page: "growth_workspace", section: "Workspaces" },
   { href: "/admin/reports", label: "Reports", icon: BarChart3, page: "analytics", section: "Control Centre" },
-
-  // Marketing & Content
-  {
-    href: "/admin/marketing/audiences",
-    label: "Audiences",
-    icon: Users,
-    page: "marketing",
-    section: "Marketing & Content"
-  },
-  {
-    href: "/admin/marketing",
-    label: "Campaigns",
-    icon: Megaphone,
-    page: "marketing",
-    section: "Marketing & Content"
-  },
-  { href: "/admin/blog", label: "Blog", icon: FileText, page: "blog", section: "Marketing & Content" },
-  { href: "/admin/faqs", label: "FAQs", icon: HelpCircle, page: "faqs", section: "Marketing & Content" },
-  {
-    href: "/admin/brochure",
-    label: "Brochure",
-    icon: Download,
-    page: "partners",
-    section: "Marketing & Content"
-  },
-  { href: "/admin/seo", label: "SEO", icon: Search, page: "seo", section: "Marketing & Content" },
-  {
-    href: "/admin/tracker",
-    label: "Tracker",
-    icon: MousePointerClick,
-    page: "tracker",
-    section: "Marketing & Content"
-  },
-  {
-    href: "/admin/tracker/referrers",
-    label: "Traffic Sources",
-    icon: Globe,
-    page: "tracker",
-    section: "Marketing & Content"
-  },
-  {
-    href: "/admin/analytics",
-    label: "Analytics",
-    icon: BarChart3,
-    page: "analytics",
-    section: "Marketing & Content"
-  },
-  {
-    href: "/admin/marketing/suppressions",
-    label: "Suppressions",
-    icon: Ban,
-    page: "marketing",
-    section: "Marketing & Content"
-  },
 
   // Creator Network
   {
@@ -446,55 +387,55 @@ export const adminNavItems: AdminNavItem[] = [
     section: "Onboarding & Customers"
   },
 
-  // Support & Communications
+  // Support & Inbox
   {
     href: "/admin/support",
     label: "Support Desk",
     icon: Ticket,
     page: "support",
-    section: "Support & Communications"
+    section: "Support & Inbox"
   },
   {
     href: "/admin/azera",
     label: "Azera Chat",
     icon: MessageCircle,
     page: "azera",
-    section: "Support & Communications"
+    section: "Support & Inbox"
   },
   {
     href: "/admin/azera/voicemails",
     label: "Voicemails",
     icon: FileAudio,
     page: "azera",
-    section: "Support & Communications"
+    section: "Support & Inbox"
   },
   {
     href: "/admin/azera/campaigns",
     label: "Call Campaigns",
     icon: Megaphone,
     page: "azera",
-    section: "Support & Communications"
+    section: "Support & Inbox"
   },
   {
     href: "/admin/azera/reports",
     label: "Call Reports",
     icon: FileAudio,
     page: "support",
-    section: "Support & Communications"
+    section: "Support & Inbox"
   },
   {
     href: "/admin/azera/knowledge",
     label: "AI Knowledge Base",
     icon: BookOpen,
     page: "azera",
-    section: "Support & Communications"
+    section: "Support & Inbox"
   },
   {
     href: "/admin/google-reviews",
     label: "Google Reviews",
     icon: Star,
     page: "support",
-    section: "Support & Communications"
+    section: "Support & Inbox"
   },
 
   // Operations
@@ -664,7 +605,7 @@ export const adminNavItems: AdminNavItem[] = [
 ]
 
 export function getAdminNavigation(role: UserRole) {
-  const visibleItems = adminNavItems.filter((item) => hasPermission(role, item.page))
+  const visibleItems = adminNavItems.filter((item) => item.page === "growth_workspace" ? hasGrowthWorkspaceAccess(role) : hasPermission(role, item.page))
   const sections = ADMIN_SECTION_ORDER.map((label) => ({
     label,
     collapsible: label !== "Control Centre",
@@ -673,12 +614,22 @@ export function getAdminNavigation(role: UserRole) {
   return { visibleItems, sections }
 }
 
+const GROWTH_WORKSPACE_PERMISSIONS = ["marketing", "blog", "faqs", "seo", "tracker", "analytics", "partners"] as const
+
+export function hasGrowthWorkspaceAccess(role: UserRole) {
+  return GROWTH_WORKSPACE_PERMISSIONS.some((permission) => hasPermission(role, permission))
+}
+
 /** Most-specific permitted destination wins, including query-only siblings. */
 export function activeAdminHref(
   items: Pick<AdminNavItem, "href">[],
   pathname: string,
   query: Pick<URLSearchParams, "get">
 ): string | undefined {
+  const growthRoutes = ["/admin/growth", "/admin/marketing", "/admin/communications", "/admin/blog", "/admin/faqs", "/admin/brochure", "/admin/seo", "/admin/tracker", "/admin/analytics"]
+  if (growthRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
+    if (items.some((item) => item.href === "/admin/growth")) return "/admin/growth"
+  }
   return items
     .map((item) => {
       const [path, search] = item.href.split("?")

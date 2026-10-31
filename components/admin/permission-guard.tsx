@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
+import { hasGrowthWorkspaceAccess } from "@/lib/admin-navigation"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
 
 const pageMap: Record<string, string> = {
@@ -28,6 +29,7 @@ const pageMap: Record<string, string> = {
   "/admin/audit": "admin",
   "/admin/marketing": "marketing",
   "/admin/communications": "marketing",
+  "/admin/growth": "growth_workspace",
   "/admin/careers": "careers.dashboard.view",
   "/admin/careers/vacancies": "careers.vacancies.view",
   "/admin/careers/applications": "careers.applications.view",
@@ -82,7 +84,8 @@ export function PermissionGuard({
 
   useEffect(() => {
     const page = matchPage(pathname)
-    if (page && !hasPermission(role, page)) {
+    const allowed = page === "growth_workspace" ? hasGrowthWorkspaceAccess(role) : !page || hasPermission(role, page)
+    if (!allowed) {
       router.replace("/admin")
     }
   }, [pathname, role, router])

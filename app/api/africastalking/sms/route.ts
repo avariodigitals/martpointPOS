@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { notifySupportAgents } from "@/lib/omnichannel-notifications"
 import { recordCommunicationSmsOptOut } from "@/lib/communication-sms"
+import { enqueueCommunicationTrigger, resolveLeadIdByPhone } from "@/lib/communication-events"
 import {
   callbackSecretIsValid,
   finishAfricaWebhookEvent,
@@ -92,6 +93,8 @@ export async function POST(request: Request) {
         created_at: now,
       })
       if (error) throw new Error(error.message)
+      const leadId = await resolveLeadIdByPhone(from).catch(() => null)
+      if (leadId) await enqueueCommunicationTrigger("lead_replied", leadId).catch((eventError) => console.error("[sms] workflow enqueue failed", eventError))
       await supabase.from("azera_conversations").update({ last_message_at: now, updated_at: now }).eq("id", conversation.id)
       void notifySupportAgents({
         queue: "customer_support",

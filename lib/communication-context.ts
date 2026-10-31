@@ -31,18 +31,20 @@ export async function loadCommunicationContext(leadId: string) {
   const matching = phone ? await supabase.from("leads").select("id").in("phone", variants).limit(2) : { data: [], error: null }
   if (matching.error) throw new Error("Could not verify the conversation contact")
   const uniquePhone = matching.data?.length === 1 && matching.data[0].id === leadId
-  const linked = await supabase.from("azera_conversations").select("id").eq("lead_id", leadId)
+  const linked = await supabase.from("azera_conversations").select("id,channel").eq("lead_id", leadId)
   if (linked.error) throw new Error("Could not load linked lead conversations. Apply migration 161.")
-  const byPhone = uniquePhone ? await supabase.from("azera_conversations").select("id").in("customer_phone", variants) : { data: [], error: null }
+  const byPhone = uniquePhone ? await supabase.from("azera_conversations").select("id,channel").in("customer_phone", variants) : { data: [], error: null }
   if (byPhone.error) throw new Error("Could not load the lead's chat history")
-  const conversationIds = [...new Set([...(linked.data || []), ...(byPhone.data || [])].map((row) => row.id))]
+  const conversationRows = [...new Map([...(linked.data || []), ...(byPhone.data || [])].map((row) => [row.id, row])).values()]
+  const conversationIds = conversationRows.map((row) => row.id)
+  const channelByConversation = new Map(conversationRows.map((row) => [row.id, row.channel === "sms" || row.channel === "whatsapp" ? row.channel : "chat"]))
   const emails = await allPages((offset) => supabase.from("lead_emails").select("created_at,direction,subject,body_text,body_html,provider_message_id").eq("lead_id", leadId).in("status", ["sent", "accepted", "received", "delivered"]).order("created_at").order("id").range(offset, offset + 499))
   const sms = await allPages((offset) => supabase.from("communication_messages").select("created_at,body,status").eq("lead_id", leadId).eq("channel", "sms").in("status", ["accepted", "delivered"]).order("created_at").order("id").range(offset, offset + 499))
-  const chats = conversationIds.length ? await allPages((offset) => supabase.from("azera_messages").select("created_at,direction,message,author_type").in("conversation_id", conversationIds).neq("author_type", "system").order("created_at").order("id").range(offset, offset + 499)) : []
+  const chats = conversationIds.length ? await allPages((offset) => supabase.from("azera_messages").select("conversation_id,created_at,direction,message,author_type").in("conversation_id", conversationIds).neq("author_type", "system").order("created_at").order("id").range(offset, offset + 499)) : []
   const history: ConversationEntry[] = [
     ...emails.map((row) => ({ at: row.created_at, channel: "email", direction: row.direction, subject: row.subject || "", text: row.body_text || htmlToText(row.body_html || ""), providerId: row.provider_message_id || undefined })),
     ...sms.map((row) => ({ at: row.created_at, channel: "sms", direction: "outbound", text: row.body })),
-    ...chats.map((row) => ({ at: row.created_at, channel: "chat / SMS", direction: row.direction, text: row.message })),
+    ...chats.map((row) => ({ at: row.created_at, channel: channelByConversation.get(row.conversation_id) || "chat", direction: row.direction, text: row.message })),
   ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
   const lastInbound = history.filter((row) => row.direction === "inbound").at(-1)?.at || null
   const lastOutbound = history.filter((row) => row.direction === "outbound").at(-1)?.at || null

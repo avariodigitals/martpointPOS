@@ -3,6 +3,8 @@ import { createHmac, timingSafeEqual } from "crypto"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { getSettings } from "@/lib/settings"
 import { processLead } from "@/lib/process-lead"
+import { enqueueCommunicationTrigger, resolveLeadIdByPhone } from "@/lib/communication-events"
+import { recordCommunicationWhatsAppOptOut } from "@/lib/communication-sms"
 import {
   receiveSocialMessage,
   applyDeliveryReceipt,
@@ -140,6 +142,13 @@ export async function POST(request: Request) {
             name: nameByWaId.get(phone),
             timestamp: ts,
           })
+
+        if (/^(STOP|UNSUBSCRIBE|CANCEL|END|QUIT)$/i.test(body.trim())) {
+          await recordCommunicationWhatsAppOptOut(phone, body).catch((optOutError) => console.error("[WhatsApp opt-out]", optOutError))
+        } else {
+          const leadId = await resolveLeadIdByPhone(phone).catch(() => null)
+          if (leadId) await enqueueCommunicationTrigger("lead_replied", leadId).catch((eventError) => console.error("[WhatsApp] workflow enqueue failed", eventError))
+        }
 
         await supabase.from("whatsapp_messages").insert({
           wa_message_id: msg.id,

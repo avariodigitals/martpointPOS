@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
     const { data: send } = await supabase
       .from("marketing_sends")
-      .select("email")
+      .select("email,campaign_id")
       .eq("token", token)
       .single()
 
@@ -26,6 +26,10 @@ export async function POST(request: Request) {
     }
 
     const email = send.email.trim().toLowerCase()
+    const { data: campaign } = await supabase.from("marketing_campaigns").select("audience").eq("id", send.campaign_id).maybeSingle()
+    if (campaign?.audience === "newsletter") {
+      await supabase.from("status_subscribers").update({ newsletter_unsubscribed_at: new Date().toISOString() }).eq("email", email)
+    }
     const { error } = await supabase
       .from("marketing_unsubscribes")
       .upsert({ email, source: "unsubscribe_link" }, { onConflict: "email" })

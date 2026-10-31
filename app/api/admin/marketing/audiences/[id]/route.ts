@@ -3,6 +3,7 @@ import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { parseManualEmails, normalizeEmail, isValidEmail } from "@/lib/marketing"
+import { normalizeCommunicationPhone } from "@/lib/communications-policy"
 
 async function guardMarketingAccess() {
   const session = await getSession()
@@ -38,7 +39,7 @@ export async function GET(
 
   const { data: contacts } = await supabase
     .from("marketing_contacts")
-    .select("id, email, name, created_at")
+    .select("id, email, phone, name, sms_consent_at, created_at")
     .eq("audience_id", id)
     .order("created_at", { ascending: true })
 
@@ -60,14 +61,22 @@ export async function POST(
 
   try {
     const body = await request.json()
-    const { contacts } = body
+    const { contacts, phoneContacts, smsConsentConfirmed } = body
 
     if (!isSupabaseConfigured()) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
     }
 
     const parsed = parseManualEmails(String(contacts || ""))
-    if (parsed.length === 0) {
+    const phones = String(phoneContacts || "").split(/[\n,;]+/).map((line) => {
+      const value = line.trim()
+      if (!value) return null
+      const match = value.match(/^(.*?)<([^>]+)>\s*$/)
+      const phone = normalizeCommunicationPhone(match ? match[2] : value)
+      return phone ? { phone, name: match?.[1].trim() || "" } : null
+    }).filter((item): item is { phone: string; name: string } => Boolean(item))
+    if (String(phoneContacts || "").trim() && !smsConsentConfirmed) return NextResponse.json({ error: "Confirm SMS consent before adding phone numbers" }, { status: 400 })
+    if (parsed.length === 0 && phones.length === 0) {
       return NextResponse.json({ error: "No valid emails provided" }, { status: 400 })
     }
 
@@ -81,7 +90,17 @@ export async function POST(
       return NextResponse.json({ error: "Failed to add contacts" }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, contactsAdded: parsed.length })
+    let smsContactsAdded = 0
+    if (phones.length) {
+      const unique = [...new Map(phones.map((phone) => [phone.phone, phone])).values()]
+      const { error: phoneError, data } = await supabase.from("marketing_contacts").insert(unique.map((contact) => ({
+        audience_id: id, email: null, phone: contact.phone, name: contact.name, sms_consent_at: new Date().toISOString(),
+      }))).select("id")
+      if (phoneError) return NextResponse.json({ error: "Could not save consented phone numbers" }, { status: 500 })
+      smsContactsAdded = data?.length || 0
+    }
+
+    return NextResponse.json({ success: true, contactsAdded: parsed.length, smsContactsAdded })
   } catch {
     return NextResponse.json({ error: "Failed to add contacts" }, { status: 500 })
   }
@@ -103,6 +122,13 @@ export async function DELETE(
 
   const { searchParams } = new URL(request.url)
   const contactEmail = normalizeEmail(searchParams.get("contact") || "")
+  const contactId = searchParams.get("contactId") || ""
+
+  if (contactId) {
+    const { error } = await supabase.from("marketing_contacts").delete().eq("audience_id", id).eq("id", contactId)
+    if (error) return NextResponse.json({ error: "Failed to remove contact" }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
 
   if (contactEmail) {
     if (!isValidEmail(contactEmail)) {

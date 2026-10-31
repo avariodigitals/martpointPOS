@@ -9,6 +9,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { enqueueCommunicationTrigger } from "./communication-events"
 import { sendEmail, type EmailAttachment } from "./email"
 import { sendLeadEmail, escapeHtml } from "./lead-email-outbound"
 import { renderEmailTemplate, brandedEmailHtml } from "./email-templates"
@@ -548,6 +549,7 @@ export async function confirmMeetingSlot(
 
   const updated = mapMeeting(data as Record<string, unknown>)
   await sendMeetingConfirmationEmails(updated).catch((err) => console.error("[meetings] confirmation email failed:", err))
+  await enqueueCommunicationTrigger("meeting_booked", updated.leadId).catch((err) => console.error("[meetings] communication workflow enqueue failed:", err))
   return { ok: true, meeting: updated, meetError }
 }
 

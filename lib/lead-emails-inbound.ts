@@ -9,6 +9,7 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import { notifyAllAdmins } from "./admin-notifications"
 import { REPLY_TO } from "./email"
 import { mirrorConversationMessageToMailbox } from "./admin-mailbox-correspondence"
+import { enqueueCommunicationTrigger } from "./communication-events"
 
 export interface InboundLeadEmail {
   from: string
@@ -108,6 +109,10 @@ export async function fileInboundLeadEmail(email: InboundLeadEmail): Promise<boo
     console.error("[lead-emails] inbound insert failed:", error.message)
     return false
   }
+
+  await enqueueCommunicationTrigger("lead_replied", lead.id).catch((eventError) => {
+    console.error("[lead-emails] communication event enqueue failed:", eventError)
+  })
 
   try {
     const refs = `${email.inReplyTo || ""} ${email.references || ""}`.match(/<[^<>\s]+>/g) || []

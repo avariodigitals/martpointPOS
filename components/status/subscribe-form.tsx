@@ -7,6 +7,7 @@ import { Bell, CheckCircle2, Loader2 } from "lucide-react"
 
 export function StatusSubscribeForm() {
   const [email, setEmail] = useState("")
+  const [newsletter, setNewsletter] = useState(false)
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle")
   const [error, setError] = useState("")
   const captchaRef = useRef<CaptchaFieldHandle>(null)
@@ -20,7 +21,7 @@ export function StatusSubscribeForm() {
       const res = await fetch("/api/status/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, captchaToken }),
+        body: JSON.stringify({ email, newsletter, captchaToken }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.success) {
@@ -39,13 +40,13 @@ export function StatusSubscribeForm() {
     return (
       <p className="inline-flex items-center gap-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
         <CheckCircle2 className="w-4 h-4" />
-        You&apos;re subscribed — we&apos;ll email you when incidents are created, updated, or resolved.
+        You&apos;re subscribed to status and maintenance updates{newsletter ? " and the MartPoint product newsletter" : ""}.
       </p>
     )
   }
 
   return (
-    <form onSubmit={subscribe} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+    <form onSubmit={subscribe} className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
       <input
         type="email"
         required
@@ -55,6 +56,10 @@ export function StatusSubscribeForm() {
         className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-0"
       />
       <CaptchaField ref={captchaRef} onChange={() => {}} />
+      <label className="flex items-start gap-2 text-xs leading-5 text-muted-foreground sm:max-w-56">
+        <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} className="mt-1 accent-blue-600" />
+        Also email me MartPoint product news and newsletters.
+      </label>
       <Button type="submit" disabled={state === "loading"}>
         {state === "loading" ? (
           <Loader2 className="w-4 h-4 mr-2 animate-spin" />

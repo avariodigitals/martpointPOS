@@ -35,17 +35,15 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (existing) {
-      if (existing.unsubscribed_at) {
-        await supabase
-          .from("status_subscribers")
-          .update({ unsubscribed_at: null })
-          .eq("email", email)
-      }
+      await supabase.from("status_subscribers").update({
+        ...(existing.unsubscribed_at ? { unsubscribed_at: null } : {}),
+        ...(body.newsletter === true ? { newsletter_opt_in_at: new Date().toISOString(), newsletter_unsubscribed_at: null } : {}),
+      }).eq("email", email)
       // Return success either way — do not leak subscription state.
       return NextResponse.json({ success: true })
     }
 
-    const { error } = await supabase.from("status_subscribers").insert({ email })
+    const { error } = await supabase.from("status_subscribers").insert({ email, newsletter_opt_in_at: body.newsletter === true ? new Date().toISOString() : null })
     if (error) {
       console.error("[status/subscribe] insert", error)
       return NextResponse.json({ error: "Failed to subscribe. Please try again." }, { status: 500 })

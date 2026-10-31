@@ -5,6 +5,7 @@ import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { buildQuoteEmailHtml, buildQuotePublicUrl } from "@/lib/quotations"
 import { enqueueAutomation } from "@/lib/automations"
+import { enqueueCommunicationTrigger } from "@/lib/communication-events"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -109,6 +110,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       subjectId: id,
       recipientEmail: lead.email,
     }).catch((err) => console.error("[quotations/send] enqueue reminder failed:", err))
+    if (emailSent) await enqueueCommunicationTrigger("quote_sent", String(quote.lead_id)).catch((err) => console.error("[quotations/send] communication workflow enqueue failed:", err))
 
     return NextResponse.json({
       success: emailSent,

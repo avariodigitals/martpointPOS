@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/communications",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/azera-contact-centre",

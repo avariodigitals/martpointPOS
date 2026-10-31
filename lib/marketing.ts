@@ -17,12 +17,13 @@ export interface MarketingRecipient {
   name: string
 }
 
-export type MarketingAudience = "leads" | "partner_leads" | "businesses" | "manual"
+export type MarketingAudience = "leads" | "partner_leads" | "businesses" | "newsletter" | "manual"
 
 export const MARKETING_AUDIENCES: Array<{ key: MarketingAudience; label: string }> = [
   { key: "leads", label: "Leads" },
   { key: "partner_leads", label: "Partner Leads" },
   { key: "businesses", label: "Businesses" },
+  { key: "newsletter", label: "Newsletter opt-ins" },
   { key: "manual", label: "Paste emails" },
 ]
 
@@ -86,6 +87,12 @@ export async function getAudienceRecipients(audience: string): Promise<Marketing
       .select("primary_email, primary_contact_name, business_name")
       .order("created_at", { ascending: false })
     for (const r of data || []) push(r.primary_email, r.primary_contact_name || r.business_name)
+  } else if (audience === "newsletter") {
+    const { data } = await supabase.from("status_subscribers")
+      .select("email").not("newsletter_opt_in_at", "is", null).is("newsletter_unsubscribed_at", null).is("unsubscribed_at", null)
+      .order("created_at", { ascending: false })
+    const suppressed = await getSuppressedEmails((data || []).map((row) => row.email))
+    for (const r of data || []) if (!suppressed.has(normalizeEmail(r.email))) push(r.email, "")
   }
 
   return out.slice(0, MAX_CAMPAIGN_RECIPIENTS)

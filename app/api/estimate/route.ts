@@ -8,6 +8,7 @@ import { renderEmailTemplate } from "@/lib/email-templates"
 import { readSettings } from "@/lib/settings"
 import { resolveIndustryName } from "@/lib/industries"
 import { enqueueAutomation } from "@/lib/automations"
+import { enqueueCommunicationTrigger } from "@/lib/communication-events"
 import { createAttributedPartnerLead } from "@/lib/process-lead"
 import { notifyAllAdmins } from "@/lib/admin-notifications"
 import {
@@ -156,6 +157,7 @@ export async function POST(request: Request) {
           subjectId: leadId,
           recipientEmail: email,
         }).catch((err) => console.error("[estimate] enqueue follow-up failed:", err))
+        await enqueueCommunicationTrigger("estimate_requested", leadId).catch((err) => console.error("[estimate] communication workflow enqueue failed:", err))
       }
     }
 

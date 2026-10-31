@@ -77,6 +77,7 @@ const AUDIENCE_LABELS: Record<string, string> = {
   leads: "Leads",
   partner_leads: "Partner Leads",
   businesses: "Businesses",
+  newsletter: "Newsletter opt-ins",
   saved: "Saved Audience",
   manual: "Pasted list",
 }
@@ -415,6 +416,7 @@ export default function AdminMarketingPage() {
                 <option value="leads">Leads</option>
                 <option value="partner_leads">Partner Leads</option>
                 <option value="businesses">Businesses</option>
+                <option value="newsletter">Newsletter opt-ins</option>
                 <option value="saved">Saved Audience</option>
                 <option value="manual">Paste emails</option>
               </select>

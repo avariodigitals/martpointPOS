@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { enqueueStatusCommunication, hasStatusCommunicationRule, type StatusCommunicationEvent } from "@/lib/communication-events"
 import {
   listIncidents,
   listSubscribers,
@@ -107,11 +108,15 @@ export async function POST(request: Request) {
       }
     }
 
+    const statusEvent: StatusCommunicationEvent = TERMINAL_STATUSES.includes(status) ? "status_incident_resolved" : "status_incident_created"
+    const customStatusRule = await hasStatusCommunicationRule(statusEvent).catch(() => false)
+    await enqueueStatusCommunication(statusEvent, { id: incident.id, title: incident.title, status, updateId: firstUpdate?.id || `created:${incident.id}`, update: firstUpdate?.body || "A new incident has been posted. View the MartPoint status page for details." }).catch((eventError) => console.error("[status communication] event queue failed", eventError))
+
     if ((body.notify || body.includeBusinesses) && firstUpdate) {
       await notifyStatusSubscribers(
         { ...incident, componentIds: incident.component_ids || [], updates: [] },
         firstUpdate,
-        { subscribers: body.notify === true, businesses: body.includeBusinesses === true }
+        { subscribers: body.notify === true && !customStatusRule, businesses: body.includeBusinesses === true }
       )
     }
 
@@ -139,7 +144,7 @@ export async function PUT(request: Request) {
 
     const { data: existing } = await supabase
       .from("status_incidents")
-      .select("status, resolved_at")
+      .select("status, resolved_at, title")
       .eq("id", body.id)
       .single()
     if (!existing) {
@@ -175,6 +180,9 @@ export async function PUT(request: Request) {
     }
 
     const message = typeof body.message === "string" ? body.message.trim() : ""
+    const statusNow = newStatus || existing.status
+    const statusEvent: StatusCommunicationEvent = TERMINAL_STATUSES.includes(statusNow) ? "status_incident_resolved" : "status_incident_updated"
+    const customStatusRule = await hasStatusCommunicationRule(statusEvent).catch(() => false)
     if (message) {
       const { data: upd } = await supabase
         .from("status_incident_updates")
@@ -208,11 +216,14 @@ export async function PUT(request: Request) {
               createdBy: upd.created_by || "",
               createdAt: upd.created_at,
             },
-            { subscribers: body.notify === true, businesses: body.includeBusinesses === true }
+            { subscribers: body.notify === true && !customStatusRule, businesses: body.includeBusinesses === true }
           )
         }
       }
+      await enqueueStatusCommunication(statusEvent, { id: String(body.id), title: String(body.title || existing.title), status: String(statusNow), updateId: String(upd?.id || `updated:${body.id}:${now}`), update: message }).catch((eventError) => console.error("[status communication] event queue failed", eventError))
     }
+
+    if (!message) await enqueueStatusCommunication(statusEvent, { id: String(body.id), title: String(body.title || existing.title), status: String(statusNow), updateId: `updated:${body.id}:${String(statusNow)}:${now}`, update: "The incident status has changed. View the MartPoint status page for details." }).catch((eventError) => console.error("[status communication] event queue failed", eventError))
 
     revalidatePath("/status")
     return NextResponse.json({ success: true })

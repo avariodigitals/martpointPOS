@@ -3,6 +3,7 @@ import { readSettings } from "./settings"
 import { africaBrowserConfig } from "./africa-browser-voice"
 import { normalizeCommunicationPhone } from "./communications-policy"
 import { supabase } from "./supabase"
+import { getSettings } from "./settings"
 
 export const smsConfigurationSchema = z.object({
   provider: z.enum(["africastalking", "bulksmsnigeria"]), sender: z.string().trim().min(1).max(11).regex(/^[A-Za-z0-9 +]+$/),
@@ -30,6 +31,37 @@ export async function recordCommunicationSmsOptOut(from: string, text: string) {
   const result = await supabase.from("communication_suppressions").upsert({ channel: "sms", address: phone, reason: "Inbound STOP / opt-out" })
   if (result.error) throw new Error("Could not retain SMS opt-out")
   return true
+}
+
+export async function recordCommunicationWhatsAppOptOut(from: string, text: string) {
+  if (!/^(STOP|UNSUBSCRIBE|CANCEL|END|QUIT)$/i.test(text.trim())) return false
+  const phone = normalizeCommunicationPhone(from)
+  if (!phone) return false
+  const result = await supabase.from("communication_suppressions").upsert({ channel: "whatsapp", address: phone, reason: "Inbound WhatsApp STOP / opt-out" })
+  if (result.error) throw new Error("Could not retain WhatsApp opt-out")
+  return true
+}
+
+export async function sendCommunicationWhatsApp(to: string, body: string): Promise<SmsDelivery> {
+  const phone = normalizeCommunicationPhone(to)
+  if (!phone || !body.trim() || body.length > 2000) return { status: "failed", provider: "360dialog", error: "A valid phone and message up to 2,000 characters are required" }
+  try {
+    const settings = await getSettings()
+    const config = settings.whatsapp
+    if (!config.apiKey || !config.baseUrl) return { status: "failed", provider: "360dialog", error: "Configure the WhatsApp provider before sending" }
+    const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/messages`, {
+      method: "POST", signal: AbortSignal.timeout(12000),
+      headers: { "Content-Type": "application/json", "D360-API-KEY": config.apiKey },
+      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: phone.replace(/^\+/, ""), type: "text", text: { body } }),
+    })
+    const data = await response.json().catch(() => null)
+    if (!data) return { status: "unknown", provider: "360dialog", error: "WhatsApp provider response is uncertain. Check provider history before retrying." }
+    if (!response.ok || !data.messages?.[0]?.id) return { status: response.status >= 500 ? "unknown" : "failed", provider: "360dialog", error: "WhatsApp provider rejected the message. Check its configuration and account." }
+    await supabase.from("whatsapp_messages").insert({ wa_message_id: data.messages[0].id, wa_id: phone.replace(/^\+/, ""), to_number: phone, body, direction: "outbound", status: "sent" })
+    return { status: "accepted", provider: "360dialog", providerId: String(data.messages[0].id) }
+  } catch {
+    return { status: "unknown", provider: "360dialog", error: "WhatsApp provider outcome is uncertain. Check provider history before retrying." }
+  }
 }
 
 /** One recipient per tracked message. No wallet or application credit checks. */

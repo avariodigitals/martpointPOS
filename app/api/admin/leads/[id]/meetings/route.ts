@@ -14,6 +14,7 @@ import {
   getSchedulingSettings,
 } from "@/lib/meeting-booking"
 import { completeExpiredMeetings } from "@/lib/meeting-status"
+import { enqueueCommunicationTrigger } from "@/lib/communication-events"
 
 const postSchema = z.object({
   mode: z.enum(["invite", "direct"]).default("direct"),
@@ -161,6 +162,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     }
 
     let meeting = mapMeeting(data as Record<string, unknown>)
+    await enqueueCommunicationTrigger("meeting_booked", id).catch((eventError) => console.error("[meetings] communication workflow enqueue failed:", eventError))
     let meetError: string | undefined
 
     if (body.createMeet && !body.meetingLink) {

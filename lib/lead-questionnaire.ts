@@ -7,6 +7,7 @@ import { sendEmail, REPLY_TO } from "./email"
 import { renderEmailTemplate } from "./email-templates"
 import { ADVANCED_QUESTIONNAIRE_FIELDS } from "./questionnaire-catalog"
 import { enqueueAutomation, cancelAutomationRuns } from "./automations"
+import { enqueueCommunicationTrigger } from "./communication-events"
 import { notifyPartnerCustomerEvent } from "./partner-notifications"
 
 export interface QuestionnaireField {
@@ -171,6 +172,7 @@ export async function generateQuestionnaire(
       subjectId: input.leadId,
       recipientEmail: mapped.email,
     }).catch((err) => console.error("[questionnaire] enqueue reminder failed:", err))
+    await enqueueCommunicationTrigger("questionnaire_sent", input.leadId).catch((err) => console.error("[questionnaire] communication workflow enqueue failed:", err))
     if (!sent) return { ok: true, token, url, error: "Email delivery failed (link generated)" }
   }
 

@@ -4,6 +4,7 @@ import { getSession, hasPermission } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { parseManualEmails } from "@/lib/marketing"
+import { normalizeCommunicationPhone } from "@/lib/communications-policy"
 
 async function guardMarketingAccess() {
   const session = await getSession()
@@ -34,11 +35,13 @@ export async function GET() {
 
   const { data: contacts } = await supabase
     .from("marketing_contacts")
-    .select("audience_id")
+    .select("audience_id,email,phone,sms_consent_at")
 
   const counts = new Map<string, number>()
+  const smsCounts = new Map<string, number>()
   for (const c of contacts || []) {
-    counts.set(c.audience_id, (counts.get(c.audience_id) || 0) + 1)
+    if (c.email) counts.set(c.audience_id, (counts.get(c.audience_id) || 0) + 1)
+    if (c.phone && c.sms_consent_at) smsCounts.set(c.audience_id, (smsCounts.get(c.audience_id) || 0) + 1)
   }
 
   return NextResponse.json({
@@ -48,6 +51,7 @@ export async function GET() {
       description: a.description,
       createdAt: a.created_at,
       contactCount: counts.get(a.id) || 0,
+      smsContactCount: smsCounts.get(a.id) || 0,
     })),
   })
 }
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { name, description, contacts } = body
+    const { name, description, contacts, phoneContacts, smsConsentConfirmed } = body
 
     if (!name || !String(name).trim()) {
       return NextResponse.json({ error: "Audience name is required" }, { status: 400 })
@@ -67,6 +71,18 @@ export async function POST(request: Request) {
 
     if (!isSupabaseConfigured()) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
+    }
+
+    const parsed = parseManualEmails(String(contacts || ""))
+    const phones = String(phoneContacts || "").split(/[\n,;]+/).map((line) => {
+      const value = line.trim()
+      if (!value) return null
+      const match = value.match(/^(.*?)<([^>]+)>\s*$/)
+      const phone = normalizeCommunicationPhone(match ? match[2] : value)
+      return phone ? { phone, name: match?.[1].trim() || "" } : null
+    }).filter((item): item is { phone: string; name: string } => Boolean(item))
+    if (String(phoneContacts || "").trim() && !smsConsentConfirmed) {
+      return NextResponse.json({ error: "Confirm that these contacts agreed to receive SMS before adding phone numbers" }, { status: 400 })
     }
 
     const audienceId = crypto.randomUUID()
@@ -81,7 +97,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to create audience" }, { status: 500 })
     }
 
-    const parsed = parseManualEmails(String(contacts || ""))
     if (parsed.length) {
       const { error: contactsError } = await supabase.from("marketing_contacts").insert(
         parsed.map((c) => ({ audience_id: audienceId, email: c.email, name: c.name }))
@@ -91,7 +106,15 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, id: audienceId, contactsAdded: parsed.length })
+    if (phones.length) {
+      const unique = [...new Map(phones.map((phone) => [phone.phone, phone])).values()]
+      const { error: phoneError } = await supabase.from("marketing_contacts").insert(unique.map((contact) => ({
+        audience_id: audienceId, email: null, phone: contact.phone, name: contact.name, sms_consent_at: new Date().toISOString(),
+      })))
+      if (phoneError) console.error("[Marketing SMS Contacts Insert Error]", phoneError)
+    }
+
+    return NextResponse.json({ success: true, id: audienceId, contactsAdded: parsed.length, smsContactsAdded: phones.length })
   } catch {
     return NextResponse.json({ error: "Failed to create audience" }, { status: 500 })
   }

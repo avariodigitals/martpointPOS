@@ -92,6 +92,7 @@ export async function DELETE(request: Request) {
   if (error) {
     return NextResponse.json({ error: "Failed to remove suppression" }, { status: 500 })
   }
+  await supabase.from("status_subscribers").update({ newsletter_unsubscribed_at: null }).eq("email", email)
 
   return NextResponse.json({ success: true })
 }

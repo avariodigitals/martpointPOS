@@ -3,6 +3,7 @@ import { z } from "zod"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { isValidTimeZone } from "@/lib/scheduling"
 import { MEETING_SELECT, mapMeeting, computeAvailableSlots, confirmMeetingSlot, type MeetingRecord } from "@/lib/meeting-booking"
+import { enqueueCommunicationTrigger } from "@/lib/communication-events"
 
 interface PublicMeeting {
   title: string
@@ -76,6 +77,7 @@ export async function POST(request: Request, props: { params: Promise<{ token: s
   const tz = parsed.data.timezone && isValidTimeZone(parsed.data.timezone) ? parsed.data.timezone : null
   const result = await confirmMeetingSlot(meeting, parsed.data.slot, tz)
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+  await enqueueCommunicationTrigger("meeting_booked_from_email", result.meeting.leadId).catch((error) => console.error("[meetings] email booking workflow enqueue failed:", error))
 
   return NextResponse.json({ success: true, meeting: toPublic(result.meeting), meetPending: Boolean(result.meetError) })
 }

@@ -32,7 +32,7 @@ const postSchema = z.object({
 
 async function ownEmailAddresses(name?: string): Promise<string[]> {
   const settings = await getEmailSettings()
-  const sender = resolveLeadSenders(settings, name)
+  const sender = resolveLeadSenders(name)
   return [...new Set([sender.from, sender.replyTo, settings.fromEmail, settings.smtp.fromEmail, settings.smtp.user].flatMap(extractAddresses))]
 }
 

@@ -32,6 +32,9 @@ import {
   Calendar as CalendarIcon,
   MessageCircle,
   Megaphone,
+  Smartphone,
+  Workflow,
+  Search,
   BookOpen,
   Scale,
   ArrowLeftRight,
@@ -59,11 +62,13 @@ export interface AdminNavItem {
   icon: LucideIcon
   page: string
   section: string
+  permissions?: string[]
 }
 
 export const ADMIN_SECTION_ORDER = [
   "Control Centre",
-  "Workspaces",
+  "Communications",
+  "Content & Website",
   "Creator Network",
   "Partner Network",
   "Sales",
@@ -86,7 +91,17 @@ export const adminNavItems: AdminNavItem[] = [
     section: "Control Centre"
   },
   { href: "/admin/mailbox", label: "Mailbox", icon: Mail, page: "mailbox", section: "Support & Inbox" },
-  { href: "/admin/growth", label: "Growth & Communications", icon: Megaphone, page: "growth_workspace", section: "Workspaces" },
+  { href: "/admin/communications/sms", label: "SMS", icon: Smartphone, page: "marketing", section: "Communications", permissions: ["leads"] },
+  { href: "/admin/communications/email", label: "Email", icon: Mail, page: "marketing", section: "Communications" },
+  { href: "/admin/communications/whatsapp", label: "WhatsApp", icon: MessageCircle, page: "marketing", section: "Communications", permissions: ["leads"] },
+  { href: "/admin/communications/automation", label: "Automation", icon: Workflow, page: "marketing", section: "Communications", permissions: ["leads"] },
+  { href: "/admin/blog", label: "Blog", icon: FileText, page: "blog", section: "Content & Website" },
+  { href: "/admin/faqs", label: "FAQs", icon: HelpCircle, page: "faqs", section: "Content & Website" },
+  { href: "/admin/brochure", label: "Brochure", icon: BookOpen, page: "partners", section: "Content & Website" },
+  { href: "/admin/seo", label: "SEO", icon: Search, page: "seo", section: "Content & Website" },
+  { href: "/admin/tracker", label: "Website tracker", icon: Activity, page: "tracker", section: "Content & Website" },
+  { href: "/admin/tracker/referrers", label: "Traffic sources", icon: Route, page: "tracker", section: "Content & Website" },
+  { href: "/admin/analytics", label: "Website analytics", icon: BarChart3, page: "analytics", section: "Content & Website" },
   { href: "/admin/reports", label: "Reports", icon: BarChart3, page: "analytics", section: "Control Centre" },
 
   // Creator Network
@@ -605,7 +620,7 @@ export const adminNavItems: AdminNavItem[] = [
 ]
 
 export function getAdminNavigation(role: UserRole) {
-  const visibleItems = adminNavItems.filter((item) => item.page === "growth_workspace" ? hasGrowthWorkspaceAccess(role) : hasPermission(role, item.page))
+  const visibleItems = adminNavItems.filter((item) => hasPermission(role, item.page) && (item.permissions || []).every((permission) => hasPermission(role, permission)))
   const sections = ADMIN_SECTION_ORDER.map((label) => ({
     label,
     collapsible: label !== "Control Centre",
@@ -626,10 +641,6 @@ export function activeAdminHref(
   pathname: string,
   query: Pick<URLSearchParams, "get">
 ): string | undefined {
-  const growthRoutes = ["/admin/growth", "/admin/marketing", "/admin/communications", "/admin/blog", "/admin/faqs", "/admin/brochure", "/admin/seo", "/admin/tracker", "/admin/analytics"]
-  if (growthRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
-    if (items.some((item) => item.href === "/admin/growth")) return "/admin/growth"
-  }
   return items
     .map((item) => {
       const [path, search] = item.href.split("?")

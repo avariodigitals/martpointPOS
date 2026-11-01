@@ -278,14 +278,14 @@ export default function EmailSettingsPage() {
                   value={settings.fromEmail}
                   onChange={(e) => setSettings({ ...settings, fromEmail: e.target.value })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="MartPoint Partners <hello@martpoint.com.ng>"
+                  placeholder="MartPoint <hello@martpoint.com.ng>"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Format: <code className="text-xs bg-muted px-1 py-0.5 rounded">Display Name &lt;email@domain.com&gt;</code>.
                   {settings.provider === "brevo"
                     ? " The sender domain must be verified in Brevo."
                     : " The domain must be verified in Resend."}
-                  {" This controls the visible sender for general mail; it does not forward hello@ mail. Lead notifications are routed under Email Routes, and replies to Lead emails go to sales@martpoint.com.ng."}
+                  {" This is the default sender for mail that does not choose a department identity. Lead conversations are sent from sales@martpoint.com.ng using the staff member’s name; replies return to Sales and stay in the conversation thread. This setting does not forward mail sent to hello@."}
                 </p>
               </div>
 

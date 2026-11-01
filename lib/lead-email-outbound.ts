@@ -1,9 +1,9 @@
 /* ───────────────────  Outbound lead email (server-only)  ───────────────────
  * Sends a message to a lead through the transactional provider (Resend/Brevo)
- * for deliverability and sending logs. The public From address (normally
- * hello@) stays visible, Reply-To routes to Sales, and IMAP sync files replies
- * back into the lead thread. SMTP is only the fallback when no provider API
- * key is configured. Files every message into lead_emails.
+ * for deliverability and sending logs. Sales is the visible From and Reply-To
+ * identity, and inbound sync files replies back into the lead thread. SMTP is
+ * only the fallback when no provider API key is configured. Files every
+ * message into lead_emails.
  * Shared by the Email tab and meeting invites.
  */
 
@@ -87,36 +87,18 @@ export interface SendLeadEmailResult {
   error?: string
 }
 
-const ADDRESS_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+\.[^\s@]+$/
-
-/** Read a sender out of a settings field. Accepts "Name <a@b>" or a bare
- *  address; returns null for anything that isn't a real address (e.g. the
- *  display-name text people type into the mailbox "From" field), so a typo in
- *  Settings → Email can't poison From and get the send rejected. */
-function parseSenderAddress(raw: string | undefined): { address: string; name: string } | null {
-  const value = (raw || "").trim()
-  if (!value) return null
-  const angled = value.match(/^(.*?)<([^>]+)>$/)
-  const address = (angled ? angled[2] : value).trim()
-  if (!ADDRESS_RE.test(address)) return null
-  return { address, name: (angled ? angled[1] : "").trim() }
-}
-
 export interface LeadSenders {
   from: string
   replyTo: string
 }
 
-/** Lead email keeps the configured public sender (normally hello@) while
- *  directing replies to the Sales shared inbox. `senderName` personalizes the
- *  visible From name without changing the delivery address. */
-export function resolveLeadSenders(settings: EmailSettings, senderName?: string): LeadSenders {
-  const accountSender =
-    parseSenderAddress(settings.fromEmail) ||
-    parseSenderAddress(process.env.RESEND_FROM_EMAIL) ||
-    { address: "hello@martpoint.com.ng", name: "MartPoint" }
-  const displayName = (senderName || "").trim() || accountSender.name || "MartPoint"
-  const from = `${displayName} <${accountSender.address}>`
+/** Sales conversations use the Sales address as both the visible sender and
+ *  Reply-To. The general From setting is shared by unrelated mail (and may be
+ *  configured for Partners), so it must not leak that identity into a lead
+ *  conversation. `senderName` personalizes the visible sender. */
+export function resolveLeadSenders(senderName?: string): LeadSenders {
+  const displayName = (senderName || "").trim() || "MartPoint Sales"
+  const from = `${displayName} <sales@martpoint.com.ng>`
   return { from, replyTo: REPLY_TO.sales }
 }
 
@@ -170,13 +152,13 @@ export function leadTemplateBrandedHtml(
 
 export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLeadEmailResult> {
   const settings = await getEmailSettings()
-  // Lead mail keeps the public From address (normally hello@), while every
-  // reply goes to the Sales inbox that IMAP sync files into the lead thread.
+  // Lead mail is sent from Sales directly so the sender, reply destination,
+  // and shared mailbox conversation all show the same department identity.
   const useProvider =
     settings.provider === "brevo"
       ? Boolean(settings.brevoApiKey || process.env.BREVO_API_KEY)
       : Boolean(settings.resendApiKey || process.env.RESEND_API_KEY)
-  const { from, replyTo } = resolveLeadSenders(settings, input.senderName)
+  const { from, replyTo } = resolveLeadSenders(input.senderName)
 
   const { text: textBody, html } = await renderLeadEmail(input, settings)
   const messageId = input.headers?.["Message-ID"] || `<lead-${crypto.randomUUID()}@martpoint.com.ng>`

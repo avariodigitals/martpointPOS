@@ -325,10 +325,17 @@ export default function AdminMarketingPage() {
       <div>
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Megaphone className="w-5 h-5" />
-          Email Marketing
+          Email campaigns
         </h2>
         <p className="text-muted-foreground">Announce features and send campaigns to leads and partners — with open tracking and opt-out built in.</p>
       </div>
+
+      {campaigns[0] && <Card className="border-blue-100 bg-blue-50/40">
+        <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
+          <div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">Latest campaign</p><h3 className="mt-1 truncate font-semibold text-slate-900">{campaigns[0].name}</h3><p className="mt-1 text-xs text-slate-500">{AUDIENCE_LABELS[campaigns[0].audience] || campaigns[0].audience} · {campaigns[0].status} · {campaigns[0].sentAt ? new Date(campaigns[0].sentAt).toLocaleString("en-GB") : "Not sent yet"}</p></div>
+          <div className="flex gap-5 text-xs"><span><strong className="block text-base text-slate-900">{campaigns[0].metrics.sent}</strong>sent</span><span><strong className="block text-base text-blue-700">{campaigns[0].metrics.opens}</strong>opens</span><span><strong className="block text-base text-violet-700">{campaigns[0].metrics.clicks}</strong>clicks</span><span><strong className="block text-base text-red-700">{campaigns[0].metrics.failed}</strong>failed</span></div>
+        </CardContent>
+      </Card>}
 
       {message && (
         <p className={`text-sm ${message.includes("sent") || message.includes("delivered") ? "text-green-600" : "text-red-500"}`}>
@@ -428,7 +435,7 @@ export default function AdminMarketingPage() {
               <label className="block text-xs font-medium mb-1">Select Audience</label>
               {savedAudiences.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No saved audiences yet — create one under <a href="/admin/marketing/audiences" className="text-retail hover:underline">Marketing → Audiences</a>.
+                  No saved audiences yet — open <a href="/admin/marketing/audiences" className="text-retail hover:underline">Email audiences</a> to create one.
                 </p>
               ) : (
                 <select

@@ -64,7 +64,9 @@ async function checkRecipient(leadId: string | null, channel: "email" | "sms" | 
   }
   if (context && channel === "sms" && !context.history.some((entry) => entry.direction === "inbound" && entry.channel === "sms" && Date.now() - Date.parse(entry.at) < 24 * 60 * 60 * 1000)) throw new Error("SMS automation needs recorded SMS consent or a recent inbound SMS reply")
   if (context && channel === "whatsapp" && !context.history.some((entry) => entry.direction === "inbound" && entry.channel === "whatsapp" && Date.now() - Date.parse(entry.at) < 24 * 60 * 60 * 1000)) throw new Error("WhatsApp free-text automation requires a reply in the last 24 hours. This workspace does not send approved WhatsApp templates outside that window.")
-  const stop = context ? communicationStopReason({ ...context.lead, suppressed: Boolean(suppression.data || emails.data), converted: Boolean(business.data?.length), lastInbound: context.lastInbound, lastOutbound: context.lastOutbound, stopOnReply: workflow?.trigger === "lead_replied" ? false : workflow?.stop_on_reply, enrolledAt }) : (suppression.data ? "Recipient opted out of this channel" : null)
+  const automatedReplyExists = Boolean(context?.lastOutbound && enrolledAt && Date.parse(context.lastOutbound) >= Date.parse(enrolledAt))
+  const stopOnReply = workflow?.trigger === "lead_replied" ? Boolean(workflow.stop_on_reply && automatedReplyExists) : workflow?.stop_on_reply
+  const stop = context ? communicationStopReason({ ...context.lead, suppressed: Boolean(suppression.data || emails.data), converted: Boolean(business.data?.length), lastInbound: context.lastInbound, lastOutbound: context.lastOutbound, stopOnReply, enrolledAt }) : (suppression.data ? "Recipient opted out of this channel" : null)
   if (stop) throw new Error(stop)
   if (workflow?.trigger === "no_reply" && context?.lastInbound && context.lastOutbound && Date.parse(context.lastInbound) >= Date.parse(context.lastOutbound)) throw new Error("The lead's latest reply needs a teammate's response")
   return { context, recipient, statusToken: null as string | null }

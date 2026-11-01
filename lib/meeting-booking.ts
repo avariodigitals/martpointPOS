@@ -218,7 +218,7 @@ export function buildMeetingIcs(meeting: MeetingRecord): EmailAttachment | null 
     `DTSTART:${icsDate(start)}`,
     `DTEND:${icsDate(end)}`,
     `SUMMARY:${icsEscape(meeting.title)}`,
-    "ORGANIZER;CN=MartPoint:mailto:hello@martpoint.com.ng",
+    "ORGANIZER;CN=MartPoint Sales:mailto:sales@martpoint.com.ng",
     meeting.leadEmail
       ? `ATTENDEE;CN=${icsEscape(meeting.leadFullName || meeting.leadEmail)};RSVP=TRUE:mailto:${meeting.leadEmail}`
       : null,
@@ -301,8 +301,8 @@ export async function sendMeetingConfirmationEmails(
     await sendLeadEmail({
       leadId: meeting.leadId,
       to: meeting.leadEmail,
-      // hello@ sends the acceptance; copy Sales + Support so each function can
-      // trace business meetings from the mailbox it owns.
+      // Send from the Sales identity and copy Support so both teams can trace
+      // the meeting confirmation from their shared mailboxes.
       cc: ["sales@martpoint.com.ng", "support@martpoint.com.ng"],
       subject: tpl.subject,
       body: tpl.text,

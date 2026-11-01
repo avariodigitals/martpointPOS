@@ -23,6 +23,7 @@ const queueSchema = z.object({
   leadIds: z.array(z.uuid()).max(50).default([]), contactIds: z.array(z.uuid()).max(500).default([]), contactSource: z.enum(["lead", "saved_audience"]).default("lead"), audienceId: z.uuid().nullable().default(null), requestId: z.uuid(), channel: communicationChannel,
   mode: z.enum(["manual", "template", "ai"]), template_id: z.uuid().nullable().default(null),
   instructions: z.string().max(4000).default(""), subject: z.string().max(500).default(""), body: z.string().max(20000).default(""),
+  campaignName: z.string().trim().min(2).max(120),
 }).refine((value) => value.leadIds.length + value.contactIds.length > 0 && value.leadIds.length + value.contactIds.length <= 500, "Choose up to 500 recipients")
 export async function GET(_request: Request, context: Context) {
   const { resource } = await context.params
@@ -37,21 +38,40 @@ export async function GET(_request: Request, context: Context) {
     const results = await Promise.all([
       supabase.from("communication_templates").select("id,name,channel,subject,body").order("created_at"),
       supabase.from("communication_workflows").select("*").order("created_at", { ascending: false }),
-      supabase.from("communication_messages").select("id,lead_id,channel,subject,body,status,mode,recipient,provider,provider_message_id,ai_provider,ai_model,error,scheduled_for,sent_at,created_at,workflow_id").order("created_at", { ascending: false }).limit(100),
+      supabase.from("communication_messages").select("id,lead_id,campaign_id,channel,subject,body,status,mode,recipient,provider,provider_message_id,ai_provider,ai_model,error,scheduled_for,sent_at,created_at,workflow_id").order("created_at", { ascending: false }).limit(500),
       supabase.from("communication_runs").select("id,lead_id,workflow_id,status,step,next_run_at,reason").order("created_at", { ascending: false }).limit(100),
       supabase.from("leads").select("id,full_name,business_name,email,phone,status").order("submitted_at", { ascending: false }).limit(1000),
       supabase.from("marketing_audiences").select("id,name").order("created_at", { ascending: false }),
       supabase.from("status_subscribers").select("email").is("unsubscribed_at", null).order("created_at", { ascending: false }).limit(1000),
       supabase.from("communication_status_rules").select("workflow_id,incident_event,recipient_emails"),
       supabase.from("communication_call_tasks").select("id,lead_id,contact_name,phone,call_brief,status,created_at,completed_at").order("created_at", { ascending: false }).limit(100),
+      supabase.from("communication_campaigns").select("id,name,channel,audience_label,recipient_count,created_at").order("created_at", { ascending: false }).limit(100),
     ])
-    if (results.some((result) => result.error)) return NextResponse.json({ error: "Communications needs database migrations 161 and 162, or a required dataset could not be loaded. No messages were sent." }, { status: 503 })
+    if (results.some((result) => result.error)) return NextResponse.json({ error: "Communications needs database migrations 161, 162 and 164, or a required dataset could not be loaded. No messages were sent." }, { status: 503 })
+    const campaignIds = (results[9].data || []).map((campaign) => campaign.id)
+    const campaignStats: Record<string, { accepted: number; pending: number; failed: number }> = {}
+    if (campaignIds.length) {
+      let offset = 0
+      while (true) {
+        const page = await supabase.from("communication_messages").select("campaign_id,status")
+          .in("campaign_id", campaignIds).order("created_at", { ascending: true }).range(offset, offset + 999)
+        if (page.error) return NextResponse.json({ error: "Could not load campaign delivery stats" }, { status: 503 })
+        for (const message of page.data || []) {
+          const stats = campaignStats[message.campaign_id!] ||= { accepted: 0, pending: 0, failed: 0 }
+          if (["accepted", "delivered"].includes(message.status)) stats.accepted++
+          else if (["failed", "unknown", "skipped"].includes(message.status)) stats.failed++
+          else if (["queued", "preparing", "dispatching", "awaiting_approval"].includes(message.status)) stats.pending++
+        }
+        if ((page.data || []).length < 1000) break
+        offset += 1000
+      }
+    }
     const [sms, ai, email, smsContacts] = await Promise.all([
       getCommunicationSmsConfig(), getAiProviderStatus(), getEmailSettings(),
       supabase.from("marketing_contacts").select("id,audience_id,name,phone,sms_consent_at").not("phone", "is", null).not("sms_consent_at", "is", null).limit(2000),
     ])
     if (smsContacts.error) return NextResponse.json({ error: "Apply communications migration 162 to load consented SMS audiences" }, { status: 503 })
-    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, smsContacts: smsContacts.data, providers: { email: email.provider, sms: sms.provider, smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: hasPermission(auth.session.role, "settings") })
+    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts: smsContacts.data, providers: { email: email.provider, sms: sms.provider, smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: hasPermission(auth.session.role, "settings") })
   } catch (error) { return problem(error) }
 }
 export async function POST(request: Request, context: Context) {
@@ -105,7 +125,7 @@ export async function POST(request: Request, context: Context) {
     }
     if (resource === "messages") {
       const parsed = queueSchema.parse(body)
-      if (parsed.contactSource === "saved_audience" && (parsed.channel !== "sms" || parsed.leadIds.length || parsed.mode === "ai" || !parsed.audienceId)) throw new Error("Saved SMS audiences require a saved audience and template or written message")
+      if ((parsed.contactSource === "saved_audience") !== (parsed.contactIds.length > 0) || (parsed.contactSource === "saved_audience" && (parsed.channel !== "sms" || parsed.leadIds.length || parsed.mode === "ai" || !parsed.audienceId))) throw new Error("Saved SMS audiences require a saved audience and template or written message")
       if (parsed.mode === "manual" && (!parsed.body.trim() || (parsed.channel === "email" && !parsed.subject.trim()) || (parsed.channel === "sms" && parsed.body.length > 480) || (parsed.channel === "whatsapp" && parsed.body.length > 2000))) throw new Error("Enter a subject and message within the channel length")
       if (parsed.mode === "ai" && !parsed.instructions.trim()) throw new Error("Describe the message you want AI to prepare")
       if (parsed.mode === "template") {
@@ -127,10 +147,23 @@ export async function POST(request: Request, context: Context) {
           return { request_id: communicationRequestId(requestId, contact.id), lead_id: null, contact_id: contact.id, contact_source: "saved_audience", contact_name: contact.name || "", recipient: contact.phone, channel: parsed.channel, mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: "", body: parsed.mode === "template" ? mergeCommunicationTemplate(selectedTemplate.data!.body, person) : mergeCommunicationTemplate(parsed.body, person), prepared_at: new Date().toISOString(), created_by: auth.session.userId }
         })
       }
-      const rows = [...leadRows, ...contactRows]
+      let rows = [...leadRows, ...contactRows]
+      const audienceLabel = parsed.contactSource === "saved_audience"
+        ? (await supabase.from("marketing_audiences").select("name").eq("id", parsed.audienceId).maybeSingle()).data?.name || "Saved SMS audience"
+        : "Leads"
+      const campaign = await supabase.from("communication_campaigns").upsert({
+        id: requestId,
+        name: parsed.campaignName,
+        channel: parsed.channel,
+        audience_label: audienceLabel,
+        recipient_count: rows.length,
+        created_by: auth.session.userId,
+      }, { onConflict: "id", ignoreDuplicates: true }).select("id").maybeSingle()
+      if (campaign.error) throw new Error("Could not create the campaign record")
+      rows = rows.map((row) => ({ ...row, campaign_id: requestId }))
       const { data, error } = await supabase.from("communication_messages").upsert(rows, { onConflict: "request_id", ignoreDuplicates: true }).select("id")
       if (error) throw new Error("Could not queue messages")
-      return NextResponse.json({ queued: data?.length || 0 })
+      return NextResponse.json({ queued: data?.length || 0, campaignId: requestId })
     }
     if (resource === "enroll") {
       const parsed = z.object({ workflowId: z.uuid(), leadIds: z.array(z.uuid()).min(1).max(50) }).parse(body)

@@ -62,7 +62,7 @@ function getDefaultSettings() {
       provider: "resend",
       resendApiKey: "",
       brevoApiKey: "",
-      fromEmail: "MartPoint Partners <hello@martpoint.com.ng>",
+      fromEmail: "MartPoint <hello@martpoint.com.ng>",
       notifyEmail: "",
       signature: "",
       signatureHtml: "",

@@ -62,7 +62,7 @@ export async function renderPartnerEmail(bodyHtml: string, signatureHtml: string
 }
 
 export const PARTNER_EMAIL_FIELDS =
-  "id, direction, from_email, to_email, subject, body_text, status, sent_by_name, error_message, created_at"
+  "id, direction, from_email, to_email, subject, body_text, body_html, status, sent_by_name, error_message, created_at"
 
 export function mapPartnerEmail(row: Record<string, unknown>) {
   return {
@@ -72,6 +72,7 @@ export function mapPartnerEmail(row: Record<string, unknown>) {
     toEmail: String(row.to_email),
     subject: String(row.subject),
     bodyText: String(row.body_text || ""),
+    bodyHtml: typeof row.body_html === "string" ? row.body_html : "",
     status: String(row.status),
     sentByName: row.sent_by_name || null,
     error: row.error_message || null,

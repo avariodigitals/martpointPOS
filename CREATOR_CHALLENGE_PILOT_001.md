@@ -1,6 +1,6 @@
 # MartPoint Creator Challenge — Pilot 001 Launch Configuration
 
-**Status:** Draft for review — NOT activated. Challenge may sit as SCHEDULED ("Coming soon") during recruitment.
+**Status:** Applications open through December 12, 2026; challenge launch scheduled for January 5, 2027.
 **Activation gate:** Do not activate until ~20–30 approved Creator Ready creators exist.
 
 Engine notes: implements via migration 070 tables + `lib/creator-challenges.ts`.
@@ -20,16 +20,16 @@ Policy knobs live in `creator_challenges.scoring_config` (see §Policy).
 
 Content does **not** require the creator to personally own a MartPoint-powered business — demonstration, explanation, dramatization and documentation formats are all acceptable.
 
-## 2. Timeline (offsets from activation day T)
+## 2. Timeline (Africa/Lagos)
 
 | Field | Offset | Notes |
 |---|---|---|
-| join_opens_at | T+0 | Announcement broadcast to eligible creators |
-| join_closes_at | T+7 | 1-week join window — bounded cohort |
-| start_date | T+0 | Content can be created on joining |
-| submission_deadline | T+21 | 3-week submission window |
-| performance_cutoff | T+28 | Last-submitted content still gets its window |
-| announcement_date | T+31 | Judging + verification between cutoff and announcement |
+| join_opens_at | November 2, 2026 | Applications open |
+| join_closes_at | December 12, 2026, 11:59 PM | Applications close |
+| start_date | January 5, 2027 | Challenge launches; content can be created on joining |
+| submission_deadline | January 26, 2027, 11:59 PM | 21-day submission window |
+| performance_cutoff | February 2, 2027, 9:00 PM | Last-submitted content gets its measurement window |
+| announcement_date | February 5, 2027 | Winners announced (day 31) |
 
 ## 3. Eligibility
 

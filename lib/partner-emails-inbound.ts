@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { inboundMessageKey, type InboundLeadEmail } from "@/lib/lead-emails-inbound"
 import { htmlToText } from "@/lib/email-html"
+import { sanitizeSupportHtml } from "@/lib/support-html"
 import { notifyAllAdmins } from "@/lib/admin-notifications"
 import { REPLY_TO } from "@/lib/email"
 import { mirrorConversationMessageToMailbox } from "@/lib/admin-mailbox-correspondence"
@@ -60,6 +61,7 @@ export async function fileInboundPartnerEmail(email: InboundLeadEmail): Promise<
       to_email: email.to,
       subject: email.subject || "(no subject)",
       body_text: email.text || htmlToText(email.html || ""),
+      body_html: email.html ? sanitizeSupportHtml(email.html) : null,
       status: "received",
       provider: email.provider || null,
       provider_message_id: inboundMessageKey(email),

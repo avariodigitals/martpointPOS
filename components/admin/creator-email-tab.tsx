@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Eye, Loader2, Mail, Send } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { Eye, Loader2, Mail, RefreshCw, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import EmailRichEditor from "@/components/admin/email-rich-editor"
@@ -17,6 +17,7 @@ interface CreatorEmail {
   toEmail: string | null
   subject: string
   bodyText: string
+  bodyHtml: string
   status: string
   sentByName: string | null
   createdAt: string
@@ -27,29 +28,35 @@ const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 
 export function CreatorEmailTab({ applicationId, name, email }: { applicationId: string; name: string; email: string }) {
   const [messages, setMessages] = useState<CreatorEmail[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
   const [layout, setLayout] = useState<EmailLayout>("normal")
   const draft = useEmailDraft("creators", applicationId)
   const [busy, setBusy] = useState<"send" | "preview" | null>(null)
   const [error, setError] = useState("")
+  const [historyError, setHistoryError] = useState("")
   const [notice, setNotice] = useState("")
   const [preview, setPreview] = useState("")
 
-  useEffect(() => {
-    let cancelled = false
-    fetch(`/api/admin/creators/applications/${applicationId}/emails`)
-      .then(async (response) => {
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error || "Could not load email history")
-        if (!cancelled) setMessages(data.emails || [])
-      })
-      .catch((cause: unknown) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load email history")
-      })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+  const loadHistory = useCallback(async (quiet = false) => {
+    if (quiet) setRefreshing(true)
+    else setLoading(true)
+    setHistoryError("")
+    try {
+      const response = await fetch(`/api/admin/creators/applications/${applicationId}/emails`, { cache: "no-store" })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Could not load email history")
+      setMessages(data.emails || [])
+    } catch (cause) {
+      setHistoryError(cause instanceof Error ? cause.message : "Could not load email history")
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [applicationId])
+
+  useEffect(() => { void loadHistory() }, [loadHistory])
 
   async function send() {
     setBusy("send"); setError(""); setNotice("")
@@ -93,7 +100,7 @@ export function CreatorEmailTab({ applicationId, name, email }: { applicationId:
         <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Mail className="h-4 w-4" />Email {name}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm"><span className="text-muted-foreground">To:</span> {email}</div>
-          <p className="text-xs text-muted-foreground">This is a normal email, separate from Additional Questions. Your email signature and the MartPoint banner are added automatically. Reply-To is creators@martpoint.com.ng; replies are filed here when that mailbox is connected to the email sync.</p>
+          <p className="text-xs text-muted-foreground">This is a normal email, separate from Additional Questions. Your email signature and the MartPoint banner are added automatically. Replies to creators@martpoint.com.ng are filed here through the inbound email webhook or configured IMAP sync.</p>
           <EmailLayoutSwitch value={layout} disabled={!!busy} onChange={(value) => { setLayout(value); setPreview("") }} />
           <EmailDraftControls manager={draft} disabled={!!busy}
             getDraft={() => ({ subject, bodyHtml: body, layout, attachments: [] })}
@@ -120,8 +127,14 @@ export function CreatorEmailTab({ applicationId, name, email }: { applicationId:
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">Email history</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle className="text-sm">Email history</CardTitle>
+          <Button type="button" variant="outline" size="sm" onClick={() => void loadHistory(true)} disabled={loading || refreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />Refresh
+          </Button>
+        </CardHeader>
         <CardContent className="space-y-3">
+          {historyError && <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{historyError}</p>}
           {loading ? <div className="flex justify-center py-5"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div> : messages.length === 0 ? (
             <p className="text-sm text-muted-foreground">No emails recorded for this application yet.</p>
           ) : messages.map((message) => (
@@ -135,7 +148,13 @@ export function CreatorEmailTab({ applicationId, name, email }: { applicationId:
                   {message.direction === "inbound" ? "Received" : message.status === "sent" ? "Sent" : "Failed"}
                 </span>
               </div>
-              <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">{message.bodyText}</p>
+              {message.bodyHtml ? (
+                <div className="mt-3 overflow-hidden rounded-md border bg-white">
+                  <iframe title={`Email from ${message.direction === "inbound" ? "creator" : "MartPoint"}: ${message.subject || "(no subject)"}`} sandbox="" srcDoc={message.bodyHtml} className="min-h-64 w-full border-0" style={{ height: "min(60vh, 520px)" }} />
+                </div>
+              ) : (
+                <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-muted/40 p-3 font-sans text-sm text-muted-foreground">{message.bodyText || "No message body was stored for this email."}</pre>
+              )}
             </article>
           ))}
         </CardContent>

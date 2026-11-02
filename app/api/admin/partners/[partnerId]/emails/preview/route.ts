@@ -32,7 +32,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ par
         parsed.data.layout,
       )
     )
-  } catch {
+  } catch (error) {
+    console.error("[partner email preview]", error)
     return NextResponse.json({ error: "Could not preview email" }, { status: 500 })
   }
 }

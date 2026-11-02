@@ -18,6 +18,7 @@ interface PartnerEmail {
   toEmail: string
   subject: string
   bodyText: string
+  bodyHtml: string
   status: string
   sentByName: string | null
   error: string | null
@@ -39,6 +40,7 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
   const [canSend, setCanSend] = useState(false)
   const [loading, setLoading] = useState(true)
   const [historyReady, setHistoryReady] = useState(false)
+  const [historyError, setHistoryError] = useState("")
   const [hasMore, setHasMore] = useState(false)
   const [subject, setSubject] = useState("")
   const [bodyHtml, setBodyHtml] = useState("")
@@ -78,6 +80,7 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
         )
         setCanSend(data.canSend)
         setHasMore(data.hasMore)
+        setHistoryError(data.historyError || "")
         setHistoryReady(true)
       } catch (cause) {
         if (!signal?.aborted && mounted.current)
@@ -176,7 +179,7 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
           {notice}
         </p>
       )}
-      {historyReady && canSend && (
+      {canSend && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -338,6 +341,7 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
             Newest first. Incoming replies appear here when the partners mailbox is connected to email sync or
             inbound forwarding. Provider acceptance does not confirm inbox delivery.
           </p>
+          {historyError && <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{historyError}</p>}
           {historyReady && !canSend && (
             <p className="text-sm text-muted-foreground">
               You can view email history. Sending requires permission to manage partners.
@@ -379,7 +383,19 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
                     · {new Date(email.createdAt).toLocaleString("en-GB")}
                   </span>
                 </summary>
-                <p className="mt-3 whitespace-pre-wrap break-words text-sm">{email.bodyText}</p>
+                {email.bodyHtml ? (
+                  <div className="mt-3 overflow-hidden rounded-md border bg-white">
+                    <iframe
+                      title={`Email preview: ${email.subject || "(no subject)"}`}
+                      sandbox=""
+                      srcDoc={email.bodyHtml}
+                      className="min-h-64 w-full border-0"
+                      style={{ height: "min(60vh, 520px)" }}
+                    />
+                  </div>
+                ) : (
+                  <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-muted/40 p-3 font-sans text-sm">{email.bodyText || "No message body was stored for this email."}</pre>
+                )}
                 {email.error && <p className="mt-2 text-sm text-red-700">{email.error}</p>}
                 {canSend &&
                   email.direction === "inbound" &&

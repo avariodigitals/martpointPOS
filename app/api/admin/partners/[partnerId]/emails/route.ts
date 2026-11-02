@@ -54,12 +54,22 @@ export async function GET(request: Request, { params }: Context) {
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .range(offset, offset + 50)
-    if (error) throw error
+    if (error) {
+      console.error("[partner emails history query]", error)
+      return NextResponse.json({
+        emails: [],
+        recipients: context.recipients,
+        hasMore: false,
+        canSend: authorize(session, "partners", "manage"),
+        historyError: "Email history is unavailable. Apply migration 151 to enable the history and preview panel.",
+      })
+    }
     return NextResponse.json({
       emails: (data || []).slice(0, 50).map(mapPartnerEmail),
       recipients: context.recipients,
       hasMore: (data || []).length > 50,
-      canSend: authorize(session, "partners", "manage")
+      canSend: authorize(session, "partners", "manage"),
+      historyError: "",
     })
   } catch (error) {
     console.error("[partner emails GET]", error)

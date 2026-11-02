@@ -22,7 +22,8 @@ async function contextFor({ params }: Context) {
   return { kind, entityId, userId: auth.session.userId }
 }
 
-function unavailable() {
+function unavailable(operation: string, error: unknown) {
+  console.error(`[email drafts ${operation}]`, error)
   return NextResponse.json({ error: "Could not access saved drafts. Check that migration 152 has been applied." }, { status: 500 })
 }
 
@@ -35,7 +36,7 @@ export async function GET(_: Request, context: Context) {
   if (ctx.denied) return ctx.denied
   const { data, error } = await supabase.from("email_composer_drafts")
     .select("draft, updated_at").eq("user_id", ctx.userId!).eq("entity_type", ctx.kind!).eq("entity_id", ctx.entityId!).maybeSingle()
-  if (error) return unavailable()
+  if (error) return unavailable("read", error)
   return NextResponse.json({ saved: data ? { draft: data.draft, updatedAt: data.updated_at } : null })
 }
 
@@ -50,7 +51,7 @@ export async function PUT(request: Request, context: Context) {
     const { data, error } = await supabase.from("email_composer_drafts")
       .select("draft").eq("user_id", ctx.userId!).eq("entity_type", ctx.kind!).eq("entity_id", ctx.entityId!)
       .eq("updated_at", reuse.data.attachmentsRevision).maybeSingle()
-    if (error) return unavailable()
+    if (error) return unavailable("read attachment revision", error)
     if (!data) return changedDraft()
     input = { ...body, attachments: data.draft?.attachments || [] }
   } else if (body && typeof body === "object" && "attachmentsRevision" in body) {
@@ -68,8 +69,8 @@ export async function PUT(request: Request, context: Context) {
       .eq("user_id", ctx.userId!).eq("entity_type", ctx.kind!).eq("entity_id", ctx.entityId!)
       .eq("updated_at", reuse.data.attachmentsRevision).select("updated_at").maybeSingle()
     : await supabase.from("email_composer_drafts").upsert(values, { onConflict: "user_id,entity_type,entity_id" }).select("updated_at").single()
-  if (error) return unavailable()
-  if (!data) return reuse.success ? changedDraft() : unavailable()
+  if (error) return unavailable("save", error)
+  if (!data) return reuse.success ? changedDraft() : unavailable("save", new Error("Draft upsert returned no row"))
   if (request.headers.get("prefer") === "return=minimal") {
     return NextResponse.json({ saved: { bodyHtml: draft.bodyHtml, updatedAt: data.updated_at } })
   }
@@ -81,6 +82,6 @@ export async function DELETE(_: Request, context: Context) {
   if (ctx.denied) return ctx.denied
   const { error } = await supabase.from("email_composer_drafts")
     .delete().eq("user_id", ctx.userId!).eq("entity_type", ctx.kind!).eq("entity_id", ctx.entityId!)
-  if (error) return unavailable()
+  if (error) return unavailable("delete", error)
   return NextResponse.json({ success: true })
 }

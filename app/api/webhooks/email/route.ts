@@ -3,6 +3,7 @@ import { isSupabaseConfigured } from "@/lib/supabase"
 import { fileInboundLeadEmail } from "@/lib/lead-emails-inbound"
 import { fileInboundSupportEmail } from "@/lib/support-email-inbound"
 import { fileInboundPartnerEmail, isPartnerMailbox } from "@/lib/partner-emails-inbound"
+import { fileInboundCreatorEmail } from "@/lib/creator-emails-inbound"
 
 /* ───────────────────────────  Inbound email webhook  ───────────────────────────
  * Receives inbound email from the provider's inbound-parse service and files it
@@ -126,7 +127,17 @@ export async function POST(request: Request) {
         continue
       }
       if (await fileInboundSupportEmail({ ...email,provider:"webhook" })) matched++
-      else if (await fileInboundLeadEmail({ ...email, provider: "webhook" })) matched++
+      else {
+        let filedCreator = false
+        try {
+          filedCreator = await fileInboundCreatorEmail({ ...email, provider: "webhook" })
+        } catch (error) {
+          console.error("[Creator email webhook]", error)
+          return NextResponse.json({ error: "Could not save creator email; please retry" }, { status: 500 })
+        }
+        if (filedCreator) matched++
+        else if (await fileInboundLeadEmail({ ...email, provider: "webhook" })) matched++
+      }
     }
 
     return NextResponse.json({ ok: true, matched })

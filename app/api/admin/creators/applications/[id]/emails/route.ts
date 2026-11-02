@@ -28,7 +28,7 @@ function mapEmail(row: Record<string, unknown>) {
   return {
     id: String(row.id), direction: String(row.direction), fromEmail: row.from_email || null,
     toEmail: row.to_email || null, subject: String(row.subject || ""),
-    bodyText: row.body_text || "", status: String(row.status || "sent"),
+    bodyText: row.body_text || "", bodyHtml: row.body_html || "", status: String(row.status || "sent"),
     sentByName: row.sent_by_name || null, createdAt: row.created_at,
   }
 }
@@ -42,7 +42,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   if (applicationError || !application) return NextResponse.json({ error: "Creator application not found" }, { status: 404 })
 
   const { data, error } = await supabase.from("creator_application_emails")
-    .select("id, direction, from_email, to_email, subject, body_text, status, sent_by_name, created_at")
+    .select("id, direction, from_email, to_email, subject, body_text, body_html, status, sent_by_name, created_at")
     .eq("application_id", id).order("created_at", { ascending: true })
   if (error) {
     console.error("[creator emails GET]", error.message)
@@ -83,7 +83,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       provider_message_id: messageId, sent_by: session.userId,
       sent_by_name: session.name || session.username,
       metadata: { reply_to: "creators@martpoint.com.ng", layout: parsed.data.layout || "branded" },
-    }).select("id, direction, from_email, to_email, subject, body_text, status, sent_by_name, created_at").single()
+    }).select("id, direction, from_email, to_email, subject, body_text, body_html, status, sent_by_name, created_at").single()
 
     if (insertError || !row) {
       console.error("[creator emails POST] save failed:", insertError?.message)

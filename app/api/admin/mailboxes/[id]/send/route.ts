@@ -50,15 +50,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const attachments: { id: string; filename: string; contentType: string; size: number; storagePath: string }[] = []
     const emailAttachments: { filename: string; content: string }[] = []
-    for (const [index, attachment] of payload.attachments.entries()) {
+    const uploadedAttachments = await Promise.all(payload.attachments.map(async (attachment, index) => {
       const filename = attachment.filename.replace(/[\\/\0]/g, "_")
       const bytes = Buffer.from(attachment.content, "base64")
       const storagePath = `${id}/outbound-${payload.requestId}/${index}-${filename}`
       const uploaded = await supabase.storage.from("admin-mailbox-attachments").upload(storagePath, bytes, { contentType: attachment.contentType || "application/octet-stream", upsert: true })
       if (uploaded.error) throw new Error(`Could not save attachment ${filename}: ${uploaded.error.message}`)
-      attachments.push({ id: String(index), filename, contentType: attachment.contentType || "application/octet-stream", size: bytes.length, storagePath })
-      emailAttachments.push({ filename, content: attachment.content })
-    }
+      return {
+        stored: { id: String(index), filename, contentType: attachment.contentType || "application/octet-stream", size: bytes.length, storagePath },
+        email: { filename, content: attachment.content },
+      }
+    }))
+    attachments.push(...uploadedAttachments.map((item) => item.stored))
+    emailAttachments.push(...uploadedAttachments.map((item) => item.email))
 
     let threadId = payload.threadId
     let leadId: string | null = null
@@ -69,11 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (thread.assigned_to && thread.assigned_to !== session.userId) return NextResponse.json({ error: "This conversation is assigned to another teammate. Claim it before replying." }, { status: 409 })
       leadId = typeof thread.lead_id === "string" ? thread.lead_id : null
       if (!leadId) {
-        const matchedLeadIds = new Set<string>()
-        for (const address of payload.to) {
-          const match = await resolveUniqueLeadIdByAddress(address)
-          if (match) matchedLeadIds.add(match)
-        }
+        const matchedLeadIds = new Set((await Promise.all(payload.to.map(resolveUniqueLeadIdByAddress))).filter((match): match is string => Boolean(match)))
         leadId = matchedLeadIds.size === 1 ? [...matchedLeadIds][0] : null
         if (leadId) {
           const { error: linkError } = await supabase.from("admin_mailbox_threads").update({ lead_id: leadId }).eq("id", threadId).is("lead_id", null)
@@ -83,11 +83,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const { data: prior } = await supabase.from("admin_mailbox_messages").select("message_id,references_header").eq("thread_id", threadId).order("created_at", { ascending: false }).limit(1).maybeSingle()
       parent = prior as Record<string, unknown> | null
     } else {
-      const matchedLeadIds = new Set<string>()
-      for (const address of payload.to) {
-        const match = await resolveUniqueLeadIdByAddress(address)
-        if (match) matchedLeadIds.add(match)
-      }
+      const matchedLeadIds = new Set((await Promise.all(payload.to.map(resolveUniqueLeadIdByAddress))).filter((match): match is string => Boolean(match)))
       leadId = matchedLeadIds.size === 1 ? [...matchedLeadIds][0] : null
       const { data: thread, error } = await supabase.from("admin_mailbox_threads").insert({
         mailbox_id: id,
@@ -146,16 +142,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         } : {}),
       },
     })
-    await supabase.from("admin_mailbox_messages").update({ send_status: sent ? "sent" : "failed" }).eq("id", message.id)
-    await supabase.from("admin_mailbox_threads").update({
-      subject: payload.subject,
-      participants: [...new Set([...payload.to, ...payload.cc, mailbox.email, user.email])],
-      assigned_to: session.userId,
-      status: "open",
-      last_message_at: new Date().toISOString(),
-      last_message_preview: bodyText.slice(0, 500),
-      updated_at: new Date().toISOString(),
-    }).eq("id", threadId)
+    await Promise.all([
+      supabase.from("admin_mailbox_messages").update({ send_status: sent ? "sent" : "failed" }).eq("id", message.id),
+      supabase.from("admin_mailbox_threads").update({
+        subject: payload.subject,
+        participants: [...new Set([...payload.to, ...payload.cc, mailbox.email, user.email])],
+        assigned_to: session.userId,
+        status: "open",
+        last_message_at: new Date().toISOString(),
+        last_message_preview: bodyText.slice(0, 500),
+        updated_at: new Date().toISOString(),
+      }).eq("id", threadId),
+    ])
     if (!sent) return NextResponse.json({ error: "Resend could not send this message. It is saved in the conversation as failed." }, { status: 502 })
     await supabase.from("admin_mailbox_thread_state").upsert({ thread_id: threadId, user_id: session.userId, is_read: true }, { onConflict: "thread_id,user_id" })
     let historyWarning: string | null = null

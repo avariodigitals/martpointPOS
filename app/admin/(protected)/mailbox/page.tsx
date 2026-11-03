@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Archive, ArrowLeft, ArchiveRestore, Check, ChevronDown, CircleUserRound, Inbox, Mail, MailOpen, MoreVertical, Paperclip, Pencil, Plus, Search, Send, Settings2, Star, Trash2, X } from "lucide-react"
 import EmailRichEditor from "@/components/admin/email-rich-editor"
+import { useToast } from "@/components/admin/admin-toast"
 import { escapeHtml, htmlToText } from "@/lib/email-html"
 
 type Mailbox = { id: string; name: string; email: string; active: boolean; canManage: boolean; memberCount: number; last_sync_at?: string | null; last_sync_error?: string | null }
@@ -42,6 +43,7 @@ function martPointSignatureHtml(team: string, email: string, assetOrigin: string
 }
 
 export default function MailboxPage() {
+  const { toast } = useToast()
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([])
   const [labels, setLabels] = useState<MailLabel[]>([])
   const [labelFilter, setLabelFilter] = useState("")
@@ -236,9 +238,15 @@ export default function MailboxPage() {
       const response = await fetch(`/api/admin/mailboxes/${selectedMailbox.id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: selected?.id || draftThreadIdRef.current, to: to.split(/[;,]/).map((item) => item.trim()).filter(Boolean), cc: cc.split(/[;,]/).map((item) => item.trim()).filter(Boolean), subject, bodyHtml: body, attachments, requestId: crypto.randomUUID() }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Message could not be sent.")
-      if (draftIdRef.current) await fetch(`/api/admin/mailboxes/${selectedMailbox.id}/drafts/${draftIdRef.current}`, { method: "DELETE" })
-      setCurrentDraftId(""); draftThreadIdRef.current = null; setCompose(false); setFiles([]); setSelectedId(data.threadId); setNotice(data.historyWarning || "Message sent."); await loadThreads()
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Message could not be sent.") }
+      const sentDraftId = draftIdRef.current
+      setCurrentDraftId(""); draftThreadIdRef.current = null; setCompose(false); setFiles([]); setSelectedId(data.threadId)
+      toast({ title: "Email sent", description: data.historyWarning || `Sent to ${to.trim()}.`, variant: data.historyWarning ? "warning" : "success" })
+      if (sentDraftId) void fetch(`/api/admin/mailboxes/${selectedMailbox.id}/drafts/${sentDraftId}`, { method: "DELETE" }).catch(() => {})
+      void loadThreads()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Message could not be sent."
+      toast({ title: "Email not sent", description: message, variant: "error", duration: 0 })
+    }
     finally { setSending(false) }
   }
 

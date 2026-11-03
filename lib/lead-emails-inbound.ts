@@ -143,7 +143,7 @@ export async function fileInboundLeadEmail(email: InboundLeadEmail): Promise<boo
       type: "LEAD_EMAIL_RECEIVED",
       title: "New email received from a lead",
       message: `${lead.business_name} · ${lead.full_name} · ${email.subject || "(no subject)"}`,
-      deep_link: `/admin/leads?lead=${encodeURIComponent(lead.id)}`,
+      deep_link: `/admin/leads?lead=${encodeURIComponent(lead.id)}&tab=email`,
       source_type: "lead_email",
       source_id: inserted?.id ? String(inserted.id) : lead.id,
       email: {

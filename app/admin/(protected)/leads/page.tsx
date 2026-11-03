@@ -1955,7 +1955,9 @@ export default function AdminLeadsPage() {
       {/* Lead Detail Modal */}
       {selectedLead && (
         <LeadDetailModal
+          key={`${selectedLead.id}-${searchParams.get("tab") || "overview"}`}
           lead={selectedLead}
+          initialTab={searchParams.get("tab") === "email" ? "email" : "overview"}
           onClose={() => setSelectedLead(null)}
           onUpdateStatus={updateStatusFromModal}
           onDelete={deleteLeadFromModal}

@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Bell, CheckCheck, ExternalLink, Loader2 } from "lucide-react"
+import Link from "next/link"
+import { Bell, CheckCheck, Loader2 } from "lucide-react"
 import { readableRoleText } from "@/lib/utils"
 
 interface Notification {
@@ -23,7 +23,6 @@ function relativeTime(value: string) {
 }
 
 export function AdminNotificationBell() {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unread, setUnread] = useState(0)
@@ -90,14 +89,6 @@ export function AdminNotificationBell() {
     return null
   }
 
-  function openNotification(item: Notification) {
-    const link = linkFor(item)
-    if (!link) return
-    setOpen(false)
-    void markRead(item.id)
-    router.push(link)
-  }
-
   return (
     <div ref={rootRef} className="relative">
       <button type="button" onClick={() => setOpen((value) => !value)} aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`} aria-expanded={open} className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900">
@@ -108,7 +99,7 @@ export function AdminNotificationBell() {
       {open && <div className="absolute right-0 top-12 z-[80] w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><div><p className="text-sm font-semibold text-slate-900">Pending work</p><p className="text-xs text-muted-foreground">Items that may need your attention</p></div>{unread > 0 && <button type="button" onClick={() => void markRead()} className="inline-flex items-center gap-1 text-xs font-medium text-retail hover:underline"><CheckCheck className="h-3.5 w-3.5" /> Mark all read</button>}</div>
         <div className="max-h-[420px] overflow-y-auto">
-          {loading && notifications.length === 0 ? <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div> : notifications.length === 0 ? <div className="px-6 py-12 text-center"><Bell className="mx-auto mb-3 h-8 w-8 text-slate-300" /><p className="text-sm font-medium text-slate-700">You’re all caught up</p><p className="mt-1 text-xs text-muted-foreground">New chats, tickets, and requests will appear here.</p></div> : notifications.map((item) => { const link = linkFor(item); return <div key={item.id} className="group flex gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-retail" /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="text-sm font-medium text-slate-800">{readableRoleText(item.title)}</p><span className="shrink-0 text-[10px] text-slate-400">{relativeTime(item.created_at)}</span></div>{item.message && <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{readableRoleText(item.message)}</p>}<div className="mt-2 flex items-center gap-3"><button type="button" onClick={() => void markRead(item.id)} className="text-[11px] font-medium text-slate-500 hover:text-slate-900">Dismiss</button>{link && <button type="button" onClick={() => openNotification(item)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-retail hover:underline">Open <ExternalLink className="h-3 w-3" /></button>}</div></div></div> })}
+          {loading && notifications.length === 0 ? <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div> : notifications.length === 0 ? <div className="px-6 py-12 text-center"><Bell className="mx-auto mb-3 h-8 w-8 text-slate-300" /><p className="text-sm font-medium text-slate-700">You’re all caught up</p><p className="mt-1 text-xs text-muted-foreground">New chats, tickets, and requests will appear here.</p></div> : notifications.map((item) => { const link = linkFor(item); const content = <><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-retail" /><span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-2"><span className="text-sm font-medium text-slate-800">{readableRoleText(item.title)}</span><span className="shrink-0 text-[10px] text-slate-400">{relativeTime(item.created_at)}</span></span>{item.message && <span className="mt-1 block line-clamp-2 text-xs leading-relaxed text-muted-foreground">{readableRoleText(item.message)}</span>}</span></>; return link ? <Link key={item.id} href={link} onClick={() => { setOpen(false); void markRead(item.id) }} className="group flex gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-retail">{content}</Link> : <div key={item.id} className="group flex gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50">{content}<button type="button" onClick={() => void markRead(item.id)} aria-label="Dismiss notification" className="self-start text-[11px] font-medium text-slate-500 hover:text-slate-900">Dismiss</button></div> })}
         </div>
       </div>}
     </div>

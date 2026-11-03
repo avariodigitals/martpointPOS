@@ -2,6 +2,8 @@ import "server-only"
 
 import sanitizeHtml from "sanitize-html"
 import { supabase } from "@/lib/supabase"
+import { createAdminNotification } from "@/lib/admin-notifications"
+import { getAllUsers } from "@/lib/admin-auth"
 import { fileInboundLeadEmail, resolveUniqueLeadIdByAddress, type InboundLeadEmail } from "@/lib/lead-emails-inbound"
 import { fileInboundPartnerEmail } from "@/lib/partner-emails-inbound"
 import { fileInboundCreatorEmail } from "@/lib/creator-emails-inbound"
@@ -135,7 +137,7 @@ async function locateOrCreateThread(mailboxId: string, email: { subject: string;
   return thread
 }
 
-export async function importMailboxMessage(mailbox: MailboxConfig, parsed: Record<string, unknown>): Promise<boolean> {
+export async function importMailboxMessage(mailbox: MailboxConfig, parsed: Record<string, unknown>): Promise<{ saved: boolean; threadId: string }> {
   const messageId = typeof parsed.messageId === "string" ? parsed.messageId : null
   if (messageId) {
     const existing = await supabase.from("admin_mailbox_messages").select("id,thread_id").eq("mailbox_id", mailbox.id).eq("message_id", messageId).maybeSingle()
@@ -146,7 +148,7 @@ export async function importMailboxMessage(mailbox: MailboxConfig, parsed: Recor
         const linked = await supabase.from("admin_mailbox_threads").update({ lead_id: leadId }).eq("id", existing.data.thread_id).is("lead_id", null)
         if (linked.error) throw new Error(linked.error.message)
       }
-      return false
+      return { saved: false, threadId: String(existing.data.thread_id) }
     }
   }
   const subject = String(parsed.subject || "(no subject)").slice(0, 998)
@@ -202,7 +204,7 @@ export async function importMailboxMessage(mailbox: MailboxConfig, parsed: Recor
     created_at: date,
   })
   if (error) {
-    if (error.code === "23505") return false
+    if (error.code === "23505") return { saved: false, threadId: String(thread.id) }
     throw new Error(error.message)
   }
   await supabase.from("admin_mailbox_threads").update({
@@ -213,11 +215,11 @@ export async function importMailboxMessage(mailbox: MailboxConfig, parsed: Recor
   }).eq("id", thread.id)
   const { data: members } = await supabase.from("admin_mailbox_members").select("user_id").eq("mailbox_id", mailbox.id)
   if (members?.length) await supabase.from("admin_mailbox_thread_state").upsert(members.map((member) => ({ thread_id: thread.id, user_id: member.user_id, is_read: false })), { onConflict: "thread_id,user_id" })
-  return true
+  return { saved: true, threadId: String(thread.id) }
 }
 
 /** Mirror synced replies into the entity email tabs as well as the Mailbox. */
-async function fileMailboxMessageToEntityHistory(parsed: Record<string, unknown>): Promise<void> {
+async function fileMailboxMessageToEntityHistory(parsed: Record<string, unknown>): Promise<boolean> {
   const from = addressValues(parsed.from)[0] || ""
   const to = addressValues(parsed.to).join(", ")
   const cc = addressValues(parsed.cc).join(", ")
@@ -236,17 +238,38 @@ async function fileMailboxMessageToEntityHistory(parsed: Record<string, unknown>
     sentAt: parsed.date instanceof Date ? parsed.date.toISOString() : typeof parsed.date === "string" ? parsed.date : null,
     provider: "imap",
   }
-  if (!inbound.from) return
+  if (!inbound.from) return false
 
   // These handlers match their own receiving address and saved contact. They
   // dedupe by Message-ID, so this is safe if the legacy inbox poller also runs.
   const supportFiled = await fileInboundSupportEmail(inbound)
-  if (supportFiled) return
+  if (supportFiled) return true
   const partnerFiled = await fileInboundPartnerEmail(inbound)
-  if (partnerFiled) return
+  if (partnerFiled) return true
   const creatorFiled = await fileInboundCreatorEmail(inbound)
-  if (creatorFiled) return
-  await fileInboundLeadEmail(inbound)
+  if (creatorFiled) return true
+  return fileInboundLeadEmail(inbound)
+}
+
+async function notifyMailboxMembers(mailbox: MailboxConfig, threadId: string, messageId: string, senderName: string, subject: string, entityFiled: boolean) {
+  const [{ data: members, error }, users] = await Promise.all([
+    supabase.from("admin_mailbox_members").select("user_id").eq("mailbox_id", mailbox.id),
+    getAllUsers(),
+  ])
+  if (error) throw new Error(`Could not load mailbox members for notification: ${error.message}`)
+  const memberIds = new Set((members || []).map((member) => String(member.user_id)))
+  const recipients = users.filter((user) => user.status === "ACTIVE" && (user.role === "Admin" || memberIds.has(user.id)) && (!entityFiled || user.role !== "Admin"))
+  const deepLink = `/admin/mailbox?${new URLSearchParams({ mailboxId: mailbox.id, threadId }).toString()}`
+  await Promise.all(recipients.map((user) => createAdminNotification({
+    admin_user_id: user.id,
+    type: "MAILBOX_EMAIL_RECEIVED",
+    title: `New email in ${mailbox.name}`,
+    message: `${senderName || "Unknown sender"} · ${subject || "(no subject)"}`,
+    deep_link: deepLink,
+    source_type: "mailbox_message",
+    source_id: messageId,
+    actor_admin_user_id: null,
+  }).catch((notificationError) => console.error("[mailbox] notification failed:", notificationError))))
 }
 
 export async function syncSharedMailbox(mailbox: MailboxConfig): Promise<{ imported: number; scanned: number; crmImported: number; error?: string; crmError?: string }> {
@@ -292,8 +315,12 @@ export async function syncSharedMailbox(mailbox: MailboxConfig): Promise<{ impor
         const parsed = await simpleParser(fetched.source)
         scanned++
         const saved = await importMailboxMessage(mailbox, parsed as unknown as Record<string, unknown>)
-        if (saved) imported++
-        await fileMailboxMessageToEntityHistory(parsed as unknown as Record<string, unknown>)
+        if (saved.saved) imported++
+        const entityFiled = await fileMailboxMessageToEntityHistory(parsed as unknown as Record<string, unknown>)
+        if (saved.saved) {
+          const from = addressNames(parsed.from)[0] || addressValues(parsed.from)[0] || "Unknown sender"
+          await notifyMailboxMembers(mailbox, saved.threadId, String(parsed.messageId || saved.threadId), from, String(parsed.subject || "(no subject)"), entityFiled)
+        }
       }
       if (pending.length) {
         const cursor = sameMailboxEpoch ? Math.max(mailbox.last_synced_uid, ...pending) : Math.max(...pending)

@@ -90,11 +90,8 @@ export default function NotificationsPage() {
             <p className="text-sm text-muted-foreground">No notifications.</p>
           ) : (
             <div className="space-y-2">
-              {notifications.map((n) => (
-                <div
-                  key={n.id}
-                  className={`flex items-start justify-between p-3 rounded-md border ${n.is_read ? "bg-muted/20 border-border" : "bg-muted/40 border-retail/30"}`}
-                >
+              {notifications.map((n) => {
+                const content = <>
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium flex items-center gap-2">
                       {readableRoleText(n.title)}
@@ -103,20 +100,19 @@ export default function NotificationsPage() {
                     {n.message && <p className="text-xs text-muted-foreground">{readableRoleText(n.message)}</p>}
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{n.type} · {new Date(n.created_at).toLocaleString()}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {n.deep_link && (
-                      <Link href={n.deep_link} className="text-xs text-retail hover:underline">
-                        Open
-                      </Link>
-                    )}
-                    {!n.is_read && (
-                      <Button size="sm" variant="ghost" onClick={() => markRead(n.id)} disabled={working}>
-                        <Check className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
+                </>
+                const className = `flex items-start justify-between gap-4 p-3 rounded-md border transition-colors ${n.is_read ? "bg-muted/20 border-border" : "bg-muted/40 border-retail/30"} ${n.deep_link ? "hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-retail" : ""}`
+                return n.deep_link ? (
+                  <Link key={n.id} href={n.deep_link} onClick={() => { if (!n.is_read) void markRead(n.id) }} className={className}>
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={n.id} className={className}>
+                    {content}
+                    {!n.is_read && <Button size="sm" variant="ghost" onClick={() => markRead(n.id)} disabled={working} aria-label="Mark notification as read"><Check className="w-3.5 h-3.5" /></Button>}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </CardContent>

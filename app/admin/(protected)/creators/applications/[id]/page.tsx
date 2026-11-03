@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -133,6 +133,7 @@ function ScoreBar({ label, score, max }: { label: string; score: number | null; 
 export default function CreatorApplicationDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const id = params.id as string
 
   const [loading, setLoading] = useState(true)
@@ -147,7 +148,11 @@ export default function CreatorApplicationDetailPage() {
   const [noteText, setNoteText] = useState("")
   const [toast, setToast] = useState("")
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [activeTab, setActiveTab] = useState<"application" | "email" | "calls" | "meetings">("application")
+  const [activeTab, setActiveTab] = useState<"application" | "email" | "calls" | "meetings">(searchParams.get("tab") === "email" ? "email" : "application")
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "email") setActiveTab("email")
+  }, [searchParams])
 
   async function deleteApplication() {
     setBusy("delete")

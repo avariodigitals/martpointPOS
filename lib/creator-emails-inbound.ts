@@ -92,7 +92,7 @@ export async function fileInboundCreatorEmail(email: InboundLeadEmail): Promise<
       type: "CREATOR_APPLICATION_EMAIL_RECEIVED",
       title: "New email from a creator applicant",
       message: `${application.full_name} · ${application.reference_number} · ${email.subject || "(no subject)"}`,
-      deep_link: `/admin/creators/applications/${application.id}`,
+      deep_link: `/admin/creators/applications/${application.id}?tab=email`,
       source_type: "creator_application_email",
       source_id: inserted?.id ? String(inserted.id) : String(application.id),
     })

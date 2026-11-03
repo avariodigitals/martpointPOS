@@ -82,6 +82,7 @@ export default function MailboxPage() {
   const [mobileView, setMobileView] = useState<"folders" | "list" | "thread">("list")
   const [config, setConfig] = useState({ name: "", email: "", imapHost: "", imapPort: "993", imapUser: "", imapPassword: "", imapFolder: "INBOX", imapSecure: true, signatureFormat: "html" as "plain" | "html", signatureHtml: "", members: [] as string[] })
   const hasLoadedThreads = useRef(false)
+  const handledInitialDeepLink = useRef(false)
   const requestSequence = useRef(0)
   const draftIdRef = useRef("")
   const draftThreadIdRef = useRef<string | null>(null)
@@ -114,6 +115,23 @@ export default function MailboxPage() {
     const data = await response.json()
     if (!response.ok) throw new Error(data.error || "Could not load mailboxes.")
     setMailboxes(data.mailboxes || []); setStaff(data.users || []); setIsAdmin(Boolean(data.isAdmin))
+    if (!handledInitialDeepLink.current) {
+      handledInitialDeepLink.current = true
+      const params = new URLSearchParams(window.location.search)
+      const requestedMailboxId = params.get("mailboxId")
+      const requestedThreadId = params.get("threadId")
+      const requestedMailbox = (data.mailboxes || []).find((item: Mailbox) => item.id === requestedMailboxId)
+      if (requestedMailbox) {
+        setMailboxId(requestedMailbox.id)
+        if (requestedThreadId) {
+          setFolder("inbox")
+          setSelectedId(requestedThreadId)
+          setMobileView("thread")
+          setCompose(false)
+        }
+        return
+      }
+    }
     setMailboxId((current) => current && data.mailboxes?.some((item: Mailbox) => item.id === current) ? current : data.mailboxes?.[0]?.id || "")
   }, [])
 

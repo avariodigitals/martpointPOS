@@ -204,6 +204,7 @@ interface LeadDetailModalProps {
   onCreateQuote: (lead: Lead) => void
   onOpenQuestionnaire: (lead: Lead) => Promise<void>
   onMarkQuestionnaireReviewed: (lead: Lead) => Promise<void>
+  initialTab?: Tab
   /** People this lead can be assigned to (admin users + owners already in use). */
   assignees?: string[]
 }
@@ -218,9 +219,10 @@ export function LeadDetailModal({
   onCreateQuote,
   onOpenQuestionnaire,
   onMarkQuestionnaireReviewed,
+  initialTab = "overview",
   assignees = [],
 }: LeadDetailModalProps) {
-  const [tab, setTab] = useState<Tab>("overview")
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [leadNoteDraft, setLeadNoteDraft] = useState("")
   const [leadNotes, setLeadNotes] = useState<LeadNote[]>([])
   const [leadNotesLoading, setLeadNotesLoading] = useState(false)

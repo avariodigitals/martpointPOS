@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useState, useEffect, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1531,7 +1532,7 @@ export default function AdminLeadsPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Business Type *</label>
-                <select
+                <SearchableSelect aria-label="Business type"
                   value={addForm.businessType}
                   onChange={(e) =>
                     setAddForm((prev) => ({
@@ -1546,11 +1547,11 @@ export default function AdminLeadsPage() {
                   {businessTypeOptions.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Industry</label>
-                <select
+                <SearchableSelect aria-label="Industry"
                   value={addForm.industry}
                   onChange={(e) => setAddForm((prev) => ({ ...prev, industry: e.target.value }))}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -1559,7 +1560,7 @@ export default function AdminLeadsPage() {
                   {industryOptions.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
-                </select>
+                </SearchableSelect>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   Used for lead reporting and quote templates.
                 </p>

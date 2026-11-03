@@ -34,11 +34,11 @@ beforeEach(() => {
 })
 
 describe("normal correspondence layout", () => {
-  it("keeps formatting, contact footer, social links and banner without a header or card", async () => {
+  it("keeps the body and profile signature without appending a company footer", async () => {
     const html = await renderCorrespondenceHtml(bodyHtml + signature, "Hi Ade", "normal")
     expect(html).toContain(bodyHtml)
     expect(html).toContain(signature)
-    for (const value of ["footerbanner.png", footer.contactEmail, footer.social.linkedin, "All rights reserved."]) expect(html).toContain(value)
+    for (const value of ["footerbanner.png", footer.contactEmail, footer.social.linkedin, "All rights reserved.", "MartPoint — the operating system"]) expect(html).not.toContain(value)
     for (const value of ["linear-gradient", "box-shadow", "logo-white.png", "background-color:#f5f6f7", "Best regards,<br/>"]) expect(html).not.toContain(value)
     expect(html).toContain('data-martpoint-layout="normal"')
     expect(ensureBrandedHtml(html)).toBe(html)
@@ -50,10 +50,10 @@ describe("normal correspondence layout", () => {
     expect(html).toContain("footerbanner.png")
     expect(html).toContain(bodyHtml)
   })
-  it("escapes footer values and uses defaults when live settings fail", async () => {
-    expect(normalEmailHtml("Hello", { footer: { companyName: "<script>" } })).toContain("&lt;script&gt;")
+  it("does not add configured footer content to the normal layout", async () => {
+    expect(normalEmailHtml("Hello")).not.toContain("All rights reserved.")
     m.footer.mockRejectedValue(new Error("offline"))
-    expect(await renderCorrespondenceHtml("Hello", "Hello", "normal")).toContain("footerbanner.png")
+    expect(await renderCorrespondenceHtml("Hello", "Hello", "normal")).not.toContain("footerbanner.png")
   })
   it("supports both styles for partner and creator messages with exactly one personal signature", async () => {
     for (const layout of ["normal", "branded"] as const) {
@@ -81,7 +81,7 @@ describe("normal correspondence layout", () => {
     expect(emailComposerFields.bodyHtml.safeParse("<script>bad()</script>").success).toBe(false)
     expect(emailComposerFields.layout.safeParse("unknown").success).toBe(false)
   })
-  it("previews the exact same signature, style and footer used for lead delivery", async () => {
+  it("previews the exact same signature and style used for lead delivery", async () => {
     for (const layout of ["normal", "branded"] as const) {
       const expected = await renderLeadEmail({ body: "Hello", bodyHtml, layout, signatureHtml: signature }, settings as never)
       const response = await previewLeadEmail(new Request("http://localhost/emails/preview", {

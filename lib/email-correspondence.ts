@@ -12,14 +12,13 @@ export const emailComposerFields = {
   ).optional(),
 }
 
-/** Preview and delivery share the same document, including the live footer. */
+/** Preview and delivery share the same document and selected layout. */
 export async function renderCorrespondenceHtml(
   html: string, text: string, layout: EmailLayout,
   options: { eyebrow?: string; title?: string; signoff?: string } = {},
 ): Promise<string> {
+  if (layout === "normal") return normalEmailHtml(html, { title: options.title })
   let footer = defaultEmailFooter()
   try { footer = await getEmailFooterSettings() } catch { /* Use configured defaults when settings are unavailable. */ }
-  return layout === "normal"
-    ? normalEmailHtml(html, { footer, title: options.title })
-    : ensureBrandedHtml(html, { ...options, text, footer })
+  return ensureBrandedHtml(html, { ...options, text, footer })
 }

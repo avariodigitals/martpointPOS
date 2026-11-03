@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -796,7 +797,7 @@ export default function QuotationsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Industry</label>
-                  <select
+                  <SearchableSelect aria-label="Industry"
                     value={form.industry}
                     onChange={(e) => setForm((prev) => ({ ...prev, industry: e.target.value }))}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -805,11 +806,11 @@ export default function QuotationsPage() {
                     {industryOptions.map((t) => (
                       <option key={t} value={t}>{t}</option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Apply industry template</label>
-                  <select
+                  <SearchableSelect aria-label="Industry template"
                     value=""
                     onChange={(e) => {
                       const industry = e.target.value
@@ -830,7 +831,7 @@ export default function QuotationsPage() {
                         {opt.group === "General" ? opt.label : `${opt.group} — ${opt.label}`}
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
 

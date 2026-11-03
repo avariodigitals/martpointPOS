@@ -20,6 +20,7 @@ import {
   Mail,
   Calculator,
   Factory,
+  Fuel,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -82,6 +83,7 @@ export const mainNav: NavItem[] = [
       { label: "Beauty & Salons", href: "/industries/beauty-and-salons", icon: Scissors },
       { label: "Multi-Branch Retail", href: "/industries/multi-branch-retail", icon: GitBranch },
       { label: "Processing Plant", href: "/industries/processing-plant", icon: Factory },
+      { label: "Oil & Gas", href: "/industries/oil-and-gas", icon: Fuel },
       { label: "View All Industries", href: "/industries", icon: ChevronRight },
     ],
   },
@@ -148,6 +150,7 @@ export const footerColumns = {
       { label: "Electronics Stores", href: "/industries/electronics-stores" },
       { label: "Beauty & Salons", href: "/industries/beauty-and-salons" },
       { label: "Processing Plant", href: "/industries/processing-plant" },
+      { label: "Oil & Gas", href: "/industries/oil-and-gas" },
       { label: "View All Industries", href: "/industries" },
     ],
   },

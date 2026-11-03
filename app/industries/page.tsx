@@ -33,14 +33,14 @@ export const metadata: Metadata = {
 }
 
 export default function IndustriesPage() {
-  // Processing plants are promoted alongside retail industries; other ERP pages remain direct-access.
+  // Selected enterprise industries are promoted alongside retail; other ERP pages remain direct-access.
   const listedIndustriesByCategory = Object.fromEntries(
     Object.entries(industriesByCategory).map(([category, list]) => [
       category,
-      list.filter((industry) => industry.product !== "erp" || industry.slug === "processing-plant"),
+      list.filter((industry) => industry.product !== "erp" || ["processing-plant", "oil-and-gas"].includes(industry.slug)),
     ]),
   )
-  const listedIndustryCount = allIndustries.filter((i) => i.product !== "erp" || i.slug === "processing-plant").length
+  const listedIndustryCount = allIndustries.filter((i) => i.product !== "erp" || ["processing-plant", "oil-and-gas"].includes(i.slug)).length
 
   return (
     <>

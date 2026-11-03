@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { SectionHeader } from "@/components/shared/section-header"
 
 const industries = [
@@ -71,6 +72,10 @@ export function IndustryCoverage() {
           headline="Built for the businesses that power Africa"
           description="Whatever you sell or distribute, MartPoint is designed for your operational reality."
         />
+
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          In energy? <Link href="/industries/oil-and-gas" className="font-semibold text-retail underline underline-offset-4">Explore MartPoint for Oil &amp; Gas operations</Link>.
+        </p>
 
         <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {industries.map((industry) => (

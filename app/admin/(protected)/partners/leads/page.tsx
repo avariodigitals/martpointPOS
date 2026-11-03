@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -973,21 +974,21 @@ export default function AdminPartnerLeadsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Industry *</label>
-                <select required className={inputCls} value={addForm.industry} onChange={setField("industry")}>
+                <SearchableSelect aria-label="Industry" required className={inputCls} value={addForm.industry} onChange={setField("industry")}>
                   <option value="" disabled>Select industry</option>
                   {INDUSTRY_OPTIONS.map((i) => (
                     <option key={i} value={i}>{i}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
               <div>
                 <label className={labelCls}>Business type *</label>
-                <select required className={inputCls} value={addForm.businessType} onChange={setField("businessType")}>
+                <SearchableSelect aria-label="Business type" required className={inputCls} value={addForm.businessType} onChange={setField("businessType")}>
                   <option value="" disabled>Select business type</option>
                   {BUSINESS_TYPE_OPTIONS.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 

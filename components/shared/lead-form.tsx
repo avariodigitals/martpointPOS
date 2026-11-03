@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -27,6 +28,7 @@ type LeadFormData = z.infer<typeof leadSchema>
 
 interface LeadFormProps {
   pageType: "demo" | "quote" | "contact"
+  businessTypeDefault?: string
   productDefault?: "retail" | "erp" | "not-sure"
   /** Include the MartPoint ERP option — only set when the visitor arrived via
    *  a dedicated ERP route (e.g. /request-quote?product=erp). */
@@ -46,7 +48,7 @@ const erpProductOption = { value: "erp", label: "MartPoint ERP" }
 const branchOptions = ["1", "2-3", "4-6", "7-10", "10+"]
 const staffOptions = ["1-5", "6-15", "16-30", "31-50", "50+"]
 
-export function LeadForm({ pageType, productDefault = "not-sure", includeErpOption = false, partnerCode }: LeadFormProps) {
+export function LeadForm({ pageType, productDefault = "not-sure", includeErpOption = false, partnerCode, businessTypeDefault }: LeadFormProps) {
   const productOptions = includeErpOption
     ? [baseProductOptions[0], erpProductOption, baseProductOptions[1]]
     : baseProductOptions
@@ -64,6 +66,7 @@ export function LeadForm({ pageType, productDefault = "not-sure", includeErpOpti
     resolver: zodResolver(leadSchema),
     defaultValues: {
       productInterest: productDefault,
+      businessType: businessTypeDefault ?? "",
     },
   })
 
@@ -273,8 +276,9 @@ export function LeadForm({ pageType, productDefault = "not-sure", includeErpOpti
             <label className="block text-sm font-medium text-foreground mb-2">
               Business Type *
             </label>
-            <select
+            <SearchableSelect aria-label="Business type"
               {...register("businessType")}
+              defaultValue={businessTypeDefault ?? ""}
               className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent appearance-none"
             >
               <option value="">Select business type</option>
@@ -283,7 +287,7 @@ export function LeadForm({ pageType, productDefault = "not-sure", includeErpOpti
                   {t}
                 </option>
               ))}
-            </select>
+            </SearchableSelect>
             {errors.businessType && (
               <p className="mt-1.5 text-sm text-destructive">
                 {errors.businessType.message}
@@ -378,7 +382,7 @@ export function LeadForm({ pageType, productDefault = "not-sure", includeErpOpti
           <textarea
             {...register("message")}
             rows={4}
-            placeholder="Any additional details..."
+            placeholder={businessTypeDefault === "Oil & Gas" ? "Existing software or equipment, operating units and any specialist workflows to assess…" : "Any additional details..."}
             className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent resize-none"
           />
         </div>

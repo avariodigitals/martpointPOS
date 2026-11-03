@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -219,7 +220,7 @@ export function BrochureDownloadForm({ brochure }: BrochureDownloadFormProps) {
             <label className="block text-sm font-medium text-foreground mb-2">
               Business Type *
             </label>
-            <select
+            <SearchableSelect aria-label="Business type"
               value={form.businessType}
               onChange={(e) => update("businessType", e.target.value)}
               required
@@ -231,7 +232,7 @@ export function BrochureDownloadForm({ brochure }: BrochureDownloadFormProps) {
                   {t}
                 </option>
               ))}
-            </select>
+            </SearchableSelect>
           </div>
 
           {error && (

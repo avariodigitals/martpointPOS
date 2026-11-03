@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -55,7 +56,7 @@ function waUrl(text: string) {
   return `https://wa.me/${WHATSAPP_NUMBER.replace("+", "")}?text=${encodeURIComponent(text)}`
 }
 
-export function DemoBooking({ partnerCode, includeErpOption = false, productDefault = "not-sure" }: { partnerCode?: string; includeErpOption?: boolean; productDefault?: string }) {
+export function DemoBooking({ partnerCode, includeErpOption = false, productDefault = "not-sure", businessTypeDefault }: { businessTypeDefault?: string; partnerCode?: string; includeErpOption?: boolean; productDefault?: string }) {
   const productOptions = includeErpOption
     ? [baseProductOptions[0], erpProductOption, baseProductOptions[1]]
     : baseProductOptions
@@ -77,7 +78,7 @@ export function DemoBooking({ partnerCode, includeErpOption = false, productDefa
     formState: { errors },
   } = useForm<DetailsData>({
     resolver: zodResolver(detailsSchema),
-    defaultValues: { productInterest: productDefault },
+    defaultValues: { productInterest: productDefault, businessType: businessTypeDefault ?? "" },
   })
 
   const loadSlots = async () => {
@@ -234,7 +235,7 @@ export function DemoBooking({ partnerCode, includeErpOption = false, productDefa
     return (
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">Book a Demo</h1>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">{businessTypeDefault === "Oil & Gas" ? "Book an Oil & Gas Consultation" : "Book a Demo"}</h1>
           <p className="mt-3 text-lg text-muted-foreground">
             Pick a time that works for you — we&apos;ll meet on Google Meet.
           </p>
@@ -357,8 +358,9 @@ export function DemoBooking({ partnerCode, includeErpOption = false, productDefa
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">Business Type *</label>
-            <select
+            <SearchableSelect aria-label="Business type"
               {...register("businessType")}
+              defaultValue={businessTypeDefault ?? ""}
               className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent appearance-none"
             >
               <option value="">Select business type</option>
@@ -367,7 +369,7 @@ export function DemoBooking({ partnerCode, includeErpOption = false, productDefa
                   {t}
                 </option>
               ))}
-            </select>
+            </SearchableSelect>
             {errors.businessType && <p className="mt-1.5 text-sm text-destructive">{errors.businessType.message}</p>}
           </div>
           <div>
@@ -390,7 +392,7 @@ export function DemoBooking({ partnerCode, includeErpOption = false, productDefa
           <textarea
             {...register("message")}
             rows={3}
-            placeholder="e.g. I run 2 supermarket branches and need inventory sync..."
+            placeholder={businessTypeDefault === "Oil & Gas" ? "Number of locations, primary challenge, and existing software or equipment…" : "e.g. I run 2 supermarket branches and need inventory sync..."}
             className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent resize-none"
           />
         </div>

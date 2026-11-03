@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useState, useEffect, useRef } from "react"
 import { base64ByteLength, LEAD_EMAIL_ATTACHMENT_HINT, MAX_LEAD_EMAIL_ATTACHMENT_BYTES, MAX_LEAD_EMAIL_ATTACHMENTS } from "@/lib/lead-email-attachments"
 import { EmailDraftControls, useEmailDraft } from "@/components/admin/email-draft-controls"
@@ -1410,7 +1411,7 @@ export function LeadDetailModal({
                 </div>
                 <div>
                   <label className={labelClass}>Business Type *</label>
-                  <select
+                  <SearchableSelect aria-label="Business type"
                     value={editForm.businessType}
                     onChange={(e) =>
                       setEditForm((p) => ({
@@ -1425,11 +1426,11 @@ export function LeadDetailModal({
                     {BUSINESS_TYPES.map((t) => (
                       <option key={t} value={t}>{t}</option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label className={labelClass}>Industry</label>
-                  <select
+                  <SearchableSelect aria-label="Industry"
                     value={editForm.industry}
                     onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))}
                     className={inputClass}
@@ -1441,7 +1442,7 @@ export function LeadDetailModal({
                     {editForm.industry && !industryOptions.includes(editForm.industry) && (
                       <option value={editForm.industry}>{editForm.industry}</option>
                     )}
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label className={labelClass}>Product Interest *</label>
@@ -1812,7 +1813,7 @@ export function LeadDetailModal({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground">Templates</p>
-                    <select
+                    <SearchableSelect aria-label="Industry template"
                       value={emailTemplateIndustry}
                       onChange={(e) => {
                         const value = e.target.value
@@ -1826,7 +1827,7 @@ export function LeadDetailModal({
                       {industryOptions.map((name) => (
                         <option key={name} value={name}>{name}</option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {LEAD_EMAIL_STAGES.map((stage) => (

@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -580,7 +581,7 @@ export default function PartnerQuotesPage() {
             <CardHeader><CardTitle className="text-sm font-medium">2. Commercial terms</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="space-y-1.5 text-sm"><span className="font-medium">Plan *</span><select value={form.planId} onChange={(e) => { const plan = plans.find((p) => p.id === e.target.value); setForm({ ...form, planId: e.target.value }); if (plan) setLines((prev) => [{ ...emptyLine(), item_type: "PLAN", reference_id: plan.id, description: plan.name, unit_price: Number(plan.base_price) || 0 }, ...prev.filter((line) => line.description.trim())]) }} className="w-full rounded-md border border-input bg-background px-3 py-2"><option value="">Select active plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {formatMoney(plan.base_price, plan.currency || "NGN")}</option>)}</select></label>
-              <label className="space-y-1.5 text-sm"><span className="font-medium">Template</span><select value={form.templateIndustry} onChange={(e) => applyTemplate(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2">{quoteTemplateOptions().map((option) => <option key={`${option.group}:${option.value}`} value={option.value}>{option.group} — {option.label}</option>)}</select></label>
+              <label className="space-y-1.5 text-sm"><span className="font-medium">Template</span><SearchableSelect aria-label="Industry template" value={form.templateIndustry} onChange={(e) => applyTemplate(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2">{quoteTemplateOptions().map((option) => <option key={`${option.group}:${option.value}`} value={option.value}>{option.group} — {option.label}</option>)}</SearchableSelect></label>
               <label className="space-y-1.5 text-sm"><span className="font-medium">Currency</span><select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2"><option>NGN</option><option>USD</option><option>GBP</option><option>EUR</option></select></label>
               <label className="space-y-1.5 text-sm"><span className="font-medium">Valid until</span><input type="date" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2" /></label>
               <label className="space-y-1.5 text-sm md:col-span-2"><span className="font-medium">Payment terms</span><textarea rows={3} value={form.paymentTerms} onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2" /></label>

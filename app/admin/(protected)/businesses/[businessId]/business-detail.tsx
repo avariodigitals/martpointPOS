@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -565,7 +566,7 @@ export function BusinessDetail({
                   <Field label="Phone"><input className={inputCls} value={form.primaryPhone} onChange={(e) => setForm({ ...form, primaryPhone: e.target.value })} /></Field>
                   <Field label="Website"><input className={inputCls} value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></Field>
                   <Field label="Business type">
-                    <select
+                    <SearchableSelect aria-label="Business type"
                       className={inputCls}
                       value={form.businessType}
                       onChange={(e) =>
@@ -581,10 +582,10 @@ export function BusinessDetail({
                       {form.businessType && !businessTypeOptions.includes(form.businessType) && (
                         <option value={form.businessType}>{form.businessType} (saved)</option>
                       )}
-                    </select>
+                    </SearchableSelect>
                   </Field>
                   <Field label="Industry">
-                    <select
+                    <SearchableSelect aria-label="Industry"
                       className={inputCls}
                       value={form.industry}
                       onChange={(e) => setForm({ ...form, industry: e.target.value })}
@@ -594,7 +595,7 @@ export function BusinessDetail({
                       {form.industry && !industryOptions.includes(form.industry) && (
                         <option value={form.industry}>{form.industry} (saved)</option>
                       )}
-                    </select>
+                    </SearchableSelect>
                   </Field>
                   <LocationFields
                     country={form.country}

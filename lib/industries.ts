@@ -4091,6 +4091,57 @@ export const bukkaMamaPut: IndustryData = {
 
 // ─── Exports ─────────────────────────────────────────────────
 
+export const oilAndGas: IndustryData = {
+  name: "Oil & Gas Operations",
+  formLabel: "Oil & Gas",
+  slug: "oil-and-gas",
+  category: "Enterprise",
+  product: "erp",
+  navVisible: true,
+  description: "Connect fuel and gas sales, stock movements, procurement, customer accounts and financial reporting across retail outlets, depots and distribution operations.",
+  seo: {
+    title: "Oil & Gas Business Management Software in Nigeria | MartPoint",
+    description: "Explore MartPoint for downstream oil and gas businesses, including filling stations, LPG plants, fuel distributors and multi-location operations. Book an industry consultation.",
+  },
+  hero: {
+    label: "MartPoint for Oil & Gas",
+    headline: "From the Forecourt to the Finance Office. One Clearer View of Your Operations.",
+    paragraph: "Manage the commercial side of your fuel and gas business with connected sales, inventory, procurement, customer accounts and reporting. From individual retail outlets to multi-location distribution networks, MartPoint helps you build a clearer operational picture.",
+    ctaText: "Book an Industry Consultation",
+    waQuery: "Hi, I run an Oil & Gas business and would like an industry consultation to assess our MartPoint ERP requirements.",
+  },
+  painPoints: [
+    { icon: BarChart3, title: "Sales Visibility", desc: "Bring daily sales activity and transaction records into a clearer reporting structure." },
+    { icon: Package, title: "Stock Accountability", desc: "Understand stock receipts, movements, adjustments and balances across locations." },
+    { icon: Users, title: "Customer & Dealer Accounts", desc: "Keep invoices, credit sales, outstanding balances and collections organised." },
+    { icon: ClipboardList, title: "Procurement Control", desc: "Track supplier transactions, purchase requirements, receipts and associated costs." },
+    { icon: Receipt, title: "Financial Oversight", desc: "Connect transaction records to management reporting and finance processes." },
+    { icon: Building2, title: "Multi-Location Operations", desc: "Improve visibility across outlets, plants, warehouses and distribution points." },
+  ],
+  solutions: [
+    { icon: ClipboardList, title: "Procure", desc: "Create and manage supplier transactions, purchase records and expected deliveries." },
+    { icon: PackageOpen, title: "Receive & Record", desc: "Capture received products and maintain the relevant stock records." },
+    { icon: ShoppingCart, title: "Sell or Dispatch", desc: "Record retail sales, corporate orders or distribution transactions according to the configured workflow." },
+    { icon: Receipt, title: "Invoice & Collect", desc: "Maintain customer invoices, payments, credit balances and collections records." },
+    { icon: ClipboardCheck, title: "Review & Reconcile", desc: "Compare operational and financial records and identify items needing further review." },
+    { icon: BarChart3, title: "Report & Decide", desc: "Provide management with consolidated operational and financial information." },
+  ],
+  capabilities: [],
+  whyMartPoint: [
+    "Assess existing capabilities against your operational requirements before committing to a solution.",
+    "Evaluate configuration, workflow development and integrations as part of a tailored ERP scope.",
+  ],
+  faqs: [
+    { q: "Is MartPoint suitable for filling stations?", a: "MartPoint can support core business activities such as sales recording, inventory, customer accounts and reporting. Forecourt-specific processes and pump integrations require separate assessment." },
+    { q: "Can MartPoint support LPG businesses?", a: "We can assess LPG retail, plant and distribution workflows and determine which processes can use existing MartPoint capabilities and which require tailored configuration or development." },
+    { q: "What about multiple filling stations or depots?", a: "MartPoint has multi-location business-management capabilities. We review the reporting, stock, approval and organisational requirements before recommending the appropriate configuration." },
+    { q: "Can MartPoint connect to existing pump, tank or metering systems?", a: "Integration depends on the equipment, interfaces, data availability and technical requirements. Compatibility must be validated before commitment." },
+    { q: "Do we need Retail or ERP?", a: "Retail may suit simpler sales-led businesses. MartPoint ERP is generally the recommended starting point for complex operations involving multiple departments, locations and specialised processes." },
+    { q: "How much does an Oil & Gas implementation cost?", a: "Pricing depends on the operational scope, existing systems, number of locations, configuration, training and integration requirements. A tailored quotation follows discovery." },
+    { q: "Can we start with one location?", a: "Yes, we can evaluate a phased implementation beginning with a defined location or process, subject to the agreed technical and commercial scope." },
+  ],
+}
+
 export const allIndustries: IndustryData[] = [
   supermarkets, miniMarts, groceryStores, provisionStores, convenienceStores, frozenFoods,
   restaurants, fastFood, bukkaMamaPut, bakeries, cakeShops, cafes, pizzaShops, shawarma, juiceBars, canteenFoodCourt, butcherShop, barsAndLounges,
@@ -4103,7 +4154,7 @@ export const allIndustries: IndustryData[] = [
   generalRetail, bookshop, furnitureStores, sportsShops,
   laundry, printing, tailoring, serviceBusiness,
   digitalCreator, onlineStore,
-  distributors, wholesalers, manufacturers, processingPlant, nylonPolythene, scientificLabSupplies,
+  distributors, wholesalers, manufacturers, processingPlant, oilAndGas, nylonPolythene, scientificLabSupplies,
   multiBranchRetail,
 ]
 

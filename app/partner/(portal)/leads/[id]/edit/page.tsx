@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
@@ -223,7 +224,7 @@ export default function EditLeadPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Industry *</label>
-            <select
+            <SearchableSelect aria-label="Industry"
               required
               name="industry"
               defaultValue={lead.industry}
@@ -237,11 +238,11 @@ export default function EditLeadPage() {
               {INDUSTRY_OPTIONS.map((i) => (
                 <option key={i} value={i}>{i}</option>
               ))}
-            </select>
+            </SearchableSelect>
           </div>
           <div>
             <label className={labelCls}>Business type *</label>
-            <select
+            <SearchableSelect aria-label="Business type"
               required
               name="businessType"
               defaultValue={lead.businessType}
@@ -255,7 +256,7 @@ export default function EditLeadPage() {
               {BUSINESS_TYPE_OPTIONS.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
-            </select>
+            </SearchableSelect>
           </div>
         </div>
         <div>

@@ -1,6 +1,6 @@
 # Manual email composer
 
-Lead, partner and creator application emails offer **Normal email** and **Branded card** styles. Normal email is the default in the composer: a white page with the staff member's signature, the configured MartPoint contact footer, social links and footer banner. Branded card retains the blue header and card. Automated emails keep their existing layouts.
+Lead, partner and creator application emails offer **Normal email** and **Branded card** styles. Normal email is the default in the composer: a white page with the staff member's signature and no extra company contact/social footer. Branded card retains the blue header, card, and standard company footer. Automated emails keep their existing layouts.
 
 The rich editor supports paragraphs, headings, bold, italic, underline, lists, quotations, links, undo/redo and clearing formatting. Links are edited inside the composer. Preview and Send share the same layout and personal signature. Changing styles preserves the message.
 

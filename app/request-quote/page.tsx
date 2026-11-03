@@ -1,3 +1,4 @@
+import { getIndustryBySlug } from "@/lib/industries"
 import type { Metadata } from "next"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
@@ -20,6 +21,8 @@ export default async function RequestQuotePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const sp = await searchParams
+  const industry = typeof sp.industry === "string" ? getIndustryBySlug(sp.industry) : undefined
+  const businessTypeDefault = industry?.formLabel ?? industry?.name
   const partnerCode = typeof sp.partner === "string" ? sp.partner.toUpperCase().trim() : ""
   const partner = partnerCode ? await getPublicPartnerByPartnerId(partnerCode) : null
   const validPartner = partner && partner.status === "ACTIVE" ? partner : null
@@ -46,6 +49,7 @@ export default async function RequestQuotePage({
               )}
               <LeadForm
                 pageType="quote"
+                businessTypeDefault={businessTypeDefault}
                 productDefault={isErp ? "erp" : "not-sure"}
                 includeErpOption={isErp}
                 partnerCode={validPartner?.partnerId}

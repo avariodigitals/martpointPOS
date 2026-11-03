@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1187,7 +1188,7 @@ export default function InvoicesPage() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Industry template</label>
-                <select
+                <SearchableSelect aria-label="Industry template"
                   value={createForm.templateIndustry}
                   onChange={(e) => {
                     const template = resolveQuoteTemplate(e.target.value || null)
@@ -1197,7 +1198,7 @@ export default function InvoicesPage() {
                 >
                   <option value="">Default</option>
                   {quoteTemplateOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 
@@ -1332,7 +1333,7 @@ export default function InvoicesPage() {
               </div>
               <div className="space-y-1.5 lg:col-span-2">
                 <label className="text-sm font-medium">Industry template</label>
-                <select
+                <SearchableSelect aria-label="Industry template"
                   value={editing.template_industry || ""}
                   disabled={modalMode === "view"}
                   onChange={(e) => setEditing((prev) => {
@@ -1344,7 +1345,7 @@ export default function InvoicesPage() {
                 >
                   <option value="">Default</option>
                   {quoteTemplateOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                </SearchableSelect>
               </div>
               <div className="space-y-1.5 lg:col-span-2">
                 <label className="text-sm font-medium">Payment terms</label>

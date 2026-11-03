@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -495,7 +496,7 @@ export default function AdminBusinessesPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Business type</label>
-                <select
+                <SearchableSelect aria-label="Business type"
                   value={createForm.businessType}
                   onChange={(e) =>
                     setCreateForm((prev) => ({
@@ -510,11 +511,11 @@ export default function AdminBusinessesPage() {
                   {BUSINESS_TYPE_OPTIONS.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Industry</label>
-                <select
+                <SearchableSelect aria-label="Industry"
                   value={createForm.industry}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, industry: e.target.value }))}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -523,7 +524,7 @@ export default function AdminBusinessesPage() {
                   {INDUSTRY_OPTIONS.map((i) => (
                     <option key={i} value={i}>{i}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
               <LocationFields
                 country={createForm.country}

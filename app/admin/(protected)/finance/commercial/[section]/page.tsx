@@ -3,6 +3,7 @@
 /* The page synchronizes its form/list state with route changes and remote API reads. */
 /* eslint-disable react-hooks/set-state-in-effect */
 
+import { SearchableSelect as IndustrySearchableSelect } from "@/components/ui/searchable-select"
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -1489,7 +1490,7 @@ export default function CommercialSectionPage() {
               {resource === "quotes" && (
                 <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
                   <label htmlFor="quote-industry-template" className="text-sm font-medium">Apply industry template</label>
-                  <select
+                  <IndustrySearchableSelect aria-label="Industry template"
                     id="quote-industry-template"
                     value={quoteTemplateSelection}
                     onChange={(e) => applyQuoteTemplate(e.target.value)}
@@ -1499,7 +1500,7 @@ export default function CommercialSectionPage() {
                     {quoteTemplateOptions().map((option) => option.value ? (
                       <option key={`${option.group}:${option.value}`} value={option.value}>{option.group} — {option.label}</option>
                     ) : null)}
-                  </select>
+                  </IndustrySearchableSelect>
                   <p className="text-xs text-muted-foreground">Selecting a partner lead applies its detected industry template automatically. You can change it here.</p>
                 </div>
               )}

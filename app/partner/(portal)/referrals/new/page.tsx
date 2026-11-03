@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -191,12 +192,12 @@ export default function NewReferralPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className={labelCls}>Business type *</label>
-              <select name="businessType" required className={inputCls} defaultValue="">
+              <SearchableSelect aria-label="Business type" name="businessType" required className={inputCls} defaultValue="">
                 <option value="" disabled>Select type</option>
                 {businessTypeOptions.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
             <div>
               <label className={labelCls}>Branches</label>

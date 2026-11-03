@@ -1,5 +1,6 @@
 "use client"
 
+import { industryOptions } from "@/lib/industries"
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -407,9 +408,12 @@ export function PartnerApplicationForm() {
           <div>
             <label className={labelCls}>Industries served</label>
             <div className="flex gap-2">
-              <input className={inputCls} value={industryInput} onChange={(e) => setIndustryInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addIndustry())} placeholder="e.g. Retail, Pharmacy" />
+              <input className={inputCls} list="partner-industry-suggestions" value={industryInput} onChange={(e) => setIndustryInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addIndustry())} placeholder="e.g. Retail, Pharmacy" />
               <Button type="button" size="sm" variant="outline" onClick={addIndustry}>Add</Button>
             </div>
+            <datalist id="partner-industry-suggestions">
+              {industryOptions.map((industry) => <option key={industry} value={industry} />)}
+            </datalist>
             {form.industriesServed.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {form.industriesServed.map((i) => (

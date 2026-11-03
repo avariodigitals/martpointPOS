@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800" viewBox="0 0 1000 800" fill="none">
+<title>Connected downstream operations</title><desc>Illustration connecting a filling station, LPG cylinders and a fuel distribution depot with a central business record.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1000" y2="800" gradientUnits="userSpaceOnUse"><stop stop-color="#EBF1FF"/><stop offset="1" stop-color="#F8FAFC"/></linearGradient>
+<linearGradient id="tank" x1="650" y1="300" x2="850" y2="420" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF"/><stop offset="1" stop-color="#DDE7F8"/></linearGradient>
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" stroke="#0057FF" stroke-opacity=".06"/></pattern>
+</defs>
+<rect width="1000" height="800" rx="40" fill="url(#bg)"/><rect width="1000" height="800" rx="40" fill="url(#grid)"/>
+<circle cx="500" cy="400" r="270" stroke="#B3CDFF" stroke-dasharray="6 12"/><circle cx="500" cy="400" r="182" stroke="#B3CDFF" stroke-opacity=".5"/>
+<path d="M300 310L500 400L748 287M500 400L500 620" stroke="#0057FF" stroke-width="3" stroke-dasharray="7 9"/>
+<!-- Forecourt -->
+<path d="M85 330L255 275L418 339L251 404Z" fill="#D7E4FF"/><path d="M106 245V325M382 257V328" stroke="#8EA9D3" stroke-width="10"/>
+<path d="M65 210L242 154L432 218L254 279Z" fill="#0057FF"/><path d="M65 210V231L254 300L432 239V218L254 279Z" fill="#0047D3"/><path d="M81 215L254 277L417 223" stroke="#5C95FF" stroke-width="5"/>
+<path d="M169 279L203 267L229 278V342L197 354L169 343Z" fill="white" stroke="#7C9ECD" stroke-width="2"/><path d="M197 290L220 282V307L197 315Z" fill="#0A0F1C"/><path d="M177 282L190 287V307L177 302Z" fill="#B3CDFF"/>
+<path d="M227 287C249 278 252 301 246 317C242 329 248 335 258 329V291" stroke="#0A0F1C" stroke-width="5" stroke-linecap="round"/>
+<path d="M278 312L312 300L338 311V375L306 387L278 376Z" fill="white" stroke="#7C9ECD" stroke-width="2"/><path d="M306 323L330 315V340L306 348Z" fill="#0A0F1C"/>
+<text x="250" y="443" font-family="Arial,sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="#0A0F1C">Filling stations</text>
+<!-- Depot -->
+<path d="M611 335L759 276L930 339L782 401Z" fill="#D7E4FF"/>
+<path d="M660 226V323C660 353 750 353 750 323V226" fill="url(#tank)" stroke="#8EA9D3" stroke-width="2"/>
+<ellipse cx="705" cy="226" rx="45" ry="17" fill="white" stroke="#8EA9D3" stroke-width="2"/><path d="M665 276C685 291 726 291 746 276" stroke="#B3CDFF" stroke-width="9"/>
+<path d="M772 200V320C772 356 877 356 877 320V200" fill="url(#tank)" stroke="#8EA9D3" stroke-width="2"/>
+<ellipse cx="824.5" cy="200" rx="52.5" ry="20" fill="white" stroke="#8EA9D3" stroke-width="2"/><path d="M777 260C802 277 849 277 872 260" stroke="#0057FF" stroke-opacity=".2" stroke-width="10"/>
+<path d="M885 239V343M877 246H894M877 264H894M877 282H894M877 300H894M877 318H894" stroke="#8EA9D3" stroke-width="3"/>
+<text x="780" y="443" font-family="Arial,sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="#0A0F1C">Depots &amp; distribution</text>
+<!-- LPG -->
+<ellipse cx="505" cy="685" rx="136" ry="27" fill="#D7E4FF"/>
+<g stroke="#8EA9D3" stroke-width="2"><rect x="392" y="567" width="58" height="103" rx="22" fill="white"/><path d="M407 571V553H435V571"/><path d="M413 553V542H429V553"/><rect x="465" y="548" width="71" height="128" rx="27" fill="white"/><path d="M483 552V531H518V552"/><path d="M491 531V519H510V531"/><rect x="553" y="568" width="58" height="103" rx="22" fill="white"/><path d="M568 573V553H596V573"/><path d="M574 553V542H590V553"/></g>
+<path d="M394 615H448M467 607H534M555 616H609" stroke="#0057FF" stroke-opacity=".7" stroke-width="12"/>
+<text x="505" y="734" font-family="Arial,sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="#0A0F1C">LPG &amp; gas retail</text>
+<!-- Central shared record -->
+<rect x="418" y="336" width="164" height="128" rx="26" fill="#0A0F1C"/><path d="M461 373H539M461 394H516M461 415H529" stroke="white" stroke-width="6" stroke-linecap="round"/><circle cx="570" cy="347" r="16" fill="#14C38E"/><path d="M563 347L568 352L577 342" stroke="white" stroke-width="3" stroke-linecap="round"/>
+<text x="500" y="91" font-family="Arial,sans-serif" font-size="18" letter-spacing="3" font-weight="700" text-anchor="middle" fill="#0057FF">ONE CONNECTED BUSINESS VIEW</text>
+</svg>

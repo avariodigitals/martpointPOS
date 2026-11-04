@@ -227,7 +227,7 @@ export async function POST(request: Request) {
         await supabase.from("lead_quotations").delete().eq("id", created.id)
         return NextResponse.json({ error: "The quote could not be submitted for approval. It was removed; please try again." }, { status: 500 })
       }
-      await notifyQuotationApprovers({ quoteId: String(created.id), quoteNumber, requesterId: session.userId })
+      await notifyQuotationApprovers({ quoteId: String(created.id), quoteNumber, requestId: String(approval.data.id), requesterId: session.userId })
     }
 
     const { data: fullQuote, error: fullError } = await supabase

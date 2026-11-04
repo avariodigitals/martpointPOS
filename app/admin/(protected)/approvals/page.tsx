@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { ALL_ROLES, type UserRole } from "@/lib/admin-types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +16,8 @@ type ApprovalPolicy = { action_key: string; label: string; enabled: boolean; app
 type StaffUser = { id: string; name: string; username: string; role: UserRole }
 
 export default function ApprovalsPage() {
+  const searchParams = useSearchParams()
+  const focusedRequestId = searchParams.get("requestId") || ""
   const [requests, setRequests] = useState<ApprovalRequest[]>([])
   const [policies, setPolicies] = useState<ApprovalPolicy[]>([])
   const [users, setUsers] = useState<StaffUser[]>([])
@@ -44,6 +47,12 @@ export default function ApprovalsPage() {
 
   useEffect(() => { void reload() }, [reload])
 
+  useEffect(() => {
+    if (!loading && focusedRequestId) {
+      document.getElementById(`approval-request-${focusedRequestId}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+    }
+  }, [loading, focusedRequestId, requests])
+
   async function post(body: Record<string, unknown>, busyKey: string) {
     setBusy(busyKey); setError("")
     try {
@@ -60,16 +69,21 @@ export default function ApprovalsPage() {
     setPolicies((current) => current.map((policy) => policy.action_key === key ? { ...policy, ...updates } : policy))
   }
 
+  const orderedRequests = focusedRequestId
+    ? [...requests].sort((a, b) => Number(b.id === focusedRequestId) - Number(a.id === focusedRequestId))
+    : requests
+  const focusedRequest = requests.find((item) => item.id === focusedRequestId)
   const pending = requests.filter((item) => item.status === "PENDING")
 
   return <div className="space-y-6">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h1 className="text-2xl font-semibold">Approvals</h1><p className="mt-1 text-sm text-muted-foreground">Set review rules and decide pending business actions.</p></div>
+      <div><h1 className="text-2xl font-semibold">{focusedRequest ? "Review quotation approval" : "Approvals"}</h1><p className="mt-1 text-sm text-muted-foreground">{focusedRequest ? `Quotation ${focusedRequest.entity_reference} · review the details and record your decision.` : "Set review rules and decide pending business actions."}</p></div>
       <Button variant="outline" onClick={() => void reload()} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
     </div>
     {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
+    {!loading && focusedRequestId && !focusedRequest && <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This approval request is no longer available in your inbox. It may already have been decided or reassigned.</div>}
 
-    {canManagePolicies && <Card>
+    {canManagePolicies && !focusedRequest && <Card>
       <CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Approval rules</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         {policies.map((policy) => <div key={policy.action_key} className="rounded-lg border p-4">
@@ -97,7 +111,7 @@ export default function ApprovalsPage() {
       <CardContent className="space-y-3">
         {loading && <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>}
         {!loading && requests.length === 0 && <p className="py-5 text-sm text-muted-foreground">No approval requests yet.</p>}
-        {requests.map((item) => <div key={item.id} className="rounded-lg border p-4">
+        {orderedRequests.map((item) => <div id={`approval-request-${item.id}`} key={item.id} className={`rounded-lg border p-4 ${item.id === focusedRequestId ? "border-2 border-retail shadow-md" : ""}`}>
           <div className="flex flex-wrap items-start justify-between gap-3"><div>
             <p className="font-medium">{item.entity_type === "INVOICE" ? "Invoice" : item.entity_type} {item.entity_reference}</p>
             <p className="text-sm text-muted-foreground">{policies.find((policy) => policy.action_key === item.action_key)?.label || item.action_key} · Requested by {item.requested_by_name} ({item.requested_by_role}) · {new Date(item.requested_at).toLocaleString()}</p>

@@ -2,7 +2,7 @@ import { notifyAdminUser } from "@/lib/admin-notifications"
 import { supabase } from "@/lib/supabase"
 
 /** Alert the explicitly configured approvers; delivery is best-effort. */
-export async function notifyQuotationApprovers(input: { quoteId: string; quoteNumber: string; requesterId: string }) {
+export async function notifyQuotationApprovers(input: { quoteId: string; quoteNumber: string; requestId: string; requesterId: string }) {
   const { data: policy, error: policyError } = await supabase.from("approval_policies")
     .select("enabled,approver_roles,approver_user_ids").eq("action_key", "quotation.send").maybeSingle()
   if (policyError || !policy?.enabled) return
@@ -18,7 +18,7 @@ export async function notifyQuotationApprovers(input: { quoteId: string; quoteNu
     type: "QUOTATION_APPROVAL_REQUESTED",
     title: `Quotation ${input.quoteNumber} needs approval`,
     message: "Review the quote before it is sent to the client.",
-    deep_link: "/admin/approvals",
+    deep_link: `/admin/approvals?requestId=${encodeURIComponent(input.requestId)}`,
     source_type: "LEAD_QUOTATION",
     source_id: input.quoteId,
     actor_admin_user_id: input.requesterId,

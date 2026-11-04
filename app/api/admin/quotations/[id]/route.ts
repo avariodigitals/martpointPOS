@@ -191,9 +191,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         entity_reference: String(existing.quote_number), reason: "Revised quote submitted for technical and business approval.",
         details: { quote_updated_at: updatePayload.updated_at, requested_action: "approve_before_client_email", quote: { quote_number: existing.quote_number, title: title || "", total_amount: totals.total, valid_until: validUntil || null, items: itemRows } },
         requested_by: session.userId, requested_by_name: session.name, requested_by_role: session.role,
-      })
+      }).select("id").single()
       if (approval.error) return NextResponse.json({ error: "Quote was saved, but the approval request could not be created. Ask an Admin to resubmit it." }, { status: 500 })
-      await notifyQuotationApprovers({ quoteId: id, quoteNumber: String(existing.quote_number), requesterId: session.userId })
+      await notifyQuotationApprovers({ quoteId: id, quoteNumber: String(existing.quote_number), requestId: String(approval.data.id), requesterId: session.userId })
     }
 
     const { data: fullQuote, error: fullError } = await supabase

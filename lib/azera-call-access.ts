@@ -1,4 +1,4 @@
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import { getCustomerSupportSession } from "@/lib/customer-support-auth"
 import { supabase } from "@/lib/supabase"
 import { isConversationIdentityMatch } from "@/lib/azera-identity"
@@ -22,7 +22,7 @@ export async function getCallAccess(request: Request, id: string) {
     return { call, actor: { type: "customer", id: null } satisfies CallActor }
   }
   const admin = await getSession()
-  if (admin && hasPermission(admin.role, "azera")) {
+  if (admin && await hasPermissionForUser(admin.userId, admin.role, "azera")) {
     return { call, actor: { type: "agent", id: admin.userId } satisfies CallActor }
   }
   const customer = await getCustomerSupportSession()

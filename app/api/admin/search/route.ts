@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const q = searchParams.get("q") || ""
 
   try {
-    const results = await globalSearch(q)
+    const results = await globalSearch(q, session.role, session.userId)
     return NextResponse.json({ success: true, results })
   } catch (e) {
     console.error("[admin/search]", e)

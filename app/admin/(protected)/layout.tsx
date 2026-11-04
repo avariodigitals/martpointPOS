@@ -21,7 +21,7 @@ export default async function AdminProtectedLayout({
     <div className="min-h-screen flex flex-col md:flex-row bg-[#f4f6fb]">
       <AdminSessionTimeoutWatcher />
       <AdminFetchInterceptor />
-      <AdminSidebarNav userName={session.name || session.username} userRole={session.role} />
+      <AdminSidebarNav userId={session.userId} userName={session.name || session.username} userRole={session.role} />
 
       <div className="min-w-0 flex-1">
         <AdminTopbar userName={session.name || session.username} userRole={session.role} />

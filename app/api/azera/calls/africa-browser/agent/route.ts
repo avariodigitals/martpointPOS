@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, hasPermission } from "@/lib/admin-auth";
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { africaBrowserConfig, africaBrowserReady, africaCapability } from "@/lib/africa-browser-voice";
 import { resolveAfricaBusinessId } from "@/lib/africastalking";
@@ -10,7 +10,7 @@ const reply = (body: unknown, status = 200) => NextResponse.json(body, { status,
 const queues = ["sales", "support", "onboarding", "customer_support"];
 async function agent() {
   const session = await getSession();
-  if (!session || !hasPermission(session.role, "azera") || !isSupabaseConfigured()) return null;
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera") || !isSupabaseConfigured()) return null;
   const { data } = await supabase.from("users").select("id,role,status").eq("id", session.userId).maybeSingle();
   return data?.status === "ACTIVE" && ["Admin", "Sales", "Customer Care", "Tech"].includes(data.role) ? session : null;
 }

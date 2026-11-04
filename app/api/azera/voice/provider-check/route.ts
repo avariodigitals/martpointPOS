@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { getAiVoiceProvider } from "@/lib/ai-voice"
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 
 async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession()
-  return session && hasPermission(session.role as UserRole, "settings") ? session : null
+  return session && await hasPermissionForUser(session.userId, session.role as UserRole, "settings") ? session : null
 }
 
 async function resolveBusinessId(value: string | null): Promise<string | null> {

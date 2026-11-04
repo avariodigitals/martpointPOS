@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { authorizeAdmin, getSession } from "@/lib/admin-auth"
+import { authorizeAdmin, getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import { hasPermission } from "@/lib/admin-types"
 import { isSupabaseConfigured } from "@/lib/supabase"
 import { recordAudit, auditContextFromSession, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
@@ -28,7 +28,7 @@ export async function GET(request: Request, ctx: Ctx) {
 
   // Strip sensitive compensation detail for roles without compensation.view.
   const session = await getSession()
-  const canSeeComp = session?.role === "Admin" || (session && hasPermission(session.role, "careers.compensation.view"))
+  const canSeeComp = session?.role === "Admin" || (session && await hasPermissionForUser(session.userId, session.role, "careers.compensation.view"))
   const safe = canSeeComp
     ? template
     : {

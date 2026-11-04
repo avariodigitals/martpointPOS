@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { authorizeAdmin, hasPermission } from "@/lib/admin-auth"
+import { authorizeAdmin, hasPermissionForUser } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordAudit, auditContextFromSession } from "@/lib/audit"
 
@@ -17,7 +17,7 @@ const fail = (error: string, status = 400) =>
 export async function creatorCallHistory(request: Request, id: string, kind: Kind) {
   const { session, denied } = await authorizeAdmin("creator.view")
   if (denied) return denied
-  if (!hasPermission(session.role, "azera")) return fail("Calling history access is required.", 403)
+  if (!await hasPermissionForUser(session.userId, session.role, "azera")) return fail("Calling history access is required.", 403)
   if (!uuid.safeParse(id).success) return fail("Invalid profile ID")
   if (!isSupabaseConfigured()) return fail("Call history is temporarily unavailable.", 503)
   try {
@@ -43,7 +43,8 @@ export async function creatorCallHistory(request: Request, id: string, kind: Kin
     ]
       .filter(Boolean)
       .join(",")
-    const canSummarize = hasPermission(
+    const canSummarize = await hasPermissionForUser(
+      session.userId,
       session.role,
       kind === "creator" ? "creator.manage" : "creator.application.review"
     )

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { TrackType } from "@livekit/protocol";
-import { getSession, hasPermission } from "@/lib/admin-auth";
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth";
 import {
   mediaApi,
   mediaAudit,
@@ -17,7 +17,7 @@ const jsonError = (error: string, status: number) =>
 
 export async function POST(request: Request, context: Context) {
   const session = await getSession();
-  if (!session || !hasPermission(session.role, "azera"))
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera"))
     return jsonError("Forbidden", 403);
   try {
     const { id } = await context.params;

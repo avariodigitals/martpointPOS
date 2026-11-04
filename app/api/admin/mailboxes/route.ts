@@ -40,8 +40,12 @@ export async function GET(request: Request) {
     const rosterMemberships = rosterMailboxId ? await supabase.from("admin_mailbox_members").select("user_id").eq("mailbox_id", rosterMailboxId) : { data: [], error: null }
     if (rosterMemberships.error) throw new Error(rosterMemberships.error.message)
     const rosterIds = new Set((rosterMemberships.data || []).map((item) => item.user_id))
-    const users = (await getAllUsers()).filter((user) => user.status === "ACTIVE" && rosterIds.has(user.id)).map(({ id, name, email, username, role }) => ({ id, name, email, username, role }))
-    return NextResponse.json({ mailboxes: mailboxes.map((mailbox) => ({ ...mailbox, canManage: isAdmin || Boolean(roles.get(mailbox.id)), memberCount: memberCounts.get(mailbox.id) || 0 })), users, settings, memberIds, isAdmin })
+    const activeUsers = (await getAllUsers()).filter((user) => user.status === "ACTIVE")
+    const users = activeUsers.filter((user) => rosterIds.has(user.id)).map(({ id, name, email, username, role }) => ({ id, name, email, username, role }))
+    const availableUsers = settings && isAdmin
+      ? activeUsers.map(({ id, name, email, username, role }) => ({ id, name, email, username, role }))
+      : undefined
+    return NextResponse.json({ mailboxes: mailboxes.map((mailbox) => ({ ...mailbox, canManage: isAdmin || Boolean(roles.get(mailbox.id)), memberCount: memberCounts.get(mailbox.id) || 0 })), users, availableUsers, settings, memberIds, isAdmin })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load mailboxes." }, { status: 500 })
   }

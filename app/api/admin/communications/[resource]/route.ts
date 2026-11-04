@@ -1,7 +1,7 @@
 import { communicationRequestId } from "@/lib/communication-idempotency"
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { authorizeAdmin, hasPermission } from "@/lib/admin-auth"
+import { authorizeAdmin, hasPermissionForUser } from "@/lib/admin-auth"
 import { supabase } from "@/lib/supabase"
 import { getAiProviderStatus } from "@/lib/ai-chat"
 import { getCommunicationSmsConfig, smsConfigurationSchema } from "@/lib/communication-sms"
@@ -15,7 +15,7 @@ type Context = { params: Promise<{ resource: string }> }
 async function access(resource: string) {
   const auth = await authorizeAdmin(resource === "settings" ? "settings" : "marketing")
   if (auth.denied) return auth
-  if (resource !== "settings" && !hasPermission(auth.session.role, "leads")) return { session: null, denied: NextResponse.json({ error: "Lead access is required" }, { status: 403 }) }
+  if (resource !== "settings" && !await hasPermissionForUser(auth.session.userId, auth.session.role, "leads")) return { session: null, denied: NextResponse.json({ error: "Lead access is required" }, { status: 403 }) }
   return auth
 }
 function problem(error: unknown) { return NextResponse.json({ error: error instanceof Error ? error.message : "Communications could not be loaded" }, { status: 400 }) }
@@ -71,7 +71,7 @@ export async function GET(_request: Request, context: Context) {
       supabase.from("marketing_contacts").select("id,audience_id,name,phone,sms_consent_at").not("phone", "is", null).not("sms_consent_at", "is", null).limit(2000),
     ])
     if (smsContacts.error) return NextResponse.json({ error: "Apply communications migration 162 to load consented SMS audiences" }, { status: 503 })
-    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts: smsContacts.data, providers: { email: email.provider, sms: sms.provider, smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: hasPermission(auth.session.role, "settings") })
+    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts: smsContacts.data, providers: { email: email.provider, sms: sms.provider, smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
   } catch (error) { return problem(error) }
 }
 export async function POST(request: Request, context: Context) {

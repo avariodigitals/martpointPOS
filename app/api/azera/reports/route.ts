@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import { supabase } from "@/lib/supabase"
 import { callReportFilters } from "@/lib/azera-reporting"
 export async function GET(request: Request) {
   const session = await getSession()
-  if (!session || !hasPermission(session.role, "azera"))
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   let filters
   try {

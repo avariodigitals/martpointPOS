@@ -1,5 +1,6 @@
+import { loadMarketingContacts } from "@/lib/marketing-contacts"
 import { NextResponse } from "next/server"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { parseManualEmails, normalizeEmail, isValidEmail } from "@/lib/marketing"
@@ -7,7 +8,7 @@ import { normalizeCommunicationPhone } from "@/lib/communications-policy"
 
 async function guardMarketingAccess() {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "marketing")) {
+  if (!session || !await hasPermissionForUser(session.userId, session.role as UserRole, "marketing")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   return null
@@ -37,11 +38,8 @@ export async function GET(
     return NextResponse.json({ error: "Audience not found" }, { status: 404 })
   }
 
-  const { data: contacts } = await supabase
-    .from("marketing_contacts")
-    .select("id, email, phone, name, sms_consent_at, created_at")
-    .eq("audience_id", id)
-    .order("created_at", { ascending: true })
+  const { data: contacts, error: contactsError } = await loadMarketingContacts(id)
+  if (contactsError) return NextResponse.json({ error: "Failed to load audience contacts" }, { status: 500 })
 
   return NextResponse.json({
     audience: { id: audience.id, name: audience.name, description: audience.description, createdAt: audience.created_at },
@@ -67,6 +65,33 @@ export async function POST(
       return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
     }
 
+    // Structured CSV import: validate on the server; never alter suppression records.
+    if (body.importContacts !== undefined) {
+      if (!body.emailConsentConfirmed || !Array.isArray(body.importContacts) || !body.importContacts.length || body.importContacts.length > 5000) {
+        return NextResponse.json({ error: "Confirm email permission and provide 1–5,000 contacts" }, { status: 400 })
+      }
+      const unique = new Map<string, { email: string; name: string }>()
+      for (const contact of body.importContacts) {
+        const email = normalizeEmail(String(contact?.email || ""))
+        if (!isValidEmail(email) || /[<>]/.test(email)) return NextResponse.json({ error: "The import contains an invalid email address" }, { status: 400 })
+        if (!unique.has(email)) unique.set(email, { email, name: String(contact?.name || "").trim().slice(0, 250) })
+      }
+      const { data: audience, error: audienceError } = await supabase.from("marketing_audiences").select("id").eq("id", id).maybeSingle()
+      if (audienceError) return NextResponse.json({ error: "Unable to check audience" }, { status: 500 })
+      if (!audience) return NextResponse.json({ error: "Audience not found" }, { status: 404 })
+      const values = [...unique.values()]
+      let added = 0
+      for (let offset = 0; offset < values.length; offset += 250) {
+        const { data, error } = await supabase.from("marketing_contacts").upsert(
+          values.slice(offset, offset + 250).map(c => ({ audience_id: id, ...c })),
+          { onConflict: "audience_id,email", ignoreDuplicates: true }
+        ).select("id")
+        if (error) return NextResponse.json({ error: `Import stopped after adding ${added} contacts. Retry safely: existing contacts are skipped.` }, { status: 500 })
+        added += data?.length || 0
+      }
+      return NextResponse.json({ success: true, contactsAdded: added, duplicatesSkipped: body.importContacts.length - added })
+    }
+
     const parsed = parseManualEmails(String(contacts || ""))
     const phones = String(phoneContacts || "").split(/[\n,;]+/).map((line) => {
       const value = line.trim()
@@ -80,10 +105,10 @@ export async function POST(
       return NextResponse.json({ error: "No valid emails provided" }, { status: 400 })
     }
 
-    const { error } = await supabase.from("marketing_contacts").upsert(
+    const { error } = parsed.length ? await supabase.from("marketing_contacts").upsert(
       parsed.map((c) => ({ audience_id: id, email: c.email, name: c.name })),
       { onConflict: "audience_id,email" }
-    )
+    ) : { error: null }
 
     if (error) {
       console.error("[Marketing Contacts Upsert Error]", error)

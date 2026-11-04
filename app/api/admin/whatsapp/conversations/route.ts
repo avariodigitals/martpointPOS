@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 async function guard() {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "customers")) {
+  if (!session || !await hasPermissionForUser(session.userId, session.role as UserRole, "customers")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   return null

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, hasPermission } from "@/lib/admin-auth";
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { africaBrowserConfig } from "@/lib/africa-browser-voice";
 import { resolveAfricaBusinessId } from "@/lib/africastalking";
@@ -13,7 +13,7 @@ const reply = (body: unknown, status = 200) => NextResponse.json(body, { status,
 
 async function requireManager() {
   const session = await getSession();
-  return session && hasPermission(session.role, "settings") ? session : null;
+  return session && await hasPermissionForUser(session.userId, session.role, "settings") ? session : null;
 }
 
 async function businessId() {

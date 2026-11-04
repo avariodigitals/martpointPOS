@@ -15,7 +15,7 @@ import { generateInvoicePdf } from "./invoice-pdf"
 import { logFinanceAudit } from "./finance-commercial"
 import { resolveQuoteTemplate } from "./quote-templates"
 import { getPublicSiteSettings } from "./settings"
-import { enqueueCommunicationTrigger } from "./communication-events"
+import { enqueueInvoiceUnpaid } from "./communication-events"
 
 const EMAILABLE_STATUSES = ["ISSUED", "PARTIALLY_PAID", "OVERDUE", "PAID"]
 
@@ -165,21 +165,22 @@ export async function runInvoiceReminderSweep(): Promise<{ sent: number; failed:
     .gt("balance_due", 0)
     .select("id,business_id")
   const markedOverdue = overdueRows?.length ?? 0
-  const unpaidOverdue = await supabase.from("invoices").select("business_id")
-    .in("status", ["ISSUED", "PARTIALLY_PAID", "OVERDUE"]).lt("due_date", today).gt("balance_due", 0).limit(1000)
-  if (unpaidOverdue.error) console.error("[invoice-reminders] could not load unpaid invoices for workflow triggers:", unpaidOverdue.error.message)
-  else {
-    const businessIds = [...new Set((unpaidOverdue.data || []).map((row) => row.business_id).filter(Boolean))]
-    if (businessIds.length) {
-      const businesses = await supabase.from("businesses").select("source_lead_id").in("id", businessIds)
-      if (businesses.error) console.error("[invoice-reminders] could not find leads for overdue invoices:", businesses.error.message)
-      else for (const leadId of [...new Set((businesses.data || []).map((row) => row.source_lead_id).filter((id): id is string => Boolean(id)))]) {
-        await enqueueCommunicationTrigger("invoice_unpaid", leadId).catch((eventError) => console.error("[invoice-reminders] communication workflow enqueue failed:", eventError))
-      }
-    }
-  }
-
   const horizon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const workflowInvoices = await supabase.from("invoices").select("id")
+    .in("status", ["ISSUED", "PARTIALLY_PAID", "OVERDUE"]).eq("reminders_paused", false)
+    .gt("balance_due", 0).lte("due_date", horizon).limit(1000)
+  if (workflowInvoices.error) console.error("[invoice-reminders] could not load invoices for workflow triggers:", workflowInvoices.error.message)
+  else await enqueueInvoiceUnpaid((workflowInvoices.data || []).map((row) => row.id))
+    .catch((eventError) => console.error("[invoice-reminders] invoice workflow enqueue failed:", eventError))
+
+  // An enabled invoice workflow owns the reminder sequence for eligible
+  // invoices. Running the legacy daily email sweep alongside it would send a
+  // second email before the workflow's configured delay/review step.
+  const invoiceWorkflow = await supabase.from("communication_workflows").select("id")
+    .eq("trigger", "invoice_unpaid").eq("enabled", true).limit(1).maybeSingle()
+  if (invoiceWorkflow.error) console.error("[invoice-reminders] could not verify invoice workflow ownership:", invoiceWorkflow.error.message)
+  else if (invoiceWorkflow.data) return { sent: 0, failed: 0, skipped: workflowInvoices.data?.length || 0, markedOverdue }
+
   const { data: rows, error } = await supabase
     .from("invoices")
     .select("id, due_date, last_reminder_at, reminder_count")

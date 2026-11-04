@@ -154,16 +154,16 @@ export function buildMarketingHtml(html: string, token: string, baseUrl: string,
     : ""
 
   // Resolve relative asset/link URLs so pasted content and uploads always render
-  let body = html.replace(/\b(src|href)="(?!https?:|mailto:|tel:|#|data:)([^"]+)"/gi, (_m, attr: string, url: string) => {
+  let body = html.replace(/\b(src|href)=(['"])(?!https?:|mailto:|tel:|#|data:)([^'"]+)\2/gi, (_match, attr: string, quote: string, url: string) => {
     const path = url.startsWith("/") ? url : `/${url}`
-    return `${attr}="${base}${path}"`
+    return `${attr}=${quote}${base}${path}${quote}`
   })
 
-  // Rewrite external links through the click tracker
-  body = body.replace(/href="([^"]+)"/gi, (match, url: string) => {
+  // Rewrite quoted http(s) links through the click tracker, for either quote style.
+  body = body.replace(/\bhref=(['"])(.*?)\1/gi, (match, quote: string, url: string) => {
     if (!/^https?:\/\//i.test(url)) return match
     if (url.includes("/unsubscribe") || url.includes("/api/marketing/")) return match
-    return `href="${base}/api/marketing/track/click/${token}?u=${encodeURIComponent(url)}"`
+    return `href=${quote}${base}/api/marketing/track/click/${token}?u=${encodeURIComponent(url)}${quote}`
   })
 
   const unsubUrl = `${base}/unsubscribe?t=${encodeURIComponent(token)}`
@@ -175,7 +175,8 @@ export function buildMarketingHtml(html: string, token: string, baseUrl: string,
 
   // Full documents keep their own layout — just add footer + pixel
   if (/<html|<body/i.test(html)) {
-    return `${preheaderBlock}${body}\n${footer}\n${pixel}`
+    body = /<body[^>]*>/i.test(body) ? body.replace(/<body[^>]*>/i, (tag) => tag + preheaderBlock) : preheaderBlock + body
+    return /<\/body>/i.test(body) ? body.replace(/<\/body>/i, `${footer}\n${pixel}\n</body>`) : `${body}\n${footer}\n${pixel}`
   }
 
   // Branded shell for simple content
@@ -274,11 +275,14 @@ export async function executeCampaign(campaignId: string): Promise<{ sent: numbe
     const ok = await sendEmail({
       to: recipient.email,
       subject: mergedSubject,
+      from: campaign.from_address || undefined,
       text: applyMergeTags(plainText, recipient),
       html: trackedHtml,
       provider,
       route: "marketing",
-      replyTo: REPLY_TO.sales,
+      useRouteRecipients: false,
+      skipBranding: true,
+      replyTo: campaign.reply_to || REPLY_TO.sales,
       headers: { "List-Unsubscribe": `<${unsubscribeUrl(token, baseUrl)}>` },
     })
 

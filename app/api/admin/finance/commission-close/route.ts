@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getSession } from "@/lib/admin-auth"
-import { hasFinanceAction } from "@/lib/finance-permissions"
+import { hasFinanceActionForUser } from "@/lib/finance-permissions"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { closeCommissionPeriod } from "@/lib/referral-finance"
 import { referralAdminCan } from "@/lib/referral-permissions"
@@ -40,7 +40,7 @@ async function countInRange(status: string, periodKey: string): Promise<number> 
 export async function GET(request: Request) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!hasFinanceAction(session.role as UserRole, "finance:commissions:view")) {
+  if (!await hasFinanceActionForUser(session.userId, session.role as UserRole, "finance:commissions:view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Not configured" }, { status: 500 })

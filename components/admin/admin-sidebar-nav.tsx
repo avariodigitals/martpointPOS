@@ -5,14 +5,21 @@ import { PortalMobileNav } from "@/components/shared/portal-mobile-nav"
 import { PortalSidebar } from "@/components/shared/portal-sidebar"
 import type { UserRole } from "@/lib/admin-types"
 import { getAdminNavigation, activeAdminHref } from "@/lib/admin-navigation"
+import { useEffect, useState } from "react"
 
 // Primary destinations shown in the mobile bottom quick menu (filtered by permission below).
 const QUICK_HREFS = ["/admin", "/admin/tasks", "/admin/reports"]
 const QUICK_LABELS: Record<string, string> = { "/admin/tasks": "Actions" }
 
-export function AdminSidebarNav({ userName, userRole }: { userName: string; userRole: UserRole }) {
+export function AdminSidebarNav({ userId, userName, userRole }: { userId: string; userName: string; userRole: UserRole }) {
   const pathname = usePathname()
   const router = useRouter()
+  const [overrides, setOverrides] = useState<Record<string, "allow" | "deny">>({})
+
+  useEffect(() => {
+    fetch("/api/admin/my-permissions").then((response) => response.ok ? response.json() : null)
+      .then((data) => setOverrides(data?.overrides || {})).catch(() => setOverrides({}))
+  }, [userId])
 
   const handleLogout = async () => {
     await fetch("/api/admin/logout", { method: "POST" })
@@ -20,7 +27,7 @@ export function AdminSidebarNav({ userName, userRole }: { userName: string; user
     router.refresh()
   }
 
-  const { visibleItems, sections } = getAdminNavigation(userRole)
+  const { visibleItems, sections } = getAdminNavigation(userRole, overrides)
   const quickItems = QUICK_HREFS.flatMap((href) => {
     const item = visibleItems.find((item) => item.href === href)
     return item ? [{ href: item.href, label: QUICK_LABELS[item.href] ?? item.label, icon: item.icon }] : []

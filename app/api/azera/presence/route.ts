@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
@@ -8,7 +8,7 @@ type Queue = (typeof QUEUES)[number]
 
 async function session(): Promise<SessionPayload | null> {
   const value = await getSession()
-  return value && hasPermission(value.role as UserRole, "azera") ? value : null
+  return value && await hasPermissionForUser(value.userId, value.role as UserRole, "azera") ? value : null
 }
 
 export async function GET() {
@@ -23,10 +23,10 @@ export async function GET() {
     .gte("last_seen_at", new Date(Date.now() - 90_000).toISOString())
 
   if (error) return NextResponse.json({ error: "Failed to load agent presence" }, { status: 500 })
-  const online = (data || []).flatMap(row => {
+  const online = (await Promise.all((data || []).map(async row => {
     const user = Array.isArray(row.users) ? row.users[0] : row.users
-    return user?.status === "ACTIVE" && hasPermission(user.role as UserRole, "azera") ? [{ user_id: row.user_id, name: user.name, queues: row.queues, is_online: row.is_online, last_seen_at: row.last_seen_at }] : []
-  })
+    return user?.status === "ACTIVE" && await hasPermissionForUser(row.user_id, user.role as UserRole, "azera") ? { user_id: row.user_id, name: user.name, queues: row.queues, is_online: row.is_online, last_seen_at: row.last_seen_at } : null
+  }))).filter((row): row is NonNullable<typeof row> => Boolean(row))
   const own = await supabase.from("azera_agent_presence").select("user_id, queues, is_online, last_seen_at").eq("user_id", current.userId).maybeSingle()
   const agent = own.data ? { ...own.data, is_online: own.data.is_online && Date.parse(own.data.last_seen_at) > Date.now() - 90_000 } : null
   return NextResponse.json({ userId: current.userId, agent, online }, { headers: { "Cache-Control": "no-store" } })

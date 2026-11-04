@@ -1,4 +1,4 @@
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import { supabase } from "@/lib/supabase"
 import { getSettings } from "@/lib/settings"
 import { NextResponse } from "next/server"
@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession()
-  if (!session || !hasPermission(session.role, "azera"))
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   try {
     const { id } = await params

@@ -1,5 +1,8 @@
 "use client"
 
+import { EmailCampaignShell } from "@/components/admin/email-campaign-shell"
+import EmailAudienceImport from "@/components/admin/email-audience-import"
+import { downloadCsv } from "@/lib/email-campaign-report"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,6 +14,8 @@ import {
   ChevronDown,
   ChevronRight,
   X,
+  Download,
+  Search,
 } from "lucide-react"
 
 interface Audience {
@@ -31,6 +36,8 @@ interface Contact {
 }
 
 export default function MarketingAudiencesPage() {
+  const [contactSearch, setContactSearch] = useState("")
+  const [showCreate, setShowCreate] = useState(false)
   const [audiences, setAudiences] = useState<Audience[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
@@ -55,6 +62,7 @@ export default function MarketingAudiencesPage() {
     try {
       const res = await fetch("/api/admin/marketing/audiences")
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to load audiences")
       setAudiences(data.audiences || [])
     } catch {
       setMessage("Failed to load audiences")
@@ -111,12 +119,20 @@ export default function MarketingAudiencesPage() {
     }
   }
 
+  const refreshContacts = async (id: string) => {
+    const res = await fetch(`/api/admin/marketing/audiences/${id}`)
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || "Failed to load contacts")
+    setContacts(data.contacts || [])
+  }
+
   const toggleExpand = async (id: string) => {
     if (expandedId === id) {
       setExpandedId(null)
       return
     }
     setExpandedId(id)
+    setContactSearch("")
     setAddEmails("")
     setAddPhones("")
     setAddSmsConsent(false)
@@ -125,6 +141,7 @@ export default function MarketingAudiencesPage() {
     try {
       const res = await fetch(`/api/admin/marketing/audiences/${id}`)
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to load contacts")
       setContacts(data.contacts || [])
     } catch {
       setMessage("Failed to load contacts")
@@ -150,6 +167,7 @@ export default function MarketingAudiencesPage() {
         // reload contacts + counts
         const res2 = await fetch(`/api/admin/marketing/audiences/${id}`)
         const data2 = await res2.json()
+        if (!res2.ok) throw new Error(data2.error || "Failed to reload contacts")
         setContacts(data2.contacts || [])
         load()
       } else {
@@ -165,7 +183,8 @@ export default function MarketingAudiencesPage() {
 
   const removeContact = async (audienceId: string, contactId: string) => {
     try {
-      await fetch(`/api/admin/marketing/audiences/${audienceId}?contactId=${encodeURIComponent(contactId)}`, { method: "DELETE" })
+      const res = await fetch(`/api/admin/marketing/audiences/${audienceId}?contactId=${encodeURIComponent(contactId)}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to remove contact")
       setContacts((prev) => prev.filter((c) => c.id !== contactId))
       load()
     } catch {
@@ -176,7 +195,8 @@ export default function MarketingAudiencesPage() {
   const deleteAudience = async (id: string, name: string) => {
     if (!confirm(`Delete audience "${name}" and all its contacts?`)) return
     try {
-      await fetch(`/api/admin/marketing/audiences/${id}`, { method: "DELETE" })
+      const res = await fetch(`/api/admin/marketing/audiences/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete audience")
       if (expandedId === id) setExpandedId(null)
       load()
     } catch {
@@ -193,18 +213,22 @@ export default function MarketingAudiencesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
+    <EmailCampaignShell>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div>
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Users className="w-5 h-5" />
           Audiences
         </h2>
         <p className="text-muted-foreground">Reusable contact lists you can target in campaigns.</p>
-      </div>
+      </div><Button size="sm" onClick={() => setShowCreate(!showCreate)}><Plus className="h-4 w-4" />{showCreate ? "Close" : "Create audience"}</Button></div>
+      <EmailAudienceImport audiences={audiences} onImported={() => {
+        void load()
+        if (expandedId) void refreshContacts(expandedId).catch(() => setMessage("Contacts imported, but the list could not be refreshed."))
+      }} />
 
       {message && <p className="text-sm text-muted-foreground">{message}</p>}
 
-      <Card>
+      {showCreate && <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Plus className="w-4 h-4 text-muted-foreground" />
@@ -256,7 +280,7 @@ export default function MarketingAudiencesPage() {
             </Button>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       <Card>
         <CardHeader className="pb-2">
@@ -298,7 +322,9 @@ export default function MarketingAudiencesPage() {
 
                     {expanded && (
                       <div className="border border-t-0 border-border rounded-b-lg bg-muted/10 p-4 space-y-3">
-                        <div className="flex justify-end">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <label className="relative"><Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" /><input aria-label="Search audience contacts" value={contactSearch} onChange={e => setContactSearch(e.target.value)} placeholder="Search contacts…" className="rounded-md border bg-white py-2 pl-7 pr-3 text-xs" /></label>
+                          <Button size="sm" variant="outline" disabled={loadingContacts} onClick={() => downloadCsv(`${a.name}-contacts.csv`, [["email", "name", "phone", "email_status"], ...contacts.map(c => [c.email, c.name, c.phone, c.email && suppressed.has(c.email) ? "unsubscribed" : "not suppressed"])])}><Download className="h-3.5 w-3.5" />Export CSV</Button>
                           <Button size="sm" variant="outline" onClick={() => deleteAudience(a.id, a.name)}>
                             <Trash2 className="w-3.5 h-3.5 mr-1" />
                             Delete Audience
@@ -307,8 +333,8 @@ export default function MarketingAudiencesPage() {
                         {loadingContacts ? (
                           <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading contacts…</p>
                         ) : (
-                          <div className="space-y-1">
-                            {contacts.map((c) => (
+                          <div className="max-h-[480px] space-y-1 overflow-y-auto">
+                            {contacts.filter(c => `${c.email || ""} ${c.name} ${c.phone || ""}`.toLowerCase().includes(contactSearch.toLowerCase())).map((c) => (
                               <div key={c.id} className="flex items-center justify-between text-xs rounded bg-background px-3 py-2">
                                 <span className="truncate">
                                   {c.name ? <span className="font-medium">{c.name} — </span> : null}{c.email || c.phone}
@@ -359,6 +385,6 @@ export default function MarketingAudiencesPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </EmailCampaignShell>
   )
 }

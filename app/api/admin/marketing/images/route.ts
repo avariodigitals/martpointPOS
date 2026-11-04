@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import crypto from "crypto"
-import { getSession, hasPermission } from "@/lib/admin-auth"
-import type { UserRole } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 const BUCKET = "marketing-assets"
@@ -18,9 +17,8 @@ const MAX_SIZE = 4 * 1024 * 1024
 /* ─── POST: upload a campaign/signature image → public URL ─── */
 export async function POST(request: Request) {
   const session = await getSession()
-  const role = session?.role as UserRole | undefined
   // Also used by Email Settings (signature logos), so settings admins may upload.
-  if (!role || (!hasPermission(role, "marketing") && !hasPermission(role, "settings"))) {
+  if (!session || (!await hasPermissionForUser(session.userId, session.role, "marketing") && !await hasPermissionForUser(session.userId, session.role, "settings"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Save, Trash2, Users, Plus, User, Shield, Pencil, UserCheck, UserX } from "lucide-react"
@@ -373,6 +374,7 @@ export default function AdminUsersPage() {
                 <p className="mt-2 text-xs text-muted-foreground">
                   {ROLE_DESCRIPTIONS[user.role]}
                 </p>
+                {user.role !== "Admin" && <Link href={`/admin/users/${user.id}/permissions`} className="mt-2 inline-flex text-xs font-medium text-retail hover:underline">Personal permissions</Link>}
                 <p className="mt-1 text-xs text-muted-foreground">
                   Created {new Date(user.createdAt).toLocaleDateString()}
                 </p>

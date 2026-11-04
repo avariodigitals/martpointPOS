@@ -23,6 +23,7 @@ export const communicationWorkflowSchema = z.object({
   if (value.mode === "template" && !value.template_id) ctx.addIssue({ code: "custom", path: ["template_id"], message: "Choose a message template" })
   if (value.mode === "ai" && !value.instructions) ctx.addIssue({ code: "custom", path: ["instructions"], message: "Tell AI the purpose of this workflow" })
   if (value.trigger.startsWith("status_incident_") && (value.channel !== "email" || value.mode !== "template")) ctx.addIssue({ code: "custom", path: ["channel"], message: "System status notices use reviewed email templates" })
+  if (value.trigger === "invoice_unpaid" && (value.channel !== "email" || value.mode !== "template")) ctx.addIssue({ code: "custom", path: ["channel"], message: "Unpaid invoice automations use email templates; invoice SMS reminders remain manual" })
 })
 export type CommunicationTrigger = z.infer<typeof communicationWorkflowSchema>["trigger"]
 export type CommunicationWorkflow = z.infer<typeof communicationWorkflowSchema> & { id: string; created_by: string; created_at: string }

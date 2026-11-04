@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { ChevronDown, Search, Settings, ShieldCheck, UserCircle, Users, LogOut } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { AdminNotificationBell } from "@/components/admin/admin-notification-bell"
-import type { UserRole } from "@/lib/admin-types"
+import { hasPermission, type UserRole } from "@/lib/admin-types"
 import { roleLabel } from "@/lib/utils"
 import { AfricaBrowserPhone } from "@/components/admin/africa-browser-phone"
 
@@ -122,14 +122,14 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
                 <ShieldCheck className="h-4 w-4 text-slate-400" />
                 Notifications
               </Link>
-              <Link href="/admin/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50">
+              {hasPermission(userRole, "settings") && <Link href="/admin/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50">
                 <Settings className="h-4 w-4 text-slate-400" />
                 Workspace settings
-              </Link>
-              <Link href="/admin/users" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50">
+              </Link>}
+              {hasPermission(userRole, "users") && <Link href="/admin/users" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50">
                 <Users className="h-4 w-4 text-slate-400" />
                 Team members
-              </Link>
+              </Link>}
               <div className="my-1 border-t border-slate-100" />
               <button type="button" onClick={() => void logout()} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-rose-600 hover:bg-rose-50">
                 <LogOut className="h-4 w-4" />

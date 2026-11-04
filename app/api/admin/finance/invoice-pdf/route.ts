@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
-import { hasFinanceAction } from "@/lib/finance-permissions"
+import { hasFinanceActionForUser } from "@/lib/finance-permissions"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { generateInvoicePdf } from "@/lib/invoice-pdf"
 import { resolveQuoteTemplate } from "@/lib/quote-templates"
@@ -10,7 +10,7 @@ import { getPublicSiteSettings } from "@/lib/settings"
 export async function GET(request: Request) {
   const { session, denied } = await authorizeAdmin("finance")
   if (denied) return denied
-  if (!session || !hasFinanceAction(session.role, "finance:view")) {
+  if (!session || !await hasFinanceActionForUser(session.userId, session.role, "finance:view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   if (!isSupabaseConfigured()) {

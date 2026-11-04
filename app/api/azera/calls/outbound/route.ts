@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
 import { AccessToken } from "livekit-server-sdk"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import { getSettings } from "@/lib/settings"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { normalizeOutboundPhone, outboundReady, voiceApi } from "@/lib/azera-outbound"
@@ -9,7 +9,7 @@ import { normalizeOutboundPhone, outboundReady, voiceApi } from "@/lib/azera-out
 const err = (error: string, status: number) => NextResponse.json({ error }, { status })
 export async function GET() {
   const session = await getSession()
-  if (!session || !hasPermission(session.role, "azera")) return err("Forbidden", 403)
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera")) return err("Forbidden", 403)
   const { livekit } = await getSettings()
   return NextResponse.json({ ready: outboundReady(livekit), setupUrl: "/admin/integrations" }, { headers: { "Cache-Control": "no-store" } })
 }
@@ -18,7 +18,7 @@ export async function GET() {
 // their microphone, then explicitly invoke the owned call's dial endpoint.
 export async function POST(request: Request) {
   const session = await getSession()
-  if (!session || !hasPermission(session.role, "azera")) return err("Forbidden", 403)
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera")) return err("Forbidden", 403)
   if (!isSupabaseConfigured()) return err("Calling is temporarily unavailable.", 503)
   const { livekit } = await getSettings()
   if (!outboundReady(livekit)) return err("Browser calling needs LiveKit and SIP credentials in Admin → Integrations. Your device dialer will not be opened.", 503)

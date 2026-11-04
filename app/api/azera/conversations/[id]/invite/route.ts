@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import type { SessionPayload, UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { createAdminNotification } from "@/lib/admin-notifications"
 
 async function requireSession(): Promise<SessionPayload | null> {
   const value = await getSession()
-  return value && hasPermission(value.role as UserRole, "azera") ? value : null
+  return value && await hasPermissionForUser(value.userId, value.role as UserRole, "azera") ? value : null
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {

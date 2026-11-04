@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getSession, hasPermission } from "@/lib/admin-auth";
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth";
 import { getSettings } from "@/lib/settings";
 import { selfHostedMediaAllowed } from "@/lib/azera-media";
 import { supabase } from "@/lib/supabase";
 
 export async function GET() {
   const session = await getSession();
-  if (!session || !hasPermission(session.role, "azera"))
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { livekit } = await getSettings();
   const supervisor = session.role === "Admin";

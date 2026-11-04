@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSession, hasPermission } from "@/lib/admin-auth"
-import type { UserRole } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { completeExpiredMeetings } from "@/lib/meeting-status"
 
@@ -85,9 +84,8 @@ function mapPartnerMeetingRow(row: Record<string, unknown>): CalendarMeeting {
 /* ─── GET all meetings for a date range ─── */
 export async function GET(request: Request) {
   const session = await getSession()
-  const role = session?.role as UserRole
-  const canLeads = !!session && hasPermission(role, "leads")
-  const canPartners = !!session && hasPermission(role, "partners")
+  const canLeads = !!session && await hasPermissionForUser(session.userId, session.role, "leads")
+  const canPartners = !!session && await hasPermissionForUser(session.userId, session.role, "partners")
   if (!session || (!canLeads && !canPartners)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import { isSupabaseConfigured, supabase } from "@/lib/supabase"
 import { africaBrowserConfig, africaBrowserReady, africaCapability } from "@/lib/africa-browser-voice"
 import { normalizeOutboundPhone } from "@/lib/azera-outbound"
@@ -9,7 +9,7 @@ import { checkRateLimit } from "@/lib/rate-limit"
 const err = (error: string, status: number) => NextResponse.json({ error }, { status })
 export async function GET() {
   const session = await getSession()
-  if (!session || !hasPermission(session.role, "azera")) return err("Forbidden", 403)
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera")) return err("Forbidden", 403)
   const config = await africaBrowserConfig()
   return NextResponse.json(
     {
@@ -22,7 +22,7 @@ export async function GET() {
 }
 export async function POST(request: Request) {
   const session = await getSession()
-  if (!session || !hasPermission(session.role, "azera")) return err("Forbidden", 403)
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera")) return err("Forbidden", 403)
   if (!isSupabaseConfigured()) return err("Calling is temporarily unavailable.", 503)
   if (request.headers.get("origin") && request.headers.get("origin") !== new URL(request.url).origin)
     return err("Forbidden", 403)
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       sourceType = "conversation"
       sourceId = conversation.id
     } else if (keys[0] === "creatorId" || keys[0] === "applicationId") {
-      if (!hasPermission(session.role, "creator.view"))
+      if (!await hasPermissionForUser(session.userId, session.role, "creator.view"))
         return err("Creator access is required to call this contact.", 403)
       const creator = keys[0] === "creatorId"
       let query = supabase

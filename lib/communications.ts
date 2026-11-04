@@ -3,11 +3,13 @@ import { z } from "zod"
 import { supabase } from "./supabase"
 import { aiChat } from "./ai-chat"
 import { getUserById, hasPermission } from "./admin-auth"
+import { hasEffectivePermission } from "./permission-overrides"
 import { loadCommunicationContext } from "./communication-context"
 import { sendCommunicationSms, sendCommunicationWhatsApp } from "./communication-sms"
 import { sendLeadEmail } from "./lead-email-outbound"
 import { getEmailSettings, sendEmail } from "./email"
 import { bodyTextToHtml } from "./email-html"
+import { formatMoney } from "./money-format"
 import { communicationStopReason, mergeCommunicationTemplate, normalizeCommunicationPhone, type CommunicationWorkflow, type CommunicationTemplate } from "./communications-policy"
 
 export const preparedCommunicationSchema = z.object({
@@ -39,6 +41,27 @@ export async function prepareCommunication(input: { leadId: string; channel: "em
 }
 
 async function checkRecipient(leadId: string | null, channel: "email" | "sms" | "whatsapp" | "call", workflow: CommunicationWorkflow | undefined, enrolledAt: string | undefined, message: QueuedMessage) {
+  if (message.invoice_id) {
+    if (channel !== "email" || workflow?.trigger !== "invoice_unpaid" || workflow.mode !== "template") throw new Error("Unpaid-invoice automation supports approved email templates only; SMS reminders are manual")
+    const { data: invoice, error: invoiceError } = await supabase.from("invoices")
+      .select("id,status,balance_due,due_date,reminders_paused,businesses:business_id(business_name,primary_contact_name,primary_email)")
+      .eq("id", message.invoice_id).maybeSingle()
+    if (invoiceError || !invoice) throw new Error("Invoice customer could not be revalidated")
+    if (!["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(String(invoice.status).toUpperCase()) || Number(invoice.balance_due) <= 0 || invoice.reminders_paused) throw new Error("Invoice is settled or reminders are paused")
+    const horizon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    if (String(invoice.due_date) > horizon) throw new Error("Invoice is outside the unpaid-reminder window")
+    const business = (Array.isArray(invoice.businesses) ? invoice.businesses[0] : invoice.businesses) as { business_name?: string; primary_contact_name?: string; primary_email?: string } | null
+    const recipient = (business?.primary_email || "").trim().toLowerCase()
+    if (!recipient || !z.email().safeParse(recipient).success) throw new Error("Invoice customer has no valid billing email")
+    const [suppression, settings] = await Promise.all([
+      supabase.from("communication_suppressions").select("address").eq("channel", "email").eq("address", recipient).maybeSingle(),
+      getEmailSettings(),
+    ])
+    if (suppression.error) throw new Error("Could not check customer email preferences")
+    if (suppression.data) throw new Error("Customer has opted out of this communication channel")
+    if (!(settings.provider === "brevo" ? settings.brevoApiKey || process.env.BREVO_API_KEY : settings.resendApiKey || process.env.RESEND_API_KEY)) throw new Error("Configure the current email provider before sending communications")
+    return { context: null, recipient, statusToken: null as string | null }
+  }
   const context = leadId ? await loadCommunicationContext(leadId) : null
   const recipient = channel === "email" ? (context?.lead.email || message.recipient || "").trim().toLowerCase() : normalizeCommunicationPhone(context?.lead.phone || message.recipient || "")
   if (!recipient || (channel === "email" && !z.email().safeParse(recipient).success)) throw new Error(`Recipient does not have a valid ${channel === "email" ? "email address" : "phone number"}`)
@@ -72,8 +95,32 @@ async function checkRecipient(leadId: string | null, channel: "email" | "sms" | 
   return { context, recipient, statusToken: null as string | null }
 }
 
+async function prepareInvoiceCommunication(message: QueuedMessage, workflow: CommunicationWorkflow) {
+  if (!message.invoice_id || !workflow.template_id) throw new Error("Invoice reminder workflow needs a linked invoice and email template")
+  const [invoiceResult, templateResult] = await Promise.all([
+    supabase.from("invoices").select("id,invoice_number,currency,total_amount,balance_due,due_date,businesses:business_id(business_name,primary_contact_name)").eq("id", message.invoice_id).maybeSingle(),
+    supabase.from("communication_templates").select("id,channel,subject,body").eq("id", workflow.template_id).eq("channel", "email").maybeSingle(),
+  ])
+  if (invoiceResult.error || !invoiceResult.data || templateResult.error || !templateResult.data) throw new Error("Could not load the invoice email template and details")
+  const invoice = invoiceResult.data
+  const business = (Array.isArray(invoice.businesses) ? invoice.businesses[0] : invoice.businesses) as { business_name?: string; primary_contact_name?: string } | null
+  const values: Record<string, string> = {
+    name: String(business?.primary_contact_name || business?.business_name || "there"),
+    business: String(business?.business_name || "your business"),
+    invoice: String(invoice.invoice_number || ""),
+    balance: formatMoney(Number(invoice.balance_due), String(invoice.currency || "NGN")),
+    dueDate: String(invoice.due_date || ""),
+    total: formatMoney(Number(invoice.total_amount), String(invoice.currency || "NGN")),
+  }
+  const render = (value: string) => value.replace(/\{\{(name|business|invoice|balance|dueDate|total)\}\}/g, (_match, key: string) => values[key] || "")
+  const body = render(String(templateResult.data.body || ""))
+  const subject = render(String(templateResult.data.subject || ""))
+  if (!body.trim() || !subject.trim()) throw new Error("Invoice email template needs a subject and message")
+  return { decision: "send" as const, subject, body, reason: "Invoice template filled with current billing details", aiProvider: null, aiModel: null }
+}
+
 type QueuedMessage = {
-  id: string; lead_id: string | null; contact_id: string | null; contact_source: string; contact_name: string; recipient: string | null;
+  id: string; lead_id: string | null; invoice_id: string | null; contact_id: string | null; contact_source: string; contact_name: string; recipient: string | null;
   run_id: string | null; workflow_id: string | null; step: number | null;
   channel: "email" | "sms" | "whatsapp" | "call"; mode: "manual" | "template" | "ai"; subject: string; body: string;
   created_by: string; prepared_at: string | null; approved_at: string | null; created_at: string;
@@ -99,7 +146,7 @@ export async function runCommunicationsSweep() {
     const update = (values: Record<string, unknown>) => supabase.from("communication_messages").update(values).eq("id", message.id).eq("claim_token", claim)
     try {
       const actor = await getUserById(message.created_by)
-      if (!actor || actor.status !== "ACTIVE" || !hasPermission(actor.role, "marketing") || !hasPermission(actor.role, "leads")) throw new Error("The sending teammate no longer has communications access")
+      if (!actor || actor.status !== "ACTIVE" || !await hasEffectivePermission(actor.id, actor.role, "marketing", hasPermission(actor.role, "marketing")) || !await hasEffectivePermission(actor.id, actor.role, "leads", hasPermission(actor.role, "leads"))) throw new Error("The sending teammate no longer has communications access")
       let workflow: CommunicationWorkflow | undefined
       let enrolledAt: string | undefined
       if (message.workflow_id) {
@@ -115,20 +162,18 @@ export async function runCommunicationsSweep() {
           enrolledAt = run.data.created_at
         } else if (!workflow.trigger.startsWith("status_incident_")) throw new Error("This workflow message is missing its event enrollment")
         if (workflow.channel !== message.channel || workflow.mode !== message.mode) throw new Error("Workflow changed. Re-enroll the lead before sending.")
-        if (workflow.require_approval && !message.approved_at) {
-          const review = await update({ status: "awaiting_approval", error: "This workflow requires staff approval before sending.", claim_token: null, claim_expires_at: null })
-          if (review.error) throw new Error("Could not hold this message for approval")
-          result.review++; continue
-        }
       }
       let eligibility = await checkRecipient(message.lead_id, message.channel, workflow, enrolledAt, message)
       if (!message.prepared_at) {
         if (message.mode !== "manual") {
-          if (!message.lead_id) throw new Error("AI preparation needs a linked lead conversation")
-          const prepared = await prepareCommunication({ leadId: message.lead_id, channel: message.channel, mode: message.mode, templateId: workflow?.template_id || message.template_id, instructions: workflow?.instructions || message.instructions })
+          const prepared = message.invoice_id && workflow?.trigger === "invoice_unpaid"
+            ? await prepareInvoiceCommunication(message, workflow)
+            : message.lead_id
+              ? await prepareCommunication({ leadId: message.lead_id, channel: message.channel, mode: message.mode, templateId: workflow?.template_id || message.template_id, instructions: workflow?.instructions || message.instructions })
+              : (() => { throw new Error("AI preparation needs a linked lead conversation") })()
           if (prepared.decision === "skip") throw new Error(`AI skipped: ${prepared.reason}`)
           message.subject = prepared.subject; message.body = prepared.body
-          const saved = await update({ subject: prepared.subject, body: prepared.body, ai_provider: prepared.aiProvider, ai_model: prepared.aiModel, context_last_inbound: prepared.lastInbound, prepared_at: new Date().toISOString(), recipient: eligibility.recipient }).select("id").maybeSingle()
+          const saved = await update({ subject: prepared.subject, body: prepared.body, ai_provider: prepared.aiProvider, ai_model: prepared.aiModel, context_last_inbound: "lastInbound" in prepared ? prepared.lastInbound : null, prepared_at: new Date().toISOString(), recipient: eligibility.recipient }).select("id").maybeSingle()
           if (saved.error || !saved.data) throw new Error("Could not retain the exact prepared message")
           if (workflow?.require_approval && !message.approved_at) {
             const review = await update({ status: "awaiting_approval", error: prepared.reason, claim_token: null, claim_expires_at: null })
@@ -140,7 +185,7 @@ export async function runCommunicationsSweep() {
       }
       if (!message.body.trim() || (message.channel === "sms" && message.body.length > 480) || (message.channel === "whatsapp" && message.body.length > 2000)) throw new Error("Message is empty or exceeds the channel length")
       const currentActor = await getUserById(message.created_by)
-      if (!currentActor || currentActor.status !== "ACTIVE" || !hasPermission(currentActor.role, "marketing") || !hasPermission(currentActor.role, "leads")) throw new Error("Sending permissions changed during preparation")
+      if (!currentActor || currentActor.status !== "ACTIVE" || !await hasEffectivePermission(currentActor.id, currentActor.role, "marketing", hasPermission(currentActor.role, "marketing")) || !await hasEffectivePermission(currentActor.id, currentActor.role, "leads", hasPermission(currentActor.role, "leads"))) throw new Error("Sending permissions changed during preparation")
       const recipientSaved = await update({ recipient: eligibility.recipient })
       if (recipientSaved.error) throw new Error("Could not record the dispatch recipient")
       const dispatch = await supabase.rpc("communication_begin_dispatch", { p_id: message.id, p_claim: claim })
@@ -162,6 +207,9 @@ export async function runCommunicationsSweep() {
           metadata: { communication_message_id: message.id, request_id: message.id, workflow_id: message.workflow_id },
         })
         outcome = { status: sent.sent ? "accepted" : "unknown", provider: sent.email?.provider || "configured email", providerId: sent.email?.providerMessageId || undefined, error: sent.error || (sent.sent ? undefined : "Email outcome could not be confirmed. Check the provider before resending.") }
+      } else if (message.invoice_id) {
+        const sent = await sendEmail({ to: eligibility.recipient, subject: message.subject, text: message.body, html: bodyTextToHtml(message.body) })
+        outcome = { status: sent ? "accepted" : "unknown", provider: "configured email", error: sent ? undefined : "Email outcome could not be confirmed. Check provider history before retrying." }
       } else {
         const sent = await sendEmail({ to: eligibility.recipient, subject: message.subject, text: message.body, html: bodyTextToHtml(message.body), route: "marketing",
           headers: eligibility.statusToken ? { "List-Unsubscribe": `<${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/status/unsubscribe?t=${encodeURIComponent(eligibility.statusToken)}>` } : {} })

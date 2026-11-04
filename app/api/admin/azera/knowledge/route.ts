@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
@@ -20,7 +20,7 @@ const articleSchema = z.object({
 
 async function authorize() {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "azera")) return null
+  if (!session || !await hasPermissionForUser(session.userId, session.role as UserRole, "azera")) return null
   return session
 }
 

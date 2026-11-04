@@ -17,6 +17,28 @@ export async function enqueueCommunicationTrigger(trigger: Exclude<Communication
   return workflows?.length || 0
 }
 
+/** Enroll invoice-scoped runs so delivery resolves the customer's current
+ * business contact and billing state at send time, independently of leads. */
+export async function enqueueInvoiceUnpaid(invoiceIds: string[]) {
+  const ids = [...new Set(invoiceIds.filter(Boolean))]
+  if (!ids.length) return 0
+  const { data: workflows, error } = await supabase.from("communication_workflows")
+    .select("id,delay_minutes").eq("trigger", "invoice_unpaid").eq("enabled", true)
+  if (error) throw new Error("Could not load unpaid-invoice workflows")
+  let enrolled = 0
+  const now = Date.now()
+  for (const workflow of workflows || []) {
+    const { data, error: insertError } = await supabase.from("communication_runs").upsert(ids.map((invoice_id) => ({
+      workflow_id: workflow.id, lead_id: null, invoice_id,
+      next_run_at: new Date(now + Number(workflow.delay_minutes) * 60000).toISOString(),
+      status: "active", step: 1,
+    })), { onConflict: "workflow_id,invoice_id", ignoreDuplicates: true }).select("id")
+    if (insertError) throw new Error("Could not enroll invoices in communication workflows")
+    enrolled += data?.length || 0
+  }
+  return enrolled
+}
+
 export async function resolveLeadIdByPhone(value: string) {
   const normalized = normalizeCommunicationPhone(value)
   if (!normalized) return null

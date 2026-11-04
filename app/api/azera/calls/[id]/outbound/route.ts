@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { SIPOutboundConfig, TrackType } from "@livekit/protocol"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import { supabase } from "@/lib/supabase"
 import { getSettings } from "@/lib/settings"
 import { voiceApi, outboundReady, finishOutbound, deleteVoiceRoom } from "@/lib/azera-outbound"
@@ -9,7 +9,7 @@ const err = (error: string, status: number) => NextResponse.json({ error }, { st
 type Context = { params: Promise<{ id: string }> }
 async function ownedCall(context: Context) {
   const session = await getSession()
-  if (!session || !hasPermission(session.role, "azera")) return null
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera")) return null
   const { id } = await context.params
   const { data: call } = await supabase.from("azera_calls").select("*").eq("id", id)
     .eq("agent_user_id", session.userId).eq("sip_provider", "livekit").eq("direction", "outbound").maybeSingle()

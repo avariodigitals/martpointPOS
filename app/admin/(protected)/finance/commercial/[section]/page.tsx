@@ -237,6 +237,8 @@ const ACTIONS: Record<SectionKey, { name: string; label: string }[]> = {
     { name: "add_item", label: "Add Item" },
     { name: "remove_item", label: "Remove Item" },
     { name: "issue", label: "Issue" },
+    { name: "send_sms_reminder", label: "Send SMS Reminder (manual)" },
+    { name: "waive", label: "Waive" },
     { name: "void", label: "Void" },
     { name: "cancel", label: "Cancel" },
   ],
@@ -631,6 +633,8 @@ export default function CommercialSectionPage() {
   const [selectedAction, setSelectedAction] = useState("")
   const [actionData, setActionData] = useState("")
   const [actionReason, setActionReason] = useState("")
+  const [smsReminderTemplates, setSmsReminderTemplates] = useState<{ id: string; name: string; body: string }[]>([])
+  const [smsReminderTemplateId, setSmsReminderTemplateId] = useState("")
   const [waiveReason, setWaiveReason] = useState("")
   const [working, setWorking] = useState(false)
   const [search, setSearch] = useState(() => searchParams.get("invoice_id") || searchParams.get("quote_id") || "")
@@ -987,6 +991,44 @@ export default function CommercialSectionPage() {
         }
         payload = { id: selectedRow?.id, reason: actionReason.trim() }
       }
+      if (selectedAction === "send_sms_reminder") {
+        if (!smsReminderTemplateId) {
+          setMessage("Choose an SMS template")
+          setWorking(false)
+          return
+        }
+        payload = { id: selectedRow?.id, template_id: smsReminderTemplateId }
+      }
+      if (selectedAction === "cancel") {
+        if (actionReason.trim().length < 5) {
+          setMessage("Enter a cancellation reason of at least 5 characters")
+          setWorking(false)
+          return
+        }
+        payload = { id: selectedRow?.id, reason: actionReason.trim() }
+      }
+      if (selectedAction === "void") {
+        if (actionReason.trim().length < 5) {
+          setMessage("Enter a reason of at least 5 characters")
+          setWorking(false)
+          return
+        }
+        payload = { id: selectedRow?.id, reason: actionReason.trim() }
+      }
+      if (selectedAction === "waive" && waiveReason.trim().length < 5) {
+        setMessage("Enter a waiver reason of at least 5 characters")
+        setWorking(false)
+        return
+      }
+      const approvalReasonRequired = ["confirm", "reverse", "suspend", "cancel_subscription", "approve", "mark_paid"].includes(selectedAction)
+      if (approvalReasonRequired) {
+        if (actionReason.trim().length < 5) {
+          setMessage("Enter a reason of at least 5 characters")
+          setWorking(false)
+          return
+        }
+        payload = { ...(payload as Record<string, unknown>), id: selectedRow?.id, reason: actionReason.trim() }
+      }
       const res = await fetch(`/api/admin/finance/commercial/${resource}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -994,7 +1036,8 @@ export default function CommercialSectionPage() {
       })
       const data = (await res.json()) as ApiResponse
       if (data.success) {
-        setMessage("Action successful")
+        const actionResult = data.data && !Array.isArray(data.data) ? data.data : null
+        setMessage(selectedAction === "send_sms_reminder" ? "SMS reminder sent." : actionResult?.approvalRequired ? "Approval request submitted." : "Action successful")
         setActionOpen(false)
         setWaiveReason("")
         setActionReason("")
@@ -1075,10 +1118,19 @@ export default function CommercialSectionPage() {
     setSelectedAction(actionName || (actions.length ? actions[0].name : ""))
     setActionData(JSON.stringify({ id: row.id }, null, 2))
     setActionReason("")
+    setSmsReminderTemplateId("")
     setActionBusinessId(String(row.business_id || ""))
     setActionDueDate("")
     setActionOpen(true)
   }
+
+  useEffect(() => {
+    if (resource !== "invoices") return
+    fetch("/api/admin/finance/invoice-sms-templates")
+      .then((res) => res.json())
+      .then((data: { templates?: { id: string; name: string; body: string }[] }) => setSmsReminderTemplates(data.templates || []))
+      .catch(() => setSmsReminderTemplates([]))
+  }, [resource])
 
   async function applyQuoteAction(row: Row, action: string) {
     if (action === "attach_business" || action === "convert") {
@@ -1324,6 +1376,21 @@ export default function CommercialSectionPage() {
   const selectedPartnerLead = selectedRow?.partner_leads && typeof selectedRow.partner_leads === "object"
     ? (Array.isArray(selectedRow.partner_leads) ? selectedRow.partner_leads[0] : selectedRow.partner_leads) as Row | null
     : null
+  const smsReminderPreview = useMemo(() => {
+    const template = smsReminderTemplates.find((item) => item.id === smsReminderTemplateId)
+    if (!template) return ""
+    const businesses = selectedRow?.businesses
+    const business = (Array.isArray(businesses) ? businesses[0] : businesses) as Row | null
+    const vars: Record<string, string> = {
+      name: String(business?.primary_contact_name || business?.business_name || "there"),
+      business: String(business?.business_name || "your business"),
+      invoice: String(selectedRow?.invoice_number || ""),
+      balance: formatMoneyIn(selectedRow?.balance_due as number | string | undefined, String(selectedRow?.currency || "NGN")),
+      dueDate: String(selectedRow?.due_date || ""),
+      total: formatMoneyIn(selectedRow?.total_amount as number | string | undefined, String(selectedRow?.currency || "NGN")),
+    }
+    return template.body.replace(/\{\{(name|business|invoice|balance|dueDate|total)\}\}/g, (_match, key: string) => vars[key] || "")
+  }, [smsReminderTemplates, smsReminderTemplateId, selectedRow])
   const convertingNeedsCustomerSetup = selectedAction === "convert" && Boolean(selectedRow && !selectedRow.business_id)
 
   if (!resource) {
@@ -1850,6 +1917,26 @@ export default function CommercialSectionPage() {
                 />
               </div>
             </div>
+          ) : selectedAction === "cancel" || selectedAction === "void" ? (
+            <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+              <p className="text-sm text-amber-950">The approval policy controls whether this action applies immediately or waits for an approver.</p>
+              <label className="block space-y-1.5 text-sm font-medium">Reason for {selectedAction === "cancel" ? "cancellation" : "voiding"}
+                <textarea value={actionReason} onChange={(event) => setActionReason(event.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-normal" rows={3} placeholder="Explain why this invoice should be changed" />
+              </label>
+            </div>
+          ) : selectedAction === "send_sms_reminder" ? (
+            <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3">
+              <p className="text-sm text-blue-950">This sends one SMS now to the customer&apos;s primary phone. It is not part of the automatic reminder schedule. Customers who opted out cannot receive it.</p>
+              <label className="block space-y-1.5 text-sm font-medium">SMS template
+                <select value={smsReminderTemplateId} onChange={(event) => setSmsReminderTemplateId(event.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-normal">
+                  <option value="">Choose template…</option>
+                  {smsReminderTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+                </select>
+              </label>
+              <p className="text-xs text-blue-900">Available template fields: <code>{"{{name}}"}</code>, <code>{"{{business}}"}</code>, <code>{"{{invoice}}"}</code>, <code>{"{{balance}}"}</code>, <code>{"{{dueDate}}"}</code>, <code>{"{{total}}"}</code>.</p>
+              {smsReminderTemplateId && <div className="rounded-md bg-white p-3 text-sm whitespace-pre-wrap">{smsReminderPreview}</div>}
+              {smsReminderTemplates.length === 0 && <p className="text-xs text-amber-800">Create an SMS template in Communications before sending an invoice reminder.</p>}
+            </div>
           ) : selectedAction === "waive" ? (
             <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
               <p className="text-sm text-amber-800">
@@ -1868,6 +1955,16 @@ export default function CommercialSectionPage() {
                 />
               </div>
             </div>
+          ) : ["confirm", "reverse", "suspend", "cancel_subscription", "approve", "mark_paid"].includes(selectedAction) ? (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Reason for this action *</label>
+                <textarea value={actionReason} onChange={(event) => setActionReason(event.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} placeholder="Explain why this action is needed" />
+              </div>
+              <label className="block space-y-1.5 text-sm font-medium">Action details (JSON)
+                <textarea value={actionData} onChange={(event) => setActionData(event.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono font-normal" rows={5} />
+              </label>
+            </div>
           ) : (
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Action Data (JSON)</label>
@@ -1884,11 +1981,11 @@ export default function CommercialSectionPage() {
             <Button variant="outline" onClick={() => setActionOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={runAction} disabled={working}>
+            <Button onClick={runAction} disabled={working || (selectedAction === "send_sms_reminder" && !smsReminderTemplateId) || ((selectedAction === "cancel" || selectedAction === "void") && actionReason.trim().length < 5) || (["confirm", "reverse", "suspend", "cancel_subscription", "approve", "mark_paid"].includes(selectedAction) && actionReason.trim().length < 5) || (selectedAction === "waive" && waiveReason.trim().length < 5)}>
               {working && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
               {selectedAction === "convert" && convertingNeedsCustomerSetup
                 ? "Create business & convert"
-                : selectedAction === "create_business" ? "Create customer business" : "Confirm action"}
+                : selectedAction === "create_business" ? "Create customer business" : selectedAction === "send_sms_reminder" ? "Send SMS now" : selectedAction === "cancel" || selectedAction === "void" || selectedAction === "waive" ? "Confirm invoice action" : "Confirm action"}
             </Button>
           </div>
         </div>

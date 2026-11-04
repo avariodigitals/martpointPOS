@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
-import { hasFinanceAction } from "@/lib/finance-permissions"
+import { hasFinanceActionForUser } from "@/lib/finance-permissions"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { generateBooksReviewPdf } from "@/lib/books-report-pdf"
 
@@ -8,7 +8,7 @@ import { generateBooksReviewPdf } from "@/lib/books-report-pdf"
 export async function GET(request: Request) {
   const { session, denied } = await authorizeAdmin("finance")
   if (denied) return denied
-  if (!session || !hasFinanceAction(session.role, "finance:reports:view")) {
+  if (!session || !await hasFinanceActionForUser(session.userId, session.role, "finance:reports:view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Database not configured" }, { status: 500 })

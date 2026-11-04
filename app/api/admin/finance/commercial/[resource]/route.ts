@@ -2,7 +2,7 @@
 
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/admin-auth"
-import { hasFinanceAction, type FinanceAction } from "@/lib/finance-permissions"
+import { hasFinanceActionForUser, type FinanceAction } from "@/lib/finance-permissions"
 import type { UserRole } from "@/lib/admin-types"
 import { supabase } from "@/lib/supabase"
 import {
@@ -43,6 +43,9 @@ import { resolveQuoteTemplate } from "@/lib/quote-templates"
 import { notifyPartnerQuoteIssued } from "@/lib/partner-notifications"
 import { notifyAllAdmins } from "@/lib/admin-notifications"
 import { reopenPartnerQuoteForRevision } from "@/lib/partner-quote-revision"
+import { sendCommunicationSms } from "@/lib/communication-sms"
+import { normalizeCommunicationPhone } from "@/lib/communications-policy"
+import { formatMoney } from "@/lib/money-format"
 
 type Action = string
 
@@ -51,7 +54,7 @@ const resourceActionMap: Record<string, Record<string, FinanceAction | null | un
   plans: { list: "finance:view", get: "finance:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: null, set_active: "finance:subscriptions:manage", set_inactive: "finance:subscriptions:manage", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   addons: { list: "finance:view", get: "finance:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: null, set_active: "finance:subscriptions:manage", set_inactive: "finance:subscriptions:manage", issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   quotes: { list: "finance:view", get: "finance:view", create: "finance:quotes:create", update: "finance:quotes:create", delete: "finance:quotes:create", add_item: "finance:quotes:create", remove_item: "finance:quotes:create", attach_business: "finance:quotes:create", create_business: "finance:quotes:create", send: "finance:quotes:create", accept: "finance:quotes:approve", decline: "finance:quotes:approve", expire: "finance:quotes:approve", convert: "finance:invoices:create", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, activate: null, suspend: null, renew: null, cancel_subscription: null, confirm: null, reverse: null, allocate: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
-  invoices: { list: "finance:view", get: "finance:view", create: "finance:invoices:create", update: "finance:invoices:create", delete: "finance:invoices:create", add_item: "finance:invoices:create", remove_item: "finance:invoices:create", issue: "finance:invoices:issue", void: "finance:invoices:void", cancel: "finance:invoices:void", waive: "finance:invoices:void", reopen: "finance:invoices:void", set_active: null, set_inactive: null, send: "finance:invoices:issue", send_reminder: "finance:invoices:issue", pause_reminders: "finance:invoices:create", resume_reminders: "finance:invoices:create", accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
+  invoices: { list: "finance:view", get: "finance:view", create: "finance:invoices:create", update: "finance:invoices:create", delete: "finance:invoices:create", add_item: "finance:invoices:create", remove_item: "finance:invoices:create", issue: "finance:invoices:issue", void: "finance:invoices:void", cancel: "finance:invoices:void", waive: "finance:invoices:void", reopen: "finance:invoices:void", set_active: null, set_inactive: null, send: "finance:invoices:issue", send_reminder: "finance:invoices:issue", send_sms_reminder: "finance:invoices:remind", pause_reminders: "finance:invoices:create", resume_reminders: "finance:invoices:create", accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   payments: { list: "finance:view", get: "finance:payments:view", create: "finance:payments:record", confirm: "finance:payments:confirm", reject: "finance:payments:confirm", reverse: "finance:payments:reverse", allocate: "finance:payments:record", update: "finance:payments:record", delete: "finance:payments:record", receipt: "finance:payments:record", send_receipt: "finance:payments:record", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, refresh: null },
   subscriptions: { list: "finance:view", get: "finance:subscriptions:view", create: "finance:subscriptions:manage", update: "finance:subscriptions:manage", delete: "finance:subscriptions:manage", activate: "finance:subscriptions:manage", waive: "finance:subscriptions:manage", suspend: "finance:subscriptions:manage", cancel_subscription: "finance:subscriptions:manage", renew: "finance:renewals:manage", add_addon: "finance:subscriptions:manage", remove_addon: "finance:subscriptions:manage", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, approve: null, mark_paid: null, schedule: null, link_invoice: null, evaluate: null, receipt: null, refresh: null },
   renewals: { list: "finance:view", get: "finance:view", create: "finance:renewals:manage", update: "finance:renewals:manage", delete: "finance:renewals:manage", link_invoice: "finance:renewals:manage", refresh: "finance:renewals:manage", set_active: null, set_inactive: null, issue: null, void: null, cancel: null, send: null, accept: null, decline: null, expire: null, convert: null, confirm: null, reverse: null, allocate: null, activate: null, suspend: null, renew: null, cancel_subscription: null, add_item: null, remove_item: null, add_addon: null, remove_addon: null, approve: null, mark_paid: null, schedule: null, evaluate: null, receipt: null },
@@ -62,13 +65,13 @@ const resourceActionMap: Record<string, Record<string, FinanceAction | null | un
   licences_sold: { list: "finance:view", get: "finance:view" },
 }
 
-function requireActionPerm(resource: string, action: Action, role: string | undefined): boolean {
+async function requireActionPerm(resource: string, action: Action, role: string | undefined, userId: string): Promise<boolean> {
   if (role === "Admin") return true
   const map = resourceActionMap[resource]
   if (!map) return false
   const permission = map[action]
   if (permission === null || permission === undefined) return false
-  return hasFinanceAction(role as UserRole, permission)
+  return hasFinanceActionForUser(userId, role as UserRole, permission)
 }
 
 function ok<T>(data: T) {
@@ -87,6 +90,52 @@ async function getActor() {
 
 function now() {
   return new Date().toISOString()
+}
+
+async function requestInvoiceApproval(actor: { id: string; role: string; name: string }, action: "cancel" | "void" | "waive", id: string, reasonValue: unknown) {
+  const reason = String(reasonValue || "").trim()
+  if (!id || reason.length < 5) return err("Enter a reason of at least 5 characters")
+  const { data: invoice, error: invoiceError } = await supabase.from("invoices")
+    .select("id,invoice_number,status,balance_due,businesses:business_id(business_name)").eq("id", id).maybeSingle()
+  if (invoiceError || !invoice) return err("Invoice not found", 404)
+  if (["CANCELLED", "VOID", "WAIVED", "PAID"].includes(String(invoice.status).toUpperCase())) return err("This invoice cannot be changed in its current state", 409)
+  const business = Array.isArray(invoice.businesses) ? invoice.businesses[0] : invoice.businesses
+  const result = await supabase.from("approval_requests").insert({
+    action_key: `finance.invoice.${action}`, entity_type: "INVOICE", entity_id: id,
+    entity_reference: String(invoice.invoice_number || id), reason,
+    details: { status_at_request: invoice.status, balance_due: invoice.balance_due, business_name: business?.business_name || "" },
+    requested_by: actor.id, requested_by_name: actor.name, requested_by_role: actor.role,
+  }).select().single()
+  if (result.error) return err(result.error.code === "23505" ? "A request for this invoice is already pending" : "Could not create the approval request", result.error.code === "23505" ? 409 : 500)
+  await logFinanceAudit("ADMIN", actor.id, `INVOICE_${action.toUpperCase()}_REQUESTED`, "INVOICE", id, { approval_request_id: result.data.id, reason })
+  await notifyCommercialAction({ resource: "invoices", action: `request_${action}`, actorName: actor.name, sourceId: id, reference: invoice.invoice_number, detail: `Invoice ${action} requested: ${reason}` })
+  return ok({ approvalRequired: true, request: result.data })
+}
+
+const approvalActionByResource: Record<string, Record<string, string>> = {
+  payments: { confirm: "finance.payment.confirm", reverse: "finance.payment.reverse" },
+  subscriptions: { waive: "finance.subscription.waive", suspend: "finance.subscription.suspend", cancel_subscription: "finance.subscription.cancel" },
+  commissions: { approve: "finance.commission.approve" },
+  payouts: { mark_paid: "finance.payout.mark_paid" },
+}
+
+async function requestFinanceApproval(actor: { id: string; role: string; name: string }, actionKey: string, resource: string, id: string, data: Record<string, unknown>) {
+  const reason = String(data.reason || "").trim()
+  if (!id || reason.length < 5) return err("Enter a reason of at least 5 characters")
+  const tableByResource: Record<string, string> = { payments: "payments", subscriptions: "subscriptions", commissions: "partner_commissions", payouts: "commission_payouts" }
+  const table = tableByResource[resource]
+  if (!table) return err("This action cannot be submitted for approval", 409)
+  const { data: entity, error: entityError } = await supabase.from(table).select("id,status").eq("id", id).maybeSingle()
+  if (entityError || !entity) return err("Record not found", 404)
+  const result = await supabase.from("approval_requests").insert({
+    action_key: actionKey, entity_type: resource.toUpperCase(), entity_id: id, entity_reference: id,
+    reason, details: { status_at_request: entity.status, payload: data },
+    requested_by: actor.id, requested_by_name: actor.name, requested_by_role: actor.role,
+  }).select().single()
+  if (result.error) return err(result.error.code === "23505" ? "A request for this action is already pending" : "Could not create the approval request", result.error.code === "23505" ? 409 : 500)
+  await logFinanceAudit("ADMIN", actor.id, `${actionKey.toUpperCase().replaceAll(".", "_")}_REQUESTED`, resource.toUpperCase(), id, { approval_request_id: result.data.id, reason })
+  await notifyCommercialAction({ resource, action: `request_${actionKey.split(".").at(-1)}`, actorName: actor.name, sourceId: id, reference: id, detail: `${actionKey.split(".").at(-1)} requested: ${reason}` })
+  return ok({ approvalRequired: true, request: result.data })
 }
 
 /**
@@ -225,7 +274,7 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
   const actor = await getActor()
   if (!actor) return err("Unauthorized", 401)
   const { resource } = await props.params
-  if (!requireActionPerm(resource, "list", actor.role)) return err("Forbidden", 403)
+  if (!await requireActionPerm(resource, "list", actor.role, actor.id)) return err("Forbidden", 403)
 
   try {
     const { searchParams } = new URL(request.url)
@@ -262,7 +311,7 @@ export async function GET(request: Request, props: { params: Promise<{ resource:
     }
 
     if (resource === "invoices") {
-      let q = supabase.from("invoices").select("*, invoice_items(*), businesses:business_id (business_name)")
+      let q = supabase.from("invoices").select("*, invoice_items(*), businesses:business_id (business_name, primary_contact_name, primary_phone)")
       if (businessId) q = q.eq("business_id", businessId)
       if (status) q = q.eq("status", status)
       const { data, error } = id ? await q.eq("id", id).single() : await q.order("created_at", { ascending: false })
@@ -360,7 +409,23 @@ export async function POST(request: Request, props: { params: Promise<{ resource
     const body = await request.json()
     const { action, data } = body as { action: Action; data: any }
     if (!action) return err("Missing action")
-    if (!requireActionPerm(resource, resource === "quotes" && action === "revise" ? "update" : action, actor.role)) return err("Forbidden", 403)
+    const invoiceApprovalAction = resource === "invoices" && ["cancel", "void", "waive"].includes(action) ? action as "cancel" | "void" | "waive" : null
+    const invoiceApprovalPolicy = invoiceApprovalAction
+      ? await supabase.from("approval_policies").select("enabled").eq("action_key", `finance.invoice.${invoiceApprovalAction}`).maybeSingle()
+      : null
+    if (invoiceApprovalPolicy?.error) return err("Apply migration 167 to use invoice approvals", 503)
+    const actionUsesApproval = invoiceApprovalPolicy?.data?.enabled === true
+    const configuredApprovalKey = approvalActionByResource[resource]?.[action]
+    const configuredApprovalPolicy = configuredApprovalKey
+      ? await supabase.from("approval_policies").select("enabled").eq("action_key", configuredApprovalKey).maybeSingle()
+      : null
+    if (configuredApprovalPolicy?.error) return err("Apply migration 167 to use approval workflows", 503)
+    const usesConfiguredApproval = configuredApprovalPolicy?.data?.enabled === true
+    if (usesConfiguredApproval && configuredApprovalKey && !await requireActionPerm(resource, action, actor.role, actor.id)) return err("Forbidden", 403)
+    if (usesConfiguredApproval && !await hasFinanceActionForUser(actor.id, actor.role, "finance:approvals:request")) return err("You cannot request this action", 403)
+    if (actionUsesApproval && !await hasFinanceActionForUser(actor.id, actor.role, "finance:invoices:approval_request")) return err("You cannot request this invoice action", 403)
+    if (!actionUsesApproval && !usesConfiguredApproval && !await requireActionPerm(resource, resource === "quotes" && action === "revise" ? "update" : action, actor.role, actor.id)) return err("Forbidden", 403)
+    if (usesConfiguredApproval && configuredApprovalKey) return requestFinanceApproval(actor, configuredApprovalKey, resource, String(data?.id || ""), data || {})
 
     if (resource === "products") {
       if (action === "create") {
@@ -786,6 +851,41 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: data.id, reference: data.id, detail: "Payment reminder sent to the customer." })
         return ok({ sentTo: r.sentTo })
       }
+      if (action === "send_sms_reminder") {
+        const invoiceId = String(data.id || "")
+        const templateId = String(data.template_id || "")
+        if (!invoiceId || !templateId) return err("Invoice and SMS template are required")
+        const { data: invoice, error: invoiceError } = await supabase.from("invoices")
+          .select("id,invoice_number,status,currency,total_amount,balance_due,due_date,businesses:business_id(business_name,primary_contact_name,primary_phone)")
+          .eq("id", invoiceId).maybeSingle()
+        if (invoiceError || !invoice) return err("Invoice not found", 404)
+        if (!["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(String(invoice.status).toUpperCase()) || Number(invoice.balance_due) <= 0) return err("Only an unpaid issued invoice can receive a payment reminder")
+        const business = (Array.isArray(invoice.businesses) ? invoice.businesses[0] : invoice.businesses) as { business_name?: string; primary_contact_name?: string; primary_phone?: string } | null
+        const phone = normalizeCommunicationPhone(String(business?.primary_phone || ""))
+        if (!phone) return err("The customer has no valid phone number")
+        const [templateResult, suppressionResult] = await Promise.all([
+          supabase.from("communication_templates").select("id,name,body").eq("id", templateId).eq("channel", "sms").maybeSingle(),
+          supabase.from("communication_suppressions").select("address").eq("channel", "sms").eq("address", phone).maybeSingle(),
+        ])
+        if (templateResult.error || !templateResult.data) return err("Choose a valid SMS template")
+        if (suppressionResult.error) return err("Could not verify whether the customer opted out", 503)
+        if (suppressionResult.data) return err("This customer has opted out of SMS reminders")
+        const replacements: Record<string, string> = {
+          name: String(business?.primary_contact_name || business?.business_name || "there"),
+          business: String(business?.business_name || "your business"),
+          invoice: String(invoice.invoice_number || ""),
+          balance: formatMoney(Number(invoice.balance_due), String(invoice.currency || "NGN")),
+          dueDate: String(invoice.due_date || ""),
+          total: formatMoney(Number(invoice.total_amount), String(invoice.currency || "NGN")),
+        }
+        const body = String(templateResult.data.body || "").replace(/\{\{(name|business|invoice|balance|dueDate|total)\}\}/g, (_match, key: string) => replacements[key] || "")
+        if (!body.trim() || body.length > 480) return err("The rendered SMS must contain 1–480 characters")
+        const delivery = await sendCommunicationSms(phone, body)
+        if (delivery.status !== "accepted") return err(delivery.error || "SMS delivery could not be confirmed", delivery.status === "unknown" ? 502 : 400)
+        await logFinanceAudit("ADMIN", actor.id, "INVOICE_SMS_REMINDER_SENT", "INVOICE", invoiceId, { template_id: templateId, template_name: templateResult.data.name, phone, provider: delivery.provider, provider_message_id: delivery.providerId || null })
+        await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: invoiceId, reference: invoice.invoice_number, detail: `Manual SMS payment reminder sent using “${templateResult.data.name}”.` })
+        return ok({ sentTo: phone, provider: delivery.provider, providerMessageId: delivery.providerId || null })
+      }
       if (action === "pause_reminders" || action === "resume_reminders") {
         const paused = action === "pause_reminders"
         const { data: inv, error } = await supabase.from("invoices").update({ reminders_paused: paused, updated_at: now() }).eq("id", data.id).select().single()
@@ -796,6 +896,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       }
       if (action === "void") {
         const { id } = data
+        if (actionUsesApproval) return requestInvoiceApproval(actor, "void", String(id || ""), data.reason)
         const { data: inv, error } = await supabase.from("invoices").update({ status: "VOID", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_VOIDED", "INVOICE", id)
@@ -805,6 +906,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       }
       if (action === "waive") {
         const { id, reason } = data
+        if (actionUsesApproval) return requestInvoiceApproval(actor, "waive", String(id || ""), reason)
         if (!id) return err("Invoice ID required")
         const waiverReason = (reason || "").trim() || "Waived by finance"
         const { data: inv, error } = await supabase.from("invoices").update({
@@ -821,6 +923,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       }
       if (action === "cancel") {
         const { id } = data
+        if (actionUsesApproval) return requestInvoiceApproval(actor, "cancel", String(id || ""), data.reason)
         const { data: inv, error } = await supabase.from("invoices").update({ status: "CANCELLED", updated_at: now() }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
         await syncInvoiceFinanceTransaction(id)

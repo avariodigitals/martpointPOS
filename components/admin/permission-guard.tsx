@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { hasGrowthWorkspaceAccess } from "@/lib/admin-navigation"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
+import { useToast } from "@/components/admin/admin-toast"
 
 const pageMap: Record<string, string> = {
   "/admin": "dashboard",
@@ -21,6 +22,7 @@ const pageMap: Record<string, string> = {
   "/admin/integrations": "integrations",
   "/admin/users": "users",
   "/admin/finance": "finance",
+  "/admin/approvals": "approvals",
   "/admin/partners": "partners",
   "/admin/partners/quotes": "partner_quotes",
   "/admin/tasks": "tasks",
@@ -85,14 +87,40 @@ export function PermissionGuard({
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const { toast } = useToast()
+  const lastDeniedPath = useRef("")
+  const [overrides, setOverrides] = useState<Record<string, "allow" | "deny"> | null>(null)
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false)
+  const page = matchPage(pathname)
+  useEffect(() => {
+    let active = true
+    setPermissionsLoaded(false)
+    fetch("/api/admin/my-permissions").then((response) => response.ok ? response.json() : null).then((data) => {
+      if (!active) return
+      setOverrides(data?.overrides || {})
+      setPermissionsLoaded(true)
+    }).catch(() => {
+      if (!active) return
+      setOverrides({})
+      setPermissionsLoaded(true)
+    })
+    return () => { active = false }
+  }, [pathname])
+  const roleAllowed = page === "growth_workspace" ? hasGrowthWorkspaceAccess(role) : !page || hasPermission(role, page)
+  const override = page ? overrides?.[page] : undefined
+  const allowed = permissionsLoaded && (override === "allow" ? true : override === "deny" ? false : roleAllowed)
 
   useEffect(() => {
-    const page = matchPage(pathname)
-    const allowed = page === "growth_workspace" ? hasGrowthWorkspaceAccess(role) : !page || hasPermission(role, page)
-    if (!allowed) {
+    if (permissionsLoaded && !allowed) {
+      if (lastDeniedPath.current !== pathname) {
+        lastDeniedPath.current = pathname
+        toast({ title: "Unauthorized", description: "You do not have access to this page. Ask an Admin if you need access.", variant: "error" })
+      }
       router.replace("/admin")
+    } else {
+      lastDeniedPath.current = ""
     }
-  }, [pathname, role, router])
+  }, [allowed, permissionsLoaded, pathname, router, toast])
 
-  return <>{children}</>
+  return allowed ? <>{children}</> : null
 }

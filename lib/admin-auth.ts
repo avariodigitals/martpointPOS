@@ -3,10 +3,11 @@ import { redirect } from "next/navigation"
 import { NextResponse } from "next/server"
 import crypto from "crypto"
 import type { User, UserRole, SessionPayload, AdminAction } from "./admin-types"
-import { authorize } from "./admin-types"
+import { authorize, hasPermission as roleHasPermission } from "./admin-types"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { hashPassword, verifyPassword } from "./crypto"
 import { signSession, verifySession } from "./session-secret"
+import { hasEffectivePermission } from "./permission-overrides"
 export type { User, UserRole, SessionPayload }
 
 const ADMIN_COOKIE_NAME = "admin-session"
@@ -383,6 +384,11 @@ export async function clearAdminCookie() {
 export { hasPermission, ROLE_PERMISSIONS, authorize, ALL_ROLES, ROLE_DESCRIPTIONS } from "./admin-types"
 export type { AdminAction } from "./admin-types"
 
+/** Server permission check for routes that use a custom session guard. */
+export async function hasPermissionForUser(userId: string, role: UserRole, page: string): Promise<boolean> {
+  return hasEffectivePermission(userId, role, page, roleHasPermission(role, page))
+}
+
 // Alias for backward compatibility
 export async function setAdminCookie() {
   // No-op: use setSessionCookie with real payload instead
@@ -407,7 +413,9 @@ export async function authorizeAdmin(
       denied: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     }
   }
-  if (!authorize(session, page, action)) {
+  const roleAllowed = authorize(session, page, action)
+  const overrideKey = action ? `${page}:${action}` : page
+  if (!(await hasEffectivePermission(session.userId, session.role, overrideKey, roleAllowed))) {
     return {
       session: null,
       denied: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
@@ -428,7 +436,9 @@ export async function requireAdminPage(
   if (!session) {
     redirect("/admin/login")
   }
-  if (!authorize(session, page, action)) {
+  const roleAllowed = authorize(session, page, action)
+  const overrideKey = action ? `${page}:${action}` : page
+  if (!(await hasEffectivePermission(session.userId, session.role, overrideKey, roleAllowed))) {
     redirect("/admin")
   }
   return session as SessionPayload

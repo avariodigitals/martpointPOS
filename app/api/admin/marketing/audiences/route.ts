@@ -1,6 +1,7 @@
+import { loadMarketingContacts } from "@/lib/marketing-contacts"
 import { NextResponse } from "next/server"
 import crypto from "crypto"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { parseManualEmails } from "@/lib/marketing"
@@ -8,7 +9,7 @@ import { normalizeCommunicationPhone } from "@/lib/communications-policy"
 
 async function guardMarketingAccess() {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "marketing")) {
+  if (!session || !await hasPermissionForUser(session.userId, session.role as UserRole, "marketing")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   return null
@@ -33,9 +34,8 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch audiences" }, { status: 500 })
   }
 
-  const { data: contacts } = await supabase
-    .from("marketing_contacts")
-    .select("audience_id,email,phone,sms_consent_at")
+  const { data: contacts, error: contactsError } = await loadMarketingContacts()
+  if (contactsError) return NextResponse.json({ error: "Failed to load audience contacts" }, { status: 500 })
 
   const counts = new Map<string, number>()
   const smsCounts = new Map<string, number>()

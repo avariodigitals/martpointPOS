@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, hasPermission } from "@/lib/admin-auth";
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth";
 import { supabase } from "@/lib/supabase";
 import { africaBrowserConfig } from "@/lib/africa-browser-voice";
 
@@ -11,7 +11,7 @@ const reply = (body: unknown, status = 200) => NextResponse.json(body, { status,
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session || !hasPermission(session.role, "azera")) return reply({ error: "Forbidden" }, 403);
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera")) return reply({ error: "Forbidden" }, 403);
   try {
     const { id } = await params;
     const body = await request.json();

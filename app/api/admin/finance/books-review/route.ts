@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
-import { hasFinanceAction } from "@/lib/finance-permissions"
+import { hasFinanceActionForUser } from "@/lib/finance-permissions"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { runBooksReview } from "@/lib/books-review"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
@@ -9,7 +9,7 @@ import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } f
 export async function GET() {
   const { session, denied } = await authorizeAdmin("finance")
   if (denied) return denied
-  if (!session || !hasFinanceAction(session.role, "finance:reports:view")) {
+  if (!session || !await hasFinanceActionForUser(session.userId, session.role, "finance:reports:view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Database not configured" }, { status: 500 })
@@ -28,7 +28,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const { session, denied } = await authorizeAdmin("finance")
   if (denied) return denied
-  if (!session || !hasFinanceAction(session.role, "finance:reports:view")) {
+  if (!session || !await hasFinanceActionForUser(session.userId, session.role, "finance:reports:view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

@@ -1,4 +1,6 @@
 import { supabase, isSupabaseConfigured } from "./supabase"
+import { hasPermissionForUser } from "./admin-auth"
+import type { UserRole } from "./admin-types"
 
 export type SearchResult = {
   type: string
@@ -138,18 +140,23 @@ async function searchSupportTickets(q: string): Promise<SearchResult[]> {
   }))
 }
 
-export async function globalSearch(q: string): Promise<SearchResult[]> {
+export async function globalSearch(q: string, role: UserRole, userId: string): Promise<SearchResult[]> {
   if (!isSupabaseConfigured() || !q.trim()) return []
 
+  const [businessAccess, leadAccess, partnerAccess, financeAccess, supportAccess] = await Promise.all([
+    hasPermissionForUser(userId, role, "businesses"), hasPermissionForUser(userId, role, "leads"),
+    hasPermissionForUser(userId, role, "partners"), hasPermissionForUser(userId, role, "finance"),
+    hasPermissionForUser(userId, role, "support"),
+  ])
   const [businesses, leads, partners, applications, partnerLeads, invoices, payments, tickets] = await Promise.all([
-    searchBusinesses(q),
-    searchLeads(q),
-    searchPartners(q),
-    searchPartnerApplications(q),
-    searchPartnerLeads(q),
-    searchInvoices(q),
-    searchPayments(q),
-    searchSupportTickets(q),
+    businessAccess ? searchBusinesses(q) : Promise.resolve([]),
+    leadAccess ? searchLeads(q) : Promise.resolve([]),
+    partnerAccess ? searchPartners(q) : Promise.resolve([]),
+    partnerAccess ? searchPartnerApplications(q) : Promise.resolve([]),
+    partnerAccess ? searchPartnerLeads(q) : Promise.resolve([]),
+    financeAccess ? searchInvoices(q) : Promise.resolve([]),
+    financeAccess ? searchPayments(q) : Promise.resolve([]),
+    supportAccess ? searchSupportTickets(q) : Promise.resolve([]),
   ])
 
   return [

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import { supabase } from "@/lib/supabase"
 const err = (error: string, status: number) =>
   NextResponse.json({ error }, { status })
@@ -8,7 +8,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession()
-  if (!session || !hasPermission(session.role, "azera"))
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "azera"))
     return err("Forbidden", 403)
   try {
     const { id } = await params

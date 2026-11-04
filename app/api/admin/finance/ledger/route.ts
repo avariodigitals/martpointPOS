@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
-import { hasFinanceAction } from "@/lib/finance-permissions"
+import { hasFinanceActionForUser } from "@/lib/finance-permissions"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import {
   getAccountStatement,
@@ -24,7 +24,7 @@ const err = (message: string, status = 400) => NextResponse.json({ success: fals
 export async function GET(request: Request) {
   const { session, denied } = await authorizeAdmin("finance")
   if (denied) return denied
-  if (!session || !hasFinanceAction(session.role, "finance:view")) return err("Forbidden", 403)
+  if (!session || !await hasFinanceActionForUser(session.userId, session.role, "finance:view")) return err("Forbidden", 403)
   if (!isSupabaseConfigured()) return err("Database not configured", 500)
 
   try {
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { resource, action } = body as { resource: string; action?: string }
     const now = () => new Date().toISOString()
-    const canManage = hasFinanceAction(session.role, "finance:accounts:manage")
+    const canManage = await hasFinanceActionForUser(session.userId, session.role, "finance:accounts:manage")
 
     /* ── chart of accounts ── */
     if (resource === "gl-accounts") {
@@ -267,7 +267,7 @@ export async function POST(request: Request) {
 
     /* ── assign a payment to a deposit account & (re)post ── */
     if (resource === "payment-account") {
-      if (!hasFinanceAction(session.role, "finance:payments:record")) return err("Forbidden", 403)
+      if (!await hasFinanceActionForUser(session.userId, session.role, "finance:payments:record")) return err("Forbidden", 403)
       const { payment_id, payment_account_id } = body
       if (!payment_id) return err("Payment ID required")
       const { error } = await supabase.from("payments").update({ payment_account_id: payment_account_id || null, journal_entry_id: null, updated_at: now() }).eq("id", payment_id)

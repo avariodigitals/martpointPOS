@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import crypto from "crypto"
-import { getSession, getAllUsers, hasPermission } from "@/lib/admin-auth"
+import { getSession, getAllUsers, hasPermissionForUser } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordAuditBatch, auditContextFromSession, AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit"
@@ -40,7 +40,7 @@ interface LeadRecord {
 
 async function guardLeadsAccess() {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "leads")) {
+  if (!session || !await hasPermissionForUser(session.userId, session.role as UserRole, "leads")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   return null

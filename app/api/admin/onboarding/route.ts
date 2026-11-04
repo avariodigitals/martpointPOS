@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import crypto from "crypto"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { generateSetupQuestions } from "@/lib/onboarding"
@@ -46,7 +46,7 @@ type CommercialState = {
 /* ─── Auth guard ─── */
 async function guardOnboardingAccess() {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "onboarding")) {
+  if (!session || !await hasPermissionForUser(session.userId, session.role as UserRole, "onboarding")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   return null

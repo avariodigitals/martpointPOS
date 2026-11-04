@@ -304,6 +304,7 @@ export const adminNavItems: AdminNavItem[] = [
 
   // Finance
   { href: "/admin/finance", label: "Finance", icon: Landmark, page: "finance", section: "Finance" },
+  { href: "/admin/approvals", label: "Approvals", icon: ClipboardCheck, page: "approvals", section: "Finance" },
   { href: "/admin/finance/invoices", label: "Invoices", icon: Receipt, page: "finance", section: "Finance" },
   {
     href: "/admin/finance/payments",
@@ -619,8 +620,9 @@ export const adminNavItems: AdminNavItem[] = [
   { href: "/admin/audit", label: "Audit Logs", icon: Command, page: "admin", section: "Administration" }
 ]
 
-export function getAdminNavigation(role: UserRole) {
-  const visibleItems = adminNavItems.filter((item) => hasPermission(role, item.page) && (item.permissions || []).every((permission) => hasPermission(role, permission)))
+export function getAdminNavigation(role: UserRole, overrides: Record<string, "allow" | "deny"> = {}) {
+  const can = (permission: string) => role === "Admin" || (overrides[permission] === "allow" ? true : overrides[permission] === "deny" ? false : hasPermission(role, permission))
+  const visibleItems = adminNavItems.filter((item) => can(item.page) && (item.permissions || []).every(can))
   const sections = ADMIN_SECTION_ORDER.map((label) => ({
     label,
     collapsible: label !== "Control Centre",

@@ -1,9 +1,10 @@
+import { loadMarketingSends } from "@/lib/marketing-sends"
 import { NextResponse } from "next/server"
 import crypto from "crypto"
-import { getSession, hasPermission } from "@/lib/admin-auth"
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { sendEmail, REPLY_TO } from "@/lib/email"
+import { sendEmail, REPLY_TO, getEmailSettings } from "@/lib/email"
 import type { EmailProvider } from "@/lib/email"
 import {
   getAudienceRecipients,
@@ -19,7 +20,7 @@ import type { MarketingRecipient } from "@/lib/marketing"
 
 async function guardMarketingAccess() {
   const session = await getSession()
-  if (!session || !hasPermission(session.role as UserRole, "marketing")) {
+  if (!session || !await hasPermissionForUser(session.userId, session.role as UserRole, "marketing")) {
     return null
   }
   return session
@@ -44,9 +45,9 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch campaigns" }, { status: 500 })
   }
 
-  const { data: sends } = await supabase
-    .from("marketing_sends")
-    .select("campaign_id, status, opened_at, open_count, clicked_at, click_count")
+  const { data: sends, error: sendsError } = await loadMarketingSends()
+
+  if (sendsError) return NextResponse.json({ error: "Failed to load campaign metrics" }, { status: 500 })
 
   const metrics = new Map<string, { sent: number; failed: number; opens: number; openTotal: number; clicks: number; clickTotal: number }>()
   for (const s of sends || []) {
@@ -67,6 +68,7 @@ export async function GET() {
       subject: c.subject,
       preheader: c.preheader || "",
       audience: c.audience,
+      audienceName: c.audience_name || "",
       provider: c.provider,
       status: c.status,
       recipientCount: c.recipient_count,
@@ -98,10 +100,12 @@ export async function POST(request: Request) {
       manualEmails,
       testEmail,
       scheduledFor,
+      from,
+      replyTo,
     } = body
 
-    if (!subject || !html) {
-      return NextResponse.json({ error: "Subject and HTML body are required" }, { status: 400 })
+    if (!subject || !html || String(subject).length > 500 || String(html).length > 2_000_000) {
+      return NextResponse.json({ error: "A subject (up to 500 characters) and email body (up to 2 MB) are required" }, { status: 400 })
     }
 
     if (!isSupabaseConfigured()) {
@@ -111,6 +115,14 @@ export async function POST(request: Request) {
     const providerOverride: EmailProvider | undefined =
       provider === "resend" || provider === "brevo" ? provider : undefined
     const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
+    const validMailbox = (value: unknown) => {
+      const input = String(value || "").trim()
+      const address = input.match(/<([^<>]+)>/)?.[1] || input
+      return input.length <= 320 && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)
+    }
+    if ((from !== undefined && !validMailbox(from)) || (replyTo !== undefined && !validMailbox(replyTo))) {
+      return NextResponse.json({ error: "Enter valid From and Reply-to email addresses" }, { status: 400 })
+    }
 
     // ── Test send: no campaign, no suppression check, fake tracking token ──
     if (testEmail) {
@@ -128,7 +140,10 @@ export async function POST(request: Request) {
         html: trackedHtml,
         provider: providerOverride,
         route: "marketing",
-        replyTo: REPLY_TO.sales,
+        useRouteRecipients: false,
+        skipBranding: true,
+        from: typeof from === "string" ? from.trim() : undefined,
+        replyTo: typeof replyTo === "string" ? replyTo.trim() : REPLY_TO.sales,
       })
       return NextResponse.json({ success: sent, test: true })
     }
@@ -161,7 +176,19 @@ export async function POST(request: Request) {
 
     // Scheduled send — snapshot recipients now, suppression is re-checked at send time
     const scheduledDate = scheduledFor ? new Date(String(scheduledFor)) : null
+    if (scheduledFor && (!scheduledDate || isNaN(scheduledDate.getTime()) || scheduledDate.getTime() <= Date.now())) {
+      return NextResponse.json({ error: "Scheduled time must be a valid future date" }, { status: 400 })
+    }
     const isScheduled = scheduledDate && !isNaN(scheduledDate.getTime()) && scheduledDate.getTime() > Date.now()
+
+    const settings = await getEmailSettings()
+    const fromAddress = typeof from === "string" ? from.trim() : settings.fromEmail || settings.smtp?.fromEmail || process.env.SMTP_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || "MartPoint <hello@martpoint.com.ng>"
+    const replyAddress = typeof replyTo === "string" ? replyTo.trim() : REPLY_TO.sales
+    let audienceName = ""
+    if (audience === "saved" && audienceId) {
+      const { data: savedAudience } = await supabase.from("marketing_audiences").select("name").eq("id", audienceId).maybeSingle()
+      audienceName = savedAudience?.name || "Saved audience"
+    }
 
     const { error: insertError } = await supabase.from("marketing_campaigns").insert({
       id: campaignId,
@@ -176,6 +203,9 @@ export async function POST(request: Request) {
       status: isScheduled ? "scheduled" : "sending",
       recipient_count: deliverable.length,
       recipients_snapshot: deliverable,
+      from_address: fromAddress,
+      reply_to: replyAddress,
+      audience_name: audienceName || null,
       scheduled_for: isScheduled ? scheduledDate.toISOString() : null,
       created_by: session.username || session.name || "admin",
       created_at: now,

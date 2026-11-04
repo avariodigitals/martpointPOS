@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getSession, hasPermission } from "@/lib/admin-auth";
+import { getSession, hasPermissionForUser } from "@/lib/admin-auth";
 
 /** Secret-bearing URLs are disclosed only on an explicit settings-user request. */
 export async function GET() {
   const session = await getSession();
-  if (!session || !hasPermission(session.role, "settings")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session || !await hasPermissionForUser(session.userId, session.role, "settings")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const secret = process.env.AFRICASTALKING_CALLBACK_SECRET;
   if (!secret) return NextResponse.json({ error: "Set AFRICASTALKING_CALLBACK_SECRET in Vercel before configuring these URLs." }, { status: 503 });
   let origin = "https://www.martpoint.com.ng";

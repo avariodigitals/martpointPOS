@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { getSession } from "@/lib/admin-auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Building2,
@@ -214,6 +215,38 @@ export default async function ControlCentrePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  const session = await getSession()
+  if (session?.role === "Sales") {
+    const salesLinks = [
+      { title: "Leads", description: "Review enquiries and follow up with prospects.", href: "/admin/leads", icon: Target },
+      { title: "Quotations", description: "Prepare and track customer quotations.", href: "/admin/quotations", icon: Receipt },
+      { title: "Businesses", description: "View and update business onboarding records.", href: "/admin/businesses", icon: Building2 },
+      { title: "Customers", description: "Follow up with existing customers.", href: "/admin/customers", icon: Users },
+      { title: "Mailbox", description: "Read and reply from shared inboxes you belong to.", href: "/admin/mailbox", icon: Ticket },
+    ]
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Sales workspace</h1>
+          <p className="text-sm text-muted-foreground mt-1">Your sales work, follow-ups and customer conversations.</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {salesLinks.map(({ title, description, href, icon: Icon }) => (
+            <Link key={href} href={href} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Card className="h-full transition-colors hover:bg-muted/40">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base"><Icon className="h-4 w-4 text-retail" />{title}</CardTitle>
+                  <CardDescription>{description}</CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm text-retail">Open workspace <ArrowRight className="ml-1 inline h-3 w-3" /></CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   const sp = await searchParams
   const raw = Array.isArray(sp?.period) ? sp.period[0] : sp?.period
   const period = parseControlPeriod(raw)

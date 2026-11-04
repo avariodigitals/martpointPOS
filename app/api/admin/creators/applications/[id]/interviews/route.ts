@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { authorizeAdmin, hasPermission } from "@/lib/admin-auth"
+import { authorizeAdmin, hasPermissionForUser } from "@/lib/admin-auth"
 import { scheduleCreatorInterview, listInterviews } from "@/lib/creator-applications"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 import { getGoogleSettings, isGoogleConnected } from "@/lib/google-calendar"
@@ -36,7 +36,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       {
         interviews,
         googleConnected: isGoogleConnected(google),
-        canManage: hasPermission(session.role, "creator.interview.manage")
+        canManage: await hasPermissionForUser(session.userId, session.role, "creator.interview.manage")
       },
       { headers: { "Cache-Control": "private, no-store" } }
     )

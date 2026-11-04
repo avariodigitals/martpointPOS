@@ -74,13 +74,13 @@ export interface EmailFooterOptions {
  * letter-mark "chips" — pure table/CSS markup with no external image, so they
  * render identically in every mail client (Gmail, Outlook, Apple Mail, etc.).
  */
-const SOCIAL_META: Record<string, { label: string; color: string; mark: string; slug: string }> = {
-  facebook: { label: "Facebook", color: "#1877F2", mark: "f", slug: "facebook" },
-  instagram: { label: "Instagram", color: "#E4405F", mark: "ig", slug: "instagram" },
-  twitter: { label: "X", color: "#111827", mark: "X", slug: "x" },
-  linkedin: { label: "LinkedIn", color: "#0A66C2", mark: "in", slug: "linkedin" },
-  youtube: { label: "YouTube", color: "#FF0000", mark: "▶", slug: "youtube" },
-  tiktok: { label: "TikTok", color: "#111827", mark: "♪", slug: "tiktok" },
+const SOCIAL_META: Record<string, { label: string }> = {
+  facebook: { label: "Facebook" },
+  instagram: { label: "Instagram" },
+  twitter: { label: "X" },
+  linkedin: { label: "LinkedIn" },
+  youtube: { label: "YouTube" },
+  tiktok: { label: "TikTok" },
 }
 
 function buildEmailFooter(signoff: string, opts: EmailFooterOptions): { cardFooter: string; banner: string } {
@@ -89,37 +89,20 @@ function buildEmailFooter(signoff: string, opts: EmailFooterOptions): { cardFoot
   const website = (opts.website || "martpoint.com.ng").replace(/^https?:\/\//, "").replace(/\/$/, "")
   const email = (opts.contactEmail || "").trim()
   const phone = (opts.phone || "").trim()
-  const whatsapp = (opts.whatsappNumber || "").trim()
 
   const social = Object.entries(opts.social || {})
     .filter(([key, url]) => url && (url as string).trim() && SOCIAL_META[key])
     .map(([key, url]) => ({ key, url: (url as string).trim(), ...SOCIAL_META[key] }))
 
+  // Use readable text links instead of letter-mark icon chips. Some mailbox
+  // renderers strip their table styling and leave artifacts such as "figXin▶♫".
   const socialRow = social.length
-    ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto 18px;">
-        <tr>
-          ${social
-            .map(
-              (s) => `<td style="padding:0 4px;" valign="middle">
-                <a href="${escapeHtml(s.url)}" target="_blank" title="${escapeHtml(s.label)}" style="text-decoration:none;">
-                  <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
-                    <td width="34" height="34" align="center" valign="middle" style="width:34px; height:34px; border-radius:50%; background-color:${s.color}; color:#ffffff; font-family:Arial,Helvetica,sans-serif; font-size:14px; font-weight:700; line-height:34px; text-align:center;">${s.mark}</td>
-                  </tr></table>
-                </a>
-              </td>`,
-            )
-            .join("")}
-        </tr>
-      </table>`
+    ? `<p style="font-size:12px; color:#6b7280; margin:0 0 16px; line-height:1.7;">${social.map((item) => `<a href="${escapeHtml(item.url)}" target="_blank" style="color:#0057FF; text-decoration:none;">${escapeHtml(item.label)}</a>`).join(" &nbsp;&middot;&nbsp; ")}</p>`
     : ""
 
   const contactBits: string[] = []
   if (email) contactBits.push(`<a href="mailto:${escapeHtml(email)}" style="color:#0057FF; text-decoration:none;">${escapeHtml(email)}</a>`)
   if (phone) contactBits.push(`<a href="tel:${escapeHtml(phone.replace(/[^\d+]/g, ""))}" style="color:#0057FF; text-decoration:none;">${escapeHtml(phone)}</a>`)
-  if (whatsapp) {
-    const digits = whatsapp.replace(/[^\d]/g, "")
-    contactBits.push(`<a href="https://wa.me/${digits}" target="_blank" style="color:#0057FF; text-decoration:none;">WhatsApp</a>`)
-  }
   const contactRow = contactBits.length
     ? `<p style="font-size:13px; color:#6b7280; margin:0 0 16px; line-height:1.7;">${contactBits.join(' &nbsp;&middot;&nbsp; ')}</p>`
     : ""
@@ -181,9 +164,11 @@ function buildEmailFooter(signoff: string, opts: EmailFooterOptions): { cardFoot
 
 /**
  * Default footer content for every branded email. Social profile URLs and
- * contact details come from env vars so nothing is hard-coded per caller:
+ * general company details can be customized with env vars.
+ * The public footer phone is fixed to the approved company number, and the
+ * public WhatsApp link is intentionally omitted.
  *   EMAIL_SOCIAL_FACEBOOK / INSTAGRAM / X / LINKEDIN / YOUTUBE / TIKTOK
- *   EMAIL_CONTACT_EMAIL / EMAIL_PHONE / EMAIL_WEBSITE / EMAIL_COMPANY_ADDRESS
+ *   EMAIL_CONTACT_EMAIL / EMAIL_WEBSITE / EMAIL_COMPANY_ADDRESS
  * Falls back to the known MartPoint profiles when unset.
  */
 export function defaultEmailFooter(): EmailFooterOptions {
@@ -199,8 +184,8 @@ export function defaultEmailFooter(): EmailFooterOptions {
       tiktok: env("EMAIL_SOCIAL_TIKTOK", "https://www.tiktok.com/@usemartpoint"),
     },
     contactEmail: env("EMAIL_CONTACT_EMAIL", "sales@martpoint.com.ng"),
-    phone: env("EMAIL_PHONE", "+234 701 042 6993"),
-    whatsappNumber: env("EMAIL_WHATSAPP", "+2348037978230"),
+    phone: "+2342017001229",
+    whatsappNumber: "",
     companyName: env("EMAIL_COMPANY_NAME", "MartPoint Solutions"),
     website,
     address: env("EMAIL_COMPANY_ADDRESS"),

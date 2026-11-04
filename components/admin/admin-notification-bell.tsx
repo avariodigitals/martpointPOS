@@ -11,6 +11,7 @@ interface Notification {
   title: string
   message?: string | null
   deep_link?: string | null
+  source_id?: string | null
   created_at: string
 }
 
@@ -118,6 +119,11 @@ export function AdminNotificationBell() {
   }
 
   function linkFor(item: Notification): string | null {
+    // Older quote alerts point at the generic inbox. Their source_id is the
+    // quotation ID, so still route them to that quote's pending decision.
+    if (item.type === "QUOTATION_APPROVAL_REQUESTED" && item.source_id) {
+      return `/admin/approvals?quoteId=${encodeURIComponent(item.source_id)}`
+    }
     if (item.deep_link?.startsWith("/")) {
       // Older quote alerts used the generic page URL. Keep those alerts useful
       // by taking the reviewer to the request queue rather than a blank/default

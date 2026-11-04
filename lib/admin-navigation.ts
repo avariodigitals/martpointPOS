@@ -72,6 +72,7 @@ export const ADMIN_SECTION_ORDER = [
   "Creator Network",
   "Partner Network",
   "Sales",
+  "Approvals & Workflows",
   "Finance",
   "Onboarding & Customers",
   "Support & Inbox",
@@ -302,9 +303,11 @@ export const adminNavItems: AdminNavItem[] = [
   },
   { href: "/admin/quotations", label: "Quotations", icon: FileText, page: "quotations", section: "Sales" },
 
+  // Approvals & Workflows
+  { href: "/admin/approvals", label: "Approval Inbox", icon: ClipboardCheck, page: "approvals", section: "Approvals & Workflows" },
+
   // Finance
   { href: "/admin/finance", label: "Finance", icon: Landmark, page: "finance", section: "Finance" },
-  { href: "/admin/approvals", label: "Approvals", icon: ClipboardCheck, page: "approvals", section: "Finance" },
   { href: "/admin/finance/invoices", label: "Invoices", icon: Receipt, page: "finance.invoices.view", section: "Finance" },
   {
     href: "/admin/finance/payments",
@@ -540,6 +543,7 @@ export const adminNavItems: AdminNavItem[] = [
   // Administration
   { href: "/admin/users", label: "Team Members", icon: Users, page: "users", section: "Administration" },
   { href: "/admin/settings", label: "Settings", icon: Settings, page: "settings", section: "Administration" },
+  { href: "/admin/settings/approvals", label: "Approval Rules", icon: Shield, page: "settings", section: "Administration" },
   {
     href: "/admin/azera/settings",
     label: "Azera Settings",

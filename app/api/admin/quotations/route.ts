@@ -15,11 +15,11 @@ async function guardQuotationsAccess() {
 
 /* ─── GET: list quotations with lead info and items ─── */
 export async function GET(request: Request) {
-  const { denied } = await guardQuotationsAccess()
+  const { session, denied } = await guardQuotationsAccess()
   if (denied) return denied
 
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ quotations: [], partnerQuotes: [] })
+    return NextResponse.json({ quotations: [], partnerQuotes: [], currentUserId: session.userId, currentUsername: session.username, currentRole: session.role })
   }
 
   try {
@@ -50,6 +50,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       quotations,
+      currentUserId: session.userId,
+      currentUsername: session.username,
+      currentRole: session.role,
       partnerQuotes: partnerQuotesRes.error ? [] : partnerQuotesRes.data || [],
       products: products || [],
       services: services || [],

@@ -185,9 +185,13 @@ export default function QuotationsPage() {
         const lData = await lRes.json()
         const sData = await sRes.json()
         const permissionData = await permissionRes.json()
-        setIsAdmin(permissionData.role === "Admin")
-        setCurrentUserId(String(permissionData.userId || ""))
-        setCurrentUsername(String(permissionData.username || ""))
+        // The quotations endpoint is already authenticated and is the reliable
+        // identity source for row-level edit controls. The permissions endpoint
+        // can be unavailable during partial migration rollouts.
+        const role = String(qData.currentRole || permissionData.role || "")
+        setIsAdmin(role === "Admin")
+        setCurrentUserId(String(qData.currentUserId || permissionData.userId || ""))
+        setCurrentUsername(String(qData.currentUsername || permissionData.username || ""))
         if (qData.quotations) setQuotations(qData.quotations)
         setPartnerQuotes(Array.isArray(qData.partnerQuotes) ? qData.partnerQuotes : [])
         if (lData.leads) setLeads(lData.leads)

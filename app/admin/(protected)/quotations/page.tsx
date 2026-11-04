@@ -122,7 +122,10 @@ export default function QuotationsPage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [search, setSearch] = useState("")
+  const [quoteFilter, setQuoteFilter] = useState<"all" | "drafts">("all")
   const [accountNumber, setAccountNumber] = useState("")
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState("")
 
   const [showCreate, setShowCreate] = useState(Boolean(preselectedLeadId) || estimatorParam)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -144,6 +147,9 @@ export default function QuotationsPage() {
   })
 
   const [showShare, setShowShare] = useState<Quotation | null>(null)
+  const [sendToClient, setSendToClient] = useState(false)
+  const [shareAllowChanges, setShareAllowChanges] = useState(false)
+  const [shareAllowCounterOffer, setShareAllowCounterOffer] = useState(false)
   const [sendingId, setSendingId] = useState<string | null>(null)
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
   const [showConvert, setShowConvert] = useState<Quotation | null>(null)
@@ -168,14 +174,18 @@ export default function QuotationsPage() {
 
   useEffect(() => {
     const load = async () => {      try {
-        const [qRes, lRes, sRes] = await Promise.all([
+        const [qRes, lRes, sRes, permissionRes] = await Promise.all([
           fetch("/api/admin/quotations"),
           fetch("/api/admin/leads"),
           fetch("/api/admin/settings"),
+          fetch("/api/admin/my-permissions", { cache: "no-store" }),
         ])
         const qData = await qRes.json()
         const lData = await lRes.json()
         const sData = await sRes.json()
+        const permissionData = await permissionRes.json()
+        setIsAdmin(permissionData.role === "Admin")
+        setCurrentUserId(String(permissionData.userId || ""))
         if (qData.quotations) setQuotations(qData.quotations)
         setPartnerQuotes(Array.isArray(qData.partnerQuotes) ? qData.partnerQuotes : [])
         if (lData.leads) setLeads(lData.leads)
@@ -267,15 +277,13 @@ export default function QuotationsPage() {
   )
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return quotations
     const q = search.toLowerCase()
-    return quotations.filter((qt) =>
+    return quotations.filter((qt) => (quoteFilter !== "drafts" || qt.status === "DRAFT") && (!q ||
       qt.quote_number.toLowerCase().includes(q) ||
       (qt.title || "").toLowerCase().includes(q) ||
       (qt.lead?.fullName || "").toLowerCase().includes(q) ||
-      (qt.lead?.businessName || "").toLowerCase().includes(q)
-    )
-  }, [quotations, search])
+      (qt.lead?.businessName || "").toLowerCase().includes(q)))
+  }, [quotations, search, quoteFilter])
 
   const filteredPartnerQuotes = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -394,11 +402,7 @@ export default function QuotationsPage() {
         setShowCreate(false)
         resetForm()
         const base = editingId ? "Quotation updated." : "Quotation created."
-        setMessage(
-          form.sendEmail
-            ? data.emailError || (data.emailSent ? `${base} Quotation sent by email.` : base)
-            : base
-        )
+        setMessage(data.approvalRequired ? `${base} Sent for technical/business approval. It will return to your drafts when a decision is made.` : form.sendEmail ? data.emailError || (data.emailSent ? `${base} Quotation sent by email.` : base) : base)
       } else {
         setMessage(data.error || `Failed to ${editingId ? "update" : "create"} quotation`)
       }
@@ -429,15 +433,19 @@ export default function QuotationsPage() {
   }
 
   const sendEmail = async (qt: Quotation) => {
+    if (!sendToClient) {
+      setMessage("Check Email client before sending this quotation")
+      return
+    }
     setSendingId(qt.id)
     try {
-      const res = await fetch(`/api/admin/quotations/${qt.id}/send`, { method: "POST" })
+      const res = await fetch(`/api/admin/quotations/${qt.id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emailClient: true, ...(isAdmin ? { allowChanges: shareAllowChanges, allowCounterOffer: shareAllowCounterOffer } : {}) }) })
       const data = await res.json()
       if (data.success) {
         setMessage("Quotation sent by email.")
         setShowShare(null)
         setQuotations((prev) =>
-          prev.map((q) => (q.id === qt.id ? { ...q, status: "SENT", sent_at: new Date().toISOString() } : q))
+          prev.map((q) => (q.id === qt.id ? { ...q, status: "SENT", sent_at: new Date().toISOString(), allow_changes: isAdmin ? shareAllowChanges : q.allow_changes, allow_counter_offer: isAdmin ? shareAllowChanges && shareAllowCounterOffer : q.allow_counter_offer } : q))
         )
       } else {
         setMessage(data.message || "Failed to send")
@@ -447,6 +455,13 @@ export default function QuotationsPage() {
     } finally {
       setSendingId(null)
     }
+  }
+
+  const openShare = (qt: Quotation) => {
+    setShareAllowChanges(Boolean(qt.allow_changes))
+    setShareAllowCounterOffer(Boolean(qt.allow_counter_offer))
+    setSendToClient(qt.status !== "DRAFT")
+    setShowShare(qt)
   }
 
   const downloadPdf = async (qt: Quotation) => {
@@ -615,7 +630,7 @@ export default function QuotationsPage() {
         </div>
         <Button size="sm" onClick={() => { resetForm(); setShowCreate(true) }}>
           <Plus className="w-4 h-4 mr-1" />
-          New Quotation
+          Create Quote
         </Button>
       </div>
 
@@ -642,6 +657,8 @@ export default function QuotationsPage() {
           />
         </CardContent>
       </Card>
+
+      {quoteView === "lead" && <div className="flex gap-2" aria-label="Quote list filter"><Button size="sm" variant={quoteFilter === "all" ? "default" : "outline"} onClick={() => setQuoteFilter("all")}>All quotes</Button><Button size="sm" variant={quoteFilter === "drafts" ? "default" : "outline"} onClick={() => setQuoteFilter("drafts")}>Drafts ({quotations.filter((quote) => quote.status === "DRAFT").length})</Button></div>}
 
       <Card>
         <CardContent className="p-0">
@@ -715,6 +732,9 @@ export default function QuotationsPage() {
                             Valid until {formatValidUntil(qt.valid_until)}
                           </div>
                         )}
+                        {qt.status === "DRAFT" && qt.approval_status === "PENDING" && <div className="mt-1 text-[10px] font-medium text-amber-700">Awaiting approval</div>}
+                        {qt.status === "DRAFT" && qt.approval_status === "APPROVED" && <div className="mt-1 text-[10px] font-medium text-emerald-700">Approved · ready to email</div>}
+                        {qt.status === "DRAFT" && qt.approval_status === "REJECTED" && <div className="mt-1 text-[10px] font-medium text-red-700">Changes requested · edit and resubmit</div>}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {qt.sent_at ? new Date(qt.sent_at).toLocaleDateString() : "—"}
@@ -728,36 +748,36 @@ export default function QuotationsPage() {
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          <button
+                          {(isAdmin || (qt.creator_id === currentUserId && qt.status === "DRAFT")) && <button
                             onClick={() => openEdit(qt)}
                             className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50 transition-colors"
                             title="Edit"
                           >
                             <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
+                          </button>}
+                          {isAdmin && <button
                             onClick={() => duplicateQuote(qt)}
                             disabled={duplicatingId === qt.id}
                             className="p-1 rounded-md text-muted-foreground hover:text-violet-600 hover:bg-violet-50 transition-colors disabled:opacity-40"
                             title="Duplicate as draft"
                           >
                             {duplicatingId === qt.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
-                          </button>
-                          <button
-                            onClick={() => setShowShare(qt)}
+                          </button>}
+                          {(isAdmin || (qt.creator_id === currentUserId && qt.approval_status === "APPROVED")) && <button
+                            onClick={() => openShare(qt)}
                             className="p-1 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
                             title="Share / send"
                           >
                             <Send className="w-3.5 h-3.5" />
-                          </button>
-                          <button
+                          </button>}
+                          {(isAdmin || (qt.creator_id === currentUserId && qt.approval_status === "APPROVED")) && <button
                             onClick={() => downloadPdf(qt)}
                             className="p-1 rounded-md text-muted-foreground hover:text-green-600 hover:bg-green-50 transition-colors"
                             title="Download PDF"
                           >
                             <Download className="w-3.5 h-3.5" />
-                          </button>
-                          {qt.status !== "CONVERTED" && qt.status !== "EXPIRED" && (
+                          </button>}
+                          {qt.status === "ACCEPTED" && (
                             <button
                               onClick={() => {
                                 setConvertDueDate(qt.valid_until ? new Date(qt.valid_until).toISOString().split("T")[0] : "")
@@ -771,7 +791,7 @@ export default function QuotationsPage() {
                             </button>
                           )}
                           {qt.status === "ACCEPTED" && <QuoteStatusCorrectionButton sourceType="lead_quote" quoteId={qt.id} quoteNumber={qt.quote_number} />}
-                          {(qt.status === "CHANGE_REQUESTED" || qt.status === "COUNTER_OFFERED") && (
+                          {isAdmin && (qt.status === "CHANGE_REQUESTED" || qt.status === "COUNTER_OFFERED") && (
                             <button
                               onClick={() => openReview(qt)}
                               className="p-1 rounded-md text-amber-600 hover:bg-amber-50 transition-colors"
@@ -780,13 +800,13 @@ export default function QuotationsPage() {
                               <MessageSquare className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          <button
+                          {(isAdmin || (qt.creator_id === currentUserId && qt.status === "DRAFT")) && <button
                             onClick={() => deleteQuote(qt.id)}
                             className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
                             title="Delete"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          </button>}
                         </div>
                       </td>
                     </tr>
@@ -1179,7 +1199,7 @@ export default function QuotationsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              {isAdmin ? <div className="flex items-center gap-2">
                 <input
                   id="sendEmail"
                   type="checkbox"
@@ -1188,9 +1208,9 @@ export default function QuotationsPage() {
                   className="rounded border-input"
                 />
                 <label htmlFor="sendEmail" className="text-sm font-medium">Send quotation by email immediately</label>
-              </div>
+              </div> : <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">This quote will be saved as a draft and sent for approval. After approval, it returns to your drafts for you to email to the client.</div>}
 
-              <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3 text-sm">
+              {isAdmin && <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3 text-sm">
                 <div className="flex items-center gap-2">
                   <input
                     id="allowChanges"
@@ -1222,7 +1242,7 @@ export default function QuotationsPage() {
                     Client can propose their own total amount. You decide whether to meet it. Use only where negotiation is welcome.
                   </p>
                 )}
-              </div>
+              </div>}
 
               <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -1281,7 +1301,7 @@ export default function QuotationsPage() {
               </Button>
               <Button onClick={submit} disabled={creating}>
                 {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                {editingId ? "Save Quotation" : "Create Quotation"}
+                {editingId ? isAdmin ? "Save Quotation" : "Save & Resubmit for Approval" : isAdmin ? "Create Quotation" : "Create & Send for Approval"}
               </Button>
             </div>
           </div>
@@ -1390,10 +1410,10 @@ export default function QuotationsPage() {
               <Button variant="outline" onClick={() => setShowView(null)}>
                 Close
               </Button>
-              <Button onClick={() => { setShowView(null); openEdit(showView) }}>
+              {(isAdmin || (showView.creator_id === currentUserId && showView.status === "DRAFT")) && <Button onClick={() => { setShowView(null); openEdit(showView) }}>
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit
-              </Button>
+              </Button>}
             </div>
           </div>
         </div>
@@ -1410,6 +1430,14 @@ export default function QuotationsPage() {
             </div>
 
             <div className="space-y-3">
+              <label className="flex items-start gap-2 rounded-md border bg-muted/30 p-3 text-sm">
+                <input type="checkbox" checked={sendToClient} onChange={(event) => setSendToClient(event.target.checked)} className="mt-0.5 rounded border-input" />
+                <span><span className="font-medium">Email client</span><span className="block text-xs text-muted-foreground">The quote will be emailed to {showShare.lead?.email || "the lead's email address"}.</span></span>
+              </label>
+              {isAdmin && <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={shareAllowChanges} onChange={(event) => setShareAllowChanges(event.target.checked)} />Allow client to request changes</label>
+                <label className={`mt-2 flex items-center gap-2 pl-6 ${shareAllowChanges ? "" : "opacity-50"}`}><input type="checkbox" checked={shareAllowCounterOffer} disabled={!shareAllowChanges} onChange={(event) => setShareAllowCounterOffer(event.target.checked)} />Allow client counter-offer</label>
+              </div>}
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Public link</p>
                 <div className="flex items-center gap-2">
@@ -1436,10 +1464,10 @@ export default function QuotationsPage() {
                 <Button
                   variant="outline"
                   onClick={() => sendEmail(showShare)}
-                  disabled={sendingId === showShare.id}
+                  disabled={sendingId === showShare.id || !sendToClient}
                 >
                   {sendingId === showShare.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-                  Resend Email
+                  {showShare.status === "DRAFT" ? "Send to Client" : "Email Client"}
                 </Button>
                 <Button
                   variant="outline"

@@ -9,7 +9,7 @@ import { enqueueCommunicationTrigger } from "@/lib/communication-events"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { denied } = await authorizeAdmin("quotations")
+  const { session, denied } = await authorizeAdmin("quotations")
   if (denied) return denied
 
   const { id } = await params
@@ -21,8 +21,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Optional body: admin can toggle change-request flags at send time.
   let allowChanges: boolean | undefined
   let allowCounterOffer: boolean | undefined
+  let emailClient = false
   try {
     const body = await request.json()
+    emailClient = body.emailClient === true
     if (typeof body.allowChanges === "boolean") allowChanges = body.allowChanges
     if (typeof body.allowCounterOffer === "boolean") allowCounterOffer = body.allowCounterOffer
   } catch {
@@ -30,24 +32,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    if (allowChanges !== undefined) {
-      const patch: Record<string, unknown> = {
-        allow_changes: allowChanges,
-        updated_at: new Date().toISOString(),
-      }
-      if (!allowChanges) patch.allow_counter_offer = false
-      else if (allowCounterOffer !== undefined) patch.allow_counter_offer = allowCounterOffer
-      await supabase.from("lead_quotations").update(patch).eq("id", id)
-    }
+    if (!emailClient) return NextResponse.json({ error: "Check Email client before sending this quotation" }, { status: 400 })
 
-    const { data: quote, error } = await supabase
+    const { data: loadedQuote, error } = await supabase
       .from("lead_quotations")
       .select("*, lead:leads (full_name, business_name, email, phone, product_interest)")
       .eq("id", id)
       .single()
 
-    if (error || !quote) {
+    if (error || !loadedQuote) {
       return NextResponse.json({ error: "Quotation not found" }, { status: 404 })
+    }
+    let quote = loadedQuote
+
+    if (session.role !== "Admin") {
+      if (quote.creator_id !== session.userId || quote.approval_status !== "APPROVED") return NextResponse.json({ error: "Only the quote creator can email it after approval" }, { status: 403 })
+      const approved = await supabase.from("approval_requests").select("id,requested_by,details")
+        .eq("action_key", "quotation.send").eq("entity_type", "LEAD_QUOTATION").eq("entity_id", id).eq("status", "APPROVED")
+        .order("decided_at", { ascending: false }).limit(1).maybeSingle()
+      if (approved.error || !approved.data || approved.data.requested_by !== session.userId || approved.data.details?.quote_updated_at !== quote.updated_at) return NextResponse.json({ error: "The approved quote has changed. Submit it for approval again." }, { status: 409 })
+    }
+
+    if (session.role === "Admin" && allowChanges !== undefined) {
+      const patch: Record<string, unknown> = { allow_changes: allowChanges, updated_at: new Date().toISOString() }
+      patch.allow_counter_offer = allowChanges && Boolean(allowCounterOffer)
+      const updated = await supabase.from("lead_quotations").update(patch).eq("id", id).select("*").single()
+      if (updated.error || !updated.data) return NextResponse.json({ error: "Could not save the client change-request settings" }, { status: 500 })
+      quote = { ...quote, ...updated.data }
     }
 
     const leadRawMaybe = quote.lead as unknown as { full_name: string; business_name: string; email: string; phone: string; product_interest: string } | { full_name: string; business_name: string; email: string; phone: string; product_interest: string }[] | undefined
@@ -94,17 +105,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ),
     })
 
-    const { error: updateError } = await supabase
-      .from("lead_quotations")
-      .update({ status: "SENT", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", id)
-
-    if (updateError) {
-      console.error("[admin/quotations/send] update error", updateError)
+    if (emailSent) {
+      const sentAt = new Date().toISOString()
+      const { error: updateError } = await supabase.from("lead_quotations").update({ status: "SENT", sent_at: sentAt }).eq("id", id)
+      if (updateError) console.error("[admin/quotations/send] update error", updateError)
     }
 
     // Schedule the 48h follow-up sequence for this quotation (best-effort).
-    await enqueueAutomation({
+    if (emailSent) await enqueueAutomation({
       automationKey: "quote_48h_reminder",
       subjectType: "quotation",
       subjectId: id,

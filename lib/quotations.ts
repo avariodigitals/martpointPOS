@@ -153,6 +153,10 @@ export interface Quotation {
   viewed_at: string | null
   sent_at: string | null
   created_by: string | null
+  creator_id?: string | null
+  approval_status?: "NOT_REQUIRED" | "PENDING" | "APPROVED" | "REJECTED"
+  approved_by?: string | null
+  approved_at?: string | null
   created_at: string
   updated_at: string
   allow_changes: boolean
@@ -417,6 +421,10 @@ export function mapQuotation(row: Record<string, unknown>): Quotation {
     viewed_at: (row.viewed_at as string | null) || null,
     sent_at: (row.sent_at as string | null) || null,
     created_by: (row.created_by as string | null) || null,
+    creator_id: (row.creator_id as string | null) || null,
+    approval_status: (row.approval_status as Quotation["approval_status"]) || "NOT_REQUIRED",
+    approved_by: (row.approved_by as string | null) || null,
+    approved_at: (row.approved_at as string | null) || null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     allow_changes: Boolean(row.allow_changes),

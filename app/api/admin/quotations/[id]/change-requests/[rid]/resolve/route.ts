@@ -17,6 +17,7 @@ import { renderEmailTemplate } from "@/lib/email-templates"
 export async function POST(request: Request, { params }: { params: Promise<{ id: string; rid: string }> }) {
   const { session, denied } = await authorizeAdmin("quotations")
   if (denied) return denied
+  if (session.role !== "Admin") return NextResponse.json({ error: "Only Admin can approve or decline client quote changes" }, { status: 403 })
 
   const { id, rid } = await params
 

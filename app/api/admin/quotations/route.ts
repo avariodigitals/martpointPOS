@@ -6,6 +6,7 @@ import { resolveIndustryName } from "@/lib/industries"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import { cancelAutomationRuns } from "@/lib/automations"
+import { notifyQuotationApprovers } from "@/lib/quotation-approvals"
 import type { Quotation } from "@/lib/quotations"
 
 async function guardQuotationsAccess() {
@@ -65,6 +66,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const { session, denied } = await guardQuotationsAccess()
   if (denied) return denied
+  const requiresApproval = session.role === "Sales" || session.role === "Customer Care"
 
   try {
     const body = await request.json()
@@ -104,6 +106,12 @@ export async function POST(request: Request) {
 
     if (!isSupabaseConfigured()) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
+    }
+
+    if (requiresApproval) {
+      const policy = await supabase.from("approval_policies").select("enabled").eq("action_key", "quotation.send").maybeSingle()
+      if (policy.error) return NextResponse.json({ error: "Apply migration 172 to use quote approvals" }, { status: 503 })
+      if (!policy.data?.enabled) return NextResponse.json({ error: "Quote approval is not enabled. Ask an Admin to enable the quotation approval rule." }, { status: 409 })
     }
 
     const leadRes = await supabase
@@ -163,11 +171,13 @@ export async function POST(request: Request) {
         payment_terms: paymentTerms || null,
         industry: leadIndustry,
         created_by: session?.username || null,
+        creator_id: session.userId,
+        approval_status: requiresApproval ? "PENDING" : "NOT_REQUIRED",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         sent_at: null,
-        allow_changes: Boolean(allowChanges),
-        allow_counter_offer: Boolean(allowChanges) && Boolean(allowCounterOffer),
+        allow_changes: session.role === "Admin" && Boolean(allowChanges),
+        allow_counter_offer: session.role === "Admin" && Boolean(allowChanges) && Boolean(allowCounterOffer),
       })
       .select("*")
       .single()
@@ -194,6 +204,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to save quote items" }, { status: 500 })
     }
 
+    if (requiresApproval) {
+      const approval = await supabase.from("approval_requests").insert({
+        action_key: "quotation.send",
+        entity_type: "LEAD_QUOTATION",
+        entity_id: created.id,
+        entity_reference: String(created.quote_number),
+        reason: "Quote submitted for technical and business approval.",
+        details: {
+          quote_updated_at: created.updated_at,
+          requested_action: "approve_before_client_email",
+          quote: { quote_number: quoteNumber, title: title || "", lead_name: leadRes.data.full_name, business_name: leadRes.data.business_name, email: leadRes.data.email, total_amount: totals.total, valid_until: validUntil || null, items: itemRows },
+        },
+        requested_by: session.userId,
+        requested_by_name: session.name,
+        requested_by_role: session.role,
+      }).select().single()
+      if (approval.error) {
+        await supabase.from("lead_quotations").delete().eq("id", created.id)
+        return NextResponse.json({ error: "The quote could not be submitted for approval. It was removed; please try again." }, { status: 500 })
+      }
+      await notifyQuotationApprovers({ quoteId: String(created.id), quoteNumber, requesterId: session.userId })
+    }
+
     const { data: fullQuote, error: fullError } = await supabase
       .from("lead_quotations")
       .select("*, lead:leads (full_name, business_name, email, phone, product_interest, business_type, industry), items:lead_quotation_items(*)")
@@ -215,7 +248,7 @@ export async function POST(request: Request) {
     let emailSent = false
     let emailError: string | null = null
 
-    if (shouldSend) {
+    if (shouldSend && session.role === "Admin") {
       if (!leadRes.data.email) {
         emailError = "Lead has no email address — quotation saved as draft"
       } else {

@@ -6,6 +6,7 @@ import { resolveIndustryName } from "@/lib/industries"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
+import { notifyQuotationApprovers } from "@/lib/quotation-approvals"
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { denied } = await authorizeAdmin("quotations")
@@ -36,7 +37,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { denied } = await authorizeAdmin("quotations")
+  const { session, denied } = await authorizeAdmin("quotations")
   if (denied) return denied
 
   const { id } = await params
@@ -46,6 +47,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   }
 
   try {
+    if (session.role !== "Admin") {
+      const { data: quote } = await supabase.from("lead_quotations").select("creator_id,status").eq("id", id).maybeSingle()
+      if (!quote || quote.creator_id !== session.userId || quote.status !== "DRAFT") return NextResponse.json({ error: "You can delete only your own draft quotation" }, { status: 403 })
+    }
     const { error } = await supabase.from("lead_quotations").delete().eq("id", id)
     if (error) throw error
     return NextResponse.json({ success: true })
@@ -56,8 +61,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { denied } = await authorizeAdmin("quotations")
+  const { session, denied } = await authorizeAdmin("quotations")
   if (denied) return denied
+  const requiresApproval = session.role === "Sales" || session.role === "Customer Care"
 
   const { id } = await params
   if (!isSupabaseConfigured()) {
@@ -98,9 +104,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "At least one item is required" }, { status: 400 })
     }
 
-    const { data: existing, error: existingError } = await supabase.from("lead_quotations").select("id, quote_number").eq("id", id).single()
+    const { data: existing, error: existingError } = await supabase.from("lead_quotations").select("id, quote_number,status,creator_id,updated_at").eq("id", id).single()
     if (existingError || !existing) {
       return NextResponse.json({ error: "Quotation not found" }, { status: 404 })
+    }
+    if (requiresApproval && (existing.status !== "DRAFT" || existing.creator_id !== session.userId)) {
+      return NextResponse.json({ error: "You can edit only your own draft quotations" }, { status: 403 })
+    }
+    if (requiresApproval) {
+      const policy = await supabase.from("approval_policies").select("enabled").eq("action_key", "quotation.send").maybeSingle()
+      if (policy.error || !policy.data) return NextResponse.json({ error: "Apply migration 172 to use quote approvals" }, { status: 503 })
+      if (!policy.data.enabled) return NextResponse.json({ error: "Quote approval is not enabled" }, { status: 409 })
     }
 
     const quoteDiscountType = discountType === "percent" || discountType === "fixed" ? discountType : "none"
@@ -129,15 +143,21 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       tax_amount: totals.taxAmount,
       total_amount: totals.total,
       updated_at: new Date().toISOString(),
+      approval_status: requiresApproval ? "PENDING" : "NOT_REQUIRED",
+      approved_by: null,
+      approved_at: null,
     }
     if (industry !== undefined) {
       updatePayload.industry = industry ? resolveIndustryName(industry) : null
     }
-    if (typeof allowChanges === "boolean") {
+    if (session.role === "Admin" && typeof allowChanges === "boolean") {
       updatePayload.allow_changes = allowChanges
       updatePayload.allow_counter_offer = allowChanges && Boolean(allowCounterOffer)
     }
 
+    if (existing.status === "DRAFT") {
+      await supabase.from("approval_requests").update({ status: "CANCELLED", decision_note: "Quote changed and resubmitted.", decided_at: new Date().toISOString() }).eq("action_key", "quotation.send").eq("entity_type", "LEAD_QUOTATION").eq("entity_id", id).eq("status", "PENDING")
+    }
     const { error: updateError } = await supabase.from("lead_quotations").update(updatePayload).eq("id", id)
     if (updateError) {
       console.error("[admin/quotations/[id]] PUT update", updateError)
@@ -161,6 +181,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (itemsError) {
       console.error("[admin/quotations/[id]] PUT items", itemsError)
       return NextResponse.json({ error: "Failed to update quote items" }, { status: 500 })
+    }
+
+    if (requiresApproval) {
+      const approval = await supabase.from("approval_requests").insert({
+        action_key: "quotation.send", entity_type: "LEAD_QUOTATION", entity_id: id,
+        entity_reference: String(existing.quote_number), reason: "Revised quote submitted for technical and business approval.",
+        details: { quote_updated_at: updatePayload.updated_at, requested_action: "approve_before_client_email", quote: { quote_number: existing.quote_number, title: title || "", total_amount: totals.total, valid_until: validUntil || null, items: itemRows } },
+        requested_by: session.userId, requested_by_name: session.name, requested_by_role: session.role,
+      })
+      if (approval.error) return NextResponse.json({ error: "Quote was saved, but the approval request could not be created. Ask an Admin to resubmit it." }, { status: 500 })
+      await notifyQuotationApprovers({ quoteId: id, quoteNumber: String(existing.quote_number), requesterId: session.userId })
     }
 
     const { data: fullQuote, error: fullError } = await supabase
@@ -212,7 +243,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     let emailSent = false
     let emailError: string | null = null
 
-    if (shouldSend) {
+    if (shouldSend && session.role === "Admin") {
       const lead = quotation.lead
       if (!lead?.email) {
         emailError = "Lead has no email address"

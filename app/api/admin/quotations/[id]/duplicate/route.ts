@@ -10,6 +10,7 @@ import { mapQuotation } from "@/lib/quotations"
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { session, denied } = await authorizeAdmin("quotations")
   if (denied) return denied
+  if (session.role !== "Admin") return NextResponse.json({ error: "Only Admin can duplicate quotations" }, { status: 403 })
 
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
@@ -57,6 +58,8 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
         payment_terms: (src.payment_terms as string | null) || null,
         industry: (src.industry as string | null) || null,
         created_by: session?.username || null,
+        creator_id: session?.userId || null,
+        approval_status: "NOT_REQUIRED",
         sent_at: null,
         allow_changes: Boolean(src.allow_changes),
         allow_counter_offer: Boolean(src.allow_counter_offer),

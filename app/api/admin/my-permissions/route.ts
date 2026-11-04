@@ -22,5 +22,5 @@ export async function GET() {
   if (assignedApprover && values.approvals !== "deny") values.approvals = "allow"
   const financeActions = Object.fromEntries(await Promise.all(FINANCE_PERMISSION_KEYS.map(async (key) => [key, await hasFinanceActionForUser(session.userId, session.role, key)])))
   const approvalActions = Object.fromEntries((policies.data || []).map((policy) => [policy.action_key, policy.enabled === true]))
-  return NextResponse.json({ overrides: values, financeActions, approvalActions })
+  return NextResponse.json({ overrides: values, financeActions, approvalActions, userId: session.userId, username: session.username, role: session.role })
 }

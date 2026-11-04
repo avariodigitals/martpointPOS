@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase"
 import { logFinanceAudit, syncInvoiceFinanceTransaction, removePaymentFinanceTransaction, waiveSubscription, confirmPayment, recordPayment } from "@/lib/finance-commercial"
 import { postPaymentReversal, postPayoutJournal, voidEntriesForSource } from "@/lib/finance-ledger"
 import { issuePayoutStatement } from "@/lib/partner-generated-docs"
+import { notifyAdminUser } from "@/lib/admin-notifications"
 
 export const dynamic = "force-dynamic"
 
@@ -84,7 +85,14 @@ export async function POST(request: Request) {
       const allowedUsers = cleanIds(policy.approver_user_ids)
       if (session.role !== "Admin" && !allowedRoles.includes(session.role) && !allowedUsers.includes(session.userId)) return error("You are not an approver for this action", 403)
 
-      if (decision === "APPROVED" && ["finance.invoice.cancel", "finance.invoice.void", "finance.invoice.waive"].includes(approval.action_key)) {
+      if (decision === "APPROVED" && approval.action_key === "quotation.send") {
+        const { data: quote, error: quoteError } = await supabase.from("lead_quotations").select("id,status,updated_at,creator_id,quote_number").eq("id", approval.entity_id).maybeSingle()
+        if (quoteError || !quote || quote.status !== "DRAFT" || quote.creator_id !== approval.requested_by || quote.updated_at !== approval.details?.quote_updated_at) return error("This quote changed or is no longer a draft. The creator must resubmit it.", 409)
+        const changed = await supabase.from("lead_quotations").update({ approval_status: "APPROVED", approved_by: session.userId, approved_at: new Date().toISOString() }).eq("id", approval.entity_id).eq("updated_at", quote.updated_at).select("id").maybeSingle()
+        if (changed.error || !changed.data) return error("The quote approval could not be applied", 409)
+        await logFinanceAudit("ADMIN", session.userId, "QUOTE_APPROVAL_APPROVED", "LEAD_QUOTATION", String(approval.entity_id), { approval_request_id: id, requested_by: approval.requested_by, quote_number: quote.quote_number, reason: approval.reason })
+        await notifyAdminUser({ admin_user_id: approval.requested_by, type: "QUOTATION_APPROVED", title: `Quotation ${quote.quote_number} approved`, message: "It is back in your drafts and ready for you to email to the client.", deep_link: "/admin/quotations", source_type: "LEAD_QUOTATION", source_id: String(approval.entity_id), actor_admin_user_id: session.userId })
+      } else if (decision === "APPROVED" && ["finance.invoice.cancel", "finance.invoice.void", "finance.invoice.waive"].includes(approval.action_key)) {
         const current = await supabase.from("invoices").select("id,status,invoice_number").eq("id", approval.entity_id).maybeSingle()
         if (current.error || !current.data || ["CANCELLED", "VOID", "WAIVED", "PAID"].includes(String(current.data.status).toUpperCase())) return error("The invoice changed since the request. Review its current state before deciding.", 409)
         const status = approval.action_key === "finance.invoice.cancel" ? "CANCELLED" : approval.action_key === "finance.invoice.void" ? "VOID" : approval.action_key === "finance.invoice.waive" ? "WAIVED" : null
@@ -214,6 +222,11 @@ export async function POST(request: Request) {
         decision_note: note || null, decided_at: new Date().toISOString(), applied_at: decision === "APPROVED" ? new Date().toISOString() : null,
       }).eq("id", id).eq("status", "PENDING").select().maybeSingle()
       if (saved.error || !saved.data) return error("The decision was not saved. Refresh the inbox before trying again.", 409)
+      if (decision === "REJECTED" && approval.action_key === "quotation.send") {
+        await supabase.from("lead_quotations").update({ approval_status: "REJECTED" }).eq("id", approval.entity_id).eq("status", "DRAFT").eq("updated_at", approval.details?.quote_updated_at)
+        await logFinanceAudit("ADMIN", session.userId, "QUOTE_APPROVAL_REJECTED", "LEAD_QUOTATION", String(approval.entity_id), { approval_request_id: id, requested_by: approval.requested_by, reason: approval.reason, note })
+        await notifyAdminUser({ admin_user_id: approval.requested_by, type: "QUOTATION_REJECTED", title: `Quotation ${approval.entity_reference} needs changes`, message: note || "An approver declined the quote. Edit it and resubmit for approval.", deep_link: "/admin/quotations", source_type: "LEAD_QUOTATION", source_id: String(approval.entity_id), actor_admin_user_id: session.userId })
+      }
       return NextResponse.json({ success: true, request: saved.data })
     }
 
@@ -223,7 +236,7 @@ export async function POST(request: Request) {
       const enabled = body.enabled === true
       const approverRoles = cleanIds(body.approverRoles)
       const approverUserIds = cleanIds(body.approverUserIds)
-      const allowedKeys = new Set(["finance.invoice.cancel", "finance.invoice.void", "finance.invoice.waive", "finance.invoice.update", "finance.invoice.delete", "finance.payment.record", "finance.payment.confirm", "finance.payment.reverse", "finance.subscription.waive", "finance.subscription.suspend", "finance.subscription.cancel", "finance.commission.approve", "finance.payout.mark_paid"])
+      const allowedKeys = new Set(["quotation.send", "finance.invoice.cancel", "finance.invoice.void", "finance.invoice.waive", "finance.invoice.update", "finance.invoice.delete", "finance.payment.record", "finance.payment.confirm", "finance.payment.reverse", "finance.subscription.waive", "finance.subscription.suspend", "finance.subscription.cancel", "finance.commission.approve", "finance.payout.mark_paid"])
       if (!allowedKeys.has(key)) return error("Unknown approval action")
       if (approverRoles.some((role) => !ALL_ROLES.includes(role as typeof ALL_ROLES[number]))) return error("One or more approver roles are invalid")
       if (enabled && !approverRoles.length && !approverUserIds.length) return error("Choose at least one approver role or staff member")

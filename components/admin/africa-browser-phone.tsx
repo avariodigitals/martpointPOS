@@ -30,7 +30,14 @@ export function AfricaBrowserPhone() {
   useEffect(() => { selected.current = queues; }, [queues]);
   const [state, setState] = useState<IncomingPhoneState>({ state: "off", call: null, error: null, held: false, muted: false, audioBlocked: false });
   useEffect(() => {
-    const current = new AfricaIncomingPhone(value => { setState(value); if (value.state === "ringing") setOpen(true); });
+    const current = new AfricaIncomingPhone(value => {
+      setState(value);
+      if (value.state === "ringing") setOpen(true);
+      if (value.state === "error" && !value.retrying) {
+        enabled.current = false;
+        try { sessionStorage.removeItem("martpoint.azeraBrowserPhone.enabled"); } catch { /* storage may be disabled */ }
+      }
+    });
     phone.current = current;
     void fetch("/api/azera/calls/africa-browser/agent", { cache: "no-store" })
       .then(async response => {
@@ -40,6 +47,12 @@ export function AfricaBrowserPhone() {
         setQueues(assigned);
         selected.current = assigned;
         if (!assigned.length) setAssignmentError("You are not assigned to a voice queue.");
+        let remembered = false;
+        try { remembered = sessionStorage.getItem("martpoint.azeraBrowserPhone.enabled") === "1"; } catch { /* storage may be disabled */ }
+        if (remembered && assigned.length) {
+          enabled.current = true;
+          void current.start(assigned);
+        }
       })
       .catch(error => setAssignmentError(error instanceof Error ? error.message : "Could not load voice assignment."))
       .finally(() => setAssignmentLoading(false));
@@ -55,7 +68,7 @@ export function AfricaBrowserPhone() {
       }
       outbound.current = true;
       setOutboundBusy(true);
-      wait?.(current.stop().catch(error => { outbound.current = false; setOutboundBusy(false); throw error; }));
+      wait?.(current.stop(true).catch(error => { outbound.current = false; setOutboundBusy(false); throw error; }));
     };
     const resume = () => { outbound.current = false; setOutboundBusy(false); if (enabled.current) void current.start(selected.current); };
     const prepareDial = (event: Event) => {
@@ -67,18 +80,31 @@ export function AfricaBrowserPhone() {
       }
       setNumber(detail.phone); setName(detail.name); setContext(detail); setDialError("");
     };
-    const close = () => { enabled.current = false; void current.stop(); };
+    const close = () => { void current.stop(true); };
+    const restore = () => {
+      let remembered = false;
+      try { remembered = sessionStorage.getItem("martpoint.azeraBrowserPhone.enabled") === "1"; } catch { /* storage may be disabled */ }
+      if (remembered && selected.current.length && !outbound.current && !current.snapshot.retrying && !["ringing", "active"].includes(current.snapshot.state)) {
+        enabled.current = true;
+        void current.start(selected.current);
+      }
+    };
+    const visible = () => { if (document.visibilityState === "visible") restore(); };
     window.addEventListener("azera:outbound-start", pause);
     window.addEventListener("azera:outbound-end", resume);
     window.addEventListener("azera:dial", prepareDial);
     window.addEventListener("pagehide", close);
+    window.addEventListener("pageshow", restore);
+    document.addEventListener("visibilitychange", visible);
     return () => {
       enabled.current = false;
       window.removeEventListener("azera:outbound-start", pause);
       window.removeEventListener("azera:outbound-end", resume);
       window.removeEventListener("azera:dial", prepareDial);
       window.removeEventListener("pagehide", close);
-      void current.stop(); phone.current = null;
+      window.removeEventListener("pageshow", restore);
+      document.removeEventListener("visibilitychange", visible);
+      void current.stop(true); phone.current = null;
     };
   }, []);
   const inCall = ["ringing", "active"].includes(state.state);
@@ -133,7 +159,7 @@ export function AfricaBrowserPhone() {
         <div><h2 className="text-sm font-semibold text-slate-900">Browser phone</h2><p className="text-[10px] text-slate-400">Drag to move</p></div>
         <button type="button" aria-label="Minimise phone" onPointerDown={event => event.stopPropagation()} onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100"><X className="h-4 w-4" /></button>
       </div>
-      <p role="status" className="mt-2 text-sm text-slate-700">{outboundBusy || outgoing ? "Outgoing call in progress" : state.state === "ready" ? "Ready for incoming calls" : state.state === "connecting" ? "Connecting your phone…" : state.state === "ringing" ? "Incoming telephone call" : state.state === "active" ? "Call connected" : "Incoming phone offline"}</p>
+      <p role="status" className="mt-2 text-sm text-slate-700">{outboundBusy || outgoing ? "Outgoing call in progress" : state.retrying ? "Incoming phone reconnecting…" : state.state === "ready" ? "Ready for incoming calls" : state.state === "connecting" ? "Connecting your phone…" : state.state === "ringing" ? "Incoming telephone call" : state.state === "active" ? "Call connected" : "Incoming phone offline"}</p>
       {state.error && <div role="alert" className="mt-2 space-y-1 break-words text-sm text-red-700"><p>{state.error}</p>{/active|ringing|Call Reports/i.test(state.error) && <a href="/admin/azera/reports" className="inline-flex font-medium text-blue-700 underline">Open Azera Call Reports</a>}</div>}
       {inCall ? <div className="mt-3 space-y-3">
         <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">{state.call?.selected_department || "Assigned queue"}</p><p className="mt-1 break-words text-sm font-medium text-slate-900">{state.call?.caller?.name || state.call?.customer_phone || "Loading caller…"}</p>{state.call?.caller?.businessName && <p className="mt-1 break-words text-xs text-slate-600">{state.call.caller.businessName} · {state.call.customer_phone}</p>}</div>
@@ -156,7 +182,7 @@ export function AfricaBrowserPhone() {
         </form> : <>
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-medium uppercase tracking-wide text-slate-500">Assigned queues</p>{assignmentLoading ? <p className="mt-1 text-sm text-slate-600">Loading assignment…</p> : queues.length ? <p className="mt-1 text-sm text-slate-800">{queues.map(queue => departments.find(([key]) => key === queue)?.[1] || queue).join(", ")}</p> : <p className="mt-1 text-sm text-amber-700">No queues assigned. Ask an administrator to enable your voice access.</p>}</div>
         {assignmentError && <p role="alert" className="text-sm text-amber-700">{assignmentError}</p>}
-        <button disabled={assignmentLoading || outboundBusy || !!outgoing || state.state === "connecting" || (!connected && !queues.length)} onClick={() => { enabled.current = !connected; if (connected) void phone.current?.stop(); else if (!outbound.current) void phone.current?.start(queues); }} className="min-h-11 w-full rounded-xl bg-retail px-3 text-sm font-medium text-white disabled:opacity-50">{connected ? "Go offline" : "Enable browser phone"}</button>
+        <button disabled={assignmentLoading || outboundBusy || !!outgoing || state.state === "connecting" || (!connected && !state.retrying && !queues.length)} onClick={() => { enabled.current = !(connected || state.retrying); if (connected || state.retrying) { try { sessionStorage.removeItem("martpoint.azeraBrowserPhone.enabled"); } catch { /* storage may be disabled */ } void phone.current?.stop(); } else if (!outbound.current) { try { sessionStorage.setItem("martpoint.azeraBrowserPhone.enabled", "1"); } catch { /* memory reconnect still works */ } void phone.current?.start(queues); } }} className="min-h-11 w-full rounded-xl bg-retail px-3 text-sm font-medium text-white disabled:opacity-50">{connected || state.retrying ? "Go offline" : "Enable browser phone"}</button>
         <p className="text-xs leading-5 text-slate-500">Your queues are assigned by an administrator; this browser cannot opt itself into another department. Keep this tab open. Calls continue while you navigate the admin portal. Microphone permission is required. Only one tab can receive calls. Use Go offline before switching tabs; minimising this panel keeps it connected.</p>
         </>}
       </div>}

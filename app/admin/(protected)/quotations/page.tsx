@@ -80,6 +80,19 @@ interface TaxRate {
   rate: number
 }
 
+type PartnerQuote = {
+  id: string
+  quote_number: string
+  status: string
+  currency: string
+  total_amount: number
+  valid_until: string | null
+  created_at: string
+  partners?: { business_name?: string; partner_id?: string } | { business_name?: string; partner_id?: string }[] | null
+  partner_leads?: { business_name?: string; contact_name?: string; email?: string; phone?: string } | { business_name?: string; contact_name?: string; email?: string; phone?: string }[] | null
+  quote_items?: { description: string; quantity: number; unit_price: number; line_total: number }[]
+}
+
 export default function QuotationsPage() {
   const searchParams = useSearchParams()
   const preselectedLeadId = searchParams.get("leadId") || ""
@@ -88,6 +101,8 @@ export default function QuotationsPage() {
   const estimatorParam = searchParams.get("estimator") === "1"
 
   const [quotations, setQuotations] = useState<Quotation[]>([])
+  const [partnerQuotes, setPartnerQuotes] = useState<PartnerQuote[]>([])
+  const [quoteView, setQuoteView] = useState<"lead" | "partner">("lead")
   const [leads, setLeads] = useState<Lead[]>([])
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([])
   const [cloudPlans, setCloudPlans] = useState<ResolvedCloudPlan[]>([])
@@ -162,6 +177,7 @@ export default function QuotationsPage() {
         const lData = await lRes.json()
         const sData = await sRes.json()
         if (qData.quotations) setQuotations(qData.quotations)
+        setPartnerQuotes(Array.isArray(qData.partnerQuotes) ? qData.partnerQuotes : [])
         if (lData.leads) setLeads(lData.leads)
         if (sData.general?.accountNumber) setAccountNumber(sData.general.accountNumber)
       if (sData.header?.logo) setLogoUrl(sData.header.logo)
@@ -260,6 +276,16 @@ export default function QuotationsPage() {
       (qt.lead?.businessName || "").toLowerCase().includes(q)
     )
   }, [quotations, search])
+
+  const filteredPartnerQuotes = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return partnerQuotes
+    return partnerQuotes.filter((quote) => {
+      const partner = Array.isArray(quote.partners) ? quote.partners[0] : quote.partners
+      const lead = Array.isArray(quote.partner_leads) ? quote.partner_leads[0] : quote.partner_leads
+      return [quote.quote_number, quote.status, partner?.business_name, lead?.business_name, lead?.contact_name, lead?.email].some((value) => String(value || "").toLowerCase().includes(q))
+    })
+  }, [partnerQuotes, search])
 
   const addItem = () => setForm((prev) => ({ ...prev, items: [...prev.items, { ...initialItem }] }))
 
@@ -585,7 +611,7 @@ export default function QuotationsPage() {
             <FileText className="w-5 h-5" />
             Quotations
           </h2>
-          <p className="text-muted-foreground">Create and share quotations with leads.</p>
+          <p className="text-muted-foreground">View lead and partner quotations in one workspace.</p>
         </div>
         <Button size="sm" onClick={() => { resetForm(); setShowCreate(true) }}>
           <Plus className="w-4 h-4 mr-1" />
@@ -619,11 +645,37 @@ export default function QuotationsPage() {
 
       <Card>
         <CardContent className="p-0">
+          <div className="flex flex-wrap gap-2 border-b p-3" aria-label="Quotation type">
+            <Button type="button" size="sm" variant={quoteView === "lead" ? "default" : "outline"} onClick={() => setQuoteView("lead")}>Lead quotations ({quotations.length})</Button>
+            <Button type="button" size="sm" variant={quoteView === "partner" ? "default" : "outline"} onClick={() => setQuoteView("partner")}>Partner quotations ({partnerQuotes.length})</Button>
+          </div>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : quoteView === "partner" ? (filteredPartnerQuotes.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">No partner quotations found.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50"><tr><th className="px-4 py-2 text-left font-medium">Quote #</th><th className="px-4 py-2 text-left font-medium">Partner</th><th className="px-4 py-2 text-left font-medium">End customer</th><th className="px-4 py-2 text-left font-medium">Items</th><th className="px-4 py-2 text-left font-medium">Total</th><th className="px-4 py-2 text-left font-medium">Status</th><th className="px-4 py-2 text-left font-medium">Created</th></tr></thead>
+                <tbody className="divide-y">{filteredPartnerQuotes.map((quote) => {
+                  const partner = Array.isArray(quote.partners) ? quote.partners[0] : quote.partners
+                  const lead = Array.isArray(quote.partner_leads) ? quote.partner_leads[0] : quote.partner_leads
+                  const items = quote.quote_items || []
+                  return <tr key={quote.id} className="align-top hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium whitespace-nowrap">{quote.quote_number}</td>
+                    <td className="px-4 py-3">{partner?.business_name || "Partner"}<div className="text-xs text-muted-foreground">{partner?.partner_id || ""}</div></td>
+                    <td className="px-4 py-3">{lead?.business_name || "—"}<div className="text-xs text-muted-foreground">{lead?.contact_name || lead?.email || ""}</div></td>
+                    <td className="px-4 py-3"><details><summary className="cursor-pointer text-blue-700">{items.length} line{items.length === 1 ? "" : "s"}</summary><ul className="mt-2 min-w-48 space-y-1">{items.map((item, index) => <li key={`${quote.id}-${index}`} className="text-xs">{item.description} · {item.quantity} × {formatNgnFull(Number(item.unit_price) || 0)}</li>)}</ul></details></td>
+                    <td className="px-4 py-3 font-medium whitespace-nowrap">{new Intl.NumberFormat("en-NG", { style: "currency", currency: quote.currency || "NGN" }).format(Number(quote.total_amount) || 0)}</td>
+                    <td className="px-4 py-3">{quote.status.replaceAll("_", " ")}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{new Date(quote.created_at).toLocaleDateString()}</td>
+                  </tr>
+                })}</tbody>
+              </table>
+            </div>
+          )) : filtered.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">No quotations found.</div>
           ) : (
             <div className="overflow-x-auto">

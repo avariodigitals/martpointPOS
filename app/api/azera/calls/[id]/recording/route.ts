@@ -41,6 +41,9 @@ async function summarizeRecording(call: Record<string, unknown>, path: string, r
   if (!transcriptionResponse.ok) throw new Error("The configured speech service could not transcribe this recording.")
   const transcript = String((await transcriptionResponse.json()).text || "").trim()
   if (!transcript) throw new Error("No speech could be transcribed from this recording.")
+  const transcriptPath = `${String(call.business_id)}/${callId}/${randomUUID()}.txt`
+  const { error: transcriptSaveError } = await supabase.storage.from("call-transcripts").upload(transcriptPath, Buffer.from(transcript, "utf8"), { contentType: "text/plain", upsert: false })
+  if (transcriptSaveError) throw new Error("The transcript was created, but private transcript storage failed.")
   const summaryResponse = await fetch(`${provider.baseUrl}/chat/completions`, {
     method: "POST", headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: provider.chatModel, temperature: 0.1, max_tokens: 600, response_format: { type: "json_object" }, messages: [
@@ -55,7 +58,7 @@ async function summarizeRecording(call: Record<string, unknown>, path: string, r
   if (summary.length < 5) throw new Error("The AI service returned an empty call summary.")
   const actionItems = Array.isArray(result.action_items) ? result.action_items.map((item) => String(item).trim().slice(0, 500)).filter(Boolean).slice(0, 20) : []
   const outcome = ["discussed", "follow_up_required", "no_answer", "not_interested", "other"].includes(String(result.outcome)) ? String(result.outcome) : "other"
-  const { error: saveError } = await supabase.from("azera_call_summaries").upsert({ call_id: callId, transcript: transcript.slice(0, 50_000), summary, action_items: actionItems, outcome, summary_source: "ai", summary_status: "complete", author_name: "Azera", updated_at: new Date().toISOString() }, { onConflict: "call_id" })
+  const { error: saveError } = await supabase.from("azera_call_summaries").upsert({ call_id: callId, transcript: null, transcript_path: transcriptPath, summary, action_items: actionItems, outcome, summary_source: "ai", summary_status: "complete", author_name: "Azera", updated_at: new Date().toISOString() }, { onConflict: "call_id" })
   if (saveError) throw new Error("The transcript was created, but the call note could not be saved.")
   const summaryRow = await supabase.from("azera_call_summaries").select("id").eq("call_id", callId).single()
   if (summaryRow.data?.id) await linkSummary(call, summaryRow.data.id)
@@ -110,6 +113,6 @@ export async function POST(request: Request, { params }: Context) {
     if (row.data?.id) await linkSummary(call as unknown as Record<string, unknown>, row.data.id)
     await supabase.from("azera_call_recordings").update({ summary_status: "needs_staff_review" }).eq("id", recording.id)
   }
-  const { data: summary } = await supabase.from("azera_call_summaries").select("id,summary,transcript,action_items,outcome,summary_status").eq("call_id", call.id).maybeSingle()
+  const { data: summary } = await supabase.from("azera_call_summaries").select("id,summary,action_items,outcome,summary_status").eq("call_id", call.id).maybeSingle()
   return NextResponse.json({ saved: true, summary }, { status: 201, headers: { "Cache-Control": "no-store" } })
 }

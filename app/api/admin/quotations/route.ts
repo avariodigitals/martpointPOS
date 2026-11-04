@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   if (denied) return denied
 
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ quotations: [] })
+    return NextResponse.json({ quotations: [], partnerQuotes: [] })
   }
 
   try {
@@ -39,15 +39,17 @@ export async function GET(request: Request) {
 
     const quotations = (data || []).map((row: Record<string, unknown>) => mapQuotation(row))
 
-    const [{ data: products }, { data: services }, { data: plans }, taxRatesRes] = await Promise.all([
+    const [{ data: products }, { data: services }, { data: plans }, taxRatesRes, partnerQuotesRes] = await Promise.all([
       supabase.from("commercial_products").select("id, name, description, default_price, currency").eq("status", "ACTIVE").order("name"),
       supabase.from("services").select("id, name, description, default_price, currency").eq("active", true).order("name"),
       supabase.from("plans").select("id, name, description, base_price, currency, billing_type, billing_interval").eq("active", true).order("name"),
       supabase.from("tax_rates").select("id, name, rate").eq("is_active", true).order("name").then((res) => res, () => ({ data: [] })),
+      supabase.from("quotes").select("id,quote_number,status,currency,total_amount,valid_until,created_at,partner_id,partner_lead_id,quote_items(description,quantity,unit_price,line_total),partners(business_name,partner_id),partner_leads(business_name,contact_name,email,phone)").eq("quote_origin", "PARTNER_REQUEST").order("created_at", { ascending: false }),
     ])
 
     return NextResponse.json({
       quotations,
+      partnerQuotes: partnerQuotesRes.error ? [] : partnerQuotesRes.data || [],
       products: products || [],
       services: services || [],
       plans: plans || [],

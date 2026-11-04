@@ -5,6 +5,7 @@ type IncomingCall = { id: string; customer_phone: string; selected_department?: 
 export type IncomingPhoneState = {
   state: "off" | "connecting" | "ready" | "ringing" | "active" | "error";
   call: IncomingCall | null; error: string | null; muted: boolean; held: boolean; audioBlocked: boolean;
+  retrying?: boolean;
 };
 
 /** One long-lived receiving phone per agent. Ready is advertised only after the
@@ -23,6 +24,9 @@ export class AfricaIncomingPhone {
   private failures = 0;
   private generation = 0;
   private leased = false;
+  private shouldReconnect = false;
+  private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private reconnectAttempts = 0;
   private queues: string[] = [];
   constructor(private changed: (state: IncomingPhoneState) => void) {}
   private change(value: Partial<IncomingPhoneState>) {
@@ -41,7 +45,7 @@ export class AfricaIncomingPhone {
   async start(queues: string[]) {
     if (this.client || this.snapshot.state === "connecting") return;
     const generation = ++this.generation;
-    this.stopped = false; this.queues = queues; this.failures = 0;
+    this.stopped = false; this.shouldReconnect = true; this.queues = queues; this.failures = 0;
     this.change({ state: "connecting", error: null });
     try {
       const stream = await requestCallMicrophone();
@@ -60,6 +64,9 @@ export class AfricaIncomingPhone {
         void this.post("ready").then(() => {
           if (this.stopped || client !== this.client) return;
           clearTimeout(this.setupDeadline);
+          this.reconnectAttempts = 0;
+          clearTimeout(this.reconnectTimer);
+          this.change({ retrying: false });
           if (!this.incoming) this.change({ state: "ready" });
           clearInterval(this.heartbeat);
           this.heartbeat = setInterval(() => void this.tick(), 15_000);
@@ -88,7 +95,12 @@ export class AfricaIncomingPhone {
         if (!this.stopped && client === this.client) void this.fail("Your browser phone disconnected. Reconnect to receive calls.");
       });
       this.setupDeadline = setTimeout(() => void this.fail("The provider did not register your phone. Check WebRTC activation and reconnect."), 30_000);
-    } catch (error) { if (!this.stopped && generation === this.generation) await this.fail(error instanceof Error ? error.message : "Could not enable your phone."); }
+    } catch (error) {
+      if (!this.stopped && generation === this.generation) {
+        const message = error instanceof Error ? error.message : "Could not enable your phone."
+        await this.fail(message, !/permission|microphone|not assigned|forbidden|configure|another tab|active or ringing|apply migration/i.test(message))
+      }
+    }
   }
   private async loadCall() {
     const generation = this.generation;
@@ -115,8 +127,7 @@ export class AfricaIncomingPhone {
       // Rotating while talking would cut audio; defer token refresh until idle.
       if (!this.incoming && Date.now() > this.refreshAt) {
         const queues = this.queues;
-        await this.stop();
-        await this.start(queues);
+        await this.fail("Refreshing the browser phone session.", true);
         return;
       }
       await this.post("heartbeat");
@@ -127,7 +138,8 @@ export class AfricaIncomingPhone {
       }
       this.failures = 0;
     } catch (error) {
-      if (generation === this.generation && ++this.failures >= 3) await this.fail(error instanceof Error ? error.message : "Your phone connection was lost.");
+      const message = error instanceof Error ? error.message : "Your phone connection was lost.";
+      if (generation === this.generation && ++this.failures >= 3) await this.fail(message, !/session expired|sign in again|forbidden|not assigned|another tab/i.test(message));
     } finally { this.ticking = false; }
   }
   async answer() {
@@ -174,9 +186,29 @@ export class AfricaIncomingPhone {
     try { await audio.play(); this.change({ audioBlocked: false }); }
     catch { this.change({ audioBlocked: true }); }
   }
-  private async fail(error: string) { await this.stop(); this.change({ state: "error", error }); }
-  async stop() {
-    if (this.stopped) return;
+  private async fail(error: string, retry = true) {
+    const queues = this.queues;
+    const reconnect = retry && this.shouldReconnect && !this.incoming && queues.length > 0;
+    await this.stop(reconnect);
+    this.change({ state: "error", error, retrying: reconnect });
+    if (reconnect) {
+      const delay = Math.min(30_000, 1_000 * 2 ** Math.min(this.reconnectAttempts++, 5));
+      this.reconnectTimer = setTimeout(() => {
+        if (this.shouldReconnect && !this.client) void this.start(queues);
+      }, delay);
+    }
+  }
+  async stop(preserveReconnect = false) {
+    clearTimeout(this.reconnectTimer);
+    if (!preserveReconnect) {
+      this.shouldReconnect = false;
+      this.reconnectAttempts = 0;
+      clearTimeout(this.reconnectTimer);
+    }
+    if (this.stopped) {
+      if (!preserveReconnect) this.change({ state: "off", error: null, call: null, muted: false, held: false, retrying: false });
+      return;
+    }
     this.stopped = true;
     this.generation++;
     clearInterval(this.heartbeat); clearTimeout(this.setupDeadline);
@@ -187,6 +219,6 @@ export class AfricaIncomingPhone {
       await this.post("stop").catch(() => undefined);
       this.leased = false;
     }
-    this.change({ state: "off", call: null, muted: false, held: false });
+    this.change({ state: "off", call: null, muted: false, held: false, retrying: false });
   }
 }

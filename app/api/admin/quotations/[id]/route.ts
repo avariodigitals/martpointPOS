@@ -48,8 +48,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   try {
     if (session.role !== "Admin") {
-      const { data: quote } = await supabase.from("lead_quotations").select("creator_id,status").eq("id", id).maybeSingle()
-      if (!quote || quote.creator_id !== session.userId || quote.status !== "DRAFT") return NextResponse.json({ error: "You can delete only your own draft quotation" }, { status: 403 })
+      const { data: quote } = await supabase.from("lead_quotations").select("creator_id,created_by,status").eq("id", id).maybeSingle()
+      const isCreator = quote?.creator_id === session.userId || (!quote?.creator_id && quote?.created_by === session.username)
+      if (!quote || !isCreator || quote.status !== "DRAFT") return NextResponse.json({ error: "You can delete only your own draft quotation" }, { status: 403 })
     }
     const { error } = await supabase.from("lead_quotations").delete().eq("id", id)
     if (error) throw error
@@ -104,11 +105,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "At least one item is required" }, { status: 400 })
     }
 
-    const { data: existing, error: existingError } = await supabase.from("lead_quotations").select("id, quote_number,status,creator_id,updated_at").eq("id", id).single()
+    const { data: existing, error: existingError } = await supabase.from("lead_quotations").select("id, quote_number,status,creator_id,created_by,updated_at").eq("id", id).single()
     if (existingError || !existing) {
       return NextResponse.json({ error: "Quotation not found" }, { status: 404 })
     }
-    if (requiresApproval && (existing.status !== "DRAFT" || existing.creator_id !== session.userId)) {
+    const isCreator = existing.creator_id === session.userId || (!existing.creator_id && existing.created_by === session.username)
+    if (requiresApproval && (existing.status !== "DRAFT" || !isCreator)) {
       return NextResponse.json({ error: "You can edit only your own draft quotations" }, { status: 403 })
     }
     if (requiresApproval) {
@@ -284,7 +286,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       }
     }
 
-    return NextResponse.json({ success: true, quotation, emailSent, emailError })
+    return NextResponse.json({ success: true, quotation, emailSent, emailError, approvalRequired: requiresApproval })
   } catch (e) {
     console.error("[admin/quotations/[id]] PUT", e)
     return NextResponse.json({ error: "Failed to update quotation" }, { status: 500 })

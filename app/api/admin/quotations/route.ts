@@ -289,7 +289,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, quotation, emailSent, emailError })
+    return NextResponse.json({ success: true, quotation, emailSent, emailError, approvalRequired: requiresApproval })
   } catch (e) {
     console.error("[admin/quotations] POST", e)
     return NextResponse.json({ error: "Failed to create quotation" }, { status: 500 })

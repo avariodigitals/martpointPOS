@@ -126,6 +126,7 @@ export default function QuotationsPage() {
   const [accountNumber, setAccountNumber] = useState("")
   const [isAdmin, setIsAdmin] = useState(false)
   const [currentUserId, setCurrentUserId] = useState("")
+  const [currentUsername, setCurrentUsername] = useState("")
 
   const [showCreate, setShowCreate] = useState(Boolean(preselectedLeadId) || estimatorParam)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -186,6 +187,7 @@ export default function QuotationsPage() {
         const permissionData = await permissionRes.json()
         setIsAdmin(permissionData.role === "Admin")
         setCurrentUserId(String(permissionData.userId || ""))
+        setCurrentUsername(String(permissionData.username || ""))
         if (qData.quotations) setQuotations(qData.quotations)
         setPartnerQuotes(Array.isArray(qData.partnerQuotes) ? qData.partnerQuotes : [])
         if (lData.leads) setLeads(lData.leads)
@@ -402,7 +404,7 @@ export default function QuotationsPage() {
         setShowCreate(false)
         resetForm()
         const base = editingId ? "Quotation updated." : "Quotation created."
-        setMessage(data.approvalRequired ? `${base} Sent for technical/business approval. It will return to your drafts when a decision is made.` : form.sendEmail ? data.emailError || (data.emailSent ? `${base} Quotation sent by email.` : base) : base)
+        setMessage(data.approvalRequired ? `Quotation saved and sent for approval. It remains in Drafts while pending; after approval, select Email client to send it.` : form.sendEmail ? data.emailError || (data.emailSent ? `${base} Quotation sent by email.` : base) : base)
       } else {
         setMessage(data.error || `Failed to ${editingId ? "update" : "create"} quotation`)
       }
@@ -748,7 +750,7 @@ export default function QuotationsPage() {
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          {(isAdmin || (qt.creator_id === currentUserId && qt.status === "DRAFT")) && <button
+                          {(isAdmin || ((qt.creator_id === currentUserId || (!qt.creator_id && qt.created_by === currentUsername)) && qt.status === "DRAFT")) && <button
                             onClick={() => openEdit(qt)}
                             className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50 transition-colors"
                             title="Edit"
@@ -800,7 +802,7 @@ export default function QuotationsPage() {
                               <MessageSquare className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {(isAdmin || (qt.creator_id === currentUserId && qt.status === "DRAFT")) && <button
+                          {(isAdmin || ((qt.creator_id === currentUserId || (!qt.creator_id && qt.created_by === currentUsername)) && qt.status === "DRAFT")) && <button
                             onClick={() => deleteQuote(qt.id)}
                             className="p-1 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
                             title="Delete"
@@ -1301,7 +1303,7 @@ export default function QuotationsPage() {
               </Button>
               <Button onClick={submit} disabled={creating}>
                 {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                {editingId ? isAdmin ? "Save Quotation" : "Save & Resubmit for Approval" : isAdmin ? "Create Quotation" : "Create & Send for Approval"}
+                {editingId ? isAdmin ? "Save Quotation" : "Save & Send for Approval" : isAdmin ? "Create Quotation" : "Save & Send for Approval"}
               </Button>
             </div>
           </div>
@@ -1410,7 +1412,7 @@ export default function QuotationsPage() {
               <Button variant="outline" onClick={() => setShowView(null)}>
                 Close
               </Button>
-              {(isAdmin || (showView.creator_id === currentUserId && showView.status === "DRAFT")) && <Button onClick={() => { setShowView(null); openEdit(showView) }}>
+              {(isAdmin || ((showView.creator_id === currentUserId || (!showView.creator_id && showView.created_by === currentUsername)) && showView.status === "DRAFT")) && <Button onClick={() => { setShowView(null); openEdit(showView) }}>
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit
               </Button>}

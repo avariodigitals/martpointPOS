@@ -31,7 +31,7 @@ export async function GET() {
   const pageAccess = await hasEffectivePermission(session.userId, session.role, "approvals", hasPermission(session.role, "approvals"))
   if (!financeAccess && !eligibleKeys.length && !pageAccess) return error("Finance access or an approver assignment is required", 403)
   const fullFinanceInbox = financeAccess && ["Admin", "Finance"].includes(session.role)
-  const visibleRequests = fullFinanceInbox ? requests.data || [] : (requests.data || []).filter((item) => item.requested_by === session.userId || eligibleKeys.includes(item.action_key))
+  const visibleRequests = fullFinanceInbox || session.role === "Admin" ? requests.data || [] : (requests.data || []).filter((item) => item.requested_by === session.userId || eligibleKeys.includes(item.action_key))
   const users = session.role === "Admin"
     ? await supabase.from("users").select("id,name,username,role,status").eq("status", "ACTIVE").order("name")
     : { data: [] as { id: string; name: string; username: string; role: string; status: string }[], error: null }

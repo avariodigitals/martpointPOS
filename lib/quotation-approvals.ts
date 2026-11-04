@@ -10,7 +10,9 @@ export async function notifyQuotationApprovers(input: { quoteId: string; quoteNu
   const userIds = Array.isArray(policy.approver_user_ids) ? policy.approver_user_ids.filter((id): id is string => typeof id === "string") : []
   const { data: users, error } = await supabase.from("users").select("id,role").eq("status", "ACTIVE")
   if (error) return
-  const targets = (users || []).filter((user) => user.id !== input.requesterId && (roles.includes(user.role) || userIds.includes(user.id)))
+  // Admins can always decide approval requests, even if a policy is assigned
+  // to specific technical or sales approvers. Keep them informed as well.
+  const targets = (users || []).filter((user) => user.id !== input.requesterId && (user.role === "Admin" || roles.includes(user.role) || userIds.includes(user.id)))
   await Promise.all(targets.map((user) => notifyAdminUser({
     admin_user_id: user.id,
     type: "QUOTATION_APPROVAL_REQUESTED",

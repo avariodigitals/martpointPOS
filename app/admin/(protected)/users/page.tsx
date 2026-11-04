@@ -203,12 +203,10 @@ export default function AdminUsersPage() {
           </h2>
           <p className="text-muted-foreground">Manage admin users and assign roles.</p>
         </div>
-        {!showForm && (
-          <Button onClick={() => { resetForm(); setShowForm(true); }}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add User
-          </Button>
-        )}
+        {!showForm && <div className="flex items-center gap-2">
+          <Link href="/admin/users/roles" className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted">Edit role permissions</Link>
+          <Button onClick={() => { resetForm(); setShowForm(true); }}><Plus className="mr-2 h-4 w-4" />Add User</Button>
+        </div>}
       </div>
 
       {message && (

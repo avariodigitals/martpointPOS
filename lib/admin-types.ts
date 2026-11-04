@@ -129,9 +129,9 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   Admin: ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "integrations", "users", "leads", "quotations", "customers", "finance", "approvals", "onboarding", "partners", "businesses", "support", "azera", "customer_success", "compliance", "tasks", "marketing", "status"],
-  Finance: ["dashboard", "finance", "approvals", "partner_quotes", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "compliance"],
+  Finance: ["dashboard", "finance", "finance.invoices.view", "finance.payments.view", "approvals", "partner_quotes", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "compliance"],
   "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "marketing", ...CREATOR_PERMISSIONS],
-  Sales: ["dashboard", "approvals", "leads", "quotations", "customers", "onboarding", "businesses"],
+  Sales: ["dashboard", "finance.invoices.view", "finance.payments.view", "leads", "quotations", "customers", "onboarding", "businesses"],
   "Customer Care": ["dashboard", "leads", "customers", "onboarding", "businesses", "support", "azera", "customer_success"],
   Tech: ["dashboard", "settings", "integrations", "seo", "blog", "faqs", "customers", "businesses", "support", "azera", "customer_success", "compliance", "tasks", "status"],
   Editor: ["blog", "faqs"],

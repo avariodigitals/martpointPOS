@@ -4,8 +4,8 @@ import { hasFinanceActionForUser } from "@/lib/finance-permissions"
 import { ALL_ROLES } from "@/lib/admin-types"
 import { hasEffectivePermission } from "@/lib/permission-overrides"
 import { supabase } from "@/lib/supabase"
-import { logFinanceAudit, syncInvoiceFinanceTransaction, removePaymentFinanceTransaction, waiveSubscription, confirmPayment } from "@/lib/finance-commercial"
-import { postPaymentReversal, postPayoutJournal } from "@/lib/finance-ledger"
+import { logFinanceAudit, syncInvoiceFinanceTransaction, removePaymentFinanceTransaction, waiveSubscription, confirmPayment, recordPayment } from "@/lib/finance-commercial"
+import { postPaymentReversal, postPayoutJournal, voidEntriesForSource } from "@/lib/finance-ledger"
 import { issuePayoutStatement } from "@/lib/partner-generated-docs"
 
 export const dynamic = "force-dynamic"
@@ -26,7 +26,7 @@ export async function GET() {
   ])
   if (requests.error || policies.error) return error("Apply migration 167 to use approval workflows", 503)
   const financeAccess = await hasFinanceActionForUser(session.userId, session.role, "finance:view")
-  const eligibleKeys = (policies.data || []).filter((policy) => isApprover(policy, session.userId, session.role)).map((policy) => policy.action_key)
+  const eligibleKeys = (policies.data || []).filter((policy) => policy.enabled && isApprover(policy, session.userId, session.role)).map((policy) => policy.action_key)
   const pageAccess = await hasEffectivePermission(session.userId, session.role, "approvals", hasPermission(session.role, "approvals"))
   if (!financeAccess && !eligibleKeys.length && !pageAccess) return error("Finance access or an approver assignment is required", 403)
   const fullFinanceInbox = financeAccess && ["Admin", "Finance"].includes(session.role)
@@ -79,12 +79,12 @@ export async function POST(request: Request) {
       if (approvalError || !approval) return error("Pending approval request not found", 404)
       if (approval.requested_by === session.userId) return error("You cannot approve your own request", 403)
       const { data: policy, error: policyError } = await supabase.from("approval_policies").select("enabled,approver_roles,approver_user_ids").eq("action_key", approval.action_key).maybeSingle()
-      if (policyError || !policy) return error("Approval policy is unavailable", 409)
+      if (policyError || !policy || !policy.enabled) return error("Approval policy is unavailable or disabled", 409)
       const allowedRoles = cleanIds(policy.approver_roles)
       const allowedUsers = cleanIds(policy.approver_user_ids)
       if (session.role !== "Admin" && !allowedRoles.includes(session.role) && !allowedUsers.includes(session.userId)) return error("You are not an approver for this action", 403)
 
-      if (decision === "APPROVED" && approval.action_key.startsWith("finance.invoice.")) {
+      if (decision === "APPROVED" && ["finance.invoice.cancel", "finance.invoice.void", "finance.invoice.waive"].includes(approval.action_key)) {
         const current = await supabase.from("invoices").select("id,status,invoice_number").eq("id", approval.entity_id).maybeSingle()
         if (current.error || !current.data || ["CANCELLED", "VOID", "WAIVED", "PAID"].includes(String(current.data.status).toUpperCase())) return error("The invoice changed since the request. Review its current state before deciding.", 409)
         const status = approval.action_key === "finance.invoice.cancel" ? "CANCELLED" : approval.action_key === "finance.invoice.void" ? "VOID" : approval.action_key === "finance.invoice.waive" ? "WAIVED" : null
@@ -97,6 +97,65 @@ export async function POST(request: Request) {
         await syncInvoiceFinanceTransaction(String(approval.entity_id))
         const auditAction = status === "CANCELLED" ? "INVOICE_CANCELLATION_APPROVED" : status === "VOID" ? "INVOICE_VOID_APPROVED" : "INVOICE_WAIVER_APPROVED"
         await logFinanceAudit("ADMIN", session.userId, auditAction, "INVOICE", String(approval.entity_id), { approval_request_id: id, requested_by: approval.requested_by, reason: approval.reason })
+      } else if (decision === "APPROVED" && ["finance.invoice.update", "finance.invoice.delete"].includes(approval.action_key)) {
+        const { data: current, error: currentError } = await supabase.from("invoices").select("id,status,updated_at,invoice_number,amount_paid").eq("id", approval.entity_id).maybeSingle()
+        if (currentError || !current || current.status !== approval.details?.status_at_request || (approval.details?.updated_at_at_request && current.updated_at !== approval.details.updated_at_at_request)) return error("The invoice changed since the request. Review it again before deciding.", 409)
+        if (approval.action_key === "finance.invoice.delete") {
+          if (current.status !== "DRAFT" || Number(current.amount_paid) > 0) return error("Only an unpaid draft invoice can be deleted", 409)
+          await voidEntriesForSource("INVOICE", String(approval.entity_id))
+          await supabase.from("finance_transactions").delete().eq("invoice_id", approval.entity_id)
+          await supabase.from("invoice_items").delete().eq("invoice_id", approval.entity_id)
+          await supabase.from("payment_allocations").delete().eq("invoice_id", approval.entity_id)
+          await supabase.from("payments").update({ invoice_id: null, updated_at: new Date().toISOString() }).eq("invoice_id", approval.entity_id)
+          const removed = await supabase.from("invoices").delete().eq("id", approval.entity_id).select("id").maybeSingle()
+          if (removed.error || !removed.data) return error("The approved invoice deletion could not be applied", 409)
+          await logFinanceAudit("ADMIN", session.userId, "INVOICE_DELETED", "INVOICE", String(approval.entity_id), { approval_request_id: id, requested_by: approval.requested_by, reason: approval.reason })
+        } else {
+          const payload = (approval.details?.payload || {}) as Record<string, unknown>
+          const updates = payload
+          if (Array.isArray(updates.items) && (updates.items as Record<string, unknown>[]).some((item) => !String(item.description || "").trim())) return error("Every invoice line needs a description", 409)
+          const meta: Record<string, unknown> = {}
+          for (const key of ["issue_date", "due_date", "currency", "notes_public", "notes_internal", "payment_terms", "bank_details", "template_industry"]) if (key in updates) meta[key] = updates[key]
+          const saved = await supabase.from("invoices").update({ ...meta, updated_at: new Date().toISOString() }).eq("id", approval.entity_id).eq("status", current.status).select("id").maybeSingle()
+          if (saved.error || !saved.data) return error("The approved invoice change could not be applied", 409)
+          if (Array.isArray(updates.items)) {
+            const items = updates.items as Record<string, unknown>[]
+            const existing = await supabase.from("invoice_items").select("id").eq("invoice_id", approval.entity_id)
+            if (existing.error) return error("Invoice items could not be loaded", 409)
+            const keepIds = new Set(items.filter((item) => item.id).map((item) => String(item.id)))
+            const removed = (existing.data || []).map((item) => item.id).filter((item) => !keepIds.has(item))
+            if (removed.length) await supabase.from("invoice_items").delete().in("id", removed)
+            for (const item of items) {
+              const quantity = Number(item.quantity) || 0
+              const unitPrice = Number(item.unit_price) || 0
+              const discount = Number(item.discount) || 0
+              const tax = Number(item.tax) || 0
+              const row = { item_type: item.item_type || "CUSTOM", reference_id: item.reference_id || null, description: item.description, quantity, unit_price: unitPrice, discount, tax, line_total: Math.round((quantity * unitPrice - discount + tax) * 100) / 100 }
+              const result = item.id
+                ? await supabase.from("invoice_items").update(row).eq("id", String(item.id)).eq("invoice_id", approval.entity_id)
+                : await supabase.from("invoice_items").insert({ ...row, invoice_id: approval.entity_id })
+              if (result.error) return error("An approved invoice line could not be saved", 409)
+            }
+          }
+          await syncInvoiceFinanceTransaction(String(approval.entity_id))
+          await logFinanceAudit("ADMIN", session.userId, "INVOICE_UPDATED", "INVOICE", String(approval.entity_id), { approval_request_id: id, requested_by: approval.requested_by, reason: approval.reason })
+        }
+      } else if (decision === "APPROVED" && approval.action_key === "finance.payment.record") {
+        const payload = (approval.details?.payload || {}) as Record<string, unknown>
+        const businessId = String(payload.business_id || "")
+        const amount = Number(payload.amount)
+        if (!businessId || !Number.isFinite(amount) || amount <= 0) return error("Payment request data is invalid", 409)
+        const created = await recordPayment({
+          business_id: businessId,
+          ...(payload.invoice_id ? { invoice_id: String(payload.invoice_id) } : {}),
+          amount,
+          currency: String(payload.currency || "NGN"),
+          payment_method: String(payload.payment_method || "OTHER") as Parameters<typeof recordPayment>[0]["payment_method"],
+          paid_at: String(payload.paid_at || new Date().toISOString()),
+          notes: String(payload.notes || ""),
+        })
+        await confirmPayment(String(created.id), session.userId, session.userId, String(payload.payment_account_id || "") || undefined)
+        await logFinanceAudit("ADMIN", session.userId, "PAYMENT_CONFIRMED", "PAYMENT", String(created.id), { approval_request_id: id, requested_by: approval.requested_by, reason: approval.reason, amount })
       } else if (decision === "APPROVED" && approval.action_key === "finance.payment.confirm") {
         const payload = (approval.details?.payload || {}) as Record<string, unknown>
         const { data: payment } = await supabase.from("payments").select("id,status").eq("id", approval.entity_id).maybeSingle()
@@ -164,7 +223,7 @@ export async function POST(request: Request) {
       const enabled = body.enabled === true
       const approverRoles = cleanIds(body.approverRoles)
       const approverUserIds = cleanIds(body.approverUserIds)
-      const allowedKeys = new Set(["finance.invoice.cancel", "finance.invoice.void", "finance.invoice.waive", "finance.payment.confirm", "finance.payment.reverse", "finance.subscription.waive", "finance.subscription.suspend", "finance.subscription.cancel", "finance.commission.approve", "finance.payout.mark_paid"])
+      const allowedKeys = new Set(["finance.invoice.cancel", "finance.invoice.void", "finance.invoice.waive", "finance.invoice.update", "finance.invoice.delete", "finance.payment.record", "finance.payment.confirm", "finance.payment.reverse", "finance.subscription.waive", "finance.subscription.suspend", "finance.subscription.cancel", "finance.commission.approve", "finance.payout.mark_paid"])
       if (!allowedKeys.has(key)) return error("Unknown approval action")
       if (approverRoles.some((role) => !ALL_ROLES.includes(role as typeof ALL_ROLES[number]))) return error("One or more approver roles are invalid")
       if (enabled && !approverRoles.length && !approverUserIds.length) return error("Choose at least one approver role or staff member")

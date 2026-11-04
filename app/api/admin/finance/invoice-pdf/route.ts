@@ -8,7 +8,7 @@ import { getPublicSiteSettings } from "@/lib/settings"
 
 /* GET /api/admin/finance/invoice-pdf?id= — downloads the invoice as a PDF. */
 export async function GET(request: Request) {
-  const { session, denied } = await authorizeAdmin("finance")
+  const { session, denied } = await authorizeAdmin("finance.invoices.view")
   if (denied) return denied
   if (!session || !await hasFinanceActionForUser(session.userId, session.role, "finance:view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })

@@ -30,7 +30,13 @@ export async function GET(_request: Request, context: Context) {
   if (user.error || !user.data) return fail("User not found", 404)
   if (overrides.error) return fail("Apply migration 168 to manage personal permission overrides", 503)
   const role = user.data.role as keyof typeof ROLE_PERMISSIONS
-  const rolePermissions = [...(ROLE_PERMISSIONS[role] || []), ...FINANCE_PERMISSION_KEYS.filter((key) => hasFinanceAction(role, key))]
+  const roleRules = await supabase.from("role_permission_overrides").select("permission_key,effect").eq("role_name", role)
+  const roleAllowed = new Set([...(ROLE_PERMISSIONS[role] || []), ...FINANCE_PERMISSION_KEYS.filter((key) => hasFinanceAction(role, key))])
+  if (!roleRules.error) for (const rule of roleRules.data || []) {
+    if (rule.effect === "allow") roleAllowed.add(rule.permission_key)
+    if (rule.effect === "deny") roleAllowed.delete(rule.permission_key)
+  }
+  const rolePermissions = [...roleAllowed]
   return NextResponse.json({ success: true, user: user.data, overrides: overrides.data || [], permissionKeys: [...permissionKeys].sort(), rolePermissions })
 }
 

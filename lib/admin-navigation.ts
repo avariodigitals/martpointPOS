@@ -305,12 +305,12 @@ export const adminNavItems: AdminNavItem[] = [
   // Finance
   { href: "/admin/finance", label: "Finance", icon: Landmark, page: "finance", section: "Finance" },
   { href: "/admin/approvals", label: "Approvals", icon: ClipboardCheck, page: "approvals", section: "Finance" },
-  { href: "/admin/finance/invoices", label: "Invoices", icon: Receipt, page: "finance", section: "Finance" },
+  { href: "/admin/finance/invoices", label: "Invoices", icon: Receipt, page: "finance.invoices.view", section: "Finance" },
   {
     href: "/admin/finance/payments",
     label: "Payments",
     icon: CreditCard,
-    page: "finance",
+    page: "finance.payments.view",
     section: "Finance"
   },
   {

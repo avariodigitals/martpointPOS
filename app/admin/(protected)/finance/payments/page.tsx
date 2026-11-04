@@ -79,6 +79,9 @@ export default function PaymentsPage() {
   const filtersActive = filterMethod !== "all" || filterStatus !== "all" || filterPaidFrom !== "" || filterPaidTo !== "" || searchQuery.trim() !== ""
 
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountOption[]>([])
+  const [canConfirmPayments, setCanConfirmPayments] = useState(false)
+  const [canRequestFinanceApproval, setCanRequestFinanceApproval] = useState(false)
+  const [paymentConfirmApprovalEnabled, setPaymentConfirmApprovalEnabled] = useState(false)
 
   const [confirmTarget, setConfirmTarget] = useState<Payment | null>(null)
   const [confirmAccountId, setConfirmAccountId] = useState("")
@@ -89,7 +92,13 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     fetchPayments()
-    fetchPaymentAccounts()
+    fetch("/api/admin/my-permissions", { cache: "no-store" }).then((res) => res.ok ? res.json() : null).then((data) => {
+      const allowed = data?.financeActions?.["finance:payments:confirm"] === true
+      setCanRequestFinanceApproval(data?.financeActions?.["finance:approvals:request"] === true)
+      setPaymentConfirmApprovalEnabled(data?.approvalActions?.["finance.payment.confirm"] === true)
+      setCanConfirmPayments(allowed)
+      if (allowed) fetchPaymentAccounts()
+    }).catch(() => undefined)
   }, [])
 
   async function fetchPaymentAccounts() {
@@ -153,6 +162,8 @@ export default function PaymentsPage() {
 
   async function confirmPaymentRecord() {
     if (!confirmTarget) return
+    const reason = paymentConfirmApprovalEnabled ? window.prompt("Why should this payment be confirmed?")?.trim() || "" : ""
+    if (paymentConfirmApprovalEnabled && reason.length < 5) return
     setConfirming(true)
     setMessage("")
     try {
@@ -165,13 +176,14 @@ export default function PaymentsPage() {
           // "Auto — route by payment method".
           data: {
             id: confirmTarget.id,
+            ...(reason ? { reason } : {}),
             ...(confirmAccountId ? { payment_account_id: confirmAccountId } : {}),
           },
         }),
       })
       const data = await res.json()
       if (data.success) {
-        setMessage("Payment confirmed and applied")
+        setMessage(data.data?.approvalRequired ? "Payment confirmation sent for approval" : "Payment confirmed and applied")
         setConfirmTarget(null)
         fetchPayments()
       } else {
@@ -213,11 +225,23 @@ export default function PaymentsPage() {
     }
   }
 
+  async function requestPaymentConfirmation(payment: Payment) {
+    const reason = window.prompt(`Why should payment ${payment.payment_reference} be confirmed?`)
+    if (!reason || reason.trim().length < 5) return
+    const res = await fetch("/api/admin/finance/commercial/payments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "confirm", data: { id: payment.id, reason: reason.trim() } }),
+    })
+    const data = await res.json()
+    setMessage(data.success ? "Payment confirmation sent for approval" : data.error || "Could not request payment approval")
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <Link href="/admin/finance" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+          <Link href="/admin/finance/invoices" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="mr-1 h-4 w-4" /> Back to Finance
           </Link>
           <h2 className="mt-1 text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -381,7 +405,7 @@ export default function PaymentsPage() {
                         {p.proof_document_path && (
                           <a href={`/api/admin/finance/payment-proof?id=${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer" className="mr-2 text-xs text-retail hover:underline">View proof</a>
                         )}
-                        {p.status === "PENDING" && (
+                        {canConfirmPayments && p.status === "PENDING" && (
                           <>
                             <button
                               onClick={() => openConfirm(p)}
@@ -399,6 +423,7 @@ export default function PaymentsPage() {
                             </button>
                           </>
                         )}
+                        {!canConfirmPayments && canRequestFinanceApproval && paymentConfirmApprovalEnabled && p.status === "PENDING" && <button onClick={() => void requestPaymentConfirmation(p)} className="rounded-md px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50">Request approval</button>}
                       </td>
                     </tr>
                   ))}

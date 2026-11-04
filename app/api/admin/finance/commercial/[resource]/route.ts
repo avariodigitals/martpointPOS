@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { NextResponse } from "next/server"
+import { randomUUID } from "node:crypto"
 import { getSession } from "@/lib/admin-auth"
 import { hasFinanceActionForUser, type FinanceAction } from "@/lib/finance-permissions"
 import type { UserRole } from "@/lib/admin-types"
@@ -114,7 +115,8 @@ async function requestInvoiceApproval(actor: { id: string; role: string; name: s
 }
 
 const approvalActionByResource: Record<string, Record<string, string>> = {
-  payments: { confirm: "finance.payment.confirm", reverse: "finance.payment.reverse" },
+  invoices: { update: "finance.invoice.update", delete: "finance.invoice.delete" },
+  payments: { record: "finance.payment.record", confirm: "finance.payment.confirm", reverse: "finance.payment.reverse" },
   subscriptions: { waive: "finance.subscription.waive", suspend: "finance.subscription.suspend", cancel_subscription: "finance.subscription.cancel" },
   commissions: { approve: "finance.commission.approve" },
   payouts: { mark_paid: "finance.payout.mark_paid" },
@@ -122,15 +124,37 @@ const approvalActionByResource: Record<string, Record<string, string>> = {
 
 async function requestFinanceApproval(actor: { id: string; role: string; name: string }, actionKey: string, resource: string, id: string, data: Record<string, unknown>) {
   const reason = String(data.reason || "").trim()
+  if (resource === "payments" && actionKey === "finance.payment.record") {
+    if (reason.length < 5) return err("Enter a reason of at least 5 characters")
+    const businessId = String(data.business_id || "")
+    const amount = Number(data.amount)
+    if (!businessId || !Number.isFinite(amount) || amount <= 0) return err("Business and a valid payment amount are required")
+    const { data: business } = await supabase.from("businesses").select("id,business_name").eq("id", businessId).maybeSingle()
+    if (!business) return err("Business not found", 404)
+    if (data.invoice_id) {
+      const { data: invoice } = await supabase.from("invoices").select("id,business_id,balance_due,status").eq("id", String(data.invoice_id)).maybeSingle()
+      if (!invoice || invoice.business_id !== businessId) return err("Invoice does not belong to this business", 409)
+      if (["CANCELLED", "VOID", "WAIVED"].includes(String(invoice.status).toUpperCase()) || amount > Number(invoice.balance_due) + 0.01) return err("Payment amount or invoice state is invalid", 409)
+    }
+    const virtualId = randomUUID()
+    const inserted = await supabase.from("approval_requests").insert({
+      action_key: actionKey, entity_type: "PAYMENT", entity_id: virtualId, entity_reference: `Payment request · ${business.business_name}`,
+      reason, details: { payload: data }, requested_by: actor.id, requested_by_name: actor.name, requested_by_role: actor.role,
+    }).select().single()
+    if (inserted.error) return err("Could not create the payment approval request", 500)
+    await logFinanceAudit("ADMIN", actor.id, "APPROVAL_REQUESTED", "PAYMENT", virtualId, { action_key: actionKey, approval_request_id: inserted.data.id, reason })
+    await notifyCommercialAction({ resource, action: "request_record", actorName: actor.name, sourceId: virtualId, reference: `Payment request · ${business.business_name}`, detail: `Payment entry requested: ${reason}` })
+    return ok({ approvalRequired: true, request: inserted.data })
+  }
   if (!id || reason.length < 5) return err("Enter a reason of at least 5 characters")
-  const tableByResource: Record<string, string> = { payments: "payments", subscriptions: "subscriptions", commissions: "partner_commissions", payouts: "commission_payouts" }
+  const tableByResource: Record<string, string> = { invoices: "invoices", payments: "payments", subscriptions: "subscriptions", commissions: "partner_commissions", payouts: "commission_payouts" }
   const table = tableByResource[resource]
   if (!table) return err("This action cannot be submitted for approval", 409)
-  const { data: entity, error: entityError } = await supabase.from(table).select("id,status").eq("id", id).maybeSingle()
+  const { data: entity, error: entityError } = await supabase.from(table).select("id,status,updated_at,invoice_number,payment_reference").eq("id", id).maybeSingle()
   if (entityError || !entity) return err("Record not found", 404)
   const result = await supabase.from("approval_requests").insert({
-    action_key: actionKey, entity_type: resource.toUpperCase(), entity_id: id, entity_reference: id,
-    reason, details: { status_at_request: entity.status, payload: data },
+    action_key: actionKey, entity_type: resource.toUpperCase(), entity_id: id, entity_reference: String((entity as Record<string, unknown>).invoice_number || (entity as Record<string, unknown>).payment_reference || id),
+    reason, details: { status_at_request: entity.status, updated_at_at_request: (entity as Record<string, unknown>).updated_at || null, payload: data },
     requested_by: actor.id, requested_by_name: actor.name, requested_by_role: actor.role,
   }).select().single()
   if (result.error) return err(result.error.code === "23505" ? "A request for this action is already pending" : "Could not create the approval request", result.error.code === "23505" ? 409 : 500)
@@ -422,7 +446,7 @@ export async function POST(request: Request, props: { params: Promise<{ resource
       : null
     if (configuredApprovalPolicy?.error) return err("Apply migration 167 to use approval workflows", 503)
     const usesConfiguredApproval = configuredApprovalPolicy?.data?.enabled === true
-    if (usesConfiguredApproval && configuredApprovalKey && !await requireActionPerm(resource, action, actor.role, actor.id)) return err("Forbidden", 403)
+    if (usesConfiguredApproval && configuredApprovalKey && !await requireActionPerm(resource, action, actor.role, actor.id) && !await hasFinanceActionForUser(actor.id, actor.role, "finance:approvals:request")) return err("Forbidden", 403)
     if (usesConfiguredApproval && !await hasFinanceActionForUser(actor.id, actor.role, "finance:approvals:request")) return err("You cannot request this action", 403)
     if (actionUsesApproval && !await hasFinanceActionForUser(actor.id, actor.role, "finance:invoices:approval_request")) return err("You cannot request this invoice action", 403)
     if (!actionUsesApproval && !usesConfiguredApproval && !await requireActionPerm(resource, resource === "quotes" && action === "revise" ? "update" : action, actor.role, actor.id)) return err("Forbidden", 403)

@@ -507,13 +507,37 @@ export default function InvoicesPage() {
   })
   const [recordingPayment, setRecordingPayment] = useState(false)
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountOption[]>([])
+  const [canManageInvoices, setCanManageInvoices] = useState(false)
+  const [canRecordPayments, setCanRecordPayments] = useState(false)
+  const [canRequestInvoiceApproval, setCanRequestInvoiceApproval] = useState(false)
+  const [canRequestFinanceApproval, setCanRequestFinanceApproval] = useState(false)
+  const [paymentRecordApprovalEnabled, setPaymentRecordApprovalEnabled] = useState(false)
+  const [invoiceUpdateApprovalEnabled, setInvoiceUpdateApprovalEnabled] = useState(false)
+  const [invoiceDeleteApprovalEnabled, setInvoiceDeleteApprovalEnabled] = useState(false)
+  const [invoiceCancelApprovalEnabled, setInvoiceCancelApprovalEnabled] = useState(false)
 
   useEffect(() => {
     fetchBusinesses()
-    fetchCatalog()
     fetchInvoices()
-    fetchPaymentAccounts()
-    fetchInvoiceDefaults()
+    fetch("/api/admin/my-permissions", { cache: "no-store" }).then((res) => res.ok ? res.json() : null).then((data) => {
+      const actions = data?.financeActions || {}
+      const approvalActions = data?.approvalActions || {}
+      const manageInvoices = actions["finance:invoices:create"] === true
+      const recordPayments = actions["finance:payments:record"] === true
+      setCanManageInvoices(manageInvoices)
+      setCanRecordPayments(recordPayments)
+      setCanRequestInvoiceApproval(actions["finance:invoices:approval_request"] === true)
+      setCanRequestFinanceApproval(actions["finance:approvals:request"] === true)
+      setInvoiceUpdateApprovalEnabled(approvalActions["finance.invoice.update"] === true)
+      setInvoiceDeleteApprovalEnabled(approvalActions["finance.invoice.delete"] === true)
+      setInvoiceCancelApprovalEnabled(approvalActions["finance.invoice.cancel"] === true)
+      setPaymentRecordApprovalEnabled(approvalActions["finance.payment.record"] === true)
+      if (manageInvoices) {
+        fetchCatalog()
+        fetchInvoiceDefaults()
+      }
+      if (recordPayments) fetchPaymentAccounts()
+    }).catch(() => undefined)
   }, [])
 
   async function fetchInvoiceDefaults() {
@@ -743,6 +767,9 @@ export default function InvoicesPage() {
 
   async function saveInvoice() {
     if (!editing) return
+    const needsApproval = !canManageInvoices || invoiceUpdateApprovalEnabled
+    const reason = needsApproval ? window.prompt("Why does this invoice need to be changed?")?.trim() || "" : ""
+    if (needsApproval && reason.length < 5) return
     setEditLoading(true)
     setMessage("")
     try {
@@ -753,6 +780,7 @@ export default function InvoicesPage() {
           action: "update",
           data: {
             id: editing.id,
+            ...(reason ? { reason } : {}),
             issue_date: editing.issue_date,
             due_date: editing.due_date,
             template_industry: editing.template_industry,
@@ -775,7 +803,8 @@ export default function InvoicesPage() {
       })
       const data = await res.json()
       if (data.success) {
-        setMessage("Invoice saved")
+        setMessage(data.data?.approvalRequired ? "Invoice change sent for approval" : "Invoice saved")
+        if (data.data?.approvalRequired) setModalMode("view")
         fetchInvoices()
         openInvoice(editing, modalMode)
       } else {
@@ -824,17 +853,39 @@ export default function InvoicesPage() {
     }
   }
 
+  async function requestInvoiceCancellation(id: string, reason: string) {
+    const res = await fetch("/api/admin/finance/commercial/invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "cancel", data: { id, reason } }),
+    })
+    const data = await res.json()
+    setMessage(data.success ? "Invoice cancellation sent for approval" : data.error || "Could not request cancellation")
+  }
+
+  async function requestInvoiceDeletion(id: string, reason: string) {
+    const res = await fetch("/api/admin/finance/commercial/invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", data: { id, reason } }),
+    })
+    const data = await res.json()
+    setMessage(data.success ? "Invoice deletion sent for approval" : data.error || "Could not request deletion")
+  }
+
   async function deleteInvoice(id: string) {
-    if (!confirm("Delete this invoice permanently?")) return
+    const reason = invoiceDeleteApprovalEnabled ? window.prompt("Why should this invoice be deleted?")?.trim() || "" : ""
+    if (invoiceDeleteApprovalEnabled && reason.length < 5) return
+    if (!invoiceDeleteApprovalEnabled && !confirm("Delete this invoice permanently?")) return
     try {
       const res = await fetch("/api/admin/finance/commercial/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", data: { id } }),
+        body: JSON.stringify({ action: "delete", data: { id, ...(reason ? { reason } : {}) } }),
       })
       const data = await res.json()
       if (data.success) {
-        setMessage("Invoice deleted")
+        setMessage(data.data?.approvalRequired ? "Invoice deletion sent for approval" : "Invoice deleted")
         fetchInvoices()
       } else {
         setMessage(data.error || "Failed to delete invoice")
@@ -850,6 +901,9 @@ export default function InvoicesPage() {
       setMessage("Enter a valid payment amount")
       return
     }
+    const paymentNeedsApproval = !canRecordPayments || paymentRecordApprovalEnabled
+    const approvalReason = paymentNeedsApproval ? window.prompt("Why should this payment be recorded?")?.trim() || "" : ""
+    if (paymentNeedsApproval && approvalReason.length < 5) return
     setRecordingPayment(true)
     setMessage("")
     try {
@@ -865,10 +919,17 @@ export default function InvoicesPage() {
             payment_method: paymentForm.paymentMethod,
             paid_at: paymentForm.paidAt ? new Date(paymentForm.paidAt).toISOString() : new Date().toISOString(),
             notes: paymentForm.notes,
+            ...(approvalReason ? { reason: approvalReason } : {}),
           },
         }),
       })
       const recordData = await recordRes.json()
+      if (recordData.success && recordData.data?.approvalRequired) {
+        setMessage("Payment entry sent for approval")
+        setShowPayment(false)
+        setPaymentInvoice(null)
+        return
+      }
       if (recordData.success && recordData.data?.id) {
         // "Auto — route by payment method" omits payment_account_id and lets
         // confirmPayment pick the account from the payment method.
@@ -929,9 +990,9 @@ export default function InvoicesPage() {
           </h2>
           <p className="text-sm text-muted-foreground">Create, issue and collect invoice payments. Business selection is required.</p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
+        {canManageInvoices && <Button onClick={() => setShowCreate(true)}>
           <Plus className="mr-1 h-4 w-4" /> Create Invoice
-        </Button>
+        </Button>}
       </div>
 
       {message && (
@@ -1086,22 +1147,22 @@ export default function InvoicesPage() {
                           <button onClick={() => openInvoice(inv, "view")} className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50" title="View">
                             <Eye className="h-3.5 w-3.5" />
                           </button>
-                          {inv.status !== "VOID" && inv.status !== "CANCELLED" && (
+                          {(canManageInvoices || (canRequestFinanceApproval && invoiceUpdateApprovalEnabled)) && inv.status !== "VOID" && inv.status !== "CANCELLED" && (
                             <button onClick={() => openInvoice(inv, "edit")} className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50" title="Edit">
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
                           )}
-                          {inv.status === "DRAFT" && (
+                          {canManageInvoices && inv.status === "DRAFT" && (
                             <button onClick={() => runInvoiceAction("issue", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50" title="Issue">
                               <Send className="h-3.5 w-3.5" />
                             </button>
                           )}
-                          {(inv.status === "ISSUED" || inv.status === "PARTIALLY_PAID" || inv.status === "OVERDUE") && (
+                          {(canRecordPayments || (canRequestFinanceApproval && paymentRecordApprovalEnabled)) && (inv.status === "ISSUED" || inv.status === "PARTIALLY_PAID" || inv.status === "OVERDUE") && (
                             <button onClick={() => openPayment(inv)} className="p-1.5 rounded-md text-muted-foreground hover:text-green-600 hover:bg-green-50" title="Record Payment">
                               <CreditCard className="h-3.5 w-3.5" />
                             </button>
                           )}
-                          {(inv.status !== "VOID" && inv.status !== "CANCELLED" && inv.status !== "WAIVED") && (
+                          {canManageInvoices && (inv.status !== "VOID" && inv.status !== "CANCELLED" && inv.status !== "WAIVED") && (
                             <>
                               <button onClick={() => runInvoiceAction("void", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50" title="Void">
                                 <FileX className="h-3.5 w-3.5" />
@@ -1114,14 +1175,18 @@ export default function InvoicesPage() {
                               </button>
                             </>
                           )}
-                          {inv.status === "CANCELLED" && (
+                          {!canManageInvoices && canRequestInvoiceApproval && invoiceCancelApprovalEnabled && inv.status !== "VOID" && inv.status !== "CANCELLED" && inv.status !== "WAIVED" && (
+                            <button onClick={() => { const reason = window.prompt("Why should this invoice be cancelled?"); if (reason) void requestInvoiceCancellation(inv.id, reason) }} className="p-1.5 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50" title="Request cancellation approval"><Ban className="h-3.5 w-3.5" /></button>
+                          )}
+                          {canManageInvoices && inv.status === "CANCELLED" && (
                             <button onClick={() => runInvoiceAction("reopen", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-green-600 hover:bg-green-50" title="Reopen">
                               <RotateCcw className="h-3.5 w-3.5" />
                             </button>
                           )}
-                          <button onClick={() => deleteInvoice(inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-red-700 hover:bg-red-50" title="Delete">
+                          {canManageInvoices && <button onClick={() => deleteInvoice(inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-red-700 hover:bg-red-50" title="Delete">
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </button>}
+                          {!canManageInvoices && canRequestFinanceApproval && invoiceDeleteApprovalEnabled && inv.status === "DRAFT" && <button onClick={() => { const reason = window.prompt("Why should this draft invoice be deleted?"); if (reason && reason.trim().length >= 5) void requestInvoiceDeletion(inv.id, reason.trim()) }} className="p-1.5 rounded-md text-muted-foreground hover:text-amber-700 hover:bg-amber-50" title="Request deletion approval"><Trash2 className="h-3.5 w-3.5" /></button>}
                         </div>
                       </td>
                     </tr>
@@ -1275,7 +1340,7 @@ export default function InvoicesPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {modalMode === "view" && editing.status !== "VOID" && editing.status !== "CANCELLED" && editing.status !== "WAIVED" && (
+                {(canManageInvoices || (canRequestFinanceApproval && invoiceUpdateApprovalEnabled)) && modalMode === "view" && editing.status !== "VOID" && editing.status !== "CANCELLED" && editing.status !== "WAIVED" && (
                   <Button size="sm" variant="outline" onClick={() => setModalMode("edit")}>
                     <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
                   </Button>
@@ -1390,40 +1455,40 @@ export default function InvoicesPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {modalMode === "edit" && (
+              {(canManageInvoices || (canRequestFinanceApproval && invoiceUpdateApprovalEnabled)) && modalMode === "edit" && (
                 <Button size="sm" onClick={saveInvoice} disabled={editLoading}>
                   {editLoading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1 h-3.5 w-3.5" />}
-                  Save Changes
+                  {canManageInvoices ? "Save Changes" : "Request Approval"}
                 </Button>
               )}
-              {editing.status === "DRAFT" && (
+              {canManageInvoices && editing.status === "DRAFT" && (
                 <Button size="sm" variant="outline" onClick={() => runInvoiceAction("issue", editing.id)}><Send className="mr-1 h-3.5 w-3.5" /> Issue</Button>
               )}
               {(editing.status === "ISSUED" || editing.status === "PARTIALLY_PAID" || editing.status === "OVERDUE") && (
                 <>
-                  <Button size="sm" variant="outline" onClick={() => openPayment(editing)}><CreditCard className="mr-1 h-3.5 w-3.5" /> Record Payment</Button>
-                  <Button size="sm" variant="outline" onClick={() => runInvoiceAction("send", editing.id)}><Mail className="mr-1 h-3.5 w-3.5" /> Resend Email</Button>
+                  {(canRecordPayments || (canRequestFinanceApproval && paymentRecordApprovalEnabled)) && <Button size="sm" variant="outline" onClick={() => openPayment(editing)}><CreditCard className="mr-1 h-3.5 w-3.5" /> {canRecordPayments ? "Record Payment" : "Request Payment Entry"}</Button>}
+                  {canManageInvoices && <Button size="sm" variant="outline" onClick={() => runInvoiceAction("send", editing.id)}><Mail className="mr-1 h-3.5 w-3.5" /> Resend Email</Button>}
                   <a href={`/api/admin/finance/invoice-pdf?id=${editing.id}`} target="_blank" rel="noopener noreferrer">
                     <Button size="sm" variant="outline"><Download className="mr-1 h-3.5 w-3.5" /> PDF</Button>
                   </a>
-                  <Button size="sm" variant="outline" onClick={() => runInvoiceAction("send_reminder", editing.id)}><BellRing className="mr-1 h-3.5 w-3.5" /> Send Reminder</Button>
-                  <Button size="sm" variant="outline" onClick={() => runInvoiceAction(editing.reminders_paused ? "resume_reminders" : "pause_reminders", editing.id)}>
+                  {canManageInvoices && <Button size="sm" variant="outline" onClick={() => runInvoiceAction("send_reminder", editing.id)}><BellRing className="mr-1 h-3.5 w-3.5" /> Send Reminder</Button>}
+                  {canManageInvoices && <Button size="sm" variant="outline" onClick={() => runInvoiceAction(editing.reminders_paused ? "resume_reminders" : "pause_reminders", editing.id)}>
                     {editing.reminders_paused ? <PlayCircle className="mr-1 h-3.5 w-3.5" /> : <PauseCircle className="mr-1 h-3.5 w-3.5" />}
                     {editing.reminders_paused ? "Resume Reminders" : "Pause Reminders"}
-                  </Button>
+                  </Button>}
                 </>
               )}
-              {editing.status !== "VOID" && editing.status !== "CANCELLED" && editing.status !== "WAIVED" && (
+              {canManageInvoices && editing.status !== "VOID" && editing.status !== "CANCELLED" && editing.status !== "WAIVED" && (
                 <>
                   <Button size="sm" variant="outline" onClick={() => runInvoiceAction("void", editing.id)}><FileX className="mr-1 h-3.5 w-3.5" /> Void</Button>
                   <Button size="sm" variant="outline" onClick={() => runInvoiceAction("cancel", editing.id)}><Ban className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
                   <Button size="sm" variant="outline" className="text-purple-600 hover:text-purple-700 hover:bg-purple-50" onClick={() => runInvoiceAction("waive", editing.id)}><BadgeCheck className="mr-1 h-3.5 w-3.5" /> Waive</Button>
                 </>
               )}
-              {editing.status === "CANCELLED" && (
+              {canManageInvoices && editing.status === "CANCELLED" && (
                 <Button size="sm" variant="outline" onClick={() => runInvoiceAction("reopen", editing.id)}><RotateCcw className="mr-1 h-3.5 w-3.5" /> Reopen</Button>
               )}
-              <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => { deleteInvoice(editing.id); setEditing(null) }}><Trash2 className="mr-1 h-3.5 w-3.5" /> Delete</Button>
+              {canManageInvoices && <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => { deleteInvoice(editing.id); setEditing(null) }}><Trash2 className="mr-1 h-3.5 w-3.5" /> Delete</Button>}
             </div>
 
             {modalMode === "edit" ? (
@@ -1554,7 +1619,7 @@ export default function InvoicesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl border border-border bg-background shadow-lg p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Record Payment</h3>
+              <h3 className="text-lg font-semibold">{canRecordPayments ? "Record Payment" : "Request Payment Entry"}</h3>
               <button onClick={() => setShowPayment(false)} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-1">
@@ -1620,7 +1685,7 @@ export default function InvoicesPage() {
               <Button variant="outline" onClick={() => setShowPayment(false)} disabled={recordingPayment}>Cancel</Button>
               <Button onClick={recordPayment} disabled={recordingPayment || !paymentForm.amount || Number(paymentForm.amount) <= 0}>
                 {recordingPayment ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CreditCard className="mr-1 h-4 w-4" />}
-                Record Payment
+                {canRecordPayments ? "Record Payment" : "Request Approval"}
               </Button>
             </div>
           </div>

@@ -61,6 +61,8 @@ export async function dispatchAzeraCampaignCall() {
   }
   const { data: call, error: insertError } = await supabase.from("azera_calls").insert({
     business_id: campaign.business_id,
+    lead_id: recipient.lead_id,
+    selected_department: "sales",
     campaign_recipient_id: recipient.id,
     call_type: "sip",
     direction: "outbound",

@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     if (!body || typeof body !== "object") return err("Choose a contact or enter a phone number.", 400)
-    const keys = ["conversationId", "creatorId", "applicationId", "phone"].filter(
+    const keys = ["conversationId", "creatorId", "applicationId", "leadId", "phone"].filter(
       (key) => body[key] !== undefined
     )
     if (
@@ -58,6 +58,7 @@ export async function POST(request: Request) {
       sourceId: string | null = null
     let creatorId: string | null = null,
       applicationId: string | null = null
+    let leadId: string | null = null
     if (keys[0] === "conversationId") {
       const result = await supabase
         .from("azera_conversations")
@@ -97,6 +98,15 @@ export async function POST(request: Request) {
       sourceId = contact.id
       creatorId = creator ? contact.id : null
       applicationId = creator ? contact.application_id || null : contact.id
+    } else if (keys[0] === "leadId") {
+      const result = await supabase.from("leads").select("id,full_name,business_name,phone").eq("id", body.leadId).maybeSingle()
+      if (result.error) return err("Could not load lead details.", 503)
+      if (!result.data) return err("Lead not found.", 404)
+      rawPhone = result.data.phone || ""
+      name = result.data.full_name || result.data.business_name || "Lead"
+      sourceType = "lead"
+      sourceId = result.data.id
+      leadId = result.data.id
     } else {
       rawPhone = body.phone
       if (
@@ -135,6 +145,8 @@ export async function POST(request: Request) {
       id,
       business_id: businessId,
       conversation_id: conversation?.id || null,
+      lead_id: leadId,
+      selected_department: sourceType === "creator" || sourceType === "creator_application" ? "onboarding" : "sales",
       ...(sourceType === "creator" || sourceType === "creator_application"
         ? { creator_id: creatorId, creator_application_id: applicationId }
         : {}),

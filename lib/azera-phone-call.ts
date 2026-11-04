@@ -1,5 +1,6 @@
 import { Room, RoomEvent, Track } from "livekit-client";
 import { requestCallMicrophone } from "@/lib/azera-webrtc";
+import { startAzeraBrowserRecording } from "@/lib/azera-browser-recording";
 
 export type PhoneCallSnapshot = {
   state: "connecting" | "ringing" | "active" | "ended" | "error";
@@ -10,6 +11,8 @@ export type PhoneCallSnapshot = {
   held?: boolean;
   id?: string;
   transferred?: boolean;
+  recording?: boolean;
+  recordingError?: string | null;
 };
 
 /** A staff browser joins and publishes audio BEFORE the telephone is dialled. */
@@ -27,6 +30,8 @@ export class BrowserPhoneCall {
   private id: string | null = null;
   private room: Room | null = null;
   private stream: MediaStream | null = null;
+  private remoteStream = new MediaStream();
+  private recorder: { stop: () => Promise<void> } | null = null;
   private audio: HTMLMediaElement[] = [];
   private coaching: Room | null = null;
   private timer?: ReturnType<typeof setTimeout>;
@@ -114,6 +119,7 @@ export class BrowserPhoneCall {
       this.room = room;
       room.on(RoomEvent.TrackSubscribed, (track) => {
         if (track.kind !== Track.Kind.Audio) return;
+        if (track.mediaStreamTrack && !this.remoteStream.getTracks().some((item) => item.id === track.mediaStreamTrack.id)) this.remoteStream.addTrack(track.mediaStreamTrack);
         const element = track.attach();
         element.setAttribute("playsinline", "");
         this.audio.push(element);
@@ -183,13 +189,9 @@ export class BrowserPhoneCall {
         this.change({ state: "active" });
       } else if (["ended", "missed", "failed", "busy"].includes(status)) {
         this.finished = true;
-        this.release();
-        this.change({
-          state: status === "ended" ? "ended" : "error",
-          error:
-            status === "ended"
-              ? null
-              : "The customer could not be reached. Please try again later.",
+        void this.stopRecording().catch((error: Error) => this.change({ recordingError: error.message })).finally(() => {
+          this.release();
+          this.change({ state: status === "ended" ? "ended" : "error", error: status === "ended" ? null : "The customer could not be reached. Please try again later." });
         });
         return;
       }
@@ -210,6 +212,30 @@ export class BrowserPhoneCall {
       track.enabled = !muted;
     });
     this.change({ muted });
+  }
+  async startRecording() {
+    if (this.snapshot.state !== "active" || !this.id || !this.stream || !this.remoteStream.getAudioTracks().some((track) => track.readyState === "live")) throw new Error("Both call audio legs are not ready yet.")
+    if (this.recorder) return
+    this.recorder = await startAzeraBrowserRecording(this.id, this.stream, this.remoteStream)
+    this.change({ recording: true, recordingError: null })
+  }
+  async declineRecording() {
+    if (this.snapshot.state !== "active" || !this.id) throw new Error("Recording choice is available after the call connects.")
+    const response = await fetch(`/api/azera/calls/${this.id}/recording`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "consent", recipientAgreed: false }) })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || "Could not save the recording choice.")
+  }
+  async stopRecording() {
+    const recorder = this.recorder
+    if (!recorder) return
+    this.recorder = null
+    try {
+      await recorder.stop()
+      this.change({ recording: false, recordingError: null })
+    } catch (error) {
+      this.change({ recording: false, recordingError: error instanceof Error ? error.message : "The recording could not be saved." })
+      throw error
+    }
   }
   async resumeAudio() {
     try {
@@ -246,6 +272,7 @@ export class BrowserPhoneCall {
   }
   async end() {
     this.finished = true;
+    try { await this.stopRecording() } catch (error) { this.change({ recordingError: error instanceof Error ? error.message : "The recording could not be saved." }) }
     this.release();
     try {
       if (this.id)
@@ -268,6 +295,7 @@ export class BrowserPhoneCall {
   }
   private async fail(message: string, reason = "failed") {
     this.finished = true;
+    try { await this.stopRecording() } catch (error) { message += ` ${error instanceof Error ? error.message : "Recording could not be saved."}` }
     this.release();
     try {
       if (this.id)

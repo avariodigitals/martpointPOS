@@ -92,7 +92,7 @@ export async function creatorCallHistory(request: Request, id: string, kind: Kin
     const { data, error, count } = await supabase
       .from("azera_calls")
       .select(
-        "id,created_at,started_at,answered_at,ended_at,status,direction,duration_seconds,agent_name,customer_phone,sip_provider,sip_call_sid,follow_up_status,follow_up_notes,follow_up_at,final_outcome,creator_call_summaries(id,summary,outcome,author_name,created_at),azera_call_events(id,event_type,actor_type,created_at)",
+        "id,created_at,started_at,answered_at,ended_at,status,direction,duration_seconds,agent_name,customer_phone,sip_provider,sip_call_sid,follow_up_status,follow_up_notes,follow_up_at,final_outcome,creator_call_summaries(id,summary,outcome,author_name,created_at),azera_call_summaries(id,summary,action_items,outcome,summary_status,created_at),azera_call_events(id,event_type,actor_type,created_at)",
         { count: "exact" }
       )
       .or(filters)

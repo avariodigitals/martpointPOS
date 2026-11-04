@@ -2,6 +2,7 @@ import type { AfricaClient } from "africastalking-client"
 import { requestCallMicrophone } from "@/lib/azera-webrtc"
 import type { PhoneCallSnapshot } from "@/lib/azera-phone-call"
 import type { BrowserPhoneTarget } from "@/lib/browser-phone-target"
+import { startAzeraBrowserRecording } from "@/lib/azera-browser-recording"
 
 /** The provider owns the telephone/media legs. No tel: link or second provider. */
 export class AfricaBrowserCall {
@@ -28,6 +29,7 @@ export class AfricaBrowserCall {
   private sdkMicrophoneStream: MediaStream | null = null
   private restoreSdkCapture: (() => void) | null = null
   private captureBridgeTimer?: ReturnType<typeof setTimeout>
+  private recorder: { stop: () => Promise<void> } | null = null
   private audioReady = () => {
     void this.resumeAudio()
   }
@@ -138,11 +140,14 @@ export class AfricaBrowserCall {
       client.on("hangup", () => {
         if (this.finished) return
         this.finished = true
-        this.release(false)
-        this.change({ state: "ended", held: false })
-        void this.status(this.accepted ? "ended" : "missed").catch(
-          (error: Error) => this.change({ error: error.message })
-        ).finally(() => this.release())
+        void this.stopRecording().catch((error: Error) => this.change({ recordingError: error.message }))
+          .finally(() => {
+            this.release(false)
+            this.change({ state: "ended", held: false })
+            void this.status(this.accepted ? "ended" : "missed").catch(
+              (error: Error) => this.change({ error: error.message })
+            ).finally(() => this.release())
+          })
       })
       for (const event of ["notready", "offline", "closed"])
         client.on(event, () => {
@@ -210,6 +215,30 @@ export class AfricaBrowserCall {
       })
     }
   }
+  async startRecording() {
+    if (this.snapshot.state !== "active" || !this.id || !this.remoteAudio?.srcObject || !this.sdkMicrophoneStream) throw new Error("Both call audio legs are not ready yet.")
+    if (this.recorder) return
+    this.recorder = await startAzeraBrowserRecording(this.id, this.sdkMicrophoneStream, this.remoteAudio.srcObject as MediaStream)
+    this.change({ recording: true, recordingError: null })
+  }
+  async declineRecording() {
+    if (this.snapshot.state !== "active" || !this.id) throw new Error("Recording choice is available after the call connects.")
+    const response = await fetch(`/api/azera/calls/${this.id}/recording`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "consent", recipientAgreed: false }) })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || "Could not save the recording choice.")
+  }
+  async stopRecording() {
+    const recorder = this.recorder
+    if (!recorder) return
+    this.recorder = null
+    try {
+      await recorder.stop()
+      this.change({ recording: false, recordingError: null })
+    } catch (error) {
+      this.change({ recording: false, recordingError: error instanceof Error ? error.message : "The recording could not be saved." })
+      throw error
+    }
+  }
   private async keepCallSession() {
     if (this.finished || this.heartbeatBusy) return
     this.heartbeatBusy = true
@@ -268,6 +297,7 @@ export class AfricaBrowserCall {
     this.finished = true
     try {
       this.client?.hangup()
+      await this.stopRecording()
       this.release(false)
       await this.status("ended")
       this.release()
@@ -290,6 +320,7 @@ export class AfricaBrowserCall {
     } catch {
       /* destroy below closes media */
     }
+    try { await this.stopRecording() } catch (recordingError) { error += ` ${recordingError instanceof Error ? recordingError.message : "Recording could not be saved."}` }
     this.release(false)
     try {
       await this.status(status)

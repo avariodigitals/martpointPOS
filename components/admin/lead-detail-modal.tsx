@@ -1214,13 +1214,14 @@ export function LeadDetailModal({
                 <Mail className="w-3.5 h-3.5" />
                 <span className="truncate">{lead.email}</span>
               </a>
-              <a
-                href={`tel:${lead.phone}`}
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("azera:dial", { detail: { target: { leadId: lead.id }, name: lead.fullName, phone: lead.phone } }))}
                 className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-retail transition-colors"
               >
                 <Phone className="w-3.5 h-3.5" />
                 <span className="truncate">{lead.phone}</span>
-              </a>
+              </button>
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Calendar className="w-3.5 h-3.5" />
                 <span>{new Date(lead.submittedAt).toLocaleDateString()}</span>
@@ -2853,7 +2854,7 @@ export function LeadDetailModal({
                 title="Call Lead"
                 description={`Call ${lead.fullName} at ${lead.phone}.`}
                 buttonText="Call"
-                onClick={() => (window.location.href = `tel:${lead.phone}`)}
+                onClick={() => window.dispatchEvent(new CustomEvent("azera:dial", { detail: { target: { leadId: lead.id }, name: lead.fullName, phone: lead.phone } }))}
                 accent="success"
               />
 

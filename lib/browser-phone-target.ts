@@ -3,6 +3,7 @@ export type BrowserPhoneTarget =
   | { conversationId: string }
   | { creatorId: string }
   | { applicationId: string }
+  | { leadId: string }
   | { phone: string; name?: string };
 
 export type BrowserDialRequest = { target: BrowserPhoneTarget; name: string; phone: string };

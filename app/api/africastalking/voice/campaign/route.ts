@@ -4,6 +4,7 @@ import { campaignCallId, finishAzeraCampaignIfDone } from "@/lib/azera-campaign-
 import { callbackSecretIsValid, pick, readAfricaRequest, voiceXml, xmlEscape } from "@/lib/africastalking"
 import { notifyAllAdmins } from "@/lib/admin-notifications"
 import { createCampaignAudioUrl, removeCampaignAudio } from "@/lib/naija-tts"
+import { saveAzeraCallNote } from "@/lib/azera-call-notes"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -50,6 +51,7 @@ export async function POST(request: Request): Promise<Response> {
   if (url.searchParams.get("timeout") === "1") {
     if (!recipient.response_digit) {
       await supabase.from("azera_call_campaign_recipients").update({ status: "no_response", response_label: "No keypad response", notes: "The call connected, but no keypad response was received.", completed_at: now, updated_at: now }).eq("id", recipient.id).in("status", ["dialing", "answered"])
+      await saveAzeraCallNote({ callId: call.id, summary: "Automated outbound follow-up connected, but no keypad response was received before the prompt timed out.", outcome: "no_answer", source: "campaign" }).catch((error) => console.error("[Campaign call note]", error))
     }
     if (Number(url.searchParams.get("attempt") || "0") > 1) await removeCampaignAudio(recipient.speech_audio_path)
     await finishAzeraCampaignIfDone(recipient.campaign_id)
@@ -69,6 +71,7 @@ export async function POST(request: Request): Promise<Response> {
       if (suppressionError) return new NextResponse("Retry", { status: 503 })
     }
     await supabase.from("azera_calls").update({ follow_up_status: digits === "2" ? "assigned" : digits === "1" ? "contacted" : "resolved", follow_up_notes: note, follow_up_at: digits === "1" || digits === "2" ? now : null, updated_at: now }).eq("id", call.id)
+    await saveAzeraCallNote({ callId: call.id, summary: `Automated outbound follow-up: ${label}. ${digits === "1" ? "The contact asked the MartPoint team to follow up." : digits === "2" ? "The contact requested a call back." : "The contact asked MartPoint to stop automated calls."}`, outcome: digits === "1" || digits === "2" ? "follow_up_required" : digits === "3" ? "not_interested" : "other", actionItems: digits === "1" || digits === "2" ? [digits === "2" ? "Call the contact back." : "Follow up with the contact about their enquiry."] : [], source: "campaign" }).catch((error) => console.error("[Campaign call note]", error))
     await supabase.from("azera_call_events").insert({ call_id: call.id, event_type: "sip_webhook", actor_type: "customer", metadata: { provider: "africas_talking_campaign", response_digit: digits, response_label: label } })
     if (digits === "1" || digits === "2") {
       await notifyAllAdmins({

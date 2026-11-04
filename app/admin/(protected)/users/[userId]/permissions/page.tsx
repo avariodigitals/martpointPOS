@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { ArrowLeft, Loader2, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { AzeraCallNotesTimeline } from "@/components/admin/azera-call-notes-timeline"
 
 type Override = { permission_key: string; effect: "allow" | "deny" }
 type UserInfo = { id: string; name: string; username: string; role: string; status: string }
@@ -85,5 +86,6 @@ export default function UserPermissionsPage() {
       })}</div>
     </section>)}
     {!loading && <div className="flex justify-end"><Button onClick={() => void save()} disabled={saving || !user || user.role === "Admin"}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Save permissions</Button></div>}
+    <AzeraCallNotesTimeline entityType="user" entityId={userId} />
   </div>
 }

@@ -24,7 +24,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Database not configured" }, { status: 503 })
   const { id } = await params
 
-  const [round, leadRow] = await Promise.all([
+  const [round, leadRow, callHistory] = await Promise.all([
     supabase
       .from("lead_notes")
       .select(NOTE_SELECT)
@@ -32,6 +32,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       .order("created_at", { ascending: false })
       .limit(200),
     supabase.from("leads").select("notes, updated_at").eq("id", id).single(),
+    supabase.from("azera_calls").select("id,created_at,customer_phone,azera_call_summaries(summary,action_items,summary_status)").eq("lead_id", id).order("created_at", { ascending: false }).limit(100),
   ])
   const { data, error } = round
   if (error) {
@@ -39,6 +40,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Failed to load notes" }, { status: 500 })
   }
   const notes = (data || []).map(mapNote)
+  for (const call of callHistory.data || []) {
+    const summaryRow = Array.isArray(call.azera_call_summaries) ? call.azera_call_summaries[0] : call.azera_call_summaries
+    if (!summaryRow?.summary) continue
+    const actions = Array.isArray(summaryRow.action_items) ? summaryRow.action_items.map(String) : []
+    notes.push({ id: `call-${call.id}`, note: `Recorded call summary (${call.customer_phone || "outgoing call"}): ${summaryRow.summary}${actions.length ? `\n\nAction items:\n${actions.map((item: string) => `• ${item}`).join("\n")}` : ""}`, authorName: "Azera call summary", createdAt: call.created_at })
+  }
+  notes.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
   // Intake forms (website quote, demo booking) still drop their text into the old
   // single `leads.notes` column, so show it instead of leaving it unreadable.
   const legacy = String(leadRow.data?.notes ?? "").trim()

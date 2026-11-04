@@ -24,6 +24,7 @@ type Call = {
   follow_up_at: string | null
   provider_cost_amount: number | null
   provider_cost_currency: string | null
+  azera_call_summaries?: { id: string; summary: string | null; action_items: string[]; outcome: string; summary_status: string; created_at: string }[]
 }
 type Summary = {
   total: number
@@ -650,6 +651,7 @@ function CallReports() {
                 {detailError}
               </p>
             )}
+            {selected.azera_call_summaries?.[0] && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3"><h3 className="font-medium text-blue-950">Call summary</h3>{selected.azera_call_summaries[0].summary ? <><p className="mt-2 whitespace-pre-wrap text-sm text-blue-950">{selected.azera_call_summaries[0].summary}</p>{selected.azera_call_summaries[0].action_items?.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-blue-950">{selected.azera_call_summaries[0].action_items.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>}</> : <p className="mt-1 text-sm text-blue-900">{selected.azera_call_summaries[0].summary_status === "needs_staff_review" ? "Recording saved. Staff review is needed because speech transcription was unavailable or failed." : "Summary is being prepared."}</p>}</div>}
             <label className="block text-sm">
               Follow-up status
               <select

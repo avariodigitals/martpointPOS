@@ -21,6 +21,7 @@ type Call = {
   follow_up_at: string | null
   final_outcome: string | null
   creator_call_summaries: Summary[]
+  azera_call_summaries: { id: string; summary: string | null; action_items: string[]; outcome: string; summary_status: string; created_at: string }[]
   azera_call_events: { id: string; event_type: string; actor_type: string; created_at: string }[]
 }
 const fmt = (value: string) =>
@@ -151,6 +152,7 @@ export function CreatorCallsTab({ id, application = false }: { id: string; appli
                   {enumLabel(call.status)}
                 </span>
               </div>
+              {call.azera_call_summaries?.[0]?.summary ? <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-950"><p className="font-medium">Call summary</p><p className="mt-1 whitespace-pre-wrap">{call.azera_call_summaries[0].summary}</p>{call.azera_call_summaries[0].action_items?.length > 0 && <ul className="mt-2 list-disc pl-5">{call.azera_call_summaries[0].action_items.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>}</div> : null}
               <dl className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
                 <div>
                   <dt className="text-muted-foreground">Talk duration</dt>

@@ -18,6 +18,7 @@ import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib
 import { LocationFields } from "@/components/location-fields"
 import { enumLabel, roleLabel } from "@/lib/utils"
 import { SupportTicketsPanel } from "@/components/admin/support-tickets-panel"
+import { AzeraCallNotesTimeline } from "@/components/admin/azera-call-notes-timeline"
 
 interface Props {
   business: Business
@@ -1085,6 +1086,7 @@ export function BusinessDetail({
                 ))}
               </div>
             )}
+            <AzeraCallNotesTimeline entityType="business" entityId={business.id} />
           </CardContent>
         </Card>
       )}

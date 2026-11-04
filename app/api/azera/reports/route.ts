@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from("azera_calls")
       .select(
-        "id,business_id,call_type,direction,status,agent_user_id,agent_name,customer_name,customer_phone,selected_department,follow_up_status,follow_up_notes,follow_up_at,provider_cost_amount,provider_cost_currency,started_at,answered_at,ended_at,duration_seconds,created_at",
+        "id,business_id,call_type,direction,status,agent_user_id,agent_name,customer_name,customer_phone,selected_department,follow_up_status,follow_up_notes,follow_up_at,provider_cost_amount,provider_cost_currency,started_at,answered_at,ended_at,duration_seconds,created_at,azera_call_summaries(id,summary,action_items,outcome,summary_status,created_at)",
         { count: "exact" }
       )
       .gte("created_at", filters.from)

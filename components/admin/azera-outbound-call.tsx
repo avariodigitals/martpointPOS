@@ -38,6 +38,9 @@ export function AzeraOutboundCall({
     resumeAudio: () => Promise<void>;
     toggleHold?: () => void;
     dtmf?: (digit: string) => void;
+    startRecording?: () => Promise<void>;
+    stopRecording?: () => Promise<void>;
+    declineRecording?: () => Promise<void>;
   } | null>(null);
   const [advanced, setAdvanced] = useState(false);
   const [call, setCall] = useState<PhoneCallSnapshot>({
@@ -48,6 +51,8 @@ export function AzeraOutboundCall({
     setupRequired: false,
   });
   const [ending, setEnding] = useState(false);
+  const [recordingBusy, setRecordingBusy] = useState(false);
+  const [recordingMessage, setRecordingMessage] = useState("");
   useEffect(() => {
     let closed = false;
     const abort = new AbortController();
@@ -151,6 +156,11 @@ export function AzeraOutboundCall({
       )}
       {call.state === "active" && (
         <div className="mt-3 space-y-2">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+            <p>To record and summarize this call, tell the contact first and get their agreement. Recording starts only after you confirm agreement below.</p>
+            {call.recording ? <button type="button" disabled={recordingBusy} onClick={() => { setRecordingBusy(true); setRecordingMessage(""); void engine.current?.stopRecording?.().then(() => setRecordingMessage("Recording saved. Azera is preparing the transcript and summary." )).catch(error => setRecordingMessage(error instanceof Error ? error.message : "Recording could not be saved.")).finally(() => setRecordingBusy(false)); }} className="mt-2 min-h-10 w-full rounded-lg bg-amber-700 px-3 font-semibold text-white disabled:opacity-50">{recordingBusy ? "Saving recording…" : "Stop recording"}</button> : <><button type="button" disabled={recordingBusy} onClick={() => { setRecordingBusy(true); setRecordingMessage(""); void engine.current?.startRecording?.().then(() => setRecordingMessage("Recording is on. The contact's agreement was recorded in the call audit." )).catch(error => setRecordingMessage(error instanceof Error ? error.message : "Recording could not start.")).finally(() => setRecordingBusy(false)); }} className="mt-2 min-h-10 w-full rounded-lg border border-amber-300 bg-white px-3 font-semibold text-amber-900 disabled:opacity-50">{recordingBusy ? "Preparing recording…" : "Recipient agreed — start recording"}</button><button type="button" disabled={recordingBusy} onClick={() => { setRecordingBusy(true); setRecordingMessage(""); void engine.current?.declineRecording?.().then(() => setRecordingMessage("Recipient declined. The call continued without recording." )).catch(error => setRecordingMessage(error instanceof Error ? error.message : "Could not save the recording choice.")).finally(() => setRecordingBusy(false)); }} className="min-h-9 w-full rounded-lg px-3 text-xs text-slate-700 underline disabled:opacity-50">Recipient declined — continue without recording</button></>}
+            {(recordingMessage || call.recordingError) && <p role="status" className="mt-2">{call.recordingError || recordingMessage}</p>}
+          </div>
           <button
             onClick={() => void engine.current?.toggleHold?.()}
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 p-2 text-sm"
@@ -176,6 +186,7 @@ export function AzeraOutboundCall({
           </div>
         </div>
       )}
+      {call.state === "ended" && call.recordingError && <p role="alert" className="mt-2 text-xs text-red-700">{call.recordingError}</p>}
       {call.audioBlocked && (
         <button
           onClick={() => void engine.current?.resumeAudio()}

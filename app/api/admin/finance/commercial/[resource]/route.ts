@@ -107,7 +107,8 @@ async function requestInvoiceApproval(actor: { id: string; role: string; name: s
     requested_by: actor.id, requested_by_name: actor.name, requested_by_role: actor.role,
   }).select().single()
   if (result.error) return err(result.error.code === "23505" ? "A request for this invoice is already pending" : "Could not create the approval request", result.error.code === "23505" ? 409 : 500)
-  await logFinanceAudit("ADMIN", actor.id, `INVOICE_${action.toUpperCase()}_REQUESTED`, "INVOICE", id, { approval_request_id: result.data.id, reason })
+  const requestAuditAction = action === "cancel" ? "INVOICE_CANCEL_REQUESTED" : action === "void" ? "INVOICE_VOID_REQUESTED" : "INVOICE_WAIVE_REQUESTED"
+  await logFinanceAudit("ADMIN", actor.id, requestAuditAction, "INVOICE", id, { approval_request_id: result.data.id, reason })
   await notifyCommercialAction({ resource: "invoices", action: `request_${action}`, actorName: actor.name, sourceId: id, reference: invoice.invoice_number, detail: `Invoice ${action} requested: ${reason}` })
   return ok({ approvalRequired: true, request: result.data })
 }
@@ -133,7 +134,7 @@ async function requestFinanceApproval(actor: { id: string; role: string; name: s
     requested_by: actor.id, requested_by_name: actor.name, requested_by_role: actor.role,
   }).select().single()
   if (result.error) return err(result.error.code === "23505" ? "A request for this action is already pending" : "Could not create the approval request", result.error.code === "23505" ? 409 : 500)
-  await logFinanceAudit("ADMIN", actor.id, `${actionKey.toUpperCase().replaceAll(".", "_")}_REQUESTED`, resource.toUpperCase(), id, { approval_request_id: result.data.id, reason })
+  await logFinanceAudit("ADMIN", actor.id, "APPROVAL_REQUESTED", resource.toUpperCase(), id, { action_key: actionKey, approval_request_id: result.data.id, reason })
   await notifyCommercialAction({ resource, action: `request_${actionKey.split(".").at(-1)}`, actorName: actor.name, sourceId: id, reference: id, detail: `${actionKey.split(".").at(-1)} requested: ${reason}` })
   return ok({ approvalRequired: true, request: result.data })
 }

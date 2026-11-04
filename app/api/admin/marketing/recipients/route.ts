@@ -5,6 +5,7 @@ import { isSupabaseConfigured } from "@/lib/supabase"
 import {
   getAudienceRecipients,
   getSavedAudienceRecipients,
+  getMarketingAudienceRecipients,
   getSuppressedEmails,
   parseManualEmails,
 } from "@/lib/marketing"
@@ -23,7 +24,10 @@ export async function GET(request: Request) {
   const manual = searchParams.get("manual") || ""
 
   let recipients: MarketingRecipient[]
-  if (audience === "manual") {
+  const audienceIds = searchParams.get("audienceIds")?.split(",").filter(Boolean)
+  if (audienceIds?.length) {
+    recipients = await getMarketingAudienceRecipients(audienceIds, manual)
+  } else if (audience === "manual") {
     recipients = parseManualEmails(manual)
   } else if (audience === "saved") {
     recipients = await getSavedAudienceRecipients(audienceId)

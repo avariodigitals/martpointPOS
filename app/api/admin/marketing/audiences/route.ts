@@ -4,7 +4,7 @@ import crypto from "crypto"
 import { getSession, hasPermissionForUser } from "@/lib/admin-auth"
 import type { UserRole } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { parseManualEmails } from "@/lib/marketing"
+import { getSystemAudienceCount, parseManualEmails, SYSTEM_EMAIL_AUDIENCES } from "@/lib/marketing"
 import { normalizeCommunicationPhone } from "@/lib/communications-policy"
 
 async function guardMarketingAccess() {
@@ -21,7 +21,7 @@ export async function GET() {
   if (denied) return denied
 
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ audiences: [] })
+    return NextResponse.json({ audiences: [], systemAudiences: [] })
   }
 
   const { data: audiences, error } = await supabase
@@ -53,6 +53,10 @@ export async function GET() {
       contactCount: counts.get(a.id) || 0,
       smsContactCount: smsCounts.get(a.id) || 0,
     })),
+    systemAudiences: await Promise.all(SYSTEM_EMAIL_AUDIENCES.map(async (a) => ({
+      id: a.id, name: a.name, description: a.description, kind: "system" as const,
+      contactCount: await getSystemAudienceCount(a.id),
+    }))),
   })
 }
 
@@ -81,8 +85,14 @@ export async function POST(request: Request) {
       const phone = normalizeCommunicationPhone(match ? match[2] : value)
       return phone ? { phone, name: match?.[1].trim() || "" } : null
     }).filter((item): item is { phone: string; name: string } => Boolean(item))
+    if (String(phoneContacts || "").trim() && phones.length === 0) {
+      return NextResponse.json({ error: "No valid phone numbers were found. Use an international number or a Nigerian number beginning with 0." }, { status: 400 })
+    }
     if (String(phoneContacts || "").trim() && !smsConsentConfirmed) {
       return NextResponse.json({ error: "Confirm that these contacts agreed to receive SMS before adding phone numbers" }, { status: 400 })
+    }
+    if ((String(contacts || "").trim() || String(phoneContacts || "").trim()) && parsed.length === 0 && phones.length === 0) {
+      return NextResponse.json({ error: "No valid email addresses or phone numbers were provided" }, { status: 400 })
     }
 
     const audienceId = crypto.randomUUID()
@@ -103,6 +113,8 @@ export async function POST(request: Request) {
       )
       if (contactsError) {
         console.error("[Marketing Contacts Insert Error]", contactsError)
+        await supabase.from("marketing_audiences").delete().eq("id", audienceId)
+        return NextResponse.json({ error: "Audience was not saved because its email contacts could not be stored" }, { status: 500 })
       }
     }
 
@@ -111,7 +123,11 @@ export async function POST(request: Request) {
       const { error: phoneError } = await supabase.from("marketing_contacts").insert(unique.map((contact) => ({
         audience_id: audienceId, email: null, phone: contact.phone, name: contact.name, sms_consent_at: new Date().toISOString(),
       })))
-      if (phoneError) console.error("[Marketing SMS Contacts Insert Error]", phoneError)
+      if (phoneError) {
+        console.error("[Marketing SMS Contacts Insert Error]", phoneError)
+        await supabase.from("marketing_audiences").delete().eq("id", audienceId)
+        return NextResponse.json({ error: "Audience was not saved because its SMS contacts could not be stored" }, { status: 500 })
+      }
     }
 
     return NextResponse.json({ success: true, id: audienceId, contactsAdded: parsed.length, smsContactsAdded: phones.length })

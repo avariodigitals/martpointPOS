@@ -25,6 +25,7 @@ interface Audience {
   createdAt: string
   contactCount: number
   smsContactCount: number
+  kind?: "system" | "saved"
 }
 
 interface Contact {
@@ -39,6 +40,7 @@ export default function MarketingAudiencesPage() {
   const [contactSearch, setContactSearch] = useState("")
   const [showCreate, setShowCreate] = useState(false)
   const [audiences, setAudiences] = useState<Audience[]>([])
+  const [systemAudiences, setSystemAudiences] = useState<Audience[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
 
@@ -57,6 +59,8 @@ export default function MarketingAudiencesPage() {
   const [addSmsConsent, setAddSmsConsent] = useState(false)
   const [adding, setAdding] = useState(false)
   const [suppressed, setSuppressed] = useState<Set<string>>(new Set())
+  const [hasMoreContacts, setHasMoreContacts] = useState(false)
+  const [systemTotal, setSystemTotal] = useState(0)
 
   const load = async () => {
     try {
@@ -64,6 +68,7 @@ export default function MarketingAudiencesPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to load audiences")
       setAudiences(data.audiences || [])
+      setSystemAudiences(data.systemAudiences || [])
     } catch {
       setMessage("Failed to load audiences")
     } finally {
@@ -86,7 +91,8 @@ export default function MarketingAudiencesPage() {
       load()
       loadSuppressions()
     }, 0)
-    return () => clearTimeout(t)
+    const refresh = window.setInterval(() => { void load() }, 60_000)
+    return () => { clearTimeout(t); clearInterval(refresh) }
   }, [])
 
   const create = async () => {
@@ -120,10 +126,12 @@ export default function MarketingAudiencesPage() {
   }
 
   const refreshContacts = async (id: string) => {
-    const res = await fetch(`/api/admin/marketing/audiences/${id}`)
+    const res = await fetch(`/api/admin/marketing/audiences/${encodeURIComponent(id)}?offset=0`)
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || "Failed to load contacts")
     setContacts(data.contacts || [])
+    setHasMoreContacts(Boolean(data.hasMore))
+    setSystemTotal(Number(data.total || 0))
   }
 
   const toggleExpand = async (id: string) => {
@@ -139,15 +147,29 @@ export default function MarketingAudiencesPage() {
     setLoadingContacts(true)
     setContacts([])
     try {
-      const res = await fetch(`/api/admin/marketing/audiences/${id}`)
+      const res = await fetch(`/api/admin/marketing/audiences/${encodeURIComponent(id)}?offset=0`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to load contacts")
       setContacts(data.contacts || [])
+      setHasMoreContacts(Boolean(data.hasMore))
+      setSystemTotal(Number(data.total || 0))
     } catch {
       setMessage("Failed to load contacts")
     } finally {
       setLoadingContacts(false)
     }
+  }
+
+  const loadMoreSystemContacts = async (id: string) => {
+    setLoadingContacts(true)
+    try {
+      const res = await fetch(`/api/admin/marketing/audiences/${encodeURIComponent(id)}?offset=${contacts.length}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to load contacts")
+      setContacts((prev) => [...prev, ...(data.contacts || [])])
+      setHasMoreContacts(Boolean(data.hasMore))
+    } catch { setMessage("Failed to load more contacts") }
+    finally { setLoadingContacts(false) }
   }
 
   const addContacts = async (id: string) => {
@@ -284,6 +306,27 @@ export default function MarketingAudiencesPage() {
 
       <Card>
         <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2"><Users className="w-4 h-4 text-muted-foreground" />Live system audiences</CardTitle>
+          <p className="text-xs text-muted-foreground">These segments read directly from MartPoint records and update as records are added or changed.</p>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {systemAudiences.map((a) => {
+            const expanded = expandedId === a.id
+            return <div key={a.id}>
+              <button type="button" onClick={() => toggleExpand(a.id)} className="w-full rounded-lg border border-border bg-muted/20 p-4 text-left hover:bg-muted/40">
+                <div className="flex items-center justify-between gap-3"><span className="flex min-w-0 items-center gap-2">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}<span><span className="block text-sm font-semibold">{a.name}</span><span className="block text-xs text-muted-foreground">{a.description}</span></span></span><span className="shrink-0 text-xs text-muted-foreground"><strong className="text-foreground">{a.contactCount.toLocaleString()}</strong> contacts</span></div>
+              </button>
+              {expanded && <div className="space-y-3 rounded-b-lg border border-t-0 border-border bg-muted/10 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><label className="relative"><Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" /><input aria-label="Search loaded audience contacts" value={contactSearch} onChange={e => setContactSearch(e.target.value)} placeholder="Filter loaded contacts…" className="rounded-md border bg-white py-2 pl-7 pr-3 text-xs" /></label><span className="text-xs text-muted-foreground">Showing {contacts.length.toLocaleString()} of {systemTotal.toLocaleString()}</span><Button size="sm" variant="outline" disabled={loadingContacts} onClick={() => downloadCsv(`${a.name}-contacts.csv`, [["email", "name"], ...contacts.map(c => [c.email, c.name])])}><Download className="h-3.5 w-3.5" />Export loaded contacts</Button></div>
+                {loadingContacts ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading contacts…</p> : <div className="max-h-[480px] space-y-1 overflow-y-auto">{contacts.filter(c => `${c.email || ""} ${c.name}`.toLowerCase().includes(contactSearch.toLowerCase())).map(c => <div key={c.id} className="rounded bg-background px-3 py-2 text-xs">{c.name && <span className="font-medium">{c.name} — </span>}{c.email}</div>)}{contacts.length === 0 && <p className="text-sm text-muted-foreground">No contacts with email in this audience.</p>}</div>}
+                {hasMoreContacts && <Button size="sm" variant="outline" disabled={loadingContacts} onClick={() => loadMoreSystemContacts(a.id)}>Load more</Button>}
+              </div>}
+            </div>
+          })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Users className="w-4 h-4 text-muted-foreground" />
             Saved Audiences
@@ -325,10 +368,10 @@ export default function MarketingAudiencesPage() {
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <label className="relative"><Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" /><input aria-label="Search audience contacts" value={contactSearch} onChange={e => setContactSearch(e.target.value)} placeholder="Search contacts…" className="rounded-md border bg-white py-2 pl-7 pr-3 text-xs" /></label>
                           <Button size="sm" variant="outline" disabled={loadingContacts} onClick={() => downloadCsv(`${a.name}-contacts.csv`, [["email", "name", "phone", "email_status"], ...contacts.map(c => [c.email, c.name, c.phone, c.email && suppressed.has(c.email) ? "unsubscribed" : "not suppressed"])])}><Download className="h-3.5 w-3.5" />Export CSV</Button>
-                          <Button size="sm" variant="outline" onClick={() => deleteAudience(a.id, a.name)}>
+                          {!a.id.startsWith("system:") && <Button size="sm" variant="outline" onClick={() => deleteAudience(a.id, a.name)}>
                             <Trash2 className="w-3.5 h-3.5 mr-1" />
                             Delete Audience
-                          </Button>
+                          </Button>}
                         </div>
                         {loadingContacts ? (
                           <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading contacts…</p>
@@ -343,20 +386,20 @@ export default function MarketingAudiencesPage() {
                                   )}
                                   {c.phone && <span className="ml-2 text-slate-500">SMS consent {c.sms_consent_at ? "recorded" : "missing"}</span>}
                                 </span>
-                                <button
+                                {!a.id.startsWith("system:") && <button
                                   type="button"
                                   onClick={() => removeContact(a.id, c.id)}
                                   className="text-muted-foreground hover:text-red-500 transition-colors"
                                   title="Remove contact"
                                 >
                                   <X className="w-3.5 h-3.5" />
-                                </button>
+                                </button>}
                               </div>
                             ))}
                             {contacts.length === 0 && <p className="text-sm text-muted-foreground">No contacts yet.</p>}
                           </div>
                         )}
-                        <div>
+                        {!a.id.startsWith("system:") && <div>
                           <label className="block text-xs font-medium mb-1">Add contacts</label>
                           <div className="flex gap-2">
                             <textarea
@@ -370,12 +413,12 @@ export default function MarketingAudiencesPage() {
                               {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                             </Button>
                           </div>
-                        </div>
-                        <div>
+                        </div>}
+                        {!a.id.startsWith("system:") && <div>
                           <label className="block text-xs font-medium mb-1">Add consented SMS contacts</label>
                           <div className="flex gap-2"><textarea value={addPhones} onChange={(e) => setAddPhones(e.target.value)} rows={2} placeholder={"Name <+2348031234567>\n+2347012345678"} className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none font-mono" /><Button size="sm" variant="outline" onClick={() => addContacts(a.id)} disabled={adding || !addPhones.trim()}>{adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}</Button></div>
                           <label className="mt-2 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={addSmsConsent} onChange={(e) => setAddSmsConsent(e.target.checked)} className="mt-1" />I confirm these contacts explicitly agreed to receive SMS.</label>
-                        </div>
+                        </div>}
                       </div>
                     )}
                   </div>

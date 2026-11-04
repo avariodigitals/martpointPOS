@@ -9,6 +9,8 @@ import type { EmailProvider } from "@/lib/email"
 import {
   getAudienceRecipients,
   getSavedAudienceRecipients,
+  getMarketingAudienceRecipients,
+  getSystemEmailAudience,
   getSuppressedEmails,
   parseManualEmails,
   applyMergeTags,
@@ -96,6 +98,9 @@ export async function POST(request: Request) {
       text,
       audience,
       audienceId,
+      audienceIds,
+      campaignId: requestedCampaignId,
+      saveDraft,
       provider,
       manualEmails,
       testEmail,
@@ -104,24 +109,70 @@ export async function POST(request: Request) {
       replyTo,
     } = body
 
-    if (!subject || !html || String(subject).length > 500 || String(html).length > 2_000_000) {
-      return NextResponse.json({ error: "A subject (up to 500 characters) and email body (up to 2 MB) are required" }, { status: 400 })
-    }
-
     if (!isSupabaseConfigured()) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
     }
 
     const providerOverride: EmailProvider | undefined =
       provider === "resend" || provider === "brevo" ? provider : undefined
+
+    if (saveDraft) {
+      if (String(subject || "").length > 500 || String(html || "").length > 2_000_000) {
+        return NextResponse.json({ error: "Subject must be under 500 characters and email body under 2 MB" }, { status: 400 })
+      }
+      const selectedIds = Array.isArray(audienceIds) ? [...new Set(audienceIds.map((id: unknown) => String(id)))].slice(0, 20) : []
+      const sources = await Promise.all(selectedIds.map(async (id: string) => {
+        if (id === "manual") return { id, name: "Pasted recipients" }
+        const system = getSystemEmailAudience(id)
+        if (system) return { id, name: system.name }
+        const { data: savedAudience } = await supabase.from("marketing_audiences").select("name").eq("id", id).maybeSingle()
+        return { id, name: savedAudience?.name || "Saved audience" }
+      }))
+      const now = new Date().toISOString()
+      const id = typeof requestedCampaignId === "string" ? requestedCampaignId : crypto.randomUUID()
+      const values = {
+        name: String(name || subject || "Untitled campaign").slice(0, 200),
+        subject: String(subject || ""), preheader: String(preheader || ""), html: String(html || ""),
+        text: String(text || htmlToText(String(html || ""))),
+        audience: String(audience || "newsletter"),
+        audience_id: audience === "saved" ? String(audienceId || "") || null : null,
+        audience_sources: sources,
+        provider: providerOverride || "default", status: "draft", recipient_count: 0,
+        recipients_snapshot: selectedIds.includes("manual") ? parseManualEmails(String(manualEmails || "")) : [],
+        from_address: String(from || ""), reply_to: String(replyTo || ""),
+        audience_name: sources.map((source) => source.name).join(", ") || null,
+        scheduled_for: null,
+      }
+      const draftExists = typeof requestedCampaignId === "string"
+        ? await supabase.from("marketing_campaigns").select("status").eq("id", id).maybeSingle()
+        : null
+      if (draftExists?.error) return NextResponse.json({ error: "Could not verify the campaign draft" }, { status: 500 })
+      if (draftExists && draftExists.data?.status !== "draft") return NextResponse.json({ error: "Only campaign drafts can be updated" }, { status: 409 })
+      const result = draftExists
+        ? await supabase.from("marketing_campaigns").update(values).eq("id", id)
+        : await supabase.from("marketing_campaigns").insert({ id, ...values, created_by: session.username || session.name || "admin", created_at: now, sent_at: null })
+      if (result.error) {
+        console.error("[Marketing Campaign Draft Save Error]", result.error)
+        return NextResponse.json({ error: "Failed to save campaign draft. Check that migrations 173 and 174 have been applied." }, { status: 500 })
+      }
+      return NextResponse.json({ success: true, campaignId: id, draft: true })
+    }
+
+    if (!subject || !html || String(subject).length > 500 || String(html).length > 2_000_000) {
+      return NextResponse.json({ error: "A subject (up to 500 characters) and email body (up to 2 MB) are required" }, { status: 400 })
+    }
     const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")
     const validMailbox = (value: unknown) => {
       const input = String(value || "").trim()
-      const address = input.match(/<([^<>]+)>/)?.[1] || input
-      return input.length <= 320 && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)
+      if (!input || input.length > 320 || /[\r\n]/.test(input)) return false
+      const angle = input.match(/^\s*(?:[^<>]*?)<\s*([^<>\s]+)\s*>\s*$/)
+      if (/[<>]/.test(input) && !angle) return false
+      const address = angle?.[1] || input
+      return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)
     }
     if ((from !== undefined && !validMailbox(from)) || (replyTo !== undefined && !validMailbox(replyTo))) {
-      return NextResponse.json({ error: "Enter valid From and Reply-to email addresses" }, { status: 400 })
+      const invalid = [from !== undefined && !validMailbox(from) ? "From" : "", replyTo !== undefined && !validMailbox(replyTo) ? "Reply-to" : ""].filter(Boolean).join(" and ")
+      return NextResponse.json({ error: `${invalid} must contain one valid email address (From can use Name <email@example.com>)` }, { status: 400 })
     }
 
     // ── Test send: no campaign, no suppression check, fake tracking token ──
@@ -149,8 +200,11 @@ export async function POST(request: Request) {
     }
 
     // ── Real campaign ──
+    const selectedAudienceIds = Array.isArray(audienceIds) ? [...new Set(audienceIds.map((id: unknown) => String(id)))].slice(0, 20) : null
     let recipients: MarketingRecipient[]
-    if (audience === "manual") {
+    if (selectedAudienceIds?.length) {
+      recipients = await getMarketingAudienceRecipients(selectedAudienceIds, String(manualEmails || ""))
+    } else if (audience === "manual") {
       recipients = parseManualEmails(String(manualEmails || ""))
     } else if (audience === "saved") {
       recipients = await getSavedAudienceRecipients(String(audienceId || ""))
@@ -170,7 +224,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `All ${recipients.length} recipients have unsubscribed` }, { status: 400 })
     }
 
-    const campaignId = crypto.randomUUID()
+    const campaignId = typeof requestedCampaignId === "string" ? requestedCampaignId : crypto.randomUUID()
+    const existingDraft = typeof requestedCampaignId === "string"
+      ? await supabase.from("marketing_campaigns").select("status").eq("id", campaignId).maybeSingle()
+      : null
+    if (existingDraft?.error) return NextResponse.json({ error: "Could not verify the campaign draft" }, { status: 500 })
+    if (existingDraft && existingDraft.data?.status !== "draft") return NextResponse.json({ error: "Only campaign drafts can be sent from the editor" }, { status: 409 })
     const now = new Date().toISOString()
     const plainText = text || htmlToText(html)
 
@@ -185,12 +244,22 @@ export async function POST(request: Request) {
     const fromAddress = typeof from === "string" ? from.trim() : settings.fromEmail || settings.smtp?.fromEmail || process.env.SMTP_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || "MartPoint <hello@martpoint.com.ng>"
     const replyAddress = typeof replyTo === "string" ? replyTo.trim() : REPLY_TO.sales
     let audienceName = ""
-    if (audience === "saved" && audienceId) {
+    let audienceSources: Array<{ id: string; name: string }> = []
+    if (selectedAudienceIds?.length) {
+      audienceSources = await Promise.all(selectedAudienceIds.map(async (id: string) => {
+        if (id === "manual") return { id, name: "Pasted recipients" }
+        const system = getSystemEmailAudience(id)
+        if (system) return { id, name: system.name }
+        const { data: savedAudience } = await supabase.from("marketing_audiences").select("name").eq("id", id).maybeSingle()
+        return { id, name: savedAudience?.name || "Saved audience" }
+      }))
+      audienceName = audienceSources.map((source) => source.name).join(", ")
+    } else if (audience === "saved" && audienceId) {
       const { data: savedAudience } = await supabase.from("marketing_audiences").select("name").eq("id", audienceId).maybeSingle()
       audienceName = savedAudience?.name || "Saved audience"
     }
 
-    const { error: insertError } = await supabase.from("marketing_campaigns").insert({
+    const campaignValues = {
       id: campaignId,
       name: name || subject,
       subject,
@@ -199,6 +268,7 @@ export async function POST(request: Request) {
       text: plainText,
       audience: audience || "manual",
       audience_id: audience === "saved" ? audienceId || null : null,
+      ...(selectedAudienceIds?.length ? { audience_sources: audienceSources } : {}),
       provider: providerOverride || "default",
       status: isScheduled ? "scheduled" : "sending",
       recipient_count: deliverable.length,
@@ -210,7 +280,11 @@ export async function POST(request: Request) {
       created_by: session.username || session.name || "admin",
       created_at: now,
       sent_at: isScheduled ? null : now,
-    })
+    }
+    const campaignWrite = existingDraft
+      ? await supabase.from("marketing_campaigns").update(campaignValues).eq("id", campaignId)
+      : await supabase.from("marketing_campaigns").insert(campaignValues)
+    const insertError = campaignWrite.error
 
     if (insertError) {
       console.error("[Marketing Campaign Insert Error]", insertError)

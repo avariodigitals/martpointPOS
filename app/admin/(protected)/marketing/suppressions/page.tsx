@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Ban, Plus, RotateCcw } from "lucide-react"
+import { EmailCampaignShell } from "@/components/admin/email-campaign-shell"
 
 interface Suppression {
   email: string
@@ -75,14 +76,14 @@ export default function MarketingSuppressionsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <EmailCampaignShell><div className="flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
+      </div></EmailCampaignShell>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <EmailCampaignShell><div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Ban className="w-5 h-5" />
@@ -161,6 +162,6 @@ export default function MarketingSuppressionsPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </div></EmailCampaignShell>
   )
 }

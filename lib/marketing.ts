@@ -19,6 +19,82 @@ export interface MarketingRecipient {
 
 export type MarketingAudience = "leads" | "partner_leads" | "businesses" | "newsletter" | "manual"
 
+export const SYSTEM_EMAIL_AUDIENCES = [
+  { id: "system:leads", name: "Leads", description: "People who submitted a lead form.", table: "leads", email: "email", nameColumn: "full_name", order: "submitted_at" },
+  { id: "system:businesses", name: "Businesses", description: "Business accounts with a primary email.", table: "businesses", email: "primary_email", nameColumn: "primary_contact_name", fallbackColumn: "business_name", order: "created_at" },
+  { id: "system:partner_leads", name: "Partner leads", description: "Partner enquiries and referrals.", table: "partner_leads", email: "email", nameColumn: "contact_name", fallbackColumn: "business_name", order: "created_at" },
+  { id: "system:partners", name: "Active partners", description: "Active partners with a public email.", table: "partners", email: "public_email", nameColumn: "display_name", fallbackColumn: "business_name", order: "created_at", status: ["ACTIVE"] },
+  { id: "system:partner_applications", name: "Partner applicants", description: "Submitted partner applications, excluding drafts and rejected applications.", table: "partner_applications", email: "email", nameColumn: "full_name", order: "submitted_at", statusExclude: ["DRAFT", "REJECTED"] },
+  { id: "system:creators", name: "Active creators", description: "Active creators in the creator network.", table: "creators", email: "email", nameColumn: "full_name", order: "created_at", status: ["ACTIVE"] },
+  { id: "system:creator_applications", name: "Creator applicants", description: "Submitted creator applications, excluding drafts and rejected applications.", table: "creator_applications", email: "email", nameColumn: "full_name", order: "submitted_at", statusExclude: ["DRAFT", "REJECTED"] },
+  { id: "system:newsletter", name: "Newsletter opt-ins", description: "Contacts with an active newsletter opt-in.", table: "status_subscribers", email: "email", nameColumn: "email", order: "created_at", newsletter: true },
+] as const
+
+export type SystemEmailAudienceId = typeof SYSTEM_EMAIL_AUDIENCES[number]["id"]
+export function getSystemEmailAudience(id: string) { return SYSTEM_EMAIL_AUDIENCES.find((audience) => audience.id === id) }
+function fromSystemAudienceTable(table: string) { return (supabase as any).from(table) }
+
+function systemAudienceQuery(id: string) {
+  const config = getSystemEmailAudience(id)
+  if (!config || !isSupabaseConfigured()) return null
+  return config
+}
+
+export async function getSystemAudienceCount(id: string): Promise<number> {
+  const config = getSystemEmailAudience(id)
+  if (!config || !isSupabaseConfigured()) return 0
+  let q = fromSystemAudienceTable(config.table).select("id", { count: "exact", head: true }).not(config.email, "is", null).neq(config.email, "")
+  if ("status" in config && config.status) q = q.in("status", [...config.status])
+  if ("statusExclude" in config && config.statusExclude) q = q.not("status", "in", `(${config.statusExclude.join(",")})`)
+  if ("newsletter" in config && config.newsletter) q = q.not("newsletter_opt_in_at", "is", null).is("newsletter_unsubscribed_at", null).is("unsubscribed_at", null)
+  const { count } = await q
+  return count || 0
+}
+
+export async function getSystemAudiencePage(id: string, offset = 0, limit = 50) {
+  const resolved = systemAudienceQuery(id)
+  if (!resolved) return { contacts: [], total: 0 }
+  const config = resolved
+  let query = fromSystemAudienceTable(config.table).select("*", { count: "exact" }).not(config.email, "is", null).neq(config.email, "")
+  if ("status" in config && config.status) query = query.in("status", [...config.status])
+  if ("statusExclude" in config && config.statusExclude) query = query.not("status", "in", `(${config.statusExclude.join(",")})`)
+  if ("newsletter" in config && config.newsletter) query = query.not("newsletter_opt_in_at", "is", null).is("newsletter_unsubscribed_at", null).is("unsubscribed_at", null)
+  const { data, count } = await query.order(config.order, { ascending: false }).range(offset, offset + Math.min(limit, 100) - 1)
+  const contacts = (data || []).map((row: Record<string, unknown>) => ({
+    id: String(row.id), email: String(row[config.email] || ""),
+    name: String(("newsletter" in config && config.newsletter ? "" : row[config.nameColumn]) || ("fallbackColumn" in config ? row[config.fallbackColumn] : "") || ""),
+    phone: null, sms_consent_at: null,
+  }))
+  return { contacts, total: count || contacts.length }
+}
+
+export async function getSystemAudienceRecipients(id: string): Promise<MarketingRecipient[]> {
+  const rows = await getSystemAudiencePage(id, 0, MAX_CAMPAIGN_RECIPIENTS)
+  const seen = new Set<string>()
+  return rows.contacts.flatMap((row: { email: string; name: string }) => {
+    const email = normalizeEmail(row.email)
+    if (!isValidEmail(email) || seen.has(email)) return []
+    seen.add(email)
+    return [{ email, name: row.name }]
+  }).slice(0, MAX_CAMPAIGN_RECIPIENTS)
+}
+
+export async function getMarketingAudienceRecipients(ids: string[], manualEmails = ""): Promise<MarketingRecipient[]> {
+  const all: MarketingRecipient[] = []
+  for (const id of ids) {
+    if (id === "manual") all.push(...parseManualEmails(manualEmails))
+    else if (id.startsWith("system:")) all.push(...await getSystemAudienceRecipients(id))
+    else all.push(...await getSavedAudienceRecipients(id))
+  }
+  const seen = new Set<string>()
+  return all.filter((recipient) => {
+    const email = normalizeEmail(recipient.email)
+    if (!isValidEmail(email) || seen.has(email)) return false
+    seen.add(email)
+    return true
+  }).slice(0, MAX_CAMPAIGN_RECIPIENTS)
+}
+
 export const MARKETING_AUDIENCES: Array<{ key: MarketingAudience; label: string }> = [
   { key: "leads", label: "Leads" },
   { key: "partner_leads", label: "Partner Leads" },
@@ -69,6 +145,8 @@ export async function getAudienceRecipients(audience: string): Promise<Marketing
     out.push({ email: e, name: String(name || "").trim() })
   }
 
+  if (audience.startsWith("system:")) return getSystemAudienceRecipients(audience)
+  if (audience === "partners" || audience === "creators" || audience === "partner_applications" || audience === "creator_applications") return getSystemAudienceRecipients(`system:${audience}`)
   if (audience === "leads") {
     const { data } = await supabase
       .from("leads")
@@ -209,6 +287,7 @@ export async function resolveCampaignRecipients(campaign: {
   audience: string
   audience_id?: string | null
   recipients_snapshot?: MarketingRecipient[] | null
+  audience_sources?: Array<{ id: string }> | null
 }): Promise<MarketingRecipient[]> {
   const snapshot = campaign.recipients_snapshot
   if (Array.isArray(snapshot) && snapshot.length > 0) {
@@ -221,6 +300,9 @@ export async function resolveCampaignRecipients(campaign: {
       out.push({ email: e, name: String(r?.name || "").trim() })
     }
     return out
+  }
+  if (Array.isArray(campaign.audience_sources) && campaign.audience_sources.length) {
+    return getMarketingAudienceRecipients(campaign.audience_sources.map((source) => source.id))
   }
   if (campaign.audience === "saved") {
     return getSavedAudienceRecipients(String(campaign.audience_id || ""))

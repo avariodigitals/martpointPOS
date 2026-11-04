@@ -67,6 +67,7 @@ export async function GET(
       audience: campaign.audience,
       audienceId: campaign.audience_id,
       audienceName: campaign.audience_name || audienceName,
+      audienceSources: Array.isArray(campaign.audience_sources) ? campaign.audience_sources : [],
       fromAddress: campaign.from_address || null,
       replyTo: campaign.reply_to || null,
       scheduledFor: campaign.scheduled_for || null,

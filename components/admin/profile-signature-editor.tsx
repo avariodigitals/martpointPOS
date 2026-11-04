@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { Loader2, Save } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { renderProfileSignatureHtml, type SignatureTemplate } from "@/lib/email-signature"
+import { OFFICIAL_SIGNATURE_PHONE, renderProfileSignatureHtml, type SignatureTemplate } from "@/lib/email-signature"
 import { sanitizeSupportHtml } from "@/lib/support-html"
 
 export function ProfileSignatureEditor({ initialTemplate, signatureHtmlTemplate, hasSavedTemplate, profilePhone, supportPhone, canManageTemplate = false }: {
@@ -21,7 +21,7 @@ export function ProfileSignatureEditor({ initialTemplate, signatureHtmlTemplate,
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
-  const signature = renderProfileSignatureHtml(sanitizeSupportHtml(signatureHtmlTemplate), { ...template, phone: supportPhone ? template.phone : phone })
+  const signature = renderProfileSignatureHtml(sanitizeSupportHtml(signatureHtmlTemplate), { ...template, phone: OFFICIAL_SIGNATURE_PHONE, mobile: OFFICIAL_SIGNATURE_PHONE })
   const dirty = saved !== JSON.stringify([template, phone])
 
   function change(field: keyof SignatureTemplate, value: string) {
@@ -49,7 +49,7 @@ export function ProfileSignatureEditor({ initialTemplate, signatureHtmlTemplate,
   return <Card id="email-signature" className="rounded-2xl border-slate-200/80 shadow-sm">
     <CardHeader><CardTitle className="text-base">Email signature</CardTitle></CardHeader>
     <CardContent className="space-y-4">
-      <p className="text-sm text-muted-foreground">Your Admin-managed HTML layout fills in your name, role, email and phone from your profile. Update those details here and preview the exact signature used in outgoing email.</p>
+      <p className="text-sm text-muted-foreground">Your Admin-managed HTML layout fills in your name, role and email. Every outgoing signature uses the approved company phone number instead of a personal profile number.</p>
       {canManageTemplate && <Link href="/admin/settings/email#profile-signature-template" className="inline-flex text-sm font-medium text-retail underline">Edit the shared template and signature size for everyone</Link>}
         <div className="grid gap-4 sm:grid-cols-2">
           {([['name', 'Name'], ['title', 'Role / job title'], ['email', 'Email'], ['company', 'Company']] as const).map(([field, label]) => <div key={field}>
@@ -59,21 +59,21 @@ export function ProfileSignatureEditor({ initialTemplate, signatureHtmlTemplate,
               onChange={(e) => change(field, e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
           </div>)}
           <div>
-            <label htmlFor="profile-phone" className="mb-1 block text-sm font-medium">My profile phone</label>
+            <label htmlFor="profile-phone" className="mb-1 block text-sm font-medium">My profile phone (not shown in email)</label>
             <input id="profile-phone" type="tel" value={phone} maxLength={60} disabled={saving}
-              onChange={(e) => { setPhone(e.target.value); if (!supportPhone) change('phone', e.target.value) }}
+              onChange={(e) => { setPhone(e.target.value); setNotice("") }}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-            <p className="mt-1 text-xs text-muted-foreground">Saved to your user profile with your signature.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Saved to your user profile. Outgoing email signatures use the company number below.</p>
           </div>
           {supportPhone && <div>
             <label htmlFor="signature-support-phone" className="mb-1 block text-sm font-medium">Support team phone</label>
-            <input id="signature-support-phone" value={template.phone} readOnly className="w-full rounded-md border bg-muted px-3 py-2 text-sm" />
-            <p className="mt-1 text-xs text-muted-foreground">Managed in Admin Settings → Contact → Support Phone Number. Your signature always uses the current team number.</p>
+            <input id="signature-support-phone" value={OFFICIAL_SIGNATURE_PHONE} readOnly className="w-full rounded-md border bg-muted px-3 py-2 text-sm" />
+            <p className="mt-1 text-xs text-muted-foreground">This approved company number is used in every team signature.</p>
           </div>}
           <div>
             <label htmlFor="signature-company-mobile" className="mb-1 block text-sm font-medium">Company WhatsApp / mobile (M)</label>
-            <input id="signature-company-mobile" value={template.mobile || ""} readOnly placeholder="Not configured" className="w-full rounded-md border bg-muted px-3 py-2 text-sm" />
-            <p className="mt-1 text-xs text-muted-foreground">From Contact → WhatsApp Number. This is a shared company contact, separate from your profile phone.{canManageTemplate && <> <Link href="/admin/settings#contact-settings" className="text-retail underline">Edit company contact</Link>.</>}</p>
+            <input id="signature-company-mobile" value={OFFICIAL_SIGNATURE_PHONE} readOnly className="w-full rounded-md border bg-muted px-3 py-2 text-sm" />
+            <p className="mt-1 text-xs text-muted-foreground">This approved company number is used in every team signature.</p>
           </div>
         </div>
         <div>

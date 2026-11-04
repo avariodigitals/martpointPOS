@@ -11,6 +11,7 @@ export interface SignatureTemplate {
   mobile?: string
 }
 
+export const OFFICIAL_SIGNATURE_PHONE = "+2342017001229"
 export const DEFAULT_PROFILE_SIGNATURE_SCALE = 65
 
 export function getProfileSignatureScale(value: unknown): number {
@@ -26,7 +27,7 @@ export function prepareProfileSignatureHtml(html: string, scale: unknown): strin
     // Upgrade the contact link shipped in the original shared template.
     .replaceAll('<a href="https://wa.me/2348037978230" style="color:#111827;text-decoration:none">08037978230</a>', "{{mobile_link}}")
     .replace(/\bstyle=(['"])(.*?)\1/gi, (_match, quote: string, style: string) =>
-      `style=${quote}${style.replace(/(\d+(?:\.\d+)?)px\b/gi, (_px, value: string) => `${resize(value)}px`)}${quote}`)
+      `style=${quote}${style.replace(/(\d+(?:\.\d+)?)(px|pt)\b/gi, (_unit, value: string, unit: string) => `${resize(value)}${unit}`)}${quote}`)
     .replace(/\b(width|height)=(['"])(\d+)\2/gi, (_match, attribute: string, quote: string, value: string) =>
       `${attribute}=${quote}${resize(value)}${quote}`)
 }

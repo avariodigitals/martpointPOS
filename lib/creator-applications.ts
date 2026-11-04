@@ -381,7 +381,8 @@ export async function scheduleCreatorInterview(input: {
     if (kind === "meeting") {
       const [sender, settings] = await Promise.all([getUserById(input.actor.id), getEmailSettings()])
       const body = `Hello ${application.fullName},\n\nYou are invited to ${title}.\n\nWhen: ${when} (Nigeria time, WAT)\nDuration: ${input.durationMinutes} minutes\n${meetingUrl ? `Google Meet: ${meetingUrl}\n` : ""}${input.notes ? `\nAgenda: ${input.notes}\n` : ""}\nPlease use the attached calendar invitation to save the meeting.`
-      const content = await renderCreatorEmail(body, sender?.signatureHtml || "<p>MartPoint Creator Team</p>")
+      const signatureHtml = sender ? await (await import("./profile-signature")).resolveProfileSignature(sender) : ""
+      const content = await renderCreatorEmail(body, signatureHtml || "<p>MartPoint Creator Team</p>")
       sent = await sendEmail({
         to: application.email,
         subject: title,

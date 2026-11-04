@@ -4,8 +4,10 @@ import { authorizeAdmin, getUserById } from "@/lib/admin-auth"
 import { canAccessMailbox, getMailbox } from "@/lib/admin-mailbox"
 import { supabase } from "@/lib/supabase"
 import { sendEmail } from "@/lib/email"
-import { appendSignatureToHtml, buildSignatureHtml, htmlToText, textToHtml } from "@/lib/email-html"
+import { appendSignatureToHtml, buildSignatureHtml, htmlToText, normalizeCompanySignatureContacts, textToHtml } from "@/lib/email-html"
 import { sanitizeSupportHtml } from "@/lib/support-html"
+import { readSettings } from "@/lib/settings"
+import { getProfileSignatureScale, prepareProfileSignatureHtml } from "@/lib/email-signature"
 import { resolveUniqueLeadIdByAddress } from "@/lib/lead-emails-inbound"
 
 export const dynamic = "force-dynamic"
@@ -35,10 +37,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const bodyHtml = sanitizeSupportHtml(payload.bodyHtml)
     const bodyText = htmlToText(bodyHtml)
     if (!bodyText.trim()) return NextResponse.json({ error: "Write a message before sending." }, { status: 400 })
-    const storedSignature = String(mailbox.signature_html || "")
+    const storedSignature = normalizeCompanySignatureContacts(String(mailbox.signature_html || ""))
     const signatureHtml = mailbox.signature_format === "plain" ? textToHtml(storedSignature) : sanitizeSupportHtml(storedSignature)
-    const signatureText = mailbox.signature_format === "plain" ? storedSignature.trim() : htmlToText(signatureHtml)
-    const signatureBlock = signatureText ? buildSignatureHtml(signatureHtml, "") : ""
+    const globalSettings = await readSettings()
+    const emailSettings = (globalSettings?.email || {}) as Record<string, unknown>
+    const scaledSignatureHtml = mailbox.signature_format === "html"
+      ? prepareProfileSignatureHtml(signatureHtml, getProfileSignatureScale(emailSettings.profileSignatureScale))
+      : signatureHtml
+    const signatureText = mailbox.signature_format === "plain" ? storedSignature.trim() : htmlToText(scaledSignatureHtml)
+    const signatureBlock = signatureText ? buildSignatureHtml(scaledSignatureHtml, "") : ""
     const sentHtml = appendSignatureToHtml(bodyHtml, signatureBlock)
     const sentText = `${bodyText}${signatureText ? `\n\n--\n${signatureText}` : ""}`
     const totalAttachmentBytes = payload.attachments.reduce((total, item) => total + Math.floor(item.content.length * 0.75), 0)

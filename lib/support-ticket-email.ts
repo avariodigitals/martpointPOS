@@ -2,7 +2,7 @@ import crypto from "crypto"
 import { getUserById } from "@/lib/admin-auth"
 import { resolveProfileSignature } from "@/lib/profile-signature"
 import { sendEmail, REPLY_TO, getEmailSettings } from "@/lib/email"
-import { appendSignatureToHtml, bodyTextToHtml, htmlToText, escapeHtml } from "@/lib/email-html"
+import { appendSignatureToHtml, bodyTextToHtml, htmlToText, escapeHtml, normalizeCompanySignatureContacts } from "@/lib/email-html"
 import { sanitizeSupportHtml } from "@/lib/support-html"
 import { supabase } from "@/lib/supabase"
 import { getSupportRequester } from "@/lib/support-requester"
@@ -43,7 +43,7 @@ export async function ticketSender(actorId?: string | null) {
       (settings.signature
         ? bodyTextToHtml(settings.signature)
         : "<p><strong>MartPoint Support Team</strong></p>")
-  return { signature: sanitizeSupportHtml(signature), name: actor?.name || "MartPoint Support", settings }
+  return { signature: sanitizeSupportHtml(normalizeCompanySignatureContacts(signature)), name: actor?.name || "MartPoint Support", settings }
 }
 
 export async function sendTicketRequesterEmail(input: {

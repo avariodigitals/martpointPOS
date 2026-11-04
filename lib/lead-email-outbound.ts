@@ -11,7 +11,7 @@ import crypto from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { sendEmail, getEmailSettings, isSmtpConfigured, REPLY_TO, type EmailAttachment, type EmailSettings } from "./email"
 import { sendEmailViaSmtp } from "./email-smtp"
-import { escapeHtml, htmlToText, bodyTextToHtml, buildSignatureHtml, appendSignatureToHtml } from "./email-html"
+import { escapeHtml, htmlToText, bodyTextToHtml, buildSignatureHtml, appendSignatureToHtml, normalizeCompanySignatureContacts } from "./email-html"
 import { brandedEmailHtml } from "./email-templates"
 import { buildLeadEmailTemplate, type LeadEmailStageKey } from "./lead-email-templates"
 import { base64ByteLength } from "./lead-email-attachments"
@@ -116,7 +116,7 @@ export async function renderLeadEmail(
   // fallback. The text part always gets a derived plain-text version, like a
   // normal mail client signature.
   const hasSignatureOverride = input.signatureHtml !== undefined
-  const signatureHtml = sanitizeSupportHtml(hasSignatureOverride ? input.signatureHtml!.trim() : s.signatureHtml.trim())
+  const signatureHtml = normalizeCompanySignatureContacts(sanitizeSupportHtml(hasSignatureOverride ? input.signatureHtml!.trim() : s.signatureHtml.trim()))
   const signatureText = (signatureHtml ? htmlToText(signatureHtml) : hasSignatureOverride ? "" : s.signature).trim()
   const hasSignature =
     !input.noSignature && Boolean(signatureText || /<img\b/i.test(signatureHtml))

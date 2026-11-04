@@ -5,6 +5,7 @@
 
 export const EMAIL_FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+export const OFFICIAL_COMPANY_PHONE = "+2342017001229"
 
 export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!))
@@ -38,6 +39,15 @@ export function textToHtml(text: string): string {
   return `<p>${esc.replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>")}</p>`
 }
 
+/** Replace the two retired company contact numbers inside generated signatures. */
+export function normalizeCompanySignatureContacts(html: string): string {
+  const digits = OFFICIAL_COMPANY_PHONE.replace(/\D/g, "")
+  return html
+    .replace(/https?:\/\/wa\.me\/(?:\+?234[\s-]*803[\s-]*797[\s-]*8230|0?803[\s-]*797[\s-]*8230)/gi, `https://wa.me/${digits}`)
+    .replace(/tel:\s*(?:\+?234[\s-]*803[\s-]*602[\s-]*8069|0?803[\s-]*602[\s-]*8069)/gi, `tel:${OFFICIAL_COMPANY_PHONE}`)
+    .replace(/(?:\+?234[\s-]*803[\s-]*602[\s-]*8069|0?803[\s-]*602[\s-]*8069|\+?234[\s-]*803[\s-]*797[\s-]*8230|0?803[\s-]*797[\s-]*8230)/gi, OFFICIAL_COMPANY_PHONE)
+}
+
 /** Wrap a plain-text body in the standard email font container. */
 export function bodyTextToHtml(text: string): string {
   return `<div style="font-family:${EMAIL_FONT};font-size:14px;line-height:1.6;color:#111827;white-space:pre-wrap;">${escapeHtml(text)}</div>`
@@ -50,8 +60,8 @@ export function bodyTextToHtml(text: string): string {
  */
 export function buildSignatureHtml(signatureHtml: string, signatureText: string): string {
   const content = signatureHtml.trim()
-    ? signatureHtml
-    : `<div style="white-space:pre-wrap;">${escapeHtml(signatureText)}</div>`
+    ? normalizeCompanySignatureContacts(signatureHtml)
+    : `<div style="white-space:pre-wrap;">${escapeHtml(normalizeCompanySignatureContacts(signatureText))}</div>`
   return `<div style="margin-top:24px;font-family:${EMAIL_FONT};font-size:14px;line-height:1.6;color:#111827;"><div style="color:#9ca3af;">-- </div>${content}</div>`
 }
 

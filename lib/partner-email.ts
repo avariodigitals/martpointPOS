@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { supabase } from "@/lib/supabase"
-import { buildSignatureHtml, escapeHtml, htmlToText } from "@/lib/email-html"
+import { buildSignatureHtml, escapeHtml, htmlToText, normalizeCompanySignatureContacts } from "@/lib/email-html"
 import { sanitizeSupportHtml } from "@/lib/support-html"
 import type { EmailLayout } from "@/lib/email-layout"
 import { renderCorrespondenceHtml } from "@/lib/email-correspondence"
@@ -40,9 +40,9 @@ export async function loadPartnerEmailContext(id: string) {
 export function buildPartnerEmailContent(bodyHtml: string, signatureHtml: string, senderName: string) {
   const body = sanitizeSupportHtml(bodyHtml)
   if (!htmlToText(body).trim()) throw new Error("Message is required")
-  const signature = sanitizeSupportHtml(
+  const signature = normalizeCompanySignatureContacts(sanitizeSupportHtml(
     signatureHtml.trim() || `<p><strong>${escapeHtml(senderName)}</strong><br>MartPoint Partner Team</p>`
-  )
+  ))
   return {
     text: `${htmlToText(body)}\n\n-- \n${htmlToText(signature)}`,
     html: `${body}${buildSignatureHtml(signature, "")}`

@@ -48,7 +48,7 @@ export function sanitizeSupportHtml(value: string): string {
     allowedSchemes: ["https", "http", "mailto", "tel"],
     // Inline raster images are useful for signatures copied from Outlook. Keep
     // data: scoped to <img> and reject SVG or non-base64 payloads.
-    allowedSchemesByTag: { img: ["https", "http", "data"] },
+    allowedSchemesByTag: { img: ["https", "http", "data", "cid"] },
     exclusiveFilter: (frame) => frame.tag === "img" && /^data:/i.test(frame.attribs.src || "") && !/^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(frame.attribs.src || ""),
     allowedStyles: {
       "*": {

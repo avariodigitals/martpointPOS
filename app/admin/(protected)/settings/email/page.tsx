@@ -5,9 +5,9 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import EmailRichEditor from "@/components/admin/email-rich-editor"
-import { htmlToText, textToHtml } from "@/lib/email-html"
+import { htmlToText, normalizeCompanySignatureContacts, textToHtml } from "@/lib/email-html"
 import { isBadHost } from "@/lib/email-settings-guard"
-import { DEFAULT_PROFILE_SIGNATURE_HTML, DEFAULT_PROFILE_SIGNATURE_SCALE, getProfileSignatureScale, prepareProfileSignatureHtml, renderProfileSignatureHtml } from "@/lib/email-signature"
+import { DEFAULT_PROFILE_SIGNATURE_HTML, DEFAULT_PROFILE_SIGNATURE_SCALE, OFFICIAL_SIGNATURE_PHONE, getProfileSignatureScale, prepareProfileSignatureHtml, renderProfileSignatureHtml } from "@/lib/email-signature"
 import { sanitizeSupportHtml } from "@/lib/support-html"
 import { Loader2, Save, Mail, ArrowLeft, Code2 } from "lucide-react"
 
@@ -64,13 +64,11 @@ export default function EmailSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
   const [sigEditSource, setSigEditSource] = useState(false)
-  const [companyMobile, setCompanyMobile] = useState("")
 
   useEffect(() => {
     fetch("/api/admin/settings", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
-        setCompanyMobile(String(data.general?.whatsappNumber || ""))
         if (data.email) {
           const provider = data.email.provider === "brevo" ? "brevo" : "resend"
           const smtp = data.email.smtp || {}
@@ -386,12 +384,12 @@ export default function EmailSettingsPage() {
               <textarea aria-label="Shared profile signature HTML template" rows={12} value={settings.profileSignatureHtmlTemplate} onChange={(event) => setSettings({ ...settings, profileSignatureHtmlTemplate: event.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono" />
               <div>
                 <p className="mb-2 text-xs font-medium text-muted-foreground">Preview with example profile details</p>
-                <iframe title="Team member signature template preview" sandbox="" className="h-[520px] w-full rounded-md border bg-white" srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font:14px/1.6 Arial,sans-serif;color:#111827;padding:12px}img{max-width:100%;height:auto}a{color:#0057ff}</style></head><body>${renderProfileSignatureHtml(sanitizeSupportHtml(prepareProfileSignatureHtml(settings.profileSignatureHtmlTemplate, settings.profileSignatureScale)), { name: "MartPoint Team Member", title: "Sales", email: "person@martpoint.com.ng", phone: "+234 800 000 0000", mobile: companyMobile, company: "MartPoint", extra: "" })}</body></html>`} />
+                <iframe title="Team member signature template preview" sandbox="" className="h-[520px] w-full rounded-md border bg-white" srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font:14px/1.6 Arial,sans-serif;color:#111827;padding:12px}img{max-width:100%;height:auto}a{color:#0057ff}</style></head><body>${renderProfileSignatureHtml(sanitizeSupportHtml(normalizeCompanySignatureContacts(prepareProfileSignatureHtml(settings.profileSignatureHtmlTemplate, settings.profileSignatureScale))), { name: "MartPoint Team Member", title: "Sales", email: "person@martpoint.com.ng", phone: OFFICIAL_SIGNATURE_PHONE, mobile: OFFICIAL_SIGNATURE_PHONE, company: "MartPoint", extra: "" })}</body></html>`} />
               </div>
               <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground">Available placeholders</p>
                 <p className="mt-1"><code>{"{{name}}"}</code> · <code>{"{{title}}"}</code> · <code>{"{{email}}"}</code> · <code>{"{{phone}}"}</code> · <code>{"{{mobile}}"}</code> · <code>{"{{company}}"}</code> · <code>{"{{email_link}}"}</code> · <code>{"{{phone_link}}"}</code> · <code>{"{{mobile_link}}"}</code></p>
-                <p className="mt-1">Phone (T) comes from the user profile; Customer Care and Tech use the Support Phone setting. Mobile (M) comes from <Link href="/admin/settings#contact-settings" className="text-retail underline">Contact → WhatsApp Number</Link>. Use the link placeholders for clickable contacts.</p>
+                <p className="mt-1">Phone (T) and Mobile (M) both use the approved company number (+2342017001229). Personal profile phone values are not included. Use the link placeholders for clickable contacts.</p>
               </div>
               <Button type="submit" disabled={saving}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Save shared signature settings</Button>
             </CardContent>

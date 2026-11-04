@@ -1,6 +1,6 @@
 import "server-only"
 
-import sanitizeHtml from "sanitize-html"
+import { sanitizeSupportHtml } from "@/lib/support-html"
 import { supabase } from "@/lib/supabase"
 import { createAdminNotification } from "@/lib/admin-notifications"
 import { getAllUsers } from "@/lib/admin-auth"
@@ -44,12 +44,9 @@ export type MailboxThread = {
 }
 
 export function cleanEmailHtml(html: string): string {
-  return sanitizeHtml(html, {
-    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "h1", "h2", "h3", "hr"]),
-    allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, a: ["href", "name", "target"], img: ["src", "alt", "width", "height"] },
-    allowedSchemes: ["http", "https", "mailto", "cid"],
-    transformTags: { a: sanitizeHtml.simpleTransform("a", { target: "_blank", rel: "noopener noreferrer" }) },
-  })
+  // Preserve safe inline formatting used by email signatures while removing
+  // scripts, unsafe URLs and unsupported CSS before Mailbox renders the HTML.
+  return sanitizeSupportHtml(html)
 }
 
 export async function getMailbox(mailboxId: string): Promise<MailboxConfig | null> {

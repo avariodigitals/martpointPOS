@@ -3,6 +3,8 @@ import { authorizeAdmin, getAllUsers } from "@/lib/admin-auth"
 import { supabase } from "@/lib/supabase"
 import { listMailboxesForUser } from "@/lib/admin-mailbox"
 import { sanitizeSupportHtml } from "@/lib/support-html"
+import { readSettings } from "@/lib/settings"
+import { DEFAULT_PROFILE_SIGNATURE_SCALE, getProfileSignatureScale } from "@/lib/email-signature"
 
 export const dynamic = "force-dynamic"
 
@@ -45,7 +47,9 @@ export async function GET(request: Request) {
     const availableUsers = settings && isAdmin
       ? activeUsers.map(({ id, name, email, username, role }) => ({ id, name, email, username, role }))
       : undefined
-    return NextResponse.json({ mailboxes: mailboxes.map((mailbox) => ({ ...mailbox, canManage: isAdmin || Boolean(roles.get(mailbox.id)), memberCount: memberCounts.get(mailbox.id) || 0 })), users, availableUsers, settings, memberIds, isAdmin })
+    const globalSettings = await readSettings()
+    const emailSettings = (globalSettings?.email || {}) as Record<string, unknown>
+    return NextResponse.json({ mailboxes: mailboxes.map((mailbox) => ({ ...mailbox, canManage: isAdmin || Boolean(roles.get(mailbox.id)), memberCount: memberCounts.get(mailbox.id) || 0 })), users, availableUsers, settings, memberIds, isAdmin, profileSignatureScale: getProfileSignatureScale(emailSettings.profileSignatureScale ?? DEFAULT_PROFILE_SIGNATURE_SCALE) })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load mailboxes." }, { status: 500 })
   }

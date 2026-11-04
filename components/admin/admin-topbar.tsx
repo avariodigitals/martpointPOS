@@ -55,7 +55,7 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
 
   async function logout() {
     setMenuOpen(false)
-    try { sessionStorage.removeItem("martpoint.azeraBrowserPhone.enabled") } catch { /* storage may be disabled */ }
+    try { sessionStorage.removeItem("martpoint.azeraBrowserPhone.manuallyOffline") } catch { /* storage may be disabled */ }
     await fetch("/api/admin/logout", { method: "POST" }).catch(() => undefined)
     router.push("/admin/login")
     router.refresh()

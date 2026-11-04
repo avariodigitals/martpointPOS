@@ -69,10 +69,20 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     }, { onConflict: "business_id,user_id" });
     if (error) return reply({ error: error.message }, 500);
+    const { data: saved, error: verifyError } = await supabase.from("azera_voice_agent_assignments")
+      .select("queues,enabled")
+      .eq("business_id", id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    const savedQueues = Array.isArray(saved?.queues) ? saved.queues : [];
+    const queuesMatch = selected.length === savedQueues.length && selected.every(queue => savedQueues.includes(queue));
+    if (verifyError || !saved || saved.enabled !== enabled || !queuesMatch) {
+      return reply({ error: "The assignment could not be verified after saving. Refresh the page and check the team member’s queues." }, 503);
+    }
     // An assignment change takes effect on the next registration. Stop a
     // currently advertised browser immediately if its queues were removed.
     if (!enabled) await supabase.from("azera_africa_browser_agents").update({ ready: false, last_seen_at: new Date(0).toISOString() }).eq("business_id", id).eq("user_id", userId);
-    return reply({ ok: true, enabled, queues: selected });
+    return reply({ ok: true, enabled: saved.enabled, queues: savedQueues, verified: true });
   } catch {
     return reply({ error: "Invalid voice assignment." }, 400);
   }

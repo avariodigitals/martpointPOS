@@ -23,10 +23,11 @@ export async function GET() {
   if (error) return reply({ error: "Apply migration 137 before enabling incoming browser calls." }, 503);
   const config = await africaBrowserConfig();
   const businessId = await resolveAfricaBusinessId(config.phone);
+  if (!businessId) return reply({ error: "No business is configured for Azera voice. Ask an administrator to finish voice setup." }, 503);
   const { data: assignment, error: assignmentError } = await supabase
     .from("azera_voice_agent_assignments")
     .select("business_id,queues,enabled")
-    .eq("business_id", businessId || "00000000-0000-0000-0000-000000000000")
+    .eq("business_id", businessId)
     .eq("user_id", session.userId)
     .eq("enabled", true)
     .maybeSingle();

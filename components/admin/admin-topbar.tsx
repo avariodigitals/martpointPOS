@@ -2,13 +2,14 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { ChevronDown, Search, Settings, ShieldCheck, UserCircle, Users, LogOut } from "lucide-react"
+import { ChevronDown, Search, Settings, ShieldCheck, UserCircle, Users, LogOut, Volume2, VolumeX } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { AdminNotificationBell } from "@/components/admin/admin-notification-bell"
 import { hasPermission, type UserRole } from "@/lib/admin-types"
 import { roleLabel } from "@/lib/utils"
 import { AfricaBrowserPhone } from "@/components/admin/africa-browser-phone"
 import { AdminAvatar } from "@/components/admin/admin-avatar"
+import { enableNotificationSound, playNotificationSound } from "@/components/admin/admin-notification-sound"
 
 const PAGE_CONTEXT: Array<{ match: string; title: string; subtitle: string }> = [
   { match: "/finance", title: "Finance", subtitle: "Commercial performance and control" },
@@ -36,8 +37,26 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [notificationSoundEnabled, setNotificationSoundEnabled] = useState(false)
+  const [notificationSoundReady, setNotificationSoundReady] = useState(false)
+  const [notificationSoundMessage, setNotificationSoundMessage] = useState("")
   const menuRef = useRef<HTMLDivElement>(null)
   const context = contextFor(pathname)
+
+  useEffect(() => {
+    setNotificationSoundEnabled(window.localStorage.getItem("mp-admin-notification-sound") === "enabled")
+  }, [])
+
+  useEffect(() => {
+    if (!notificationSoundEnabled) return
+    const unlock = () => { void enableNotificationSound().then(setNotificationSoundReady) }
+    window.addEventListener("pointerdown", unlock, { once: true })
+    window.addEventListener("keydown", unlock, { once: true })
+    return () => {
+      window.removeEventListener("pointerdown", unlock)
+      window.removeEventListener("keydown", unlock)
+    }
+  }, [notificationSoundEnabled])
 
   useEffect(() => {
     function close(event: MouseEvent) {
@@ -53,6 +72,23 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
     await fetch("/api/admin/logout", { method: "POST" }).catch(() => undefined)
     router.push("/admin/login")
     router.refresh()
+  }
+
+  async function toggleNotificationSound() {
+    setNotificationSoundMessage("")
+    if (notificationSoundEnabled) {
+      window.localStorage.setItem("mp-admin-notification-sound", "disabled")
+      setNotificationSoundEnabled(false)
+      setNotificationSoundReady(false)
+      return
+    }
+
+    const enabled = await enableNotificationSound()
+    window.localStorage.setItem("mp-admin-notification-sound", enabled ? "enabled" : "disabled")
+    setNotificationSoundEnabled(enabled)
+    setNotificationSoundReady(enabled)
+    if (enabled) playNotificationSound()
+    else setNotificationSoundMessage("Sound is blocked by this browser. Check the site’s sound settings and try again.")
   }
 
   return (
@@ -83,7 +119,7 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
           <Search className="h-4 w-4" />
         </Link>
         {hasPermission(userRole, "azera") && <AfricaBrowserPhone userName={userName} />}
-        <AdminNotificationBell />
+        <AdminNotificationBell soundEnabled={notificationSoundEnabled} />
 
         <div ref={menuRef} className="relative">
           <button
@@ -102,7 +138,7 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-12 z-[80] w-60 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 shadow-[0_22px_60px_rgba(15,23,42,0.18)]">
+            <div className="absolute right-0 top-12 z-[80] w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 shadow-[0_22px_60px_rgba(15,23,42,0.18)]">
               <div className="border-b border-slate-100 px-4 py-3">
                 <p className="truncate text-sm font-semibold text-slate-900">{userName}</p>
                 <p className="mt-0.5 text-xs text-slate-500">{roleLabel(userRole)} · Administrator</p>
@@ -115,6 +151,20 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
                 <ShieldCheck className="h-4 w-4 text-slate-400" />
                 Notifications
               </Link>
+              <div className="mx-3 my-1 border-t border-slate-100" />
+              <div className="px-4 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    {notificationSoundEnabled ? <Volume2 className="h-4 w-4 shrink-0 text-slate-400" /> : <VolumeX className="h-4 w-4 shrink-0 text-slate-400" />}
+                    <span className="text-sm text-slate-700">Notification sounds</span>
+                  </div>
+                  <button type="button" role="switch" aria-checked={notificationSoundEnabled} aria-label="Notification sounds" onClick={() => void toggleNotificationSound()} className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${notificationSoundEnabled ? "bg-emerald-600" : "bg-slate-300"}`}>
+                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${notificationSoundEnabled ? "translate-x-5" : "translate-x-0.5"}`} />
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">{notificationSoundEnabled ? notificationSoundReady ? "On" : "On · click once to activate browser sound" : "Off · enable and test sound"}</p>
+                {notificationSoundMessage && <p role="status" className="mt-1 text-xs text-amber-700">{notificationSoundMessage}</p>}
+              </div>
               {hasPermission(userRole, "settings") && <Link href="/admin/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50">
                 <Settings className="h-4 w-4 text-slate-400" />
                 Workspace settings

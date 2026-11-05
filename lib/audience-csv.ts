@@ -1,3 +1,5 @@
+import { strFromU8, unzipSync } from "fflate"
+
 /** CSV/TSV parsing shared by the import preview and tests; no server dependencies. */
 export function parseAudienceCsv(raw: string): string[][] {
   const source = raw.replace(/^\uFEFF/, "")
@@ -22,6 +24,46 @@ export function parseAudienceCsv(raw: string): string[][] {
   row.push(cell.trim()); if (row.some(Boolean)) rows.push(row)
   if (rows.length > 5001) throw new Error("Import up to 5,000 contacts at a time.")
   return rows
+}
+function workbookXml(source: string) {
+  const document = new DOMParser().parseFromString(source, "application/xml")
+  if (document.getElementsByTagName("parsererror").length) throw new Error("This Excel workbook could not be read.")
+  return document
+}
+export async function parseAudienceFile(file: File): Promise<string[][]> {
+  if (!file.name.toLowerCase().endsWith(".xlsx")) return parseAudienceCsv(await file.text())
+  if (typeof DOMParser === "undefined") throw new Error("Excel workbooks can only be read in a supported browser.")
+  const files = unzipSync(new Uint8Array(await file.arrayBuffer()))
+  const workbookXmlFile = files["xl/workbook.xml"]
+  const relationshipsXmlFile = files["xl/_rels/workbook.xml.rels"]
+  if (!workbookXmlFile || !relationshipsXmlFile) throw new Error("This Excel workbook could not be read.")
+  const workbook = workbookXml(strFromU8(workbookXmlFile))
+  const sheet = workbook.getElementsByTagName("sheet")[0]
+  const relationshipId = sheet?.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id")
+  const relationships = workbookXml(strFromU8(relationshipsXmlFile))
+  const target = Array.from(relationships.getElementsByTagName("Relationship")).find((item) => item.getAttribute("Id") === relationshipId)?.getAttribute("Target")
+  if (!target) throw new Error("This Excel workbook has no readable contact sheet.")
+  const path = target.startsWith("/") ? target.slice(1) : `xl/${target.replace(/^\.\//, "")}`
+  const sheetFile = files[path]
+  if (!sheetFile) throw new Error("This Excel workbook has no readable contact sheet.")
+  const sharedFile = files["xl/sharedStrings.xml"]
+  const sharedStrings = sharedFile ? Array.from(workbookXml(strFromU8(sharedFile)).getElementsByTagName("si")).map((item) => Array.from(item.getElementsByTagName("t")).map((part) => part.textContent || "").join("")) : []
+  const sheetDoc = workbookXml(strFromU8(sheetFile))
+  return Array.from(sheetDoc.getElementsByTagName("row")).map((row) => {
+    const values: string[] = []
+    for (const cell of Array.from(row.getElementsByTagName("c"))) {
+      const reference = cell.getAttribute("r") || ""
+      const letters = reference.match(/^[A-Z]+/i)?.[0]
+      if (!letters) continue
+      let index = 0
+      for (const character of letters.toUpperCase()) index = index * 26 + character.charCodeAt(0) - 64
+      index -= 1
+      const type = cell.getAttribute("t")
+      const value = type === "inlineStr" ? Array.from(cell.getElementsByTagName("t")).map((part) => part.textContent || "").join("") : cell.getElementsByTagName("v")[0]?.textContent || ""
+      values[index] = type === "s" ? sharedStrings[Number(value)] || "" : value
+    }
+    return values.map((value) => value || "")
+  })
 }
 export interface ImportedContact { email: string; name: string }
 export interface ImportedPhoneContact { phone: string; name: string }

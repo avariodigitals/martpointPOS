@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Bell, CheckCheck, Loader2, Volume2, VolumeX } from "lucide-react"
+import { Bell, CheckCheck, Loader2 } from "lucide-react"
 import { readableRoleText } from "@/lib/utils"
+import { playNotificationSound } from "@/components/admin/admin-notification-sound"
 
 interface Notification {
   id: string
@@ -23,51 +24,26 @@ function relativeTime(value: string) {
   return `${Math.floor(seconds / 86400)}d ago`
 }
 
-export function AdminNotificationBell() {
+export function AdminNotificationBell({ soundEnabled = false }: { soundEnabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-  const [soundEnabled, setSoundEnabled] = useState(false)
+  const soundEnabledRef = useRef(soundEnabled)
   const seenNotificationIds = useRef<Set<string> | null>(null)
-  const audioContext = useRef<AudioContext | null>(null)
 
-  function playAlertTone() {
-    try {
-      const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-      if (!AudioContextClass) return
-      const context = audioContext.current || new AudioContextClass()
-      audioContext.current = context
-      if (context.state === "suspended") void context.resume()
-      const start = context.currentTime + 0.02
-      ;[0, 0.24, 0.48].forEach((offset, index) => {
-        const oscillator = context.createOscillator()
-        const gain = context.createGain()
-        oscillator.type = "sine"
-        oscillator.frequency.value = index === 1 ? 1046 : 880
-        gain.gain.setValueAtTime(0.0001, start + offset)
-        gain.gain.exponentialRampToValueAtTime(0.28, start + offset + 0.025)
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.19)
-        oscillator.connect(gain)
-        gain.connect(context.destination)
-        oscillator.start(start + offset)
-        oscillator.stop(start + offset + 0.2)
-      })
-    } catch {
-      // Audio is an enhancement; notification polling must continue if blocked.
-    }
-  }
+  useEffect(() => { soundEnabledRef.current = soundEnabled }, [soundEnabled])
 
-  async function load() {
-    setLoading(true)
+  const load = useCallback(async () => {
+    if (seenNotificationIds.current === null) setLoading(true)
     try {
       const response = await fetch("/api/admin/notifications", { cache: "no-store" })
       const json = await response.json()
       const nextNotifications = (json.notifications || []) as Notification[]
       const nextIds = new Set(nextNotifications.map((item) => item.id))
       const hasNewNotification = seenNotificationIds.current !== null && [...nextIds].some((id) => !seenNotificationIds.current?.has(id))
-      if (hasNewNotification && soundEnabled) playAlertTone()
+      if (hasNewNotification && soundEnabledRef.current) playNotificationSound()
       seenNotificationIds.current = nextIds
       setNotifications(nextNotifications)
       setUnread(json.unread || 0)
@@ -76,17 +52,16 @@ export function AdminNotificationBell() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    setSoundEnabled(window.localStorage.getItem("mp-admin-notification-sound") === "enabled")
     const initial = window.setTimeout(() => void load(), 0)
     const interval = window.setInterval(() => void load(), 15000)
     return () => {
       window.clearTimeout(initial)
       window.clearInterval(interval)
     }
-  }, [soundEnabled])
+  }, [load])
 
   useEffect(() => {
     function close(event: MouseEvent) {
@@ -109,13 +84,6 @@ export function AdminNotificationBell() {
       setNotifications([])
       setUnread(0)
     }
-  }
-
-  function toggleSound() {
-    const enabled = !soundEnabled
-    setSoundEnabled(enabled)
-    window.localStorage.setItem("mp-admin-notification-sound", enabled ? "enabled" : "disabled")
-    if (enabled) playAlertTone()
   }
 
   function linkFor(item: Notification): string | null {
@@ -145,7 +113,7 @@ export function AdminNotificationBell() {
       </button>
 
       {open && <div className="absolute right-0 top-12 z-[80] w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><div><p className="text-sm font-semibold text-slate-900">Pending work</p><p className="text-xs text-muted-foreground">Items that may need your attention</p></div><div className="flex items-center gap-3">{unread > 0 && <button type="button" onClick={() => void markRead()} className="inline-flex items-center gap-1 text-xs font-medium text-retail hover:underline"><CheckCheck className="h-3.5 w-3.5" /> Mark all read</button>}<button type="button" onClick={toggleSound} aria-label={soundEnabled ? "Disable notification sound" : "Enable notification sound and test tone"} title={soundEnabled ? "Disable alert sound" : "Enable and test alert sound"} className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50">{soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}{soundEnabled ? "Sound on" : "Enable sound"}</button></div></div>
+        <div className="border-b border-slate-100 px-4 py-3"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-slate-900">Pending work</p><p className="text-xs text-muted-foreground">Items that may need your attention</p></div>{loading && <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-slate-400" />}</div>{unread > 0 && <div className="mt-2 flex justify-end"><button type="button" onClick={() => void markRead()} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"><CheckCheck className="h-3.5 w-3.5" />Mark all as read</button></div>}</div>
         <div className="max-h-[420px] overflow-y-auto">
           {loading && notifications.length === 0 ? <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div> : notifications.length === 0 ? <div className="px-6 py-12 text-center"><Bell className="mx-auto mb-3 h-8 w-8 text-slate-300" /><p className="text-sm font-medium text-slate-700">You’re all caught up</p><p className="mt-1 text-xs text-muted-foreground">New chats, tickets, and requests will appear here.</p></div> : notifications.map((item) => { const link = linkFor(item); const content = <><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-retail" /><span className="min-w-0 flex-1"><span className="flex items-start justify-between gap-2"><span className="text-sm font-medium text-slate-800">{readableRoleText(item.title)}</span><span className="shrink-0 text-[10px] text-slate-400">{relativeTime(item.created_at)}</span></span>{item.message && <span className="mt-1 block line-clamp-2 text-xs leading-relaxed text-muted-foreground">{readableRoleText(item.message)}</span>}</span></>; return link ? <Link key={item.id} href={link} onClick={() => { setOpen(false); void markRead(item.id) }} className="group flex gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-retail">{content}</Link> : <div key={item.id} className="group flex gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50">{content}<button type="button" onClick={() => void markRead(item.id)} aria-label="Dismiss notification" className="self-start text-[11px] font-medium text-slate-500 hover:text-slate-900">Dismiss</button></div> })}
         </div>

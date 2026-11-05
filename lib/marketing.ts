@@ -9,6 +9,7 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 import { sendEmail, REPLY_TO } from "./email"
 import type { EmailProvider } from "./email"
 import { htmlToText } from "./email-html"
+import { normalizeCommunicationPhone } from "./communications-policy"
 
 export { htmlToText }
 
@@ -20,13 +21,13 @@ export interface MarketingRecipient {
 export type MarketingAudience = "leads" | "partner_leads" | "businesses" | "newsletter" | "manual"
 
 export const SYSTEM_EMAIL_AUDIENCES = [
-  { id: "system:leads", name: "Leads", description: "People who submitted a lead form.", table: "leads", email: "email", nameColumn: "full_name", order: "submitted_at" },
-  { id: "system:businesses", name: "Businesses", description: "Business accounts with a primary email.", table: "businesses", email: "primary_email", nameColumn: "primary_contact_name", fallbackColumn: "business_name", order: "created_at" },
-  { id: "system:partner_leads", name: "Partner leads", description: "Partner enquiries and referrals.", table: "partner_leads", email: "email", nameColumn: "contact_name", fallbackColumn: "business_name", order: "created_at" },
-  { id: "system:partners", name: "Active partners", description: "Active partners with a public email.", table: "partners", email: "public_email", nameColumn: "display_name", fallbackColumn: "business_name", order: "created_at", status: ["ACTIVE"] },
-  { id: "system:partner_applications", name: "Partner applicants", description: "Submitted partner applications, excluding drafts and rejected applications.", table: "partner_applications", email: "email", nameColumn: "full_name", order: "submitted_at", statusExclude: ["DRAFT", "REJECTED"] },
-  { id: "system:creators", name: "Active creators", description: "Active creators in the creator network.", table: "creators", email: "email", nameColumn: "full_name", order: "created_at", status: ["ACTIVE"] },
-  { id: "system:creator_applications", name: "Creator applicants", description: "Submitted creator applications, excluding drafts and rejected applications.", table: "creator_applications", email: "email", nameColumn: "full_name", order: "submitted_at", statusExclude: ["DRAFT", "REJECTED"] },
+  { id: "system:leads", name: "Leads", description: "People who submitted a lead form.", table: "leads", email: "email", nameColumn: "full_name", phoneColumn: "phone", order: "submitted_at" },
+  { id: "system:businesses", name: "Businesses", description: "Business accounts with a primary email.", table: "businesses", email: "primary_email", nameColumn: "primary_contact_name", phoneColumn: "primary_phone", fallbackColumn: "business_name", order: "created_at" },
+  { id: "system:partner_leads", name: "Partner leads", description: "Partner enquiries and referrals.", table: "partner_leads", email: "email", nameColumn: "contact_name", phoneColumn: "phone", fallbackColumn: "business_name", order: "created_at" },
+  { id: "system:partners", name: "Active partners", description: "Active partners with a public email.", table: "partners", email: "public_email", nameColumn: "display_name", phoneColumn: "public_phone", fallbackColumn: "business_name", order: "created_at", status: ["ACTIVE"] },
+  { id: "system:partner_applications", name: "Partner applicants", description: "Submitted partner applications, excluding drafts and rejected applications.", table: "partner_applications", email: "email", nameColumn: "full_name", phoneColumn: "phone", order: "submitted_at", statusExclude: ["DRAFT", "REJECTED"] },
+  { id: "system:creators", name: "Active creators", description: "Active creators in the creator network.", table: "creators", email: "email", nameColumn: "full_name", phoneColumn: "phone", order: "created_at", status: ["ACTIVE"] },
+  { id: "system:creator_applications", name: "Creator applicants", description: "Submitted creator applications, excluding drafts and rejected applications.", table: "creator_applications", email: "email", nameColumn: "full_name", phoneColumn: "phone", order: "submitted_at", statusExclude: ["DRAFT", "REJECTED"] },
   { id: "system:newsletter", name: "Newsletter opt-ins", description: "Contacts with an active newsletter opt-in.", table: "status_subscribers", email: "email", nameColumn: "email", order: "created_at", newsletter: true },
 ] as const
 
@@ -63,8 +64,26 @@ export async function getSystemAudiencePage(id: string, offset = 0, limit = 50) 
   const contacts = (data || []).map((row: Record<string, unknown>) => ({
     id: String(row.id), email: String(row[config.email] || ""),
     name: String(("newsletter" in config && config.newsletter ? "" : row[config.nameColumn]) || ("fallbackColumn" in config ? row[config.fallbackColumn] : "") || ""),
-    phone: null, sms_consent_at: null,
+    phone: ("phoneColumn" in config && config.phoneColumn ? String(row[config.phoneColumn] || "") : null), sms_consent_at: null,
   }))
+  return { contacts, total: count || contacts.length }
+}
+
+/** Phone-only system segment page for SMS campaigns. Consent must be affirmed separately at send time. */
+export type SystemSmsAudienceContact = { id: string; phone: string; name: string; sms_consent_at: null }
+
+export async function getSystemSmsAudiencePage(id: string, offset = 0, limit = 100): Promise<{ contacts: SystemSmsAudienceContact[]; total: number }> {
+  const config = getSystemEmailAudience(id)
+  if (!config || !("phoneColumn" in config) || !config.phoneColumn || !isSupabaseConfigured()) return { contacts: [], total: 0 }
+  let query = fromSystemAudienceTable(config.table).select("*", { count: "exact" }).not(config.phoneColumn, "is", null).neq(config.phoneColumn, "")
+  if ("status" in config && config.status) query = query.in("status", [...config.status])
+  if ("statusExclude" in config && config.statusExclude) query = query.not("status", "in", `(${config.statusExclude.join(",")})`)
+  const { data, count } = await query.order(config.order, { ascending: false }).range(offset, offset + Math.min(limit, 100) - 1)
+  const contacts: SystemSmsAudienceContact[] = (data || []).map((row: Record<string, unknown>) => ({
+    id: String(row.id), phone: normalizeCommunicationPhone(String(row[config.phoneColumn!] || "")),
+    name: String(row[config.nameColumn] || ("fallbackColumn" in config ? row[config.fallbackColumn] : "") || ""),
+    sms_consent_at: null,
+  })).filter((contact: SystemSmsAudienceContact) => Boolean(contact.phone))
   return { contacts, total: count || contacts.length }
 }
 

@@ -8,6 +8,7 @@ import { getCommunicationSmsConfig, smsConfigurationSchema } from "@/lib/communi
 import { getEmailSettings } from "@/lib/email"
 import { prepareCommunication } from "@/lib/communications"
 import { communicationChannel, communicationTemplateSchema, communicationWorkflowSchema, mergeCommunicationTemplate, normalizeCommunicationPhone } from "@/lib/communications-policy"
+import { getSystemSmsAudiencePage, SYSTEM_EMAIL_AUDIENCES } from "@/lib/marketing"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -20,12 +21,12 @@ async function access(resource: string) {
 }
 function problem(error: unknown) { return NextResponse.json({ error: error instanceof Error ? error.message : "Communications could not be loaded" }, { status: 400 }) }
 const queueSchema = z.object({
-  leadIds: z.array(z.uuid()).max(50).default([]), contactIds: z.array(z.uuid()).max(500).default([]), contactSource: z.enum(["lead", "saved_audience"]).default("lead"), audienceId: z.uuid().nullable().default(null), requestId: z.uuid(), channel: communicationChannel,
+  leadIds: z.array(z.uuid()).max(50).default([]), contactIds: z.array(z.uuid()).max(500).default([]), systemContactIds: z.array(z.uuid()).max(500).default([]), systemAudienceId: z.string().nullable().default(null), smsConsentConfirmed: z.boolean().default(false), contactSource: z.enum(["lead", "saved_audience", "system_audience"]).default("lead"), audienceId: z.uuid().nullable().default(null), requestId: z.uuid(), channel: communicationChannel,
   mode: z.enum(["manual", "template", "ai"]), template_id: z.uuid().nullable().default(null),
   instructions: z.string().max(4000).default(""), subject: z.string().max(500).default(""), body: z.string().max(20000).default(""),
   campaignName: z.string().trim().min(2).max(120),
   scheduleAt: z.string().datetime({ offset: true }).nullable().default(null),
-}).refine((value) => value.leadIds.length + value.contactIds.length > 0 && value.leadIds.length + value.contactIds.length <= 500, "Choose up to 500 recipients")
+}).refine((value) => value.leadIds.length + value.contactIds.length + value.systemContactIds.length > 0 && value.leadIds.length + value.contactIds.length + value.systemContactIds.length <= 500, "Choose up to 500 recipients")
 export async function GET(_request: Request, context: Context) {
   const { resource } = await context.params
   const auth = await access(resource)
@@ -75,7 +76,16 @@ export async function GET(_request: Request, context: Context) {
       smsContacts.push(...(page.data || []))
       if ((page.data || []).length < 1000) break
     }
-    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts, providers: { email: email.provider, sms: sms.provider, smsSender: sms.sender || "", smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
+    const smsSystemAudiences = SYSTEM_EMAIL_AUDIENCES.filter((audience) => "phoneColumn" in audience && audience.phoneColumn).map((audience) => ({ id: audience.id, name: audience.name, description: audience.description }))
+    const smsSystemContacts: { id: string; audience_id: string; name: string; phone: string; sms_consent_at: null }[] = []
+    for (const audience of smsSystemAudiences) {
+      for (let offset = 0; ; offset += 100) {
+        const page = await getSystemSmsAudiencePage(audience.id, offset, 100)
+        smsSystemContacts.push(...page.contacts.map((contact) => ({ ...contact, audience_id: audience.id, sms_consent_at: null })))
+        if (page.contacts.length < 100) break
+      }
+    }
+    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts, smsSystemAudiences, smsSystemContacts, providers: { email: email.provider, sms: sms.provider, smsSender: sms.sender || "", smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
   } catch (error) { return problem(error) }
 }
 export async function POST(request: Request, context: Context) {
@@ -131,7 +141,7 @@ export async function POST(request: Request, context: Context) {
       const parsed = queueSchema.parse(body)
       const scheduledFor = parsed.scheduleAt ? new Date(parsed.scheduleAt) : new Date()
       if (Number.isNaN(scheduledFor.getTime()) || (parsed.scheduleAt && (scheduledFor.getTime() < Date.now() + 60_000 || scheduledFor.getTime() > Date.now() + 365 * 24 * 60 * 60 * 1000))) throw new Error("Choose a send time at least one minute from now and within the next year")
-      if ((parsed.contactSource === "saved_audience") !== (parsed.contactIds.length > 0) || (parsed.contactSource === "saved_audience" && (parsed.channel !== "sms" || parsed.leadIds.length || parsed.mode === "ai" || !parsed.audienceId))) throw new Error("Saved SMS audiences require a saved audience and template or written message")
+      if ((parsed.contactSource === "saved_audience") !== (parsed.contactIds.length > 0) || (parsed.contactSource === "system_audience") !== (parsed.systemContactIds.length > 0) || (parsed.contactSource === "saved_audience" && (parsed.channel !== "sms" || parsed.leadIds.length || parsed.systemContactIds.length || parsed.mode === "ai" || !parsed.audienceId)) || (parsed.contactSource === "system_audience" && (parsed.channel !== "sms" || parsed.leadIds.length || parsed.contactIds.length || parsed.mode === "ai" || !parsed.systemAudienceId || !parsed.smsConsentConfirmed))) throw new Error("Choose an SMS audience and confirm consent for contacts in the selected system segment")
       if (parsed.mode === "manual" && (!parsed.body.trim() || (parsed.channel === "email" && !parsed.subject.trim()) || (parsed.channel === "sms" && parsed.body.length > 480) || (parsed.channel === "whatsapp" && parsed.body.length > 2000))) throw new Error("Enter a subject and message within the channel length")
       if (parsed.mode === "ai" && !parsed.instructions.trim()) throw new Error("Describe the message you want AI to prepare")
       if (parsed.mode === "template") {
@@ -153,10 +163,28 @@ export async function POST(request: Request, context: Context) {
           return { request_id: communicationRequestId(requestId, contact.id), lead_id: null, contact_id: contact.id, contact_source: "saved_audience", contact_name: contact.name || "", recipient: contact.phone, channel: parsed.channel, mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: "", body: parsed.mode === "template" ? mergeCommunicationTemplate(selectedTemplate.data!.body, person) : mergeCommunicationTemplate(parsed.body, person), prepared_at: new Date().toISOString(), scheduled_for: scheduledFor.toISOString(), created_by: auth.session.userId }
         })
       }
+      if (parsed.systemContactIds.length) {
+        const audience = SYSTEM_EMAIL_AUDIENCES.find((item) => item.id === parsed.systemAudienceId && "phoneColumn" in item && item.phoneColumn)
+        if (!audience) throw new Error("Choose a valid business, partner or lead audience")
+        const wanted = new Set(parsed.systemContactIds)
+        const systemContacts: { id: string; name: string; phone: string }[] = []
+        for (let offset = 0; ; offset += 100) {
+          const page = await getSystemSmsAudiencePage(audience.id, offset, 100)
+          systemContacts.push(...page.contacts.filter((contact) => wanted.has(contact.id)).map((contact) => ({ id: contact.id, name: contact.name, phone: normalizeCommunicationPhone(contact.phone) })))
+          if (systemContacts.length === wanted.size || page.contacts.length < 100) break
+        }
+        if (systemContacts.length !== wanted.size || systemContacts.some((contact) => !contact.phone)) throw new Error("Some selected contacts no longer have valid phone numbers")
+        const selectedTemplate = parsed.mode === "template" ? await supabase.from("communication_templates").select("subject,body").eq("id", parsed.template_id || "").eq("channel", "sms").maybeSingle() : { data: null, error: null }
+        if (selectedTemplate.error || (parsed.mode === "template" && !selectedTemplate.data)) throw new Error("Choose an available SMS template")
+        contactRows.push(...systemContacts.map((contact) => {
+          const person = { full_name: contact.name || "there", business_name: "", product_interest: "MartPoint" }
+          return { request_id: communicationRequestId(requestId, contact.id), lead_id: null, contact_id: null, contact_source: "system_audience", contact_name: contact.name || "", recipient: contact.phone, channel: "sms", mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: "", body: parsed.mode === "template" ? mergeCommunicationTemplate(selectedTemplate.data!.body, person) : mergeCommunicationTemplate(parsed.body, person), prepared_at: new Date().toISOString(), scheduled_for: scheduledFor.toISOString(), created_by: auth.session.userId }
+        }))
+      }
       let rows = [...leadRows, ...contactRows]
       const audienceLabel = parsed.contactSource === "saved_audience"
         ? (await supabase.from("marketing_audiences").select("name").eq("id", parsed.audienceId).maybeSingle()).data?.name || "Saved SMS audience"
-        : "Leads"
+        : parsed.contactSource === "system_audience" ? SYSTEM_EMAIL_AUDIENCES.find((item) => item.id === parsed.systemAudienceId)?.name || "System audience" : "Leads"
       const campaign = await supabase.from("communication_campaigns").upsert({
         id: requestId,
         name: parsed.campaignName,

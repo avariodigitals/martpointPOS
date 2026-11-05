@@ -9,9 +9,11 @@ export const dynamic = "force-dynamic"
 const draftSchema = z.object({
   to: z.string().max(5000).default(""),
   cc: z.string().max(5000).default(""),
+  bcc: z.string().max(5000).default(""),
   subject: z.string().max(998).default(""),
   body: z.string().max(1_000_000).default(""),
   showCc: z.boolean().optional(),
+  showBcc: z.boolean().optional(),
 })
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {

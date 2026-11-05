@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase"
 import { logFinanceAudit, syncInvoiceFinanceTransaction, removePaymentFinanceTransaction, waiveSubscription, confirmPayment, recordPayment } from "@/lib/finance-commercial"
 import { postPaymentReversal, postPayoutJournal, voidEntriesForSource } from "@/lib/finance-ledger"
 import { issuePayoutStatement } from "@/lib/partner-generated-docs"
-import { notifyAdminUser } from "@/lib/admin-notifications"
+import { notifyAdminUser, notifyApprovalApprovers } from "@/lib/admin-notifications"
 
 export const dynamic = "force-dynamic"
 
@@ -27,15 +27,39 @@ export async function GET() {
   ])
   if (requests.error || policies.error) return error("Apply migration 167 to use approval workflows", 503)
   const financeAccess = await hasFinanceActionForUser(session.userId, session.role, "finance:view")
-  const eligibleKeys = (policies.data || []).filter((policy) => policy.enabled && isApprover(policy, session.userId, session.role)).map((policy) => policy.action_key)
+  const eligibleKeys = (policies.data || []).filter((policy) => policy.enabled && (session.role === "Admin" || isApprover(policy, session.userId, session.role))).map((policy) => policy.action_key)
   const pageAccess = await hasEffectivePermission(session.userId, session.role, "approvals", hasPermission(session.role, "approvals"))
-  if (!financeAccess && !eligibleKeys.length && !pageAccess) return error("Finance access or an approver assignment is required", 403)
-  const fullFinanceInbox = financeAccess && ["Admin", "Finance"].includes(session.role)
-  const visibleRequests = fullFinanceInbox || session.role === "Admin" ? requests.data || [] : (requests.data || []).filter((item) => item.requested_by === session.userId || eligibleKeys.includes(item.action_key))
+  const mappedInboxAccess = eligibleKeys.length > 0 && await hasEffectivePermission(session.userId, session.role, "approvals", true)
+  if (!financeAccess && !mappedInboxAccess && !pageAccess) return error("Finance access or an approver assignment is required", 403)
+  if (eligibleKeys.length > 0 && !mappedInboxAccess) return error("Approval inbox access is denied for this user", 403)
+  const visibleRequests = (requests.data || []).filter((item) => eligibleKeys.includes(item.action_key))
+  const requestPayloads = visibleRequests.map((item) => {
+    const details = item.details && typeof item.details === "object" ? item.details as Record<string, unknown> : {}
+    const payload = details.payload && typeof details.payload === "object" ? details.payload as Record<string, unknown> : {}
+    return { item, details, payload }
+  })
+  const businessIds = [...new Set(requestPayloads.map(({ payload }) => String(payload.business_id || "")).filter(Boolean))]
+  const invoiceIds = [...new Set(requestPayloads.map(({ payload }) => String(payload.invoice_id || "")).filter(Boolean))]
+  const [businessRows, invoiceRows] = await Promise.all([
+    businessIds.length ? supabase.from("businesses").select("id,business_name").in("id", businessIds) : Promise.resolve({ data: [] as { id: string; business_name: string }[], error: null }),
+    invoiceIds.length ? supabase.from("invoices").select("id,invoice_number").in("id", invoiceIds) : Promise.resolve({ data: [] as { id: string; invoice_number: string }[], error: null }),
+  ])
+  const businessNames = new Map((businessRows.data || []).map((row) => [row.id, row.business_name]))
+  const invoiceNumbers = new Map((invoiceRows.data || []).map((row) => [row.id, row.invoice_number]))
+  const hydratedRequests = requestPayloads.map(({ item, payload }) => ({
+    ...item,
+    details: {
+      ...(item.details && typeof item.details === "object" ? item.details as Record<string, unknown> : {}),
+      display: {
+        business_name: businessNames.get(String(payload.business_id || "")) || null,
+        invoice_number: invoiceNumbers.get(String(payload.invoice_id || "")) || null,
+      },
+    },
+  }))
   const users = session.role === "Admin"
     ? await supabase.from("users").select("id,name,username,role,status").eq("status", "ACTIVE").order("name")
     : { data: [] as { id: string; name: string; username: string; role: string; status: string }[], error: null }
-  return NextResponse.json({ success: true, requests: visibleRequests, policies: policies.data || [], users: users.data || [], canManagePolicies: session.role === "Admin" })
+  return NextResponse.json({ success: true, requests: hydratedRequests, policies: policies.data || [], users: users.data || [], currentUserId: session.userId, allowSelfApproval: session.role === "Admin", canManagePolicies: session.role === "Admin" })
 }
 
 export async function POST(request: Request) {
@@ -67,6 +91,13 @@ export async function POST(request: Request) {
         requested_by: session.userId, requested_by_name: session.name, requested_by_role: session.role,
       }).select().single()
       if (inserted.error) return error(inserted.error.code === "23505" ? "A cancellation request is already pending for this invoice" : "Could not create the approval request", inserted.error.code === "23505" ? 409 : 500)
+      await notifyApprovalApprovers({
+        actionKey: "finance.invoice.cancel",
+        requestId: String(inserted.data.id),
+        entityReference: `Invoice ${invoice.invoice_number}`,
+        message: `Invoice cancellation requested by ${session.name}: ${reason}`,
+        requesterId: session.userId,
+      })
       return NextResponse.json({ success: true, request: inserted.data })
     }
 
@@ -78,12 +109,13 @@ export async function POST(request: Request) {
       if (decision === "REJECTED" && note.length < 5) return error("Add a reason of at least 5 characters when rejecting")
       const { data: approval, error: approvalError } = await supabase.from("approval_requests").select("*").eq("id", id).eq("status", "PENDING").maybeSingle()
       if (approvalError || !approval) return error("Pending approval request not found", 404)
-      if (approval.requested_by === session.userId) return error("You cannot approve your own request", 403)
+      if (approval.requested_by === session.userId && session.role !== "Admin") return error("You cannot approve your own request", 403)
       const { data: policy, error: policyError } = await supabase.from("approval_policies").select("enabled,approver_roles,approver_user_ids").eq("action_key", approval.action_key).maybeSingle()
       if (policyError || !policy || !policy.enabled) return error("Approval policy is unavailable or disabled", 409)
       const allowedRoles = cleanIds(policy.approver_roles)
       const allowedUsers = cleanIds(policy.approver_user_ids)
       if (session.role !== "Admin" && !allowedRoles.includes(session.role) && !allowedUsers.includes(session.userId)) return error("You are not an approver for this action", 403)
+      if (!await hasEffectivePermission(session.userId, session.role, "approvals", true)) return error("Approval inbox access is denied for this user", 403)
 
       if (decision === "APPROVED" && approval.action_key === "quotation.send") {
         const { data: quote, error: quoteError } = await supabase.from("lead_quotations").select("id,status,updated_at,creator_id,quote_number").eq("id", approval.entity_id).maybeSingle()

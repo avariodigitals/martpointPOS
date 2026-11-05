@@ -1,5 +1,6 @@
 import { resolveIndustryName } from "./industries"
 import { brandedEmailHtml, escapeHtml } from "./email-templates"
+import { supportRecoveryNoticeHtml } from "./support-recovery-notice"
 
 export interface LeadSummary {
   id: string
@@ -376,6 +377,7 @@ export function buildQuoteEmailHtml(
       </tr>
     </table>
     ${quote.notes_public ? `<p style="font-size:14px;color:#6B7280;margin:0 0 24px;white-space:pre-line;">${escapeHtml(quote.notes_public)}</p>` : ""}
+    ${supportRecoveryNoticeHtml()}
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 24px;">
       <tr><td style="border-radius:8px;background-color:#0057FF;text-align:center;"><a href="${publicUrl}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">View Quotation</a></td></tr>
     </table>

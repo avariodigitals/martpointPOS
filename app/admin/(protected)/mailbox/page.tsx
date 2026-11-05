@@ -11,7 +11,7 @@ type Mailbox = { id: string; name: string; email: string; active: boolean; canMa
 type StaffUser = { id: string; name: string; email: string; username: string; role: string }
 type MailLabel = { id: string; name: string; color: string }
 type Thread = { id: string; mailbox_id: string; subject: string; participants: string[]; status: string; is_starred: boolean; assigned_to: string | null; last_message_at: string; last_message_preview: string; unread: boolean; last_direction: string; lead_id?: string | null; labels?: MailLabel[]; draftId?: string; draftThreadId?: string | null; draft?: DraftData }
-type DraftData = { to: string; cc: string; subject: string; body: string; showCc?: boolean }
+type DraftData = { to: string; cc: string; bcc?: string; subject: string; body: string; showCc?: boolean; showBcc?: boolean }
 type Message = { id: string; direction: "inbound" | "outbound"; from_email: string; from_name: string; to_emails: string[]; cc_emails: string[]; subject: string; body_text: string; body_html: string; send_status: string; sent_by_name?: string; created_at: string; attachment_names: string[]; attachments?: { id: string; filename: string; size: number }[] }
 type Folder = "inbox" | "sent" | "starred" | "assigned" | "closed" | "deleted" | "drafts"
 
@@ -62,11 +62,13 @@ export default function MailboxPage() {
   const [query, setQuery] = useState("")
   const [to, setTo] = useState("")
   const [cc, setCc] = useState("")
+  const [bcc, setBcc] = useState("")
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [compose, setCompose] = useState(false)
   const [showCc, setShowCc] = useState(false)
+  const [showBcc, setShowBcc] = useState(false)
   const [draftId, setDraftId] = useState("")
   const [savingDraft, setSavingDraft] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -94,7 +96,7 @@ export default function MailboxPage() {
   const selectedMailbox = mailboxes.find((mailbox) => mailbox.id === mailboxId)
   const visibleThreads = useMemo(() => {
     const filtered = labelFilter ? threads.filter((thread) => thread.labels?.some((label) => label.id === labelFilter)) : threads
-    return folder === "drafts" && query.trim() ? filtered.filter((thread) => `${thread.subject} ${thread.draft?.to || ""} ${thread.draft?.cc || ""} ${htmlToText(thread.draft?.body || "")}`.toLowerCase().includes(query.trim().toLowerCase())) : filtered
+    return folder === "drafts" && query.trim() ? filtered.filter((thread) => `${thread.subject} ${thread.draft?.to || ""} ${thread.draft?.cc || ""} ${thread.draft?.bcc || ""} ${htmlToText(thread.draft?.body || "")}`.toLowerCase().includes(query.trim().toLowerCase())) : filtered
   }, [threads, labelFilter, folder, query])
   const loadLabels = useCallback(async () => {
     if (!mailboxId) { setLabels([]); return }
@@ -179,12 +181,12 @@ export default function MailboxPage() {
   }, [mailboxId, folder, selectedId, loadThreads, loadThread])
 
   useEffect(() => {
-    if (!compose || !mailboxId || (!to.trim() && !cc.trim() && !subject.trim() && !htmlToText(body).trim())) return
+    if (!compose || !mailboxId || (!to.trim() && !cc.trim() && !bcc.trim() && !subject.trim() && !htmlToText(body).trim())) return
     const timer = window.setTimeout(async () => {
       draftTimerRef.current = null
       setSavingDraft(true)
       try {
-        const response = await fetch(`/api/admin/mailboxes/${mailboxId}/drafts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: draftIdRef.current || undefined, draft: { to, cc, subject, body, showCc }, threadId: selected?.id || draftThreadIdRef.current || null }) })
+        const response = await fetch(`/api/admin/mailboxes/${mailboxId}/drafts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: draftIdRef.current || undefined, draft: { to, cc, bcc, subject, body, showCc, showBcc }, threadId: selected?.id || draftThreadIdRef.current || null }) })
         const data = await response.json()
         if (response.ok && data.draft?.id) setCurrentDraftId(data.draft.id)
       } catch { /* autosave is best effort; manual Save draft remains available */ }
@@ -192,19 +194,19 @@ export default function MailboxPage() {
     }, 900)
     draftTimerRef.current = timer
     return () => { window.clearTimeout(timer); if (draftTimerRef.current === timer) draftTimerRef.current = null }
-  }, [compose, mailboxId, to, cc, subject, body, showCc, selected?.id])
+  }, [compose, mailboxId, to, cc, bcc, subject, body, showCc, showBcc, selected?.id])
 
   const chooseFolder = (value: Folder) => { setFolder(value); if (value === "drafts") setLabelFilter(""); setMobileView("list"); setSelectedId(""); setSelected(null); setMessages([]); setCompose(false); setCurrentDraftId("") }
-  const openCompose = () => { setCompose(true); setCurrentDraftId(""); draftThreadIdRef.current = null; setSelectedId(""); setSelected(null); setMessages([]); setTo(""); setCc(""); setSubject(""); setBody(""); setFiles([]); setShowCc(false); setMobileView("thread") }
+  const openCompose = () => { setCompose(true); setCurrentDraftId(""); draftThreadIdRef.current = null; setSelectedId(""); setSelected(null); setMessages([]); setTo(""); setCc(""); setBcc(""); setSubject(""); setBody(""); setFiles([]); setShowCc(false); setShowBcc(false); setMobileView("thread") }
   const openDraft = async (thread: Thread) => {
-    const draft = thread.draft || { to: "", cc: "", subject: "", body: "" }
-    setCurrentDraftId(thread.draftId || ""); draftThreadIdRef.current = thread.draftThreadId || null; setTo(draft.to || ""); setCc(draft.cc || ""); setSubject(draft.subject || ""); setBody(draft.body || ""); setShowCc(Boolean(draft.showCc || draft.cc)); setFiles([]); setCompose(true); setSelectedId(thread.draftThreadId || ""); setSelected(null); setMessages([]); setMobileView("thread")
+    const draft = thread.draft || { to: "", cc: "", bcc: "", subject: "", body: "" }
+    setCurrentDraftId(thread.draftId || ""); draftThreadIdRef.current = thread.draftThreadId || null; setTo(draft.to || ""); setCc(draft.cc || ""); setBcc(draft.bcc || ""); setSubject(draft.subject || ""); setBody(draft.body || ""); setShowCc(Boolean(draft.showCc || draft.cc)); setShowBcc(Boolean(draft.showBcc || draft.bcc)); setFiles([]); setCompose(true); setSelectedId(thread.draftThreadId || ""); setSelected(null); setMessages([]); setMobileView("thread")
   }
   const saveDraftAndClose = async () => {
-    if (!selectedMailbox || (!to.trim() && !cc.trim() && !subject.trim() && !htmlToText(body).trim())) { setCompose(false); if (!selected) setMobileView("list"); return }
+    if (!selectedMailbox || (!to.trim() && !cc.trim() && !bcc.trim() && !subject.trim() && !htmlToText(body).trim())) { setCompose(false); if (!selected) setMobileView("list"); return }
     setSavingDraft(true)
     try {
-      const response = await fetch(`/api/admin/mailboxes/${selectedMailbox.id}/drafts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: draftIdRef.current || undefined, draft: { to, cc, subject, body, showCc }, threadId: selected?.id || draftThreadIdRef.current || null }) })
+      const response = await fetch(`/api/admin/mailboxes/${selectedMailbox.id}/drafts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: draftIdRef.current || undefined, draft: { to, cc, bcc, subject, body, showCc, showBcc }, threadId: selected?.id || draftThreadIdRef.current || null }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Could not save draft.")
       setCurrentDraftId(data.draft.id); setCompose(false); setFolder("drafts"); setSelectedId(""); setSelected(null); setMessages([]); setNotice("Draft saved."); setMobileView("list"); if (folder === "drafts") await loadThreads()
@@ -219,8 +221,9 @@ export default function MailboxPage() {
     const otherRecipients = all && last ? [...(last.to_emails || []), ...(last.cc_emails || []), last.from_email] : []
     setTo(sender === selectedMailbox?.email ? (selected.participants.find((person) => person !== selectedMailbox.email) || "") : (sender || ""))
     setCc([...new Set(otherRecipients)].filter((person) => person !== selectedMailbox?.email && person !== sender).join(", "))
+    setBcc("")
     setSubject(/^re:/i.test(selected.subject) ? selected.subject : `Re: ${selected.subject}`)
-    setBody(""); setFiles([]); setShowCc(all); setCompose(true)
+    setBody(""); setFiles([]); setShowCc(all); setShowBcc(false); setCompose(true)
   }
 
   const updateThread = async (patch: Record<string, unknown>) => {
@@ -256,7 +259,7 @@ export default function MailboxPage() {
     setSending(true); setNotice("")
     try {
       const attachments = await Promise.all(files.map(async (file) => ({ filename: file.name, contentType: file.type || "application/octet-stream", content: await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(new Error(`Could not read ${file.name}.`)); reader.readAsDataURL(file) }) })))
-      const response = await fetch(`/api/admin/mailboxes/${selectedMailbox.id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: selected?.id || draftThreadIdRef.current, to: to.split(/[;,]/).map((item) => item.trim()).filter(Boolean), cc: cc.split(/[;,]/).map((item) => item.trim()).filter(Boolean), subject, bodyHtml: body, attachments, requestId: crypto.randomUUID() }) })
+      const response = await fetch(`/api/admin/mailboxes/${selectedMailbox.id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: selected?.id || draftThreadIdRef.current, to: to.split(/[;,]/).map((item) => item.trim()).filter(Boolean), cc: cc.split(/[;,]/).map((item) => item.trim()).filter(Boolean), bcc: bcc.split(/[;,]/).map((item) => item.trim()).filter(Boolean), subject, bodyHtml: body, attachments, requestId: crypto.randomUUID() }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Message could not be sent.")
       const sentDraftId = draftIdRef.current
@@ -393,8 +396,9 @@ export default function MailboxPage() {
         {compose ? <>
           <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4 md:px-7"><button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 md:hidden" onClick={() => setMobileView("list")}><ArrowLeft className="h-4 w-4" /></button><div><h2 className="text-lg font-semibold text-slate-900">{selected ? "Reply" : "New message"}</h2><p className="text-xs text-slate-500">From your profile email (on a Resend-verified domain) · replies go to {selectedMailbox?.email || "this shared inbox"} · shared signature added automatically</p></div><span className="ml-auto text-xs text-slate-400">{savingDraft ? "Saving draft…" : draftId ? "Draft saved" : "Autosaves as you type"}</span></div>
           <div className="flex flex-1 flex-col overflow-y-auto p-4 md:p-7"><div className="mx-auto flex w-full max-w-3xl flex-none flex-col rounded-xl border border-slate-200">
-            <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3"><span className="w-12 text-sm text-slate-500">To</span><input value={to} onChange={(event) => setTo(event.target.value)} placeholder="name@example.com, another@example.com" className="min-w-0 flex-1 text-sm outline-none" /><button className="text-xs text-slate-500 hover:text-slate-900" onClick={() => setShowCc(!showCc)}>{showCc ? "Hide Cc" : "Cc"}</button></div>
+            <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3"><span className="w-12 text-sm text-slate-500">To</span><input value={to} onChange={(event) => setTo(event.target.value)} placeholder="name@example.com, another@example.com" className="min-w-0 flex-1 text-sm outline-none" /><button type="button" className="text-xs text-slate-500 hover:text-slate-900" onClick={() => setShowCc(!showCc)}>{showCc ? "Hide Cc" : "Cc"}</button><button type="button" className="text-xs text-slate-500 hover:text-slate-900" onClick={() => setShowBcc(!showBcc)}>{showBcc ? "Hide Bcc" : "Bcc"}</button></div>
             {showCc && <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3"><span className="w-12 text-sm text-slate-500">Cc</span><input value={cc} onChange={(event) => setCc(event.target.value)} placeholder="Add Cc recipients" className="min-w-0 flex-1 text-sm outline-none" /></div>}
+            {showBcc && <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3"><span className="w-12 text-sm text-slate-500">Bcc</span><input value={bcc} onChange={(event) => setBcc(event.target.value)} placeholder="Add Bcc recipients" className="min-w-0 flex-1 text-sm outline-none" /></div>}
             <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3"><span className="w-12 text-sm text-slate-500">Subject</span><input value={subject} onChange={(event) => setSubject(event.target.value)} className="min-w-0 flex-1 text-sm outline-none" /></div>
             <div className="min-h-[180px]"><EmailRichEditor value={body} onChange={setBody} minHeight={220} allowImages={false} /></div>
             {files.length > 0 && <div className="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-3">{files.map((file, index) => <span key={`${file.name}-${index}`} className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs text-slate-600"><Paperclip className="h-3.5 w-3.5" />{file.name}<button type="button" onClick={() => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="text-slate-400 hover:text-red-600"><X className="h-3 w-3" /></button></span>)}</div>}

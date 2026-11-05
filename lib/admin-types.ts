@@ -17,6 +17,7 @@ export interface User {
   email: string
   name: string
   signatureHtml: string
+  avatarPath?: string | null
   phone?: string
   signatureTemplate?: import("./email-signature").SignatureTemplate | null
   passwordHash: string

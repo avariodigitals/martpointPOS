@@ -7,6 +7,7 @@ import { roleLabel } from "@/lib/utils"
 import { ProfileSignatureEditor } from "@/components/admin/profile-signature-editor"
 import { getProfileSignatureHtmlTemplate, getProfileSignatureTemplate } from "@/lib/profile-signature"
 import { usesSupportPhone } from "@/lib/email-signature"
+import { AdminAvatar, ProfileAvatarUploader } from "@/components/admin/admin-avatar"
 
 export const dynamic = "force-dynamic"
 
@@ -28,13 +29,13 @@ export default async function AdminProfilePage() {
         <p className="mt-1 text-sm text-slate-500">Your administrator identity and access details.</p>
       </div>
 
+      <ProfileAvatarUploader name={session.name || session.username} />
+
       <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
         <Card className="overflow-hidden rounded-2xl border-slate-200/80 shadow-sm">
           <CardHeader className="border-b border-slate-100 bg-white pb-5">
             <div className="flex items-center gap-4">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-retail-soft text-lg font-bold text-retail">
-                {(session.name || session.username).slice(0, 2).toUpperCase()}
-              </span>
+              <AdminAvatar name={session.name || session.username} className="h-14 w-14 rounded-2xl bg-retail-soft text-lg font-bold text-retail" fallbackClassName="relative z-10" />
               <div>
                 <CardTitle className="text-xl">{session.name || session.username}</CardTitle>
                 <p className="mt-1 text-sm text-slate-500">{roleLabel(session.role)} · {session.username}</p>

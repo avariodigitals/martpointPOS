@@ -12,6 +12,7 @@ export const emailDraftSchema = z.object({
   replyContext: z.object({ emailId: z.uuid(), replyAll: z.boolean() }).nullable().optional(),
   toRecipients: z.string().max(4000).optional(),
   ccRecipients: z.string().max(4000).optional(),
+  bccRecipients: z.string().max(4000).optional(),
   attachments: leadEmailAttachmentsSchema.default([]),
 })
 export type EmailDraft = z.infer<typeof emailDraftSchema>
@@ -25,7 +26,7 @@ function sameAttachments(left: EmailDraft["attachments"], right: EmailDraft["att
 
 export function emailDraftUnchanged(draft: EmailDraft, saved: SavedEmailDraft | null): boolean {
   if (!saved || !sameAttachments(draft.attachments, saved.draft.attachments)) return false
-  return (["subject", "bodyHtml", "layout", "recipient", "toRecipients", "ccRecipients"] as const)
+  return (["subject", "bodyHtml", "layout", "recipient", "toRecipients", "ccRecipients", "bccRecipients"] as const)
     .every((key) => draft[key] === saved.draft[key]) &&
     (draft.replyContext?.emailId || null) === (saved.draft.replyContext?.emailId || null) &&
     Boolean(draft.replyContext?.replyAll) === Boolean(saved.draft.replyContext?.replyAll)

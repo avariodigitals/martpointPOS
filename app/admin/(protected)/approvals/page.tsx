@@ -6,6 +6,8 @@ import { type UserRole } from "@/lib/admin-types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, RefreshCw } from "lucide-react"
+import { formatMoney } from "@/lib/money-format"
+import { enumLabel } from "@/lib/utils"
 
 type ApprovalRequest = {
   id: string; action_key: string; entity_type: string; entity_id: string; entity_reference: string; reason: string; details: Record<string, unknown>
@@ -13,12 +15,87 @@ type ApprovalRequest = {
   decided_by_name?: string | null; decision_note?: string | null
 }
 type ApprovalPolicy = { action_key: string; label: string; enabled: boolean; approver_roles: UserRole[]; approver_user_ids: string[] }
+
+const FIELD_LABELS: Record<string, string> = {
+  amount: "Amount",
+  balance_due: "Balance due",
+  bank_reference: "Bank reference",
+  business_id: "Customer",
+  currency: "Currency",
+  due_date: "Due date",
+  invoice_id: "Invoice",
+  notes: "Payment note",
+  notes_internal: "Internal note",
+  notes_public: "Public note",
+  paid_at: "Payment date",
+  payment_account_id: "Receiving account",
+  payment_method: "Payment method",
+  payment_terms: "Payment terms",
+  status: "Current status",
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value)
+}
+
+function fieldLabel(key: string): string {
+  return FIELD_LABELS[key] || key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function formattedValue(key: string, value: unknown, currency: string): string {
+  if (typeof value === "number" && /(amount|balance|total|price|discount|tax)/i.test(key)) return formatMoney(value, currency)
+  if (typeof value === "boolean") return value ? "Yes" : "No"
+  if (typeof value !== "string") return String(value)
+  if (/(paid_at|due_date|issue_date|start_date|end_date|created_at|updated_at)/i.test(key)) {
+    const date = new Date(value)
+    if (!Number.isNaN(date.getTime())) return date.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: key.endsWith("_at") ? "short" : undefined })
+  }
+  if (/(status|payment_method|billing_interval)/i.test(key)) return enumLabel(value)
+  return value
+}
+
+function ApprovalRequestDetails({ request }: { request: ApprovalRequest }) {
+  const details = recordValue(request.details)
+  const payload = recordValue(details.payload)
+  const display = recordValue(details.display)
+  const currency = typeof payload.currency === "string" ? payload.currency : "NGN"
+  const displayNames: Record<string, string> = {
+    business_id: String(display.business_name || ""),
+    invoice_id: String(display.invoice_number || ""),
+  }
+  const hiddenKeys = new Set(["quote", "display", "payload", "quote_updated_at", "updated_at_at_request", "requested_action"])
+  const detailRows: [string, unknown][] = Object.entries(details).filter(([key, value]) => !hiddenKeys.has(key) && (value === null || ["string", "number", "boolean"].includes(typeof value)))
+  const payloadRows = Object.entries(payload).filter(([key, value]) => {
+    if (key === "reason" || value === null || value === undefined || key === "items") return false
+    if (typeof value === "object") return false
+    if ((key === "business_id" || key === "invoice_id") && !displayNames[key]) return false
+    return !(typeof value === "string" && isUuid(value))
+  })
+  if (displayNames.business_id && payload.business_id) payloadRows.unshift(["business_id", displayNames.business_id])
+  if (displayNames.invoice_id && payload.invoice_id) payloadRows.splice(displayNames.business_id ? 1 : 0, 0, ["invoice_id", displayNames.invoice_id])
+  const itemRows = Array.isArray(payload.items) ? payload.items as Record<string, unknown>[] : []
+  if (!detailRows.length && !payloadRows.length && !itemRows.length) return null
+
+  return <div className="mt-3 space-y-3 rounded-lg border bg-muted/20 p-3">
+    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Request details</p>
+    {detailRows.length > 0 && <dl className="grid gap-2 sm:grid-cols-2">{detailRows.map(([key, value]) => <div key={key} className="min-w-0"><dt className="text-xs text-muted-foreground">{fieldLabel(key)}</dt><dd className="break-words text-sm">{formattedValue(key, value, currency)}</dd></div>)}</dl>}
+    {payloadRows.length > 0 && <dl className="grid gap-2 sm:grid-cols-2">{payloadRows.map(([key, value]) => <div key={key} className="min-w-0"><dt className="text-xs text-muted-foreground">{fieldLabel(key)}</dt><dd className="break-words text-sm">{formattedValue(key, value, currency)}</dd></div>)}</dl>}
+    {itemRows.length > 0 && <div><p className="text-xs text-muted-foreground">Invoice lines ({itemRows.length})</p><ul className="mt-1 space-y-1">{itemRows.map((line, index) => <li key={index} className="flex flex-wrap justify-between gap-x-4 text-sm"><span>{String(line.description || "Item")} · {Number(line.quantity || 0)} × {formatMoney(Number(line.unit_price || 0), currency)}</span><span>{formatMoney(Number(line.line_total || 0), currency)}</span></li>)}</ul></div>}
+  </div>
+}
+
 export default function ApprovalsPage() {
   const searchParams = useSearchParams()
   const requestedRequestId = searchParams.get("requestId") || ""
   const requestedQuoteId = searchParams.get("quoteId") || ""
   const [requests, setRequests] = useState<ApprovalRequest[]>([])
   const [policies, setPolicies] = useState<ApprovalPolicy[]>([])
+  const [currentUserId, setCurrentUserId] = useState("")
+  const [allowSelfApproval, setAllowSelfApproval] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState("")
   const [error, setError] = useState("")
@@ -33,6 +110,8 @@ export default function ApprovalsPage() {
       if (!response.ok || !data.success) throw new Error(data.error || "Could not load approvals")
       setRequests(data.requests || [])
       setPolicies(data.policies || [])
+      setCurrentUserId(data.currentUserId || "")
+      setAllowSelfApproval(data.allowSelfApproval === true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load approvals")
     } finally {
@@ -68,6 +147,7 @@ export default function ApprovalsPage() {
     { label: "Finance", items: orderedRequests.filter((item) => item.action_key.startsWith("finance.")) },
     { label: "Other Workflows", items: orderedRequests.filter((item) => !item.action_key.startsWith("finance.") && item.action_key !== "quotation.send") },
   ].filter((group) => group.items.length > 0)
+  const focusedIsQuote = focusedRequest?.action_key === "quotation.send"
 
   useEffect(() => {
     if (!loading && focusedRequestId) {
@@ -77,7 +157,7 @@ export default function ApprovalsPage() {
 
   return <div className="space-y-6">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h1 className="text-2xl font-semibold">{focusedRequest ? "Review quotation approval" : "Approvals & Workflows"}</h1><p className="mt-1 text-sm text-muted-foreground">{focusedRequest ? `Quotation ${focusedRequest.entity_reference} · review the details and record your decision.` : "Review and authorize pending work across Sales, Finance and other teams."}</p></div>
+      <div><h1 className="text-2xl font-semibold">{focusedRequest ? focusedIsQuote ? "Review quotation approval" : "Review approval request" : "Approvals & Workflows"}</h1><p className="mt-1 text-sm text-muted-foreground">{focusedRequest ? `${focusedIsQuote ? "Quotation" : focusedRequest.entity_type} ${focusedRequest.entity_reference} · review the details and record your decision.` : "Review and authorize pending work across Sales, Finance and other teams."}</p></div>
       <Button variant="outline" onClick={() => void reload()} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
     </div>
     {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
@@ -98,12 +178,12 @@ export default function ApprovalsPage() {
             const quote = item.details.quote as { title?: string; lead_name?: string; business_name?: string; email?: string; total_amount?: number; valid_until?: string | null; items?: Array<{ description?: string; quantity?: number; unit_price?: number; line_total?: number }> }
             return <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm"><p className="font-semibold">{quote.title || "Quotation details"}</p><p className="mt-1 text-xs text-muted-foreground">{quote.lead_name || "Lead"} · {quote.business_name || "Business"} · {quote.email || "No email"}</p><p className="mt-2 font-medium">Total: ₦{Number(quote.total_amount || 0).toLocaleString("en-NG", { minimumFractionDigits: 2 })}{quote.valid_until ? ` · Valid until ${new Date(quote.valid_until).toLocaleDateString()}` : ""}</p>{quote.items?.length ? <ul className="mt-2 space-y-1 border-t pt-2 text-xs">{quote.items.map((line, index) => <li key={`${item.id}-${index}`} className="flex justify-between gap-3"><span>{line.description} · {line.quantity} × ₦{Number(line.unit_price || 0).toLocaleString("en-NG")}</span><span className="shrink-0">₦{Number(line.line_total || 0).toLocaleString("en-NG")}</span></li>)}</ul> : null}</div>
           })()}
-          {Object.keys(item.details || {}).length > 0 && <details className="mt-3 rounded-md bg-muted/50 p-3"><summary className="cursor-pointer text-xs font-medium">Request details</summary><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground">{JSON.stringify(item.details, null, 2)}</pre></details>}
-          {item.status === "PENDING" ? <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <ApprovalRequestDetails request={item} />
+          {item.status === "PENDING" && (item.requested_by !== currentUserId || allowSelfApproval) ? <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <input value={notes[item.id] || ""} onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} className="min-w-48 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="Decision note; required when rejecting" />
             <Button variant="outline" disabled={Boolean(busy)} onClick={() => void post({ action: "decide", requestId: item.id, decision: "REJECTED", note: notes[item.id] || "" }, item.id)}>Reject</Button>
             <Button disabled={Boolean(busy)} onClick={() => void post({ action: "decide", requestId: item.id, decision: "APPROVED", note: notes[item.id] || "" }, item.id)}>{busy === item.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Approve</Button>
-          </div> : <p className="mt-2 text-xs text-muted-foreground">{item.decided_by_name ? `Decided by ${item.decided_by_name}` : "Decision recorded"}{item.decision_note ? ` · ${item.decision_note}` : ""}</p>}
+          </div> : item.status === "PENDING" ? <p className="mt-2 text-xs text-muted-foreground">You submitted this request and cannot approve it yourself.</p> : <p className="mt-2 text-xs text-muted-foreground">{item.decided_by_name ? `Decided by ${item.decided_by_name}` : "Decision recorded"}{item.decision_note ? ` · ${item.decision_note}` : ""}</p>}
         </div>)}</section>)}
       </CardContent>
     </Card>

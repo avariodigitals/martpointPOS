@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2, Search, X, ArrowLeft, CheckCircle2, XCircle, Wallet } from "lucide-react"
 import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
+import { useApprovalReasonDialog } from "@/components/admin/approval-reason-dialog"
 
 interface Payment {
   id: string
@@ -67,6 +68,7 @@ function thisMonthKey(): string {
 }
 
 export default function PaymentsPage() {
+  const { requestReason, dialog: approvalReasonDialog } = useApprovalReasonDialog()
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
@@ -162,8 +164,8 @@ export default function PaymentsPage() {
 
   async function confirmPaymentRecord() {
     if (!confirmTarget) return
-    const reason = paymentConfirmApprovalEnabled ? window.prompt("Why should this payment be confirmed?")?.trim() || "" : ""
-    if (paymentConfirmApprovalEnabled && reason.length < 5) return
+    const reason = paymentConfirmApprovalEnabled ? await requestReason("Request payment confirmation", `Explain why payment ${confirmTarget.payment_reference} should be confirmed.`) : ""
+    if (paymentConfirmApprovalEnabled && !reason) return
     setConfirming(true)
     setMessage("")
     try {
@@ -226,8 +228,8 @@ export default function PaymentsPage() {
   }
 
   async function requestPaymentConfirmation(payment: Payment) {
-    const reason = window.prompt(`Why should payment ${payment.payment_reference} be confirmed?`)
-    if (!reason || reason.trim().length < 5) return
+    const reason = await requestReason("Request payment confirmation", `Explain why payment ${payment.payment_reference} should be confirmed.`)
+    if (!reason) return
     const res = await fetch("/api/admin/finance/commercial/payments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -513,6 +515,7 @@ export default function PaymentsPage() {
           </div>
         </div>
       )}
+      {approvalReasonDialog}
     </div>
   )
 }

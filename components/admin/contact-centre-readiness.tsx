@@ -44,8 +44,7 @@ export function ContactCentreReadiness() {
           <div>
             <h2 className="font-semibold">Contact-centre readiness</h2>
             <p className="text-sm text-muted-foreground">
-              Configuration checks only—not proof of live delivery or a
-              completed call.
+              Setup status only. Place a test call to confirm everything works.
             </p>
           </div>
           <button
@@ -53,7 +52,7 @@ export function ContactCentreReadiness() {
             onClick={() => void load()}
             className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium disabled:opacity-50"
           >
-            {loading ? "Checking…" : "Recheck setup"}
+            {loading ? "Checking…" : "Check again"}
           </button>
         </div>
         {error && (
@@ -64,8 +63,8 @@ export function ContactCentreReadiness() {
         <details className="mt-3">
           <summary className="cursor-pointer text-sm font-semibold text-blue-700">
             {checks.length
-              ? `${checks.filter((check) => check.status !== "configured").length} setup items / limitations to review`
-              : "View setup checks"}
+              ? `${checks.filter((check) => check.status !== "configured").length} items to review`
+              : "View setup status"}
           </summary>
           <div className="mt-3 grid gap-3 lg:grid-cols-2">
             {checks.map((check) => (
@@ -79,9 +78,9 @@ export function ContactCentreReadiness() {
                     className={`rounded-full px-2 py-0.5 text-xs ${check.status === "configured" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-800"}`}
                   >
                     {check.status === "configured"
-                      ? "Configured · verify live"
+                      ? "Ready to test"
                       : check.status === "blocked"
-                        ? "Integration required"
+                        ? "Unavailable"
                         : "Needs setup"}
                   </span>
                 </div>

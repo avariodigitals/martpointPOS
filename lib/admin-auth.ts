@@ -49,6 +49,7 @@ function mapUser(row: Record<string, unknown>): User {
     email: (row.email as string) || "",
     name: row.name as string,
     signatureHtml: (row.signature_html as string) || "",
+    avatarPath: (row.avatar_path as string | null) || null,
     phone: (row.phone as string) || "",
     signatureTemplate: (row.signature_template as User["signatureTemplate"]) || null,
     passwordHash: row.password_hash as string,
@@ -142,6 +143,7 @@ export async function updateUser(
     updateData.signature_template = updates.signatureTemplate ?? null
   }
   if (updates.phone !== undefined) updateData.phone = updates.phone.trim()
+  if (updates.avatarPath !== undefined) updateData.avatar_path = updates.avatarPath
   if (updates.signatureTemplate !== undefined) updateData.signature_template = updates.signatureTemplate
   if (updates.role) updateData.role = updates.role
   if (updates.status) updateData.status = updates.status

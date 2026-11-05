@@ -73,11 +73,9 @@ export async function africaCapability(
     }
   )
   const data = await response.json().catch(() => null)
-  if ([401, 403].includes(response.status))
-    throw new Error("Africa’s Talking rejected browser-call authentication. Check the live application API key, application username and Voice/WebRTC access in Azera Settings.")
-  if (!response.ok || typeof data?.token !== "string" || !data.token)
-    throw new Error(
-      "Africa’s Talking could not authorise browser calling. Check your Voice/WebRTC activation, virtual number and account balance."
-    )
+  if (!response.ok || typeof data?.token !== "string" || !data.token) {
+    console.error("[Africa browser phone authorization failed]", { status: response.status })
+    throw new Error("Could not connect the browser phone.")
+  }
   return data.token as string
 }

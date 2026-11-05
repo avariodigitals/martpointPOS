@@ -7,6 +7,7 @@ import { Loader2, AlertCircle, Check, X, Download, MessageCircle, FileText, Cloc
 import { formatNgnFull, replaceCurrencySymbols, buildWhatsAppLink, buildQuoteWhatsAppMessage } from "@/lib/quotations"
 import { generateQuotationPdf, bankDetailLines } from "@/lib/quotation-pdf"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
+import { SUPPORT_RECOVERY_NOTICE_PARAGRAPHS, SUPPORT_RECOVERY_NOTICE_TITLE } from "@/lib/support-recovery-notice"
 
 export default function PublicQuotePage() {
   const params = useParams()
@@ -373,6 +374,11 @@ export default function PublicQuotePage() {
               {replaceCurrencySymbols(quote.notes_public)}
             </div>
           )}
+
+          <section aria-labelledby="support-recovery-notice" className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 text-sm leading-6 text-slate-700">
+            <h2 id="support-recovery-notice" className="mb-3 text-sm font-semibold text-slate-900">{SUPPORT_RECOVERY_NOTICE_TITLE}</h2>
+            <div className="space-y-3">{SUPPORT_RECOVERY_NOTICE_PARAGRAPHS.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
+          </section>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <Button variant="outline" onClick={downloadPdf} className="flex-1">

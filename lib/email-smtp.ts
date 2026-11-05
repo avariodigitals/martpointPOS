@@ -52,6 +52,8 @@ export async function sendEmailViaSmtp(
   const smtp = settings.smtp
   const sender = from || smtp.fromEmail || smtp.user
   const ccList = normalizeRecipients(message.cc)
+  const visibleRecipients = new Set([...toList, ...ccList].map((address) => address.toLowerCase()))
+  const bccList = normalizeRecipients(message.bcc).filter((address) => !visibleRecipients.has(address.toLowerCase()))
 
   const logBase = {
     from: sender,
@@ -63,8 +65,9 @@ export async function sendEmailViaSmtp(
       html: !!message.html,
       route: message.route || null,
       cc: ccList.length ? ccList.join(", ") : null,
+      bcc: bccList.length ? bccList.join(", ") : null,
       attachments: message.attachments?.length || 0,
-      resend: buildResendPayload(message, toList, ccList),
+      resend: buildResendPayload(message, toList, ccList, bccList),
     },
   }
 
@@ -90,6 +93,7 @@ export async function sendEmailViaSmtp(
       from: sender,
       to: toList.join(", "),
       cc: ccList.length ? ccList.join(", ") : undefined,
+      bcc: bccList.length ? bccList.join(", ") : undefined,
       subject: message.subject,
       text: message.text,
       html: message.skipBranding ? message.html : await brandedHtmlWithFooter(message),

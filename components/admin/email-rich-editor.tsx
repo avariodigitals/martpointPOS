@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
+import { Node } from "@tiptap/core"
+import { DOMParser as ProseMirrorDOMParser, Slice } from "@tiptap/pm/model"
 import StarterKit from "@tiptap/starter-kit"
 import Image from "@tiptap/extension-image"
 import { htmlToText } from "@/lib/email-html"
@@ -22,6 +24,7 @@ import {
   Heading2,
   Heading3,
   Minus,
+  Table2,
   Loader2,
   Pilcrow,
   Eraser,
@@ -37,6 +40,61 @@ interface EmailRichEditorProps {
   /** Minimum height of the editable area in px. */
   minHeight?: number
   disabled?: boolean
+}
+
+const EmailTable = Node.create({
+  name: "emailTable",
+  group: "block",
+  content: "emailTableRow+",
+  isolating: true,
+  parseHTML: () => [{ tag: "table" }],
+  renderHTML: ({ HTMLAttributes }) => ["table", { ...HTMLAttributes, style: "width:100%;border-collapse:collapse;" }, ["tbody", 0]],
+})
+
+const EmailTableRow = Node.create({
+  name: "emailTableRow",
+  content: "(emailTableHeader | emailTableCell)+",
+  parseHTML: () => [{ tag: "tr" }],
+  renderHTML: ({ HTMLAttributes }) => ["tr", HTMLAttributes, 0],
+})
+
+const EmailTableCell = Node.create({
+  name: "emailTableCell",
+  content: "block+",
+  isolating: true,
+  addAttributes() {
+    return {
+      colspan: { default: 1, parseHTML: (element) => Number(element.getAttribute("colspan") || 1) },
+      rowspan: { default: 1, parseHTML: (element) => Number(element.getAttribute("rowspan") || 1) },
+    }
+  },
+  parseHTML: () => [{ tag: "td" }],
+  renderHTML: ({ HTMLAttributes }) => ["td", { ...HTMLAttributes, style: "border:1px solid #cbd5e1;padding:8px;vertical-align:top;" }, 0],
+})
+
+const EmailTableHeader = Node.create({
+  name: "emailTableHeader",
+  content: "block+",
+  isolating: true,
+  addAttributes() {
+    return {
+      colspan: { default: 1, parseHTML: (element) => Number(element.getAttribute("colspan") || 1) },
+      rowspan: { default: 1, parseHTML: (element) => Number(element.getAttribute("rowspan") || 1) },
+    }
+  },
+  parseHTML: () => [{ tag: "th" }],
+  renderHTML: ({ HTMLAttributes }) => ["th", { ...HTMLAttributes, style: "border:1px solid #cbd5e1;padding:8px;vertical-align:top;background:#f1f5f9;text-align:left;font-weight:600;" }, 0],
+})
+
+function escapeTableCell(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
+function textTableHtml(text: string): string {
+  const rows = text.split(/\r?\n/).filter((row) => row.trim()).map((row) => row.split("\t"))
+  if (!rows.length || !rows.some((row) => row.length > 1)) return ""
+  const columnCount = Math.max(...rows.map((row) => row.length))
+  return `<table><tbody>${rows.map((row) => `<tr>${Array.from({ length: columnCount }, (_, index) => `<td><p>${escapeTableCell(row[index] || "")}</p></td>`).join("")}</tr>`).join("")}</tbody></table><p></p>`
 }
 
 function ToolbarButton({
@@ -79,6 +137,10 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
   const editor = useEditor({
     extensions: [
       StarterKit,
+      EmailTable,
+      EmailTableRow,
+      EmailTableHeader,
+      EmailTableCell,
       ...(allowImages ? [Image.configure({ inline: false })] : []),
     ],
     content: value,
@@ -93,6 +155,17 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
         class:
           "prose-sm max-w-none px-4 py-4 outline-none text-sm leading-7 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:my-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:my-2 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_a]:text-retail [&_a]:underline [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded",
         style: `min-height:${minHeight}px`,
+      },
+      handlePaste: (view, event) => {
+        const clipboard = event.clipboardData
+        if (!clipboard || /<table[\s>]/i.test(clipboard.getData("text/html"))) return false
+        const tableHtml = textTableHtml(clipboard.getData("text/plain"))
+        if (!tableHtml) return false
+        const container = document.createElement("div")
+        container.innerHTML = tableHtml
+        const content = ProseMirrorDOMParser.fromSchema(view.state.schema).parse(container).content
+        view.dispatch(view.state.tr.replaceSelection(new Slice(content, 0, 0)).scrollIntoView())
+        return true
       },
     },
   })
@@ -190,6 +263,9 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
         </ToolbarButton>
         <ToolbarButton title="Divider" onClick={() => editor?.chain().focus().setHorizontalRule().run()}>
           <Minus className="w-4 h-4" />
+        </ToolbarButton>
+        <ToolbarButton title="Insert 3 × 3 table" onClick={() => editor?.chain().focus().insertContent("<table><tbody><tr><th><p>Heading</p></th><th><p>Heading</p></th><th><p>Heading</p></th></tr><tr><td><p></p></td><td><p></p></td><td><p></p></td></tr><tr><td><p></p></td><td><p></p></td><td><p></p></td></tr></tbody></table><p></p>").run()}>
+          <Table2 className="w-4 h-4" />
         </ToolbarButton>
         <span className="w-px h-4 bg-border mx-1" />
         <ToolbarButton title="Add link" onClick={setLink} active={editor?.isActive("link")}>

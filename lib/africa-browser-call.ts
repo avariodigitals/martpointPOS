@@ -89,11 +89,12 @@ export class AfricaBrowserCall {
         body: JSON.stringify(typeof this.target === "string" ? { conversationId: this.target } : this.target),
         signal: AbortSignal.timeout(25_000),
       })
-      const prepared = await response.json()
+      const prepared = await response.json().catch(() => null)
       if (!response.ok) {
         this.change({ setupRequired: response.status === 503 })
-        throw new Error(prepared.error || "Could not prepare browser calling.")
+        throw new Error(prepared?.error || "Could not start the call. Please try again.")
       }
+      if (!prepared) throw new Error("Could not start the call. Please try again.")
       this.id = prepared.id
       if (this.finished) {
         await this.status("ended")
@@ -152,9 +153,7 @@ export class AfricaBrowserCall {
       for (const event of ["notready", "offline", "closed"])
         client.on(event, () => {
           if (!this.finished)
-            void this.fail(
-              "The Africa’s Talking voice connection is unavailable. Check the account’s WebRTC activation and try again."
-            )
+            void this.fail("Your phone connection was interrupted. Please try again.")
         })
       this.deadline = setTimeout(
         () =>

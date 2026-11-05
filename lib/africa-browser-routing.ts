@@ -39,6 +39,9 @@ export async function africaBrowserDestinations(callId: string, businessId: stri
       ).map((name: string) => `${config.username}.${name}`);
     }
     // Keep compatibility with deployments before migration 160.
+    if (error) console.warn("[Africa browser ring group RPC failed; using single-agent fallback]", {
+      callId, businessId, queue: africaDepartmentQueue(department), message: error.message,
+    });
     const legacy = await africaBrowserDestination(callId, businessId, department);
     return legacy ? [legacy] : [];
   } catch {

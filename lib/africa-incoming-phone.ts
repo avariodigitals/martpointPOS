@@ -38,8 +38,9 @@ export class AfricaIncomingPhone {
       method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true,
       body: JSON.stringify({ action, lease: this.lease, queues: this.queues }), signal: AbortSignal.timeout(20_000),
     });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Your browser phone could not connect.");
+    const result = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(result?.error || "Your browser phone could not connect.");
+    if (!result) throw new Error("Your phone service is temporarily unavailable. Please try again.");
     return result;
   }
   async start(queues: string[]) {
@@ -48,9 +49,6 @@ export class AfricaIncomingPhone {
     this.stopped = false; this.shouldReconnect = true; this.queues = queues; this.failures = 0;
     this.change({ state: "connecting", error: null });
     try {
-      const stream = await requestCallMicrophone();
-      stream.getTracks().forEach(track => track.stop());
-      if (this.stopped || generation !== this.generation) return;
       this.leased = true;
       const prepared = await this.post("register");
       if (this.stopped || generation !== this.generation) return;
@@ -94,7 +92,7 @@ export class AfricaIncomingPhone {
       for (const event of ["offline", "closed", "notready"]) client.on(event, () => {
         if (!this.stopped && client === this.client) void this.fail("Your browser phone disconnected. Reconnect to receive calls.");
       });
-      this.setupDeadline = setTimeout(() => void this.fail("The provider did not register your phone. Check WebRTC activation and reconnect."), 30_000);
+      this.setupDeadline = setTimeout(() => void this.fail("Your phone could not connect. Try again in a moment. If this continues, ask an administrator for help."), 30_000);
     } catch (error) {
       if (!this.stopped && generation === this.generation) {
         const message = error instanceof Error ? error.message : "Could not enable your phone."
@@ -105,8 +103,9 @@ export class AfricaIncomingPhone {
   private async loadCall() {
     const generation = this.generation;
     const response = await fetch("/api/azera/calls/africa-browser/agent", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Could not load the incoming call.");
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.error || "Could not load the incoming call.");
+    if (!data) throw new Error("Could not load the incoming call. Please try again.");
     if (this.stopped || generation !== this.generation || !this.incoming) return;
     if (!data.call) throw new Error("This call is no longer available.");
     this.change({ call: data.call });
@@ -126,8 +125,7 @@ export class AfricaIncomingPhone {
     try {
       // Rotating while talking would cut audio; defer token refresh until idle.
       if (!this.incoming && Date.now() > this.refreshAt) {
-        const queues = this.queues;
-        await this.fail("Refreshing the browser phone session.", true);
+        await this.fail("Your phone is reconnecting.", true);
         return;
       }
       await this.post("heartbeat");

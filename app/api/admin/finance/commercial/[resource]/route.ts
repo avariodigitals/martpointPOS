@@ -42,7 +42,7 @@ import { convertPartnerLeadToBusiness } from "@/lib/partner-leads"
 import { getPublicSiteSettings } from "@/lib/settings"
 import { resolveQuoteTemplate } from "@/lib/quote-templates"
 import { notifyPartnerQuoteIssued } from "@/lib/partner-notifications"
-import { notifyAllAdmins } from "@/lib/admin-notifications"
+import { notifyAllAdmins, notifyApprovalApprovers } from "@/lib/admin-notifications"
 import { reopenPartnerQuoteForRevision } from "@/lib/partner-quote-revision"
 import { sendCommunicationSms } from "@/lib/communication-sms"
 import { normalizeCommunicationPhone } from "@/lib/communications-policy"
@@ -110,7 +110,13 @@ async function requestInvoiceApproval(actor: { id: string; role: string; name: s
   if (result.error) return err(result.error.code === "23505" ? "A request for this invoice is already pending" : "Could not create the approval request", result.error.code === "23505" ? 409 : 500)
   const requestAuditAction = action === "cancel" ? "INVOICE_CANCEL_REQUESTED" : action === "void" ? "INVOICE_VOID_REQUESTED" : "INVOICE_WAIVE_REQUESTED"
   await logFinanceAudit("ADMIN", actor.id, requestAuditAction, "INVOICE", id, { approval_request_id: result.data.id, reason })
-  await notifyCommercialAction({ resource: "invoices", action: `request_${action}`, actorName: actor.name, sourceId: id, reference: invoice.invoice_number, detail: `Invoice ${action} requested: ${reason}` })
+  await notifyApprovalApprovers({
+    actionKey: `finance.invoice.${action}`,
+    requestId: String(result.data.id),
+    entityReference: `Invoice ${invoice.invoice_number}`,
+    message: `Invoice ${action} requested by ${actor.name}: ${reason}`,
+    requesterId: actor.id,
+  })
   return ok({ approvalRequired: true, request: result.data })
 }
 
@@ -143,7 +149,13 @@ async function requestFinanceApproval(actor: { id: string; role: string; name: s
     }).select().single()
     if (inserted.error) return err("Could not create the payment approval request", 500)
     await logFinanceAudit("ADMIN", actor.id, "APPROVAL_REQUESTED", "PAYMENT", virtualId, { action_key: actionKey, approval_request_id: inserted.data.id, reason })
-    await notifyCommercialAction({ resource, action: "request_record", actorName: actor.name, sourceId: virtualId, reference: `Payment request · ${business.business_name}`, detail: `Payment entry requested: ${reason}` })
+    await notifyApprovalApprovers({
+      actionKey,
+      requestId: String(inserted.data.id),
+      entityReference: `Payment request · ${business.business_name}`,
+      message: `Payment entry requested by ${actor.name}: ${reason}`,
+      requesterId: actor.id,
+    })
     return ok({ approvalRequired: true, request: inserted.data })
   }
   if (!id || reason.length < 5) return err("Enter a reason of at least 5 characters")
@@ -159,7 +171,13 @@ async function requestFinanceApproval(actor: { id: string; role: string; name: s
   }).select().single()
   if (result.error) return err(result.error.code === "23505" ? "A request for this action is already pending" : "Could not create the approval request", result.error.code === "23505" ? 409 : 500)
   await logFinanceAudit("ADMIN", actor.id, "APPROVAL_REQUESTED", resource.toUpperCase(), id, { action_key: actionKey, approval_request_id: result.data.id, reason })
-  await notifyCommercialAction({ resource, action: `request_${actionKey.split(".").at(-1)}`, actorName: actor.name, sourceId: id, reference: id, detail: `${actionKey.split(".").at(-1)} requested: ${reason}` })
+  await notifyApprovalApprovers({
+    actionKey,
+    requestId: String(result.data.id),
+    entityReference: String((entity as Record<string, unknown>).invoice_number || (entity as Record<string, unknown>).payment_reference || id),
+    message: `${actionKey.split(".").at(-1)} requested by ${actor.name}: ${reason}`,
+    requesterId: actor.id,
+  })
   return ok({ approvalRequired: true, request: result.data })
 }
 

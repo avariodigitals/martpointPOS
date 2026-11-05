@@ -26,15 +26,21 @@ export async function GET() {
   if (!session) return reply({ error: "Forbidden" }, 403);
   if (!isSupabaseConfigured()) return reply({ businessId: null, agents: [] });
   const id = await businessId();
-  if (!id) return reply({ error: "No business is configured for Azera." }, 400);
+  if (!id) return reply({ error: "Phone calling is not ready for this business. Ask an administrator for help." }, 400);
   const [users, assignments, phones] = await Promise.all([
     supabase.from("users").select("id,name,username,email,role,status").in("role", allowedRoles).eq("status", "ACTIVE").order("name"),
     supabase.from("azera_voice_agent_assignments").select("user_id,queues,enabled,updated_at").eq("business_id", id),
     supabase.from("azera_africa_browser_agents").select("user_id,business_id,ready,last_seen_at,queues").eq("business_id", id),
   ]);
-  if (assignments.error) return reply({ error: "Apply migration 141 before managing voice agents." }, 503);
+  if (assignments.error) {
+    console.error("[Azera voice agent assignments could not be loaded]", assignments.error);
+    return reply({ error: "Voice assignments are temporarily unavailable. Please try again or ask an administrator for help." }, 503);
+  }
   const assignmentMap = new Map((assignments.data || []).map(row => [row.user_id, row]));
-  if (phones.error) return reply({ error: "Apply migration 137 before checking browser-phone availability." }, 503);
+  if (phones.error) {
+    console.error("[Azera browser phone availability could not be loaded]", phones.error);
+    return reply({ error: "Phone availability is temporarily unavailable. Please try again or ask an administrator for help." }, 503);
+  }
   const phoneMap = new Map((phones.data || []).map(row => [row.user_id, row]));
   const now = Date.now();
   return reply({ businessId: id, agents: (users.data || []).map(user => ({
@@ -51,7 +57,7 @@ export async function POST(request: Request) {
   const session = await requireManager();
   if (!session) return reply({ error: "Forbidden" }, 403);
   if (request.headers.get("origin") && request.headers.get("origin") !== new URL(request.url).origin) return reply({ error: "Forbidden" }, 403);
-  if (!isSupabaseConfigured()) return reply({ error: "Supabase not configured" }, 503);
+  if (!isSupabaseConfigured()) return reply({ error: "Voice assignments are temporarily unavailable. Please try again later." }, 503);
   try {
     const body = await request.json();
     const userId = String(body.user_id || "");
@@ -68,7 +74,10 @@ export async function POST(request: Request) {
       enabled,
       updated_at: new Date().toISOString(),
     }, { onConflict: "business_id,user_id" });
-    if (error) return reply({ error: error.message }, 500);
+    if (error) {
+      console.error("[Azera voice assignment save failed]", error);
+      return reply({ error: "Could not save the voice assignment. Please try again." }, 500);
+    }
     const { data: saved, error: verifyError } = await supabase.from("azera_voice_agent_assignments")
       .select("queues,enabled")
       .eq("business_id", id)
@@ -77,7 +86,8 @@ export async function POST(request: Request) {
     const savedQueues = Array.isArray(saved?.queues) ? saved.queues : [];
     const queuesMatch = selected.length === savedQueues.length && selected.every(queue => savedQueues.includes(queue));
     if (verifyError || !saved || saved.enabled !== enabled || !queuesMatch) {
-      return reply({ error: "The assignment could not be verified after saving. Refresh the page and check the team member’s queues." }, 503);
+      if (verifyError) console.error("[Azera voice assignment verification failed]", verifyError);
+      return reply({ error: "The voice assignment could not be confirmed. Please refresh and try again." }, 503);
     }
     // An assignment change takes effect on the next registration. Stop a
     // currently advertised browser immediately if its queues were removed.

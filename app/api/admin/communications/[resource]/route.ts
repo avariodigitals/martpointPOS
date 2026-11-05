@@ -24,6 +24,7 @@ const queueSchema = z.object({
   mode: z.enum(["manual", "template", "ai"]), template_id: z.uuid().nullable().default(null),
   instructions: z.string().max(4000).default(""), subject: z.string().max(500).default(""), body: z.string().max(20000).default(""),
   campaignName: z.string().trim().min(2).max(120),
+  scheduleAt: z.string().datetime({ offset: true }).nullable().default(null),
 }).refine((value) => value.leadIds.length + value.contactIds.length > 0 && value.leadIds.length + value.contactIds.length <= 500, "Choose up to 500 recipients")
 export async function GET(_request: Request, context: Context) {
   const { resource } = await context.params
@@ -66,12 +67,15 @@ export async function GET(_request: Request, context: Context) {
         offset += 1000
       }
     }
-    const [sms, ai, email, smsContacts] = await Promise.all([
-      getCommunicationSmsConfig(), getAiProviderStatus(), getEmailSettings(),
-      supabase.from("marketing_contacts").select("id,audience_id,name,phone,sms_consent_at").not("phone", "is", null).not("sms_consent_at", "is", null).limit(2000),
-    ])
-    if (smsContacts.error) return NextResponse.json({ error: "Apply communications migration 162 to load consented SMS audiences" }, { status: 503 })
-    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts: smsContacts.data, providers: { email: email.provider, sms: sms.provider, smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
+    const [sms, ai, email] = await Promise.all([getCommunicationSmsConfig(), getAiProviderStatus(), getEmailSettings()])
+    const smsContacts: { id: string; audience_id: string; name: string; phone: string; sms_consent_at: string }[] = []
+    for (let offset = 0; ; offset += 1000) {
+      const page = await supabase.from("marketing_contacts").select("id,audience_id,name,phone,sms_consent_at").not("phone", "is", null).not("sms_consent_at", "is", null).order("id").range(offset, offset + 999)
+      if (page.error) return NextResponse.json({ error: "Apply communications migration 162 to load consented SMS audiences" }, { status: 503 })
+      smsContacts.push(...(page.data || []))
+      if ((page.data || []).length < 1000) break
+    }
+    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts, providers: { email: email.provider, sms: sms.provider, smsSender: sms.sender || "", smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
   } catch (error) { return problem(error) }
 }
 export async function POST(request: Request, context: Context) {
@@ -125,6 +129,8 @@ export async function POST(request: Request, context: Context) {
     }
     if (resource === "messages") {
       const parsed = queueSchema.parse(body)
+      const scheduledFor = parsed.scheduleAt ? new Date(parsed.scheduleAt) : new Date()
+      if (Number.isNaN(scheduledFor.getTime()) || (parsed.scheduleAt && (scheduledFor.getTime() < Date.now() + 60_000 || scheduledFor.getTime() > Date.now() + 365 * 24 * 60 * 60 * 1000))) throw new Error("Choose a send time at least one minute from now and within the next year")
       if ((parsed.contactSource === "saved_audience") !== (parsed.contactIds.length > 0) || (parsed.contactSource === "saved_audience" && (parsed.channel !== "sms" || parsed.leadIds.length || parsed.mode === "ai" || !parsed.audienceId))) throw new Error("Saved SMS audiences require a saved audience and template or written message")
       if (parsed.mode === "manual" && (!parsed.body.trim() || (parsed.channel === "email" && !parsed.subject.trim()) || (parsed.channel === "sms" && parsed.body.length > 480) || (parsed.channel === "whatsapp" && parsed.body.length > 2000))) throw new Error("Enter a subject and message within the channel length")
       if (parsed.mode === "ai" && !parsed.instructions.trim()) throw new Error("Describe the message you want AI to prepare")
@@ -135,7 +141,7 @@ export async function POST(request: Request, context: Context) {
       const requestId = parsed.requestId
       const leads = parsed.leadIds.length ? await supabase.from("leads").select("id,full_name,business_name,product_interest,status,email,phone").in("id", [...new Set(parsed.leadIds)]) : { data: [], error: null }
       if (leads.error || leads.data?.length !== new Set(parsed.leadIds).size) throw new Error("One or more selected leads could not be loaded")
-      const leadRows = (leads.data || []).map((lead) => ({ request_id: communicationRequestId(requestId, lead.id), lead_id: lead.id, contact_source: "lead", contact_name: lead.full_name, channel: parsed.channel, mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: parsed.mode === "manual" ? mergeCommunicationTemplate(parsed.subject, lead) : "", body: parsed.mode === "manual" ? mergeCommunicationTemplate(parsed.body, lead) : "", prepared_at: parsed.mode === "manual" ? new Date().toISOString() : null, created_by: auth.session.userId }))
+      const leadRows = (leads.data || []).map((lead) => ({ request_id: communicationRequestId(requestId, lead.id), lead_id: lead.id, contact_source: "lead", contact_name: lead.full_name, channel: parsed.channel, mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: parsed.mode === "manual" ? mergeCommunicationTemplate(parsed.subject, lead) : "", body: parsed.mode === "manual" ? mergeCommunicationTemplate(parsed.body, lead) : "", prepared_at: parsed.mode === "manual" ? new Date().toISOString() : null, scheduled_for: scheduledFor.toISOString(), created_by: auth.session.userId }))
       let contactRows: Record<string, unknown>[] = []
       if (parsed.contactIds.length) {
         const contacts = await supabase.from("marketing_contacts").select("id,name,phone,sms_consent_at").eq("audience_id", parsed.audienceId).in("id", [...new Set(parsed.contactIds)]).not("phone", "is", null).not("sms_consent_at", "is", null)
@@ -144,7 +150,7 @@ export async function POST(request: Request, context: Context) {
         if (selectedTemplate.error || (parsed.mode === "template" && !selectedTemplate.data)) throw new Error("Choose an available SMS template")
         contactRows = contacts.data.map((contact) => {
           const person = { full_name: contact.name || "there", business_name: "", product_interest: "MartPoint" }
-          return { request_id: communicationRequestId(requestId, contact.id), lead_id: null, contact_id: contact.id, contact_source: "saved_audience", contact_name: contact.name || "", recipient: contact.phone, channel: parsed.channel, mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: "", body: parsed.mode === "template" ? mergeCommunicationTemplate(selectedTemplate.data!.body, person) : mergeCommunicationTemplate(parsed.body, person), prepared_at: new Date().toISOString(), created_by: auth.session.userId }
+          return { request_id: communicationRequestId(requestId, contact.id), lead_id: null, contact_id: contact.id, contact_source: "saved_audience", contact_name: contact.name || "", recipient: contact.phone, channel: parsed.channel, mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: "", body: parsed.mode === "template" ? mergeCommunicationTemplate(selectedTemplate.data!.body, person) : mergeCommunicationTemplate(parsed.body, person), prepared_at: new Date().toISOString(), scheduled_for: scheduledFor.toISOString(), created_by: auth.session.userId }
         })
       }
       let rows = [...leadRows, ...contactRows]

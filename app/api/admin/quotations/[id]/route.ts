@@ -7,6 +7,7 @@ import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
 import type { Quotation, LeadSummary } from "@/lib/quotations"
 import { notifyQuotationApprovers } from "@/lib/quotation-approvals"
+import { SUPPORT_RECOVERY_NOTICE_TEXT } from "@/lib/support-recovery-notice"
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { denied } = await authorizeAdmin("quotations")
@@ -298,5 +299,5 @@ function buildPlainText(quote: Quotation, lead: LeadSummary, publicUrl: string):
     ? new Date(quote.valid_until).toLocaleDateString("en-NG", { year: "numeric", month: "long", day: "numeric" })
     : "Not specified"
 
-  return `Hello ${lead.fullName},\n\nPlease find your MartPoint quotation below.\n\nQuote: ${quote.quote_number}${quote.title ? `\nTitle: ${quote.title}` : ""}\nBusiness: ${lead.businessName}\nTotal: ₦${quote.total_amount.toLocaleString("en-NG", { minimumFractionDigits: 2 })}\nValid until: ${validUntil}\n\n${quote.notes_public || ""}\n\nView your quotation here:\n${publicUrl}\n\nIf you have any questions, reply to this email.`
+  return `Hello ${lead.fullName},\n\nPlease find your MartPoint quotation below.\n\nQuote: ${quote.quote_number}${quote.title ? `\nTitle: ${quote.title}` : ""}\nBusiness: ${lead.businessName}\nTotal: ₦${quote.total_amount.toLocaleString("en-NG", { minimumFractionDigits: 2 })}\nValid until: ${validUntil}\n\n${quote.notes_public || ""}\n\n${SUPPORT_RECOVERY_NOTICE_TEXT}\n\nView your quotation here:\n${publicUrl}\n\nIf you have any questions, reply to this email.`
 }

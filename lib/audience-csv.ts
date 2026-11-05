@@ -24,6 +24,23 @@ export function parseAudienceCsv(raw: string): string[][] {
   return rows
 }
 export interface ImportedContact { email: string; name: string }
+export interface ImportedPhoneContact { phone: string; name: string }
+export function mapAudiencePhoneRows(rows: string[][], phoneColumn: number, nameColumn: number, lastNameColumn = -1, hasHeader = true) {
+  const contacts: ImportedPhoneContact[] = [], invalid: number[] = []
+  const seen = new Set<string>()
+  let duplicates = 0
+  rows.slice(hasHeader ? 1 : 0).forEach((row, i) => {
+    const raw = (row[phoneColumn] || "").trim()
+    if (!raw) return
+    const digits = raw.replace(/[\s().-]/g, "")
+    const phone = /^0\d{10}$/.test(digits) ? `+234${digits.slice(1)}` : /^234\d{10}$/.test(digits) ? `+${digits}` : digits
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) { invalid.push(i + (hasHeader ? 2 : 1)); return }
+    if (seen.has(phone)) { duplicates++; return }
+    seen.add(phone)
+    contacts.push({ phone, name: [row[nameColumn], row[lastNameColumn]].filter(Boolean).join(" ").trim().slice(0, 250) })
+  })
+  return { contacts, invalid, duplicates }
+}
 export function mapAudienceRows(rows: string[][], emailColumn: number, nameColumn: number, lastNameColumn = -1, hasHeader = true) {
   const contacts: ImportedContact[] = [], invalid: number[] = []
   const seen = new Set<string>()

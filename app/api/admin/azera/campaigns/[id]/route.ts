@@ -9,7 +9,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
-const updateSchema = z.object({ status: z.enum(["running", "paused"]) })
+const updateSchema = z.object({ status: z.enum(["running", "paused", "completed"]) })
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { denied } = await authorizeAdmin("azera")
@@ -29,11 +29,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (campaign.speech_provider === "naija_speech" && !isNaijaTtsEnabled()) return NextResponse.json({ error: "Add the Naija Speech API key to the server environment before starting this campaign." }, { status: 409 })
       if (campaign.target_count < 1 || campaign.target_count > campaign.max_calls) return NextResponse.json({ error: "Campaign contact limit is invalid." }, { status: 409 })
     }
+    if (status === "completed" && !["draft", "running", "paused"].includes(campaign.status))
+      return NextResponse.json({ error: "This campaign has already ended." }, { status: 409 })
     const now = new Date().toISOString()
     const updates = status === "running"
       ? { status, started_at: campaign.status === "draft" ? now : undefined, paused_at: null, updated_at: now }
-      : { status, paused_at: now, updated_at: now }
-    const { data, error } = await supabase.from("azera_call_campaigns").update(updates).eq("id", id).eq("business_id", businessId).in("status", ["draft", "running", "paused"]).select("id,status,started_at,paused_at").maybeSingle()
+      : status === "paused" ? { status, paused_at: now, updated_at: now } : { status, completed_at: now, updated_at: now }
+    const { data, error } = await supabase.from("azera_call_campaigns").update(updates).eq("id", id).eq("business_id", businessId).in("status", ["draft", "running", "paused"]).select("id,status,started_at,paused_at,completed_at").maybeSingle()
     if (error || !data) return NextResponse.json({ error: "Campaign status could not be changed." }, { status: 503 })
     let dispatch: Awaited<ReturnType<typeof dispatchAzeraCampaignCall>> | null = null
     if (status === "running") {

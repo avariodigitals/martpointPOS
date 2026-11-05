@@ -49,6 +49,8 @@ export interface EmailMessage {
   useRouteRecipients?: boolean
   /** Carbon-copy recipients (visible to all recipients). */
   cc?: string | string[]
+  /** Blind-carbon-copy recipients (hidden from other recipients). */
+  bcc?: string | string[]
   attachments?: EmailAttachment[]
   /** Per-message provider override; defaults to the configured provider. */
   provider?: EmailProvider
@@ -114,6 +116,7 @@ export interface EmailLogInsert {
 export interface ResendPayload {
   to: string
   cc: string
+  bcc?: string
   subject: string
   text: string
   html: string
@@ -247,11 +250,13 @@ export function buildResendPayload(
   message: EmailMessage,
   toList: string[],
   ccList: string[],
+  bccList: string[] = normalizeRecipients(message.bcc),
 ): ResendPayload | null {
   if (message.attachments?.length) return null
   return {
     to: toList.join(", "),
     cc: ccList.join(", "),
+    ...(bccList.length ? { bcc: bccList.join(", ") } : {}),
     subject: message.subject,
     text: message.text || "",
     html: message.html || "",
@@ -352,6 +357,8 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
 
   const to = toList.join(", ")
   const ccList = normalizeRecipients(message.cc)
+  const visibleRecipients = new Set([...toList, ...ccList].map((address) => address.toLowerCase()))
+  const bccList = normalizeRecipients(message.bcc).filter((address) => !visibleRecipients.has(address.toLowerCase()))
 
   // Keep a replayable copy of the message so a failure can be retried from the
   // Email Logs screen (see buildResendPayload for what is deliberately dropped).
@@ -365,8 +372,9 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
       html: !!message.html,
       route: message.route || null,
       cc: ccList.length ? ccList.join(", ") : null,
+      bcc: bccList.length ? bccList.join(", ") : null,
       attachments: message.attachments?.length || 0,
-      resend: buildResendPayload(message, toList, ccList),
+      resend: buildResendPayload(message, toList, ccList, bccList),
     },
   }
 
@@ -404,10 +412,10 @@ export async function sendEmail(message: EmailMessage): Promise<boolean> {
   }
 
   if (provider === "brevo") {
-    return sendViaBrevo(branded, settings, from, toList, ccList, logBase)
+    return sendViaBrevo(branded, settings, from, toList, ccList, bccList, logBase)
   }
 
-  return sendViaResend(branded, settings, from, toList, ccList, logBase)
+  return sendViaResend(branded, settings, from, toList, ccList, bccList, logBase)
 }
 
 /** Parse a "Display Name <email@domain.com>" string into sender parts. */
@@ -430,6 +438,7 @@ async function sendViaResend(
   from: string,
   toList: string[],
   ccList: string[],
+  bccList: string[],
   logBase: EmailLogInsert,
 ): Promise<boolean> {
   const resendKey =
@@ -457,6 +466,7 @@ async function sendViaResend(
     if (message.html) body.html = message.html
     if (message.replyTo) body.reply_to = message.replyTo
     if (ccList.length) body.cc = ccList
+    if (bccList.length) body.bcc = bccList
     if (message.attachments?.length) body.attachments = message.attachments
     if (message.headers) body.headers = message.headers
 
@@ -507,6 +517,7 @@ async function sendViaBrevo(
   from: string,
   toList: string[],
   ccList: string[],
+  bccList: string[],
   logBase: EmailLogInsert,
 ): Promise<boolean> {
   const brevoKey =
@@ -539,6 +550,7 @@ async function sendViaBrevo(
       body.replyTo = { email: rt.email, name: rt.name }
     }
     if (ccList.length) body.cc = ccList.map((email) => ({ email }))
+    if (bccList.length) body.bcc = bccList.map((email) => ({ email }))
     if (message.attachments?.length) {
       body.attachment = message.attachments.map((a) => ({ name: a.filename, content: a.content }))
     }

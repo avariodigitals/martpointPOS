@@ -44,7 +44,8 @@
     "recharts": "^2.15.0",
     "sanitize-html": "^2.18.1",
     "tailwind-merge": "^3.6.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

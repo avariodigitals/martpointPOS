@@ -121,13 +121,13 @@ export async function POST(request: Request) {
     const config = await africaBrowserConfig(businessId || undefined)
     if (!africaBrowserReady(config))
       return err(
-        "Configure your Africa’s Talking API key, live username and virtual voice number in Azera Settings. LiveKit is not required.",
+        "Phone calling is not ready for this business. Ask an administrator for help.",
         503
       )
     if (!businessId) businessId = (await resolveAfricaBusinessId(config.phone)) || ""
     if (!businessId)
       return err(
-        "Map your Africa’s Talking virtual number to the MartPoint business in Azera Settings before making calls.",
+        "Phone calling is not set up for this business. Ask an administrator for help.",
         503
       )
     const id = randomUUID(),
@@ -166,12 +166,15 @@ export async function POST(request: Request) {
       updated_at: now
     })
     if (error)
-      return err(
-        error.code === "23505"
-          ? "Finish your current phone call before starting another."
-          : "Could not prepare call history. Apply the contact-centre migration and try again.",
-        error.code === "23505" ? 409 : 500
-      )
+      {
+        if (error.code !== "23505") console.error("[Azera outbound call preparation failed]", error);
+        return err(
+          error.code === "23505"
+            ? "Finish your current phone call before starting another."
+            : "Could not start the call. Please try again or ask an administrator for help.",
+          error.code === "23505" ? 409 : 500
+        );
+      }
     try {
       const token = await africaCapability(config, clientName)
       const { error: eventError } = await supabase.from("azera_call_events").insert({
@@ -192,11 +195,12 @@ export async function POST(request: Request) {
         { headers: { "Cache-Control": "no-store" } }
       )
     } catch (error) {
+      console.error("[Azera outbound call setup failed]", error);
       await supabase
         .from("azera_calls")
         .update({ status: "failed", ended_at: now, updated_at: now })
         .eq("id", id)
-      return err(error instanceof Error ? error.message : "Browser calling is temporarily unavailable.", 502)
+      return err("Could not connect your phone. Please try again or ask an administrator for help.", 502)
     }
   } catch {
     return err("Could not prepare browser calling. Please try again.", 500)

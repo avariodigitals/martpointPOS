@@ -40,7 +40,10 @@ export async function PATCH(
       const { data: claimed, error: claimError } = await supabase.rpc("azera_claim_africa_browser_answer", {
         p_call: id, p_user: session.userId,
       })
-      if (claimError) return err("Could not claim this call. Apply migration 160 and retry.", 503)
+      if (claimError) {
+        console.error("[Azera incoming browser call claim failed]", claimError);
+        return err("Could not answer this call. Please try again.", 503)
+      }
       if (!claimed) return err("Another agent answered this call first.", 409)
       await supabase.from("azera_call_events").insert({
         call_id: id, event_type: "answered", actor_type: "agent", actor_id: session.userId,

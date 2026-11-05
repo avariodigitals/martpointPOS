@@ -5,7 +5,7 @@ import { resolveAfricaBusinessId } from "@/lib/africastalking"
 import { supabase } from "@/lib/supabase"
 import type { NaijaLanguage } from "@/lib/naija-tts"
 
-export type CampaignPurpose = "estimate_followup" | "quote_followup" | "lead_reengagement"
+export type CampaignPurpose = "estimate_followup" | "quote_followup" | "lead_reengagement" | "uploaded_contacts"
 type Lead = {
   id: string
   full_name: string | null
@@ -75,7 +75,7 @@ export async function getCampaignCandidates(purpose: CampaignPurpose, days: numb
 
 export async function buildCampaignScript(input: { purpose: CampaignPurpose; goal: string; product: string; language?: NaijaLanguage }) {
   const language = input.language || "en"
-  const purpose = input.purpose === "estimate_followup" ? "a website estimate" : input.purpose === "quote_followup" ? "an expired quote" : "an earlier enquiry"
+  const purpose = input.purpose === "estimate_followup" ? "a website estimate" : input.purpose === "quote_followup" ? "an expired quote" : input.purpose === "uploaded_contacts" ? "a brief update" : "an earlier enquiry"
   const fallbackByLanguage: Record<NaijaLanguage, string> = {
     en: `Hello, this is Azera, MartPoint's automated assistant. I’m following up about ${purpose} for {business}. Would you still like help with {product}?`,
     yo: "Ẹ káàárọ̀, Azera ni mí, olùrànlọ́wọ́ aládàáṣe MartPoint. Mo ń tẹ̀lé ìbéèrè yín nípa {product} fún {business}. Ṣé ẹ ṣì nílò ìrànlọ́wọ́ wa?",

@@ -10,6 +10,7 @@ import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
 import { resolveInvoiceStatus } from "@/lib/invoice-status"
 import { quoteTemplateOptions, resolveQuoteTemplate } from "@/lib/quote-templates"
+import { useApprovalReasonDialog } from "@/components/admin/approval-reason-dialog"
 
 interface BusinessMini {
   id: string
@@ -462,6 +463,7 @@ function defaultDueDate() {
 }
 
 export default function InvoicesPage() {
+  const { requestReason, dialog: approvalReasonDialog } = useApprovalReasonDialog()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [businesses, setBusinesses] = useState<BusinessMini[]>([])
   const [catalog, setCatalog] = useState<Catalog>({ products: [], plans: [], services: [], addons: [] })
@@ -768,8 +770,8 @@ export default function InvoicesPage() {
   async function saveInvoice() {
     if (!editing) return
     const needsApproval = !canManageInvoices || invoiceUpdateApprovalEnabled
-    const reason = needsApproval ? window.prompt("Why does this invoice need to be changed?")?.trim() || "" : ""
-    if (needsApproval && reason.length < 5) return
+    const reason = needsApproval ? await requestReason("Request invoice change", `Explain why invoice ${editing.invoice_number} needs to be updated.`) : ""
+    if (needsApproval && !reason) return
     setEditLoading(true)
     setMessage("")
     try {
@@ -874,8 +876,9 @@ export default function InvoicesPage() {
   }
 
   async function deleteInvoice(id: string) {
-    const reason = invoiceDeleteApprovalEnabled ? window.prompt("Why should this invoice be deleted?")?.trim() || "" : ""
-    if (invoiceDeleteApprovalEnabled && reason.length < 5) return
+    const invoice = invoices.find((item) => item.id === id)
+    const reason = invoiceDeleteApprovalEnabled ? await requestReason("Request invoice deletion", `Explain why draft invoice ${invoice?.invoice_number || "this invoice"} should be deleted.`) : ""
+    if (invoiceDeleteApprovalEnabled && !reason) return
     if (!invoiceDeleteApprovalEnabled && !confirm("Delete this invoice permanently?")) return
     try {
       const res = await fetch("/api/admin/finance/commercial/invoices", {
@@ -902,8 +905,8 @@ export default function InvoicesPage() {
       return
     }
     const paymentNeedsApproval = !canRecordPayments || paymentRecordApprovalEnabled
-    const approvalReason = paymentNeedsApproval ? window.prompt("Why should this payment be recorded?")?.trim() || "" : ""
-    if (paymentNeedsApproval && approvalReason.length < 5) return
+    const approvalReason = paymentNeedsApproval ? await requestReason("Request payment entry", `Explain why a payment of ${formatMoney(Number(paymentForm.amount), paymentInvoice.currency)} should be recorded against invoice ${paymentInvoice.invoice_number}.`) : ""
+    if (paymentNeedsApproval && !approvalReason) return
     setRecordingPayment(true)
     setMessage("")
     try {
@@ -1176,7 +1179,7 @@ export default function InvoicesPage() {
                             </>
                           )}
                           {!canManageInvoices && canRequestInvoiceApproval && invoiceCancelApprovalEnabled && inv.status !== "VOID" && inv.status !== "CANCELLED" && inv.status !== "WAIVED" && (
-                            <button onClick={() => { const reason = window.prompt("Why should this invoice be cancelled?"); if (reason) void requestInvoiceCancellation(inv.id, reason) }} className="p-1.5 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50" title="Request cancellation approval"><Ban className="h-3.5 w-3.5" /></button>
+                            <button onClick={async () => { const reason = await requestReason("Request invoice cancellation", `Explain why invoice ${inv.invoice_number} should be cancelled.`); if (reason) await requestInvoiceCancellation(inv.id, reason) }} className="p-1.5 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50" title="Request cancellation approval"><Ban className="h-3.5 w-3.5" /></button>
                           )}
                           {canManageInvoices && inv.status === "CANCELLED" && (
                             <button onClick={() => runInvoiceAction("reopen", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-green-600 hover:bg-green-50" title="Reopen">
@@ -1186,7 +1189,7 @@ export default function InvoicesPage() {
                           {canManageInvoices && <button onClick={() => deleteInvoice(inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-red-700 hover:bg-red-50" title="Delete">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>}
-                          {!canManageInvoices && canRequestFinanceApproval && invoiceDeleteApprovalEnabled && inv.status === "DRAFT" && <button onClick={() => { const reason = window.prompt("Why should this draft invoice be deleted?"); if (reason && reason.trim().length >= 5) void requestInvoiceDeletion(inv.id, reason.trim()) }} className="p-1.5 rounded-md text-muted-foreground hover:text-amber-700 hover:bg-amber-50" title="Request deletion approval"><Trash2 className="h-3.5 w-3.5" /></button>}
+                          {!canManageInvoices && canRequestFinanceApproval && invoiceDeleteApprovalEnabled && inv.status === "DRAFT" && <button onClick={async () => { const reason = await requestReason("Request invoice deletion", `Explain why draft invoice ${inv.invoice_number} should be deleted.`); if (reason) await requestInvoiceDeletion(inv.id, reason) }} className="p-1.5 rounded-md text-muted-foreground hover:text-amber-700 hover:bg-amber-50" title="Request deletion approval"><Trash2 className="h-3.5 w-3.5" /></button>}
                         </div>
                       </td>
                     </tr>
@@ -1691,6 +1694,7 @@ export default function InvoicesPage() {
           </div>
         </div>
       )}
+      {approvalReasonDialog}
     </div>
   )
 }

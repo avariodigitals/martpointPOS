@@ -5,6 +5,7 @@ import autoTable from "jspdf-autotable"
 import type { Quotation, QuotationItem, LeadSummary } from "./quotations"
 import { resolveIndustryName } from "./industries"
 import { replaceCurrencySymbols } from "./quotations"
+import { SUPPORT_RECOVERY_NOTICE_PARAGRAPHS, SUPPORT_RECOVERY_NOTICE_TITLE } from "./support-recovery-notice"
 
 function formatPdfNgn(n: number): string {
   return `NGN ${n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -285,6 +286,9 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
     writeBand(replaceCurrencySymbols(quote.notes_public), { size: 9 })
   }
 
+  writeBandHeading(SUPPORT_RECOVERY_NOTICE_TITLE)
+  for (const paragraph of SUPPORT_RECOVERY_NOTICE_PARAGRAPHS) writeBand(paragraph, { size: 8.5 })
+
   // Footer is drawn on every page at a fixed bottom position so it is never disturbed.
   const totalPages = (doc as unknown as { getNumberOfPages: () => number }).getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
@@ -296,7 +300,6 @@ export async function generateQuotationPdf(quote: Quotation, lead: LeadSummary, 
     doc.setTextColor(107, 114, 128)
     const footerNote =
       "Prices are quoted in Nigerian Naira (NGN). Taxes are calculated per line item. " +
-      "Software licenses include standard support during business hours. " +
       "Implementation, training and customisation are scoped separately unless expressly included."
     const footerLines = doc.splitTextToSize(footerNote, pageWNum - margin * 2)
     doc.text(footerLines, margin, footerY)

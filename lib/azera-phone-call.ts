@@ -16,6 +16,8 @@ export type PhoneCallSnapshot = {
 };
 
 /** A staff browser joins and publishes audio BEFORE the telephone is dialled. */
+type BrowserOutboundTarget = string | { sipAddress: string; name: string }
+
 export class BrowserPhoneCall {
   snapshot: PhoneCallSnapshot = {
     state: "connecting",
@@ -38,7 +40,7 @@ export class BrowserPhoneCall {
   private deadline?: ReturnType<typeof setTimeout>;
   private failures = 0;
   constructor(
-    private conversationId: string,
+    private target: BrowserOutboundTarget,
     private onChange: (snapshot: PhoneCallSnapshot) => void,
   ) {}
   private change(next: Partial<PhoneCallSnapshot>) {
@@ -106,9 +108,9 @@ export class BrowserPhoneCall {
         return;
       }
       this.stream = stream;
-      const prepared = await this.request("/api/azera/calls/outbound", "POST", {
-        conversationId: this.conversationId,
-      });
+      const prepared = await this.request("/api/azera/calls/outbound", "POST",
+        typeof this.target === "string" ? { conversationId: this.target } : this.target,
+      );
       this.id = prepared.id;
       this.change({ id: this.id! });
       if (this.finished) {

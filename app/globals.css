@@ -130,3 +130,18 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #9CA3AF;
 }
+
+
+@keyframes softphone-expand {
+  from { opacity: 0; transform: translateY(-14px) scale(.72); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes softphone-minimize {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-12px) scale(.72); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .softphone-motion { animation-duration: 1ms !important; }
+}

@@ -61,7 +61,8 @@ export function AzeraOutboundCall({
       // cleanup finish before acquiring the phone lock or asking for a mic.
       await Promise.resolve();
       if (closed) return;
-      let selfHosted = false;
+      const sipAddress = contact.target && "sipAddress" in contact.target ? contact.target.sipAddress : null;
+      let selfHosted = Boolean(sipAddress);
       if (!contact.target) {
         try {
           const response = await fetch("/api/azera/calls/outbound", {
@@ -75,7 +76,7 @@ export function AzeraOutboundCall({
       }
       if (closed) return;
       const current = selfHosted
-        ? new (await import("@/lib/azera-phone-call")).BrowserPhoneCall(contact.id, setCall)
+        ? new (await import("@/lib/azera-phone-call")).BrowserPhoneCall(sipAddress ? { sipAddress, name: contact.name } : contact.id, setCall)
         : new AfricaBrowserCall(contact.target || contact.id, setCall);
       if (closed) { current.dispose(); return; }
       engine.current = current;
@@ -91,7 +92,7 @@ export function AzeraOutboundCall({
       engine.current?.dispose();
       engine.current = null;
     };
-  }, [contact.id, contact.target]);
+  }, [contact.id, contact.name, contact.target]);
   async function end() {
     setEnding(true);
     if (await engine.current?.end()) onClosed();
@@ -134,9 +135,7 @@ export function AzeraOutboundCall({
         </p>
       )}
       <p className="mt-1 text-xs text-slate-500">
-        {advanced
-          ? "Africa’s Talking · Self-hosted browser audio"
-          : "Africa’s Talking · Browser audio"}
+        Browser call
       </p>
       {advanced && (
         <Link
@@ -147,12 +146,9 @@ export function AzeraOutboundCall({
         </Link>
       )}
       {call.setupRequired && (
-        <Link
-          className="mt-3 block text-sm font-semibold text-blue-600 underline"
-          href="/admin/azera/settings"
-        >
-          Open Africa’s Talking settings
-        </Link>
+        <p className="mt-3 text-sm text-slate-600">
+          Ask an administrator to check phone setup.
+        </p>
       )}
       {call.state === "active" && (
         <div className="mt-3 space-y-2">

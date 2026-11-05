@@ -28,6 +28,7 @@ const postSchema = z.object({
   replyAll: z.boolean().optional(),
   toRecipients: z.array(z.email().transform((email) => email.toLowerCase())).max(100).optional(),
   ccRecipients: z.array(z.email().transform((email) => email.toLowerCase())).max(100).optional(),
+  bccRecipients: z.array(z.email().transform((email) => email.toLowerCase())).max(100).optional(),
 })
 
 async function ownEmailAddresses(name?: string): Promise<string[]> {
@@ -98,6 +99,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     let recipients = [lead.email as string, lead.additional_email as string | null].filter(
       (email): email is string => Boolean(email),
     )
+    const visibleRecipientKeys = () => new Set([...recipients, ...cc].map((address) => address.toLowerCase()))
     let cc: string[] = []
     let headers: Record<string, string> | undefined
     let subject = parsed.data.subject
@@ -156,6 +158,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       leadId: id,
       to: [...new Set(recipients)],
       cc: [...new Set(cc)],
+      bcc: [...new Set(parsed.data.bccRecipients || [])].filter((address) => !visibleRecipientKeys().has(address.toLowerCase())),
       subject,
       body: parsed.data.body,
       bodyHtml: parsed.data.bodyHtml,
@@ -187,6 +190,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         subject,
         to: recipients.join(", "),
         cc: cc.join(", ") || null,
+        bcc: [...new Set(parsed.data.bccRecipients || [])].filter((address) => !visibleRecipientKeys().has(address.toLowerCase())).join(", ") || null,
         replyToEmailId: parsed.data.replyToEmailId || null,
         template: parsed.data.template?.key || null,
         attachments: parsed.data.attachments?.map((a) => a.filename) || [],

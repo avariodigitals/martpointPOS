@@ -985,7 +985,7 @@ export default function AzeraSettingsPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium">
-                      Answer calls on
+                      Also ring these numbers (optional)
                     </label>
                     <input
                       value={form.africas_talking_forward_numbers}
@@ -999,9 +999,8 @@ export default function AzeraSettingsPage() {
                       placeholder="+2348012345678"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Enter mobile numbers in international format or an
-                      Africa&apos;s Talking SIP destination such as{" "}
-                      <code>sales@youraccount.sip.africastalking.com</code>.
+                      These numbers ring alongside available team phones.
+                      Enter numbers in international format.
                     </p>
                   </div>
                   <div className="space-y-2 pt-2 border-t border-border/50">

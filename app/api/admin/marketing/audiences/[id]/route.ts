@@ -74,15 +74,25 @@ export async function POST(
     }
 
     // Structured CSV import: validate on the server; never alter suppression records.
-    if (body.importContacts !== undefined) {
-      if (!body.emailConsentConfirmed || !Array.isArray(body.importContacts) || !body.importContacts.length || body.importContacts.length > 5000) {
-        return NextResponse.json({ error: "Confirm email permission and provide 1–5,000 contacts" }, { status: 400 })
+    if (body.importContacts !== undefined || body.importPhoneContacts !== undefined) {
+      const emailRows = body.importContacts ?? []
+      const phoneRows = body.importPhoneContacts ?? []
+      if (!Array.isArray(emailRows) || !Array.isArray(phoneRows) || emailRows.length + phoneRows.length === 0 || emailRows.length + phoneRows.length > 5000) {
+        return NextResponse.json({ error: "Provide 1–5,000 valid email or phone contacts" }, { status: 400 })
       }
+      if (emailRows.length && !body.emailConsentConfirmed) return NextResponse.json({ error: "Confirm email permission before importing email contacts" }, { status: 400 })
+      if (phoneRows.length && !body.smsConsentConfirmed) return NextResponse.json({ error: "Confirm SMS permission before importing phone contacts" }, { status: 400 })
       const unique = new Map<string, { email: string; name: string }>()
-      for (const contact of body.importContacts) {
+      for (const contact of emailRows) {
         const email = normalizeEmail(String(contact?.email || ""))
         if (!isValidEmail(email) || /[<>]/.test(email)) return NextResponse.json({ error: "The import contains an invalid email address" }, { status: 400 })
         if (!unique.has(email)) unique.set(email, { email, name: String(contact?.name || "").trim().slice(0, 250) })
+      }
+      const uniquePhones = new Map<string, { phone: string; name: string }>()
+      for (const contact of phoneRows) {
+        const phone = normalizeCommunicationPhone(String(contact?.phone || ""))
+        if (!phone) return NextResponse.json({ error: "The import contains an invalid phone number" }, { status: 400 })
+        if (!uniquePhones.has(phone)) uniquePhones.set(phone, { phone, name: String(contact?.name || "").trim().slice(0, 250) })
       }
       const { data: audience, error: audienceError } = await supabase.from("marketing_audiences").select("id").eq("id", id).maybeSingle()
       if (audienceError) return NextResponse.json({ error: "Unable to check audience" }, { status: 500 })
@@ -97,7 +107,29 @@ export async function POST(
         if (error) return NextResponse.json({ error: `Import stopped after adding ${added} contacts. Retry safely: existing contacts are skipped.` }, { status: 500 })
         added += data?.length || 0
       }
-      return NextResponse.json({ success: true, contactsAdded: added, duplicatesSkipped: body.importContacts.length - added })
+      let smsContactsAdded = 0
+      const phoneValues = [...uniquePhones.values()]
+      if (phoneValues.length) {
+        const { data: existingPhones, error: existingError } = await supabase.from("marketing_contacts").select("id,phone,sms_consent_at").eq("audience_id", id).in("phone", phoneValues.map((contact) => contact.phone))
+        if (existingError) return NextResponse.json({ error: "Could not check existing SMS contacts" }, { status: 500 })
+        const existing = new Map((existingPhones || []).map((contact) => [contact.phone, contact]))
+        const now = new Date().toISOString()
+        for (const contact of phoneValues) {
+          const saved = existing.get(contact.phone)
+          if (saved && !saved.sms_consent_at) {
+            const { error: consentError } = await supabase.from("marketing_contacts").update({ name: contact.name, sms_consent_at: now }).eq("id", saved.id)
+            if (consentError) return NextResponse.json({ error: "Could not record SMS consent for an existing contact" }, { status: 500 })
+            smsContactsAdded++
+          }
+        }
+        const toInsert = phoneValues.filter((contact) => !existing.has(contact.phone))
+        if (toInsert.length) {
+          const { data, error: phoneError } = await supabase.from("marketing_contacts").insert(toInsert.map((contact) => ({ audience_id: id, email: null, phone: contact.phone, name: contact.name, sms_consent_at: now }))).select("id")
+          if (phoneError) return NextResponse.json({ error: "Could not import SMS contacts" }, { status: 500 })
+          smsContactsAdded += data?.length || 0
+        }
+      }
+      return NextResponse.json({ success: true, contactsAdded: added, duplicatesSkipped: emailRows.length - added, smsContactsAdded, smsDuplicatesSkipped: phoneRows.length - smsContactsAdded })
     }
 
     const parsed = parseManualEmails(String(contacts || ""))

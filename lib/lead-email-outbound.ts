@@ -70,6 +70,8 @@ export interface SendLeadEmailInput {
   noSignature?: boolean
   /** Carbon-copy recipients (visible to all). */
   cc?: string | string[]
+  /** Blind-carbon-copy recipients (hidden from other recipients). */
+  bcc?: string | string[]
   /** File attachments — e.g. an .ics calendar invite or a requested document. */
   attachments?: EmailAttachment[]
   /** Display name to front the shared mailbox — "send as" this person. */
@@ -174,13 +176,14 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
       from: sender,
       replyTo,
       cc: input.cc,
+      bcc: input.bcc,
       attachments: input.attachments,
       skipBranding: !!input.layout,
       headers,
     })
   const sendSmtp = (sender: string) =>
     sendEmailViaSmtp(
-      { subject: input.subject, text: textBody, html, replyTo, cc: input.cc, attachments: input.attachments, headers, skipBranding: !!input.layout },
+      { subject: input.subject, text: textBody, html, replyTo, cc: input.cc, bcc: input.bcc, attachments: input.attachments, headers, skipBranding: !!input.layout },
       settings,
       sender,
       Array.isArray(input.to) ? input.to : [input.to],
@@ -209,6 +212,7 @@ export async function sendLeadEmail(input: SendLeadEmailInput): Promise<SendLead
         ...(input.metadata || {}),
         ...(input.layout ? { layout: input.layout } : {}),
         cc: input.cc ? (Array.isArray(input.cc) ? input.cc.join(", ") : input.cc) : null,
+        bcc: input.bcc ? (Array.isArray(input.bcc) ? input.bcc.join(", ") : input.bcc) : null,
         attachments: (input.attachments || []).map((file) => ({
           filename: file.filename,
           size: base64ByteLength(file.content),

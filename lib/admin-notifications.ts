@@ -87,6 +87,69 @@ export async function notifyAdminUser(input: {
   }
 }
 
+/** Notify only the active staff explicitly mapped to review this approval. */
+export async function notifyApprovalApprovers(input: {
+  actionKey: string
+  requestId: string
+  entityReference: string
+  message: string
+  requesterId: string
+}): Promise<void> {
+  if (!isSupabaseConfigured()) return
+  try {
+    const { data: policy, error: policyError } = await supabase
+      .from("approval_policies")
+      .select("enabled,approver_roles,approver_user_ids")
+      .eq("action_key", input.actionKey)
+      .maybeSingle()
+    if (policyError || !policy?.enabled) return
+
+    const roles = Array.isArray(policy.approver_roles)
+      ? policy.approver_roles.filter((role): role is string => typeof role === "string")
+      : []
+    const userIds = Array.isArray(policy.approver_user_ids)
+      ? policy.approver_user_ids.filter((id): id is string => typeof id === "string")
+      : []
+    if (!roles.length && !userIds.length) return
+
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id,role")
+      .eq("status", "ACTIVE")
+    if (usersError) return
+
+    const mappedTargets = (users || []).filter((user) =>
+      user.id !== input.requesterId && (roles.includes(user.role) || userIds.includes(user.id)),
+    )
+    const targetIds = mappedTargets.map((user) => user.id)
+    const targetRoles = [...new Set(mappedTargets.map((user) => user.role))]
+    const [userDenials, roleDenials] = targetIds.length
+      ? await Promise.all([
+          supabase.from("user_permission_overrides").select("user_id").eq("permission_key", "approvals").eq("effect", "deny").in("user_id", targetIds),
+          targetRoles.length
+            ? supabase.from("role_permission_overrides").select("role_name").eq("permission_key", "approvals").eq("effect", "deny").in("role_name", targetRoles)
+            : Promise.resolve({ data: [] as { role_name: string }[], error: null }),
+        ])
+      : [{ data: [] as { user_id: string }[], error: null }, { data: [] as { role_name: string }[], error: null }]
+    if (userDenials.error || roleDenials.error) return
+    const deniedUsers = new Set((userDenials.data || []).map((row) => row.user_id))
+    const deniedRoles = new Set((roleDenials.data || []).map((row) => row.role_name))
+    const targets = mappedTargets.filter((user) => !deniedUsers.has(user.id) && !deniedRoles.has(user.role))
+    await Promise.all(targets.map((user) => notifyAdminUser({
+      admin_user_id: user.id,
+      type: "APPROVAL_REQUESTED",
+      title: `${input.entityReference} needs approval`,
+      message: input.message,
+      deep_link: `/admin/approvals?requestId=${encodeURIComponent(input.requestId)}`,
+      source_type: "APPROVAL_REQUEST",
+      source_id: input.requestId,
+      actor_admin_user_id: input.requesterId,
+    })))
+  } catch (error) {
+    console.error("[admin notifications] approval approver fan-out failed", error)
+  }
+}
+
 /**
  * Fan an operational event out to every active admin account.
  * Notification delivery is deliberately best-effort: an alert must never

@@ -51,6 +51,7 @@ export function resendPayloadFromLog(log: Pick<EmailLogRow, "metadata"> | null |
     payload: {
       to,
       cc: str(candidate.cc),
+      bcc: str(candidate.bcc),
       subject,
       text: str(candidate.text),
       html: str(candidate.html),
@@ -68,6 +69,7 @@ export function messageFromPayload(payload: ResendPayload): EmailMessage {
   return {
     to: payload.to,
     cc: payload.cc || undefined,
+    bcc: payload.bcc || undefined,
     subject: payload.subject,
     text: payload.text,
     html: payload.html || undefined,

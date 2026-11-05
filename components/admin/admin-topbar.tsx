@@ -8,6 +8,7 @@ import { AdminNotificationBell } from "@/components/admin/admin-notification-bel
 import { hasPermission, type UserRole } from "@/lib/admin-types"
 import { roleLabel } from "@/lib/utils"
 import { AfricaBrowserPhone } from "@/components/admin/africa-browser-phone"
+import { AdminAvatar } from "@/components/admin/admin-avatar"
 
 const PAGE_CONTEXT: Array<{ match: string; title: string; subtitle: string }> = [
   { match: "/finance", title: "Finance", subtitle: "Commercial performance and control" },
@@ -23,13 +24,6 @@ const PAGE_CONTEXT: Array<{ match: string; title: string; subtitle: string }> = 
   { match: "/tasks", title: "Action Centre", subtitle: "Work that needs attention" },
   { match: "/audit", title: "Audit Logs", subtitle: "A traceable record of platform activity" },
 ]
-
-function initialsOf(value: string) {
-  const parts = value.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
-}
 
 function contextFor(pathname: string) {
   return PAGE_CONTEXT.find((item) => pathname === item.match || pathname.startsWith(`${item.match}/`)) || {
@@ -88,7 +82,7 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
         >
           <Search className="h-4 w-4" />
         </Link>
-        {["Admin", "Sales", "Customer Care", "Tech"].includes(userRole) && <AfricaBrowserPhone />}
+        {hasPermission(userRole, "azera") && <AfricaBrowserPhone userName={userName} />}
         <AdminNotificationBell />
 
         <div ref={menuRef} className="relative">
@@ -99,9 +93,7 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
             aria-expanded={menuOpen}
             className="group flex items-center gap-2 rounded-xl p-1.5 transition hover:bg-slate-100"
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-retail-soft text-xs font-bold text-retail ring-1 ring-inset ring-retail/20">
-              {initialsOf(userName)}
-            </span>
+            <AdminAvatar name={userName} className="h-9 w-9 rounded-full bg-retail-soft text-xs font-bold text-retail ring-1 ring-inset ring-retail/20" fallbackClassName="relative z-10" />
             <span className="hidden max-w-36 text-left lg:block">
               <span className="block truncate text-xs font-semibold text-slate-800">{userName}</span>
               <span className="block truncate text-[10px] text-slate-500">{roleLabel(userRole)}</span>

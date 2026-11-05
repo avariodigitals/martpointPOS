@@ -166,7 +166,7 @@ export async function PATCH(
         );
         if (error)
           return err(
-            "Could not reserve this call. Verify the contact-centre migration.",
+            "Could not answer this call. Please try again.",
             503,
           );
         if (!claimed)

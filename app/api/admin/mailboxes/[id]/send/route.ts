@@ -16,6 +16,7 @@ const schema = z.object({
   threadId: z.uuid().optional(),
   to: z.array(z.email()).min(1).max(50),
   cc: z.array(z.email()).max(50).default([]),
+  bcc: z.array(z.email()).max(50).default([]),
   subject: z.string().trim().min(1).max(998),
   bodyHtml: z.string().max(200_000),
   attachments: z.array(z.object({ filename: z.string().trim().min(1).max(180), contentType: z.string().max(120).default("application/octet-stream"), content: z.string().min(1) })).max(10).default([]),
@@ -134,6 +135,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const sent = await sendEmail({
       to: payload.to.map((item) => item.toLowerCase()),
       cc: payload.cc.map((item) => item.toLowerCase()),
+      bcc: payload.bcc.map((item) => item.toLowerCase()).filter((address) => !payload.to.map((item) => item.toLowerCase()).includes(address) && !payload.cc.map((item) => item.toLowerCase()).includes(address)),
       attachments: emailAttachments,
       subject: payload.subject,
       text: sentText,
@@ -178,6 +180,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         provider_message_id: messageId,
         metadata: {
           cc: payload.cc.map((address) => address.toLowerCase()).join(", ") || null,
+          bcc: payload.bcc.map((address) => address.toLowerCase()).filter((address) => !payload.to.map((item) => item.toLowerCase()).includes(address) && !payload.cc.map((item) => item.toLowerCase()).includes(address)).join(", ") || null,
           in_reply_to: parent?.message_id || null,
           references: [parent?.references_header, parent?.message_id].filter(Boolean).join(" ") || null,
           mailbox_id: id,

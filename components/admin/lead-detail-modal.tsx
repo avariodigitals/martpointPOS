@@ -274,6 +274,7 @@ export function LeadDetailModal({
   const [replyContext, setReplyContext] = useState<{ emailId: string; replyAll: boolean } | null>(null)
   const [replyToInput, setReplyToInput] = useState("")
   const [replyCcInput, setReplyCcInput] = useState("")
+  const [replyBccInput, setReplyBccInput] = useState("")
   const [ownEmailAddresses, setOwnEmailAddresses] = useState<string[] | null>(null)
   // True once the admin types their own subject; auto-fill then stands down.
   const [emailSubjectEdited, setEmailSubjectEdited] = useState(false)
@@ -1011,6 +1012,7 @@ export function LeadDetailModal({
             toRecipients: replyToInput.split(/[;,]/).map((address) => address.trim()).filter(Boolean),
             ccRecipients: replyCcInput.split(/[;,]/).map((address) => address.trim()).filter(Boolean),
           } : {}),
+          bccRecipients: replyBccInput.split(/[;,]/).map((address) => address.trim()).filter(Boolean),
         }),
       })
       const data = await res.json()
@@ -1023,6 +1025,7 @@ export function LeadDetailModal({
         await emailDraft.remove()
         setEmailSubjectEdited(false)
         setEmailForm({ subject: buildLeadEmailSubject(null, lead.businessName), body: "" })
+        setReplyBccInput("")
         setEmailTemplateKey(null)
         setEmailAttachments([])
         setEmailPreview(null)
@@ -1097,6 +1100,7 @@ export function LeadDetailModal({
     const originalSubject = (msg.subject || "").trim()
     const subject = originalSubject && /^re:/i.test(originalSubject) ? originalSubject : `Re: ${originalSubject || "(no subject)"}`
     setReplyContext({ emailId: msg.id, replyAll })
+    setReplyBccInput("")
     setEmailTemplateKey(null)
     setEmailAttachments([])
     setEmailPreview(null)
@@ -1770,6 +1774,7 @@ export function LeadDetailModal({
                       type="button"
                       onClick={() => {
                         setReplyContext(null)
+                        setReplyBccInput("")
                         setEmailSubjectEdited(false)
                         setEmailForm({ subject: buildLeadEmailSubject(null, lead.businessName), body: "" })
                       }}
@@ -1797,11 +1802,15 @@ export function LeadDetailModal({
                       </div>}
                     </div>
                   )}
+                  <div>
+                    <label htmlFor="lead-email-bcc" className="text-xs font-medium">Bcc</label>
+                    <input id="lead-email-bcc" aria-label="Email Bcc recipients" type="text" value={replyBccInput} onChange={(event) => setReplyBccInput(event.target.value)} placeholder="Optional; separate addresses with commas" disabled={sendingEmail} className={`${inputClass} mt-1 w-full`} />
+                  </div>
                   {replyContext && <p className="text-xs text-muted-foreground">{replyReady ? "Edit recipients as needed. Separate multiple addresses with commas or semicolons." : "Load the email thread to confirm recipients before sending."}</p>}
                 </div>
                 <EmailLayoutSwitch value={emailLayout} disabled={sendingEmail || previewLoading} onChange={(layout) => { setEmailLayout(layout); setEmailPreview(null) }} />
                 <EmailDraftControls manager={emailDraft} disabled={sendingEmail || readingAttachments || previewLoading}
-                  getDraft={() => ({ subject: emailForm.subject, bodyHtml: emailForm.body, layout: emailLayout, replyContext, toRecipients: replyToInput, ccRecipients: replyCcInput, attachments: emailAttachments.map(({ filename, content }) => ({ filename, content })) })}
+                  getDraft={() => ({ subject: emailForm.subject, bodyHtml: emailForm.body, layout: emailLayout, replyContext, toRecipients: replyToInput, ccRecipients: replyCcInput, bccRecipients: replyBccInput, attachments: emailAttachments.map(({ filename, content }) => ({ filename, content })) })}
                   onRestore={(draft) => {
                     setEmailForm({ subject: draft.subject, body: draft.bodyHtml })
                     setEmailLayout(draft.layout)
@@ -1809,6 +1818,7 @@ export function LeadDetailModal({
                     setReplyContext(draft.replyContext || null)
                     setReplyToInput(draft.toRecipients || "")
                     setReplyCcInput(draft.ccRecipients || "")
+                    setReplyBccInput(draft.bccRecipients || "")
                     setEmailTemplateKey(null)
                     setEmailAttachments(draft.attachments.map((file) => ({ ...file, size: base64ByteLength(file.content) })))
                     setEmailPreview(null)

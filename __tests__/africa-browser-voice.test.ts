@@ -29,6 +29,6 @@ describe("Current browser-call credentials", () => {
   })
   it("reports an authentication rejection without exposing the provider response or API key", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ errorMessage: "sensitive provider content" }, { status: 401 })))
-    await expect(africaCapability({ apiKey: "current-key", username: "app", phone: "+2348000000000" }, "client-1")).rejects.toThrow("rejected browser-call authentication")
+    await expect(africaCapability({ apiKey: "current-key", username: "app", phone: "+2348000000000" }, "client-1")).rejects.toThrow("Could not connect the browser phone")
   })
 })

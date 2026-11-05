@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Info, Landmark, RefreshCw, Receipt } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
 import { PaymentProofForm } from "./payment-proof-form"
+import { SUPPORT_RECOVERY_NOTICE_PARAGRAPHS, SUPPORT_RECOVERY_NOTICE_TITLE } from "@/lib/support-recovery-notice"
 
 function fmtMoney(amount: number, currency = "NGN") {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency }).format(amount || 0)
@@ -229,6 +230,10 @@ export default async function CustomerFinancePage({
               Payment proof submitted. Finance must verify the transfer before the invoice status changes.
             </p>
           )}
+          <section className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4 text-sm leading-6 text-slate-700">
+            <h3 className="mb-3 text-sm font-semibold text-slate-900">{SUPPORT_RECOVERY_NOTICE_TITLE}</h3>
+            <div className="space-y-3">{SUPPORT_RECOVERY_NOTICE_PARAGRAPHS.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
+          </section>
           {payments.length > 0 && (
             <div className="mt-4 border-t border-border pt-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment proof history</p>

@@ -9,6 +9,7 @@
 
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
+import { SUPPORT_RECOVERY_NOTICE_PARAGRAPHS, SUPPORT_RECOVERY_NOTICE_TITLE } from "./support-recovery-notice"
 
 export interface InvoicePdfItem {
   description: string
@@ -211,6 +212,8 @@ export function generateInvoicePdf(inv: InvoicePdfData): Buffer {
     writeBand("Notes", 10, true)
     writeBand(inv.notes_public)
   }
+  writeBand(SUPPORT_RECOVERY_NOTICE_TITLE, 10, true)
+  for (const paragraph of SUPPORT_RECOVERY_NOTICE_PARAGRAPHS) writeBand(paragraph, 8.5)
 
   // Footer on every page.
   const totalPages = doc.getNumberOfPages()

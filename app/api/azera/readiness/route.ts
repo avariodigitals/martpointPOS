@@ -22,7 +22,7 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!isSupabaseConfigured())
     return NextResponse.json(
-      { error: "The contact-centre database is unavailable." },
+      { error: "Contact-centre checks are temporarily unavailable. Please try again." },
       { status: 503 },
     );
   try {
@@ -40,22 +40,22 @@ export async function GET() {
     const schemaReady = !error && !schema.error;
     checks.push({
       id: "database",
-      label: "Contact-centre database",
+      label: "Contact-centre setup",
       status: schemaReady ? "configured" : "needs_setup",
       detail: schemaReady
-        ? "Delivery tracking and connection fields are available."
-        : "Apply migration 134 before enabling the new delivery, reports and privacy controls.",
+        ? "Contact-centre setup is ready."
+        : "Some contact-centre features are unavailable. Ask an administrator for help.",
     });
     const business =
       (rows || []).find((row) => row.africas_talking_phone_number) || rows?.[0];
     const voice = await africaBrowserConfig(business?.business_id);
     checks.push({
       id: "browser-phone",
-      label: "Africa’s Talking browser dialler",
+      label: "Staff phone service",
       status: africaBrowserReady(voice) ? "configured" : "needs_setup",
       detail: africaBrowserReady(voice)
-        ? "Live credentials and a virtual number are present. Provider WebRTC activation, balance and a real call still need verification."
-        : "Set the live Africa’s Talking username, API key and virtual voice number. No LiveKit subscription is required.",
+        ? "Phone setup is present. Place a test call to confirm it works."
+        : "Phone calling needs administrator setup.",
       href: "/admin/azera/settings",
     });
     const turn = Boolean(
@@ -65,25 +65,83 @@ export async function GET() {
     );
     checks.push({
       id: "website-audio",
-      label: "Website-to-agent audio",
+      label: "Website calling",
       status: process.env.AZERA_BROWSER_MEDIA === "cloudflare" ? cloudflareSfuEnabled() ? "configured" : "needs_setup" : turn ? "configured" : "needs_setup",
       detail: process.env.AZERA_BROWSER_MEDIA === "cloudflare"
-        ? `Cloudflare SFU: ${cloudflareSfuConfigured() ? "credentials present" : "App ID/Secret missing"}; TURN: ${cloudflareTurnConfigured() ? "credentials present" : "key/token missing"}. Apply migration 136 and verify the cleanup cron. Credentials do not prove live audio works; test iOS, Android and separate networks. No VPS or RealtimeKit is used.`
+        ? cloudflareSfuConfigured() && cloudflareTurnConfigured()
+          ? "Website calling is set up. Place a test call to confirm sound on the devices your team uses."
+          : "Website calling needs administrator setup."
         : turn
-        ? "TURN relay credentials are present; verify iOS, Android and separate networks with two consenting test participants."
-        : "STUN-only calling cannot reliably cross every network. Configure AZERA_TURN_URLS and TURN credentials or a shared TURN secret.",
+        ? "Website calling is set up. Place a test call to confirm sound on the devices your team uses."
+        : "Website calls may not connect on every network. Ask an administrator to review call setup.",
     });
+    const businessId = business?.business_id;
+    const [incomingCallResult, assignmentResult, browserAgentResult, ringSchema] = businessId
+      ? await Promise.all([
+          supabase.from("azera_calls")
+            .select("created_at,status,final_outcome")
+            .eq("business_id", businessId).eq("direction", "inbound")
+            .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+          supabase.from("azera_voice_agent_assignments")
+            .select("user_id,queues,enabled").eq("business_id", businessId).eq("enabled", true),
+          supabase.from("azera_africa_browser_agents")
+            .select("user_id,ready,last_seen_at").eq("business_id", businessId)
+            .eq("ready", true).gt("last_seen_at", new Date(Date.now() - 60_000).toISOString()),
+          supabase.from("azera_africa_browser_call_rings").select("call_id").limit(0),
+        ])
+      : [null, null, null, null] as const;
+    const latestInboundCall = incomingCallResult?.data;
+    const callAt = latestInboundCall?.created_at
+      ? new Date(latestInboundCall.created_at).toLocaleString()
+      : null;
+    const callStatus = latestInboundCall
+      ? ({ ringing: "ringing", active: "connected", ended: "ended", missed: "missed", failed: "failed", busy: "busy" } as Record<string, string>)[latestInboundCall.status] || "received"
+      : "";
+    const assignments = assignmentResult?.data || [];
+    const assignedUsers = new Set(assignments.flatMap((assignment) =>
+      Array.isArray(assignment.queues) && assignment.queues.length ? [assignment.user_id] : [],
+    ));
+    const onlineUsers = new Set((browserAgentResult?.data || []).map((row) => row.user_id));
+    const onlineAssignedAgents = [...assignedUsers].filter((userId) => onlineUsers.has(userId)).length;
     checks.push({
       id: "incoming",
-      label: "Incoming telephone routing",
+      label: "Incoming calls",
       status:
         process.env.AFRICASTALKING_CALLBACK_SECRET &&
-        business?.africas_talking_phone_number
+        business?.africas_talking_phone_number &&
+        !incomingCallResult?.error && latestInboundCall
           ? "configured"
           : "needs_setup",
-      detail:
-        "Use the existing Africa’s Talking callback, events and voicemail endpoints. Verify number activation, callback secret, department destinations, busy and closed-hours branches.",
+      detail: incomingCallResult?.error
+        ? "Could not check incoming-call activity. Please try again later."
+        : latestInboundCall
+          ? `Last incoming call: ${callAt} (${callStatus}). Place a test call to confirm team phones ring.`
+          : "No incoming call has reached the system yet. Check your phone service’s incoming-call settings, then place a test call.",
       href: "/admin/azera/settings",
+    });
+    checks.push({
+      id: "browser-agents",
+      label: "Team phones online",
+      status: !businessId || assignmentResult?.error || browserAgentResult?.error ? "needs_setup" : onlineAssignedAgents > 0 ? "configured" : "needs_setup",
+      detail: !businessId
+        ? "Phone calling is not set up for this business. Ask an administrator for help."
+        : assignmentResult?.error || browserAgentResult?.error
+        ? "Could not check team phone availability. Please try again later."
+        : assignedUsers.size
+          ? `${onlineAssignedAgents} of ${assignedUsers.size} assigned team member(s) have their phone on. Keep the softphone open to receive calls.`
+          : "No team members are assigned to a call queue yet.",
+      href: "/admin/azera/voice-agents",
+    });
+    checks.push({
+      id: "browser-ring-groups",
+      label: "Team phones",
+      status: !ringSchema || ringSchema.error ? "needs_setup" : "configured",
+      detail: !businessId
+        ? "Phone calling is not set up for this business. Ask an administrator for help."
+        : ringSchema?.error
+        ? "Group calling is unavailable. Ask an administrator for help."
+        : "Available team phones can ring together. Place a test call to confirm.",
+      href: "/admin/azera/calls",
     });
     const secret = Boolean(process.env.META_APP_SECRET);
     const any = (
@@ -105,7 +163,7 @@ export async function GET() {
         ? "configured"
         : "needs_setup",
       detail:
-        "Cloud API needs a business phone-number ID, messaging token and app secret. 360dialog needs the existing API key, webhook secret and business-number mapping.",
+        "Connect your messaging account in Azera Settings.",
       href: "/admin/azera/settings",
     });
     for (const channel of ["messenger", "instagram"] as const)
@@ -130,7 +188,7 @@ export async function GET() {
           ? "configured"
           : "needs_setup",
         detail:
-          "Set the account ID, supported messaging token, webhook verification token and app secret. Provider approval and the reply window still apply.",
+          "Connect this messaging account in Azera Settings.",
         href: "/admin/azera/settings",
       });
     checks.push({
@@ -138,7 +196,7 @@ export async function GET() {
       label: "Recording privacy & playback",
       status: schemaReady ? "configured" : "needs_setup",
       detail:
-        "Migration 134 makes recordings private. Consent-confirmed uploads and short-lived playback links are supported. Automatic telephone recording is not enabled by uploading a file.",
+        "Record a call only after the caller has agreed.",
       href: "/admin/azera/reports",
     });
     checks.push({
@@ -148,7 +206,9 @@ export async function GET() {
         ? "configured"
         : "blocked",
       detail:
-        "The workspace supports direct agent handover, listen-only, separate private coaching and joining a call, for calls on the approved self-hosted media server. A compatible Africa’s Talking SIP trunk and a capable host are required. Paid LiveKit Cloud is blocked. Shared cPanel hosting has not been verified as suitable. Private consultation/warm transfer is not implemented.",
+        selfHostedMediaAllowed(settings.livekit)
+          ? "Supervisor call tools are available. Test them with your team before use."
+          : "Supervisor call tools are not available for this workspace.",
       href: "/admin/azera/calls",
     });
     const aiConfigured = await realtimeProvider()
@@ -160,17 +220,20 @@ export async function GET() {
       status:
         aiConfigured && realtimeVoiceEnabled() ? "configured" : "needs_setup",
       detail:
-        "Website AI voice uses direct OpenAI Realtime: apply migration 135, verify scheduled shutdown, set AZERA_REALTIME_ENABLED=true and enable it for the business in Azera Settings. AI usage charges apply; no LiveKit server is needed. Human requests end AI audio then ring the team. This is not a telephone AI agent or a warm transfer. Verify model access, live audio and handoff before enabling.",
+        aiConfigured && realtimeVoiceEnabled()
+          ? "Website voice assistance is set up. Test a conversation and team handoff before use."
+          : "Website voice assistance needs administrator setup.",
       href: "/admin/azera/settings",
     });
     return NextResponse.json(
       { checkedAt: new Date().toISOString(), liveVerified: false, checks },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } catch (error) {
+    console.error("[Azera contact-centre readiness check failed]", error);
     return NextResponse.json(
       {
-        error: "Readiness checks could not finish. No live calls were placed.",
+        error: "Contact-centre checks could not finish. Please try again.",
       },
       { status: 503 },
     );

@@ -20,10 +20,13 @@ export async function GET() {
   if (!session) return reply({ error: "Forbidden" }, 403);
   const { data: phone, error } = await supabase.from("azera_africa_browser_agents")
     .select("ready,last_seen_at,queues").eq("user_id", session.userId).maybeSingle();
-  if (error) return reply({ error: "Apply migration 137 before enabling incoming browser calls." }, 503);
+  if (error) {
+    console.error("[Azera browser phone availability lookup failed]", error);
+    return reply({ error: "Your phone service is temporarily unavailable. Please try again or ask an administrator for help." }, 503);
+  }
   const config = await africaBrowserConfig();
   const businessId = await resolveAfricaBusinessId(config.phone);
-  if (!businessId) return reply({ error: "No business is configured for Azera voice. Ask an administrator to finish voice setup." }, 503);
+  if (!businessId) return reply({ error: "Phone calling is not ready for this business. Ask an administrator for help." }, 503);
   const { data: assignment, error: assignmentError } = await supabase
     .from("azera_voice_agent_assignments")
     .select("business_id,queues,enabled")
@@ -31,7 +34,10 @@ export async function GET() {
     .eq("user_id", session.userId)
     .eq("enabled", true)
     .maybeSingle();
-  if (assignmentError) return reply({ error: "Apply migration 141 before enabling voice assignments." }, 503);
+  if (assignmentError) {
+    console.error("[Azera voice assignment lookup failed]", assignmentError);
+    return reply({ error: "Your voice assignment could not be checked. Please try again or ask an administrator for help." }, 503);
+  }
   let { data: call } = await supabase.from("azera_calls")
     .select("id,status,customer_phone,selected_department,answered_at")
     .eq("agent_user_id", session.userId).eq("sip_provider", "africas_talking")
@@ -72,7 +78,7 @@ export async function POST(request: Request) {
     if (body.action === "register") {
       const config = await africaBrowserConfig();
       const businessId = await resolveAfricaBusinessId(config.phone);
-      if (!businessId || !africaBrowserReady(config)) return reply({ error: "Configure the live Africa’s Talking application and virtual number first." }, 503);
+      if (!businessId || !africaBrowserReady(config)) return reply({ error: "Phone calling is not ready for this business. Ask an administrator for help." }, 503);
       const { data: assignment, error: assignmentError } = await supabase
         .from("azera_voice_agent_assignments")
         .select("queues,enabled")
@@ -80,7 +86,10 @@ export async function POST(request: Request) {
         .eq("user_id", session.userId)
         .eq("enabled", true)
         .maybeSingle();
-      if (assignmentError) return reply({ error: "Apply migration 141 before enabling voice assignments." }, 503);
+      if (assignmentError) {
+        console.error("[Azera voice assignment registration lookup failed]", assignmentError);
+        return reply({ error: "Your voice assignment could not be checked. Please try again or ask an administrator for help." }, 503);
+      }
       const selected = Array.isArray(assignment?.queues)
         ? [...new Set(assignment.queues.filter((q: unknown) => typeof q === "string" && queues.includes(q)))]
         : [];
@@ -111,7 +120,10 @@ export async function POST(request: Request) {
       const { data: clientName, error } = await supabase.rpc("azera_register_africa_browser", {
         p_user: session.userId, p_business: businessId, p_lease: body.lease, p_queues: selected,
       });
-      if (error) return reply({ error: "Could not register your phone. Apply migration 137 and try again." }, 503);
+      if (error) {
+        console.error("[Azera browser phone registration failed]", error);
+        return reply({ error: "Could not connect your phone. Please try again or ask an administrator for help." }, 503);
+      }
       if (!clientName) return reply({
         error: "Another phone session or call became active while you were connecting. Switch to that phone and go offline, or finish the call, then retry.",
         reason: "phone_conflict",
@@ -120,8 +132,9 @@ export async function POST(request: Request) {
         const token = await africaCapability(config, clientName, true);
         return reply({ token, clientName, expiresIn: 3600 });
       } catch (error) {
+        console.error("[Azera browser phone provider registration failed]", error);
         await supabase.from("azera_africa_browser_agents").update({ ready: false, last_seen_at: new Date(0).toISOString() }).eq("user_id", session.userId).eq("lease_id", body.lease);
-        return reply({ error: error instanceof Error ? error.message : "Provider registration failed." }, 502);
+        return reply({ error: "Could not connect your phone. Check your connection and try again. If this continues, ask an administrator for help." }, 502);
       }
     }
     if (!["ready", "heartbeat", "stop"].includes(body.action)) return reply({ error: "Invalid phone action" }, 400);

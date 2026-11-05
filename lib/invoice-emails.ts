@@ -16,6 +16,7 @@ import { logFinanceAudit } from "./finance-commercial"
 import { resolveQuoteTemplate } from "./quote-templates"
 import { getPublicSiteSettings } from "./settings"
 import { enqueueInvoiceUnpaid } from "./communication-events"
+import { appendSupportRecoveryNoticeToEmail, SUPPORT_RECOVERY_NOTICE_TEXT } from "./support-recovery-notice"
 
 const EMAILABLE_STATUSES = ["ISSUED", "PARTIALLY_PAID", "OVERDUE", "PAID"]
 
@@ -98,6 +99,8 @@ export async function sendInvoiceEmail(
   }
 
   const tpl = await renderEmailTemplate(kind === "reminder" ? "invoice_payment_reminder" : "invoice_sent", vars)
+  const emailText = `${tpl.text.trimEnd()}\n\n${SUPPORT_RECOVERY_NOTICE_TEXT}`
+  const emailHtml = tpl.html ? appendSupportRecoveryNoticeToEmail(tpl.html) : undefined
 
   let attachments: { filename: string; content: string }[] | undefined
   try {
@@ -125,7 +128,7 @@ export async function sendInvoiceEmail(
     console.error("[invoice-pdf] generation failed — sending without attachment:", e)
   }
 
-  const sent = await sendEmail({ to, subject: tpl.subject, text: tpl.text, html: tpl.html, replyTo: REPLY_TO.sales, attachments })
+  const sent = await sendEmail({ to, subject: tpl.subject, text: emailText, html: emailHtml, replyTo: REPLY_TO.sales, attachments })
   if (!sent) return { ok: false, error: "Email send failed — check email settings/logs" }
 
   const update =

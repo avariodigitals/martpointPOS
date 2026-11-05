@@ -773,10 +773,22 @@ export async function POST(request: Request) {
         waitingForAgent = false
       }
 
-      void notifySupportAgents({
+      await notifySupportAgents({
         queue,
         title: specialistOnline ? "Human handoff requested" : queue === "sales" ? "Offline sales follow-up" : "Offline support ticket created",
         message: `${customer_name || "A customer"} — ${queue.replace("_", " ")} queue (${reason.replaceAll("_", " ")}).`,
+        deepLink: `/admin/azera?conversation=${conv.id}`,
+        sourceId: conv.id,
+      })
+    }
+
+    // Alert the owning team as soon as a new conversation starts, even when
+    // Azera can answer the first message. Human handoffs are notified above.
+    if (isNewConversation && !humanHandoff && !escalationReason && !waitingForAgent) {
+      await notifySupportAgents({
+        queue,
+        title: "New chat started",
+        message: `${customer_name || "A customer"} started a conversation in the ${queue.replace("_", " ")} queue.`,
         deepLink: `/admin/azera?conversation=${conv.id}`,
         sourceId: conv.id,
       })

@@ -68,7 +68,8 @@ export async function GET(_request: Request, context: Context) {
         offset += 1000
       }
     }
-    const [sms, ai, email] = await Promise.all([getCommunicationSmsConfig(), getAiProviderStatus(), getEmailSettings()])
+    const [sms, ai, email, smsSuppressions] = await Promise.all([getCommunicationSmsConfig(), getAiProviderStatus(), getEmailSettings(), supabase.from("communication_suppressions").select("address,created_at,reason").eq("channel", "sms").order("created_at", { ascending: false }).limit(1000)])
+    if (smsSuppressions.error) return NextResponse.json({ error: "Could not load SMS opt-out records" }, { status: 503 })
     const smsContacts: { id: string; audience_id: string; name: string; phone: string; sms_consent_at: string }[] = []
     for (let offset = 0; ; offset += 1000) {
       const page = await supabase.from("marketing_contacts").select("id,audience_id,name,phone,sms_consent_at").not("phone", "is", null).not("sms_consent_at", "is", null).order("id").range(offset, offset + 999)
@@ -85,7 +86,7 @@ export async function GET(_request: Request, context: Context) {
         if (page.contacts.length < 100) break
       }
     }
-    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts, smsSystemAudiences, smsSystemContacts, providers: { email: email.provider, sms: sms.provider, smsSender: sms.sender || "", smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
+    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts, smsSystemAudiences, smsSystemContacts, smsSuppressions: smsSuppressions.data || [], providers: { email: email.provider, sms: sms.provider, smsSender: sms.sender || "", smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
   } catch (error) { return problem(error) }
 }
 export async function POST(request: Request, context: Context) {
@@ -282,5 +283,21 @@ export async function PATCH(request: Request, context: Context) {
       return NextResponse.json({ success: true })
     }
     return NextResponse.json({ error: "Unknown resource" }, { status: 404 })
+  } catch (error) { return problem(error) }
+}
+
+export async function DELETE(request: Request, context: Context) {
+  const { resource } = await context.params
+  const auth = await access(resource)
+  if (auth.denied) return auth.denied
+  if (resource !== "suppressions") return NextResponse.json({ error: "Unknown resource" }, { status: 404 })
+  try {
+    const body = await request.json()
+    const parsed = z.object({ channel: z.literal("sms"), address: z.string().trim().min(1).max(254), confirmResubscribed: z.literal(true) }).parse(body)
+    const address = normalizeCommunicationPhone(parsed.address)
+    if (!address) throw new Error("Enter a valid phone number")
+    const result = await supabase.from("communication_suppressions").delete().eq("channel", "sms").eq("address", address).select("address").maybeSingle()
+    if (result.error || !result.data) throw new Error("This opt-out record could not be removed")
+    return NextResponse.json({ success: true })
   } catch (error) { return problem(error) }
 }

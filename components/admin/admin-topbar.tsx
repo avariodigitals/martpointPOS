@@ -118,7 +118,7 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
         >
           <Search className="h-4 w-4" />
         </Link>
-        {hasPermission(userRole, "azera") && <AfricaBrowserPhone userName={userName} />}
+        {hasPermission(userRole, "azera") && pathname !== "/admin/azera/calls" && <AfricaBrowserPhone userName={userName} />}
         <AdminNotificationBell soundEnabled={notificationSoundEnabled} />
 
         <div ref={menuRef} className="relative">

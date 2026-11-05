@@ -65,6 +65,7 @@ export interface Lead {
   email: string
   additionalEmail?: string | null
   phone: string
+  additionalPhone?: string | null
   businessType: string
   industry?: string
   productInterest: string
@@ -235,6 +236,7 @@ export function LeadDetailModal({
     email: lead.email,
     additionalEmail: lead.additionalEmail || "",
     phone: lead.phone,
+    additionalPhone: lead.additionalPhone || "",
     businessType: lead.businessType,
     industry: lead.industry || resolveIndustryName(lead.businessType) || "",
     productInterest: lead.productInterest,
@@ -518,6 +520,7 @@ export function LeadDetailModal({
         email: updated.email,
         additionalEmail: updated.additionalEmail || "",
         phone: updated.phone,
+        additionalPhone: updated.additionalPhone || "",
         businessType: updated.businessType,
         industry: updated.industry || resolveIndustryName(updated.businessType) || "",
         productInterest: updated.productInterest,
@@ -1226,6 +1229,7 @@ export function LeadDetailModal({
                 <Phone className="w-3.5 h-3.5" />
                 <span className="truncate">{lead.phone}</span>
               </button>
+              {lead.additionalPhone && <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("azera:dial", { detail: { target: { leadId: lead.id }, name: lead.fullName, phone: lead.additionalPhone } }))} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-retail transition-colors"><Phone className="w-3.5 h-3.5" /><span className="truncate">Alternate: {lead.additionalPhone}</span></button>}
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Calendar className="w-3.5 h-3.5" />
                 <span>{new Date(lead.submittedAt).toLocaleDateString()}</span>
@@ -1415,6 +1419,10 @@ export function LeadDetailModal({
                     onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
                     className={inputClass}
                   />
+                </div>
+                <div>
+                  <label className={labelClass}>Additional phone</label>
+                  <input type="tel" value={editForm.additionalPhone} onChange={(e) => setEditForm((p) => ({ ...p, additionalPhone: e.target.value }))} className={inputClass} placeholder="+234..." />
                 </div>
                 <div>
                   <label className={labelClass}>Business Type *</label>

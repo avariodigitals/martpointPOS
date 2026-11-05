@@ -16,18 +16,23 @@ export async function notifySupportAgents(input: {
 
   if (!isSupabaseConfigured()) return
 
-  await notifyAllAdmins({
-    type: "OMNICHANNEL_INBOUND",
-    title: input.title,
-    message: input.message,
-    deep_link: input.deepLink,
-    source_type: "azera_conversation",
-    source_id: input.sourceId,
-    roles: input.queue === "sales" ? ["Admin", "Sales"] : ["Admin", "Customer Care", "Tech"],
-    email: {
-      route: input.queue === "sales" ? "lead_submission" : "support_ticket",
-      subject: input.title,
-      text: `${input.title}\n\n${input.message}\n\nOpen the conversation in the Admin Portal:\n${contactCentreUrl(input.deepLink)}`,
-    },
-  })
+  try {
+    await notifyAllAdmins({
+      type: "OMNICHANNEL_INBOUND",
+      title: input.title,
+      message: input.message,
+      deep_link: input.deepLink,
+      source_type: "azera_conversation",
+      source_id: input.sourceId,
+      roles: input.queue === "sales" ? ["Admin", "Sales"] : ["Admin", "Customer Care", "Tech"],
+      email: {
+        route: input.queue === "sales" ? "lead_submission" : "support_ticket",
+        subject: input.title,
+        text: `${input.title}\n\n${input.message}\n\nOpen the conversation in the Admin Portal:\n${contactCentreUrl(input.deepLink)}`,
+      },
+    })
+  } catch (error) {
+    // Notification delivery is best-effort and must not fail a visitor's chat.
+    console.error("[Azera chat notification failed]", error)
+  }
 }

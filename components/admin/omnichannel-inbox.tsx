@@ -300,6 +300,8 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
       setCurrentAgentId(json.userId || json.agent?.user_id || null);
       if (Array.isArray(json.agent?.queues) && json.agent.queues.length)
         setAgentQueues(json.agent.queues);
+      else if (Array.isArray(json.defaultQueues) && json.defaultQueues.length)
+        setAgentQueues(json.defaultQueues);
     }
     void loadPresence();
     const timer = window.setInterval(() => void loadPresence(), 30000);
@@ -364,6 +366,15 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
     if (!response.ok)
       throw new Error(json.error || "Could not update agent status");
     setAgentOnline(Boolean(json.agent?.is_online));
+  }
+
+  function toggleAgentQueue(queue: string) {
+    setAgentQueues((current) => {
+      const next = current.includes(queue)
+        ? current.filter((item) => item !== queue)
+        : [...current, queue];
+      return next.length ? next : current;
+    });
   }
 
   async function acceptCall() {
@@ -911,6 +922,29 @@ function OmnichannelInboxContent({ channel = "all" }: { channel?: Channel }) {
           </button>
         </div>
       </header>
+
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-medium text-slate-600">Available for:</span>
+        {([
+          ["sales", "Sales"],
+          ["support", "Technical support"],
+          ["customer_support", "Customer support"],
+        ] as const).map(([queue, label]) => {
+          const selected = agentQueues.includes(queue);
+          return (
+            <button
+              key={queue}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => toggleAgentQueue(queue)}
+              className={`rounded-full border px-3 py-1.5 font-semibold ${selected ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500"}`}
+            >
+              {label}
+            </button>
+          );
+        })}
+        <span className="text-slate-500">Your selected queues are used when you go online.</span>
+      </div>
 
       <div className="grid grid-cols-3 gap-3 md:grid-cols-7">
         <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">

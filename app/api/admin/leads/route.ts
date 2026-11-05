@@ -8,6 +8,7 @@ import { resolveIndustryName } from "@/lib/industries"
 import type { StoredEstimate } from "@/lib/estimate-calculator"
 import { normalizeLeadSource } from "@/lib/lead-sources"
 import { notifyAdminUser, notifyAllAdmins } from "@/lib/admin-notifications"
+import { normalizeCommunicationPhone } from "@/lib/communications-policy"
 
 interface LeadRecord {
   id: string
@@ -16,6 +17,7 @@ interface LeadRecord {
   email: string
   additionalEmail?: string | null
   phone: string
+  additionalPhone?: string | null
   businessType: string
   industry?: string
   productInterest: string
@@ -72,6 +74,7 @@ export async function GET() {
     email: row.email,
     additionalEmail: row.additional_email ?? null,
     phone: row.phone,
+    additionalPhone: row.additional_phone ?? null,
     businessType: row.business_type,
     industry: resolveIndustryName((row.industry as string | null) || row.business_type),
     productInterest: row.product_interest,
@@ -121,6 +124,7 @@ export async function PUT(request: Request) {
       businessName,
       email,
       phone,
+      additionalPhone,
       businessType,
       industry,
       productInterest,
@@ -135,7 +139,6 @@ export async function PUT(request: Request) {
     if (additionalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(additionalEmail)) {
       return NextResponse.json({ error: "Additional email must be a valid email address" }, { status: 400 })
     }
-
     if (!id) {
       return NextResponse.json({ error: "Lead ID is required" }, { status: 400 })
     }
@@ -159,6 +162,11 @@ export async function PUT(request: Request) {
     if (email !== undefined) updateData.email = email
     if (additionalEmail !== undefined) updateData.additional_email = additionalEmail || null
     if (phone !== undefined) updateData.phone = phone
+    if (additionalPhone !== undefined) {
+      const normalized = additionalPhone ? normalizeCommunicationPhone(String(additionalPhone)) : ""
+      if (additionalPhone && !normalized) return NextResponse.json({ error: "Additional phone must be a valid international or Nigerian phone number" }, { status: 400 })
+      updateData.additional_phone = normalized || null
+    }
     if (businessType !== undefined) updateData.business_type = businessType
     if (industry !== undefined) updateData.industry = industry ? resolveIndustryName(industry) : null
     if (productInterest !== undefined) updateData.product_interest = productInterest
@@ -187,6 +195,7 @@ export async function PUT(request: Request) {
       email: data.email,
       additionalEmail: data.additional_email ?? null,
       phone: data.phone,
+      additionalPhone: data.additional_phone ?? null,
       businessType: data.business_type,
       industry: data.industry ?? resolveIndustryName(data.business_type),
       productInterest: data.product_interest,
@@ -270,6 +279,7 @@ export async function POST(request: Request) {
       email,
       additionalEmail,
       phone,
+      additionalPhone,
       businessType,
       industry,
       productInterest,
@@ -286,6 +296,8 @@ export async function POST(request: Request) {
     if (additionalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(additionalEmail)) {
       return NextResponse.json({ error: "Additional email must be a valid email address" }, { status: 400 })
     }
+    const normalizedAdditionalPhone = additionalPhone ? normalizeCommunicationPhone(String(additionalPhone)) : ""
+    if (additionalPhone && !normalizedAdditionalPhone) return NextResponse.json({ error: "Additional phone must be a valid international or Nigerian phone number" }, { status: 400 })
 
     if (!fullName || !businessName || !email || !phone || !businessType || !productInterest || !branches || !staffSize) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -302,6 +314,7 @@ export async function POST(request: Request) {
       email,
       additionalEmail: additionalEmail || null,
       phone,
+      additionalPhone: normalizedAdditionalPhone || null,
       businessType,
       industry: resolvedIndustry,
       productInterest,
@@ -326,6 +339,7 @@ export async function POST(request: Request) {
         email,
         additional_email: additionalEmail || null,
         phone,
+        additional_phone: normalizedAdditionalPhone || null,
         business_type: businessType,
         industry: resolvedIndustry,
         product_interest: productInterest,

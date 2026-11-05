@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
-import { Phone, PhoneIncoming, PhoneOff, Mic, MicOff, Pause, Play, X, ArrowRightLeft, Users, Home, MessageSquare, ContactRound, Settings, BarChart3, Megaphone, Headphones, Search, RefreshCw, ChevronDown, Mail } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Phone, PhoneIncoming, PhoneOff, Mic, MicOff, Pause, Play, X, ArrowRightLeft, Users, Home, MessageSquare, ContactRound, Settings, BarChart3, Megaphone, Search, RefreshCw, ChevronDown, ChevronUp, Mail } from "lucide-react";
 import { AfricaIncomingPhone, type IncomingPhoneState } from "@/lib/africa-incoming-phone";
 import { normalizeDialNumber, normalizeSipAddress, type BrowserDialRequest } from "@/lib/browser-phone-target";
 import { AzeraOutboundCall, type OutboundContact } from "@/components/admin/azera-outbound-call";
 import { AssignedVoiceCampaigns } from "@/components/admin/assigned-voice-campaigns";
-import { MediaCallWorkspace } from "@/components/admin/media-call-workspace"
 import { AdminAvatar } from "@/components/admin/admin-avatar";
 
 const departments = [["sales", "Sales"], ["support", "Support"], ["onboarding", "Onboarding"], ["customer_support", "General enquiries"]] as const;
@@ -27,15 +27,17 @@ type Workspace = {
   period: string;
   phonebook: { groups: { id: string; name: string; count: number }[]; contacts: PhonebookContact[] };
 };
-export function AfricaBrowserPhone({ userName }: { userName: string }) {
+export function AfricaBrowserPhone({ userName, dedicated = false }: { userName: string; dedicated?: boolean }) {
   const phone = useRef<AfricaIncomingPhone | null>(null);
   const enabled = useRef(false);
   const outbound = useRef(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(dedicated);
   const [closing, setClosing] = useState(false);
+  const [portalMounted, setPortalMounted] = useState(false);
+  const [callClock, setCallClock] = useState(() => Date.now());
   const [tab, setTab] = useState<"dial" | "receive">("receive");
   const [appTab, setAppTab] = useState<"home" | "messages" | "people" | "settings">("home");
-  const [settingsPanel, setSettingsPanel] = useState<"voice" | "supervisor" | null>(null);
+  const [settingsPanel, setSettingsPanel] = useState<"voice" | null>(null);
   const [showAllCalls, setShowAllCalls] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [workspaceError, setWorkspaceError] = useState("");
@@ -62,7 +64,24 @@ export function AfricaBrowserPhone({ userName }: { userName: string }) {
   const [assignmentError, setAssignmentError] = useState("");
   const [panelPosition, setPanelPosition] = useState<{ left: number; top: number } | null>(null);
   const drag = useRef<{ pointerId: number; x: number; y: number; left: number; top: number; width: number; height: number } | null>(null);
+  const minimizeTimer = useRef<number | null>(null);
   const selected = useRef(queues);
+  const finishMinimize = () => {
+    if (minimizeTimer.current !== null) window.clearTimeout(minimizeTimer.current);
+    minimizeTimer.current = null;
+    setOpen(false);
+    setClosing(false);
+  };
+  const showPhone = () => {
+    if (minimizeTimer.current !== null) window.clearTimeout(minimizeTimer.current);
+    minimizeTimer.current = null;
+    setClosing(false);
+    setOpen(true);
+  };
+  useEffect(() => { const timer = window.setTimeout(() => setPortalMounted(true), 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => () => {
+    if (minimizeTimer.current !== null) window.clearTimeout(minimizeTimer.current);
+  }, []);
   useEffect(() => { selected.current = queues; }, [queues]);
   const [state, setState] = useState<IncomingPhoneState>({ state: "off", call: null, error: null, held: false, muted: false, audioBlocked: false });
   const loadWorkspace = useCallback(async () => {
@@ -96,10 +115,10 @@ export function AfricaBrowserPhone({ userName }: { userName: string }) {
   useEffect(() => {
     const current = new AfricaIncomingPhone(value => {
       setState(value);
-      if (value.state === "ringing") { setClosing(false); setOpen(true); setAppTab("home"); }
+      if (value.state === "ringing") { showPhone(); setAppTab("home"); }
       if (value.state === "error" && !value.retrying) {
         enabled.current = false;
-        setClosing(false); setOpen(true);
+        showPhone();
       }
     });
     phone.current = current;
@@ -122,7 +141,7 @@ export function AfricaBrowserPhone({ userName }: { userName: string }) {
     const prepareDial = (event: Event) => {
       const detail = (event as CustomEvent<BrowserDialRequest>).detail;
       if (!detail?.target || typeof detail.phone !== "string" || typeof detail.name !== "string") return;
-      setClosing(false); setOpen(true); setTab("dial");
+      showPhone(); setTab("dial");
       if (outbound.current || ["ringing", "active"].includes(current.snapshot.state)) {
         setDialError("Finish or decline the current call before calling a creator."); return;
       }
@@ -143,8 +162,15 @@ export function AfricaBrowserPhone({ userName }: { userName: string }) {
       void current.stop(true); phone.current = null;
     };
   }, [loadAssignment]);
-  const minimizePhone = () => setClosing(true);
+  const minimizePhone = () => {
+    if (minimizeTimer.current !== null) window.clearTimeout(minimizeTimer.current);
+    setClosing(true);
+    minimizeTimer.current = window.setTimeout(finishMinimize, 280);
+  };
   const inCall = ["ringing", "active"].includes(state.state);
+  useEffect(() => { if (state.state !== "active") return; const timer = window.setInterval(() => setCallClock(Date.now()), 1000); return () => window.clearInterval(timer); }, [state.state]);
+  const callSeconds = state.call?.answered_at ? Math.max(0, Math.floor((callClock - Date.parse(state.call.answered_at)) / 1000)) : 0;
+  const callDuration = `${String(Math.floor(callSeconds / 60)).padStart(2, "0")}:${String(callSeconds % 60).padStart(2, "0")}`;
   const connected = ["connecting", "ready", "ringing", "active"].includes(state.state);
   const callMinutes = workspace?.callStats.minutes || 0;
   const inboundShare = callMinutes ? (workspace?.callStats.inboundMinutes || 0) / callMinutes : 0;
@@ -172,7 +198,6 @@ export function AfricaBrowserPhone({ userName }: { userName: string }) {
     return () => controller.abort();
   }, [contactThread]);
   const beginPanelDrag = (event: PointerEvent<HTMLDivElement>) => {
-    if (window.innerWidth < 768) return;
     if ((event.target as HTMLElement).closest("button")) return;
     const panel = event.currentTarget.closest("section");
     if (!panel) return;
@@ -215,15 +240,20 @@ export function AfricaBrowserPhone({ userName }: { userName: string }) {
     } catch (error) { setControlMessage(error instanceof Error ? error.message : "Could not prepare call control."); }
     finally { setControlBusy(false); }
   };
-  return <div className="relative">
-    <button type="button" aria-label={`${open ? "Minimise" : "Open"} softphone${state.state === "ready" ? ": available" : inCall ? ": call in progress" : ": offline"}`} aria-expanded={open && !closing} onClick={() => { if (open) { minimizePhone(); return; } setClosing(false); setOpen(true); void loadAssignment(); }} className={`relative flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-[#3037b1] to-[#6576ed] text-white shadow-md shadow-indigo-900/20 ring-1 ring-white/80 transition hover:scale-105 hover:shadow-lg ${inCall ? "ring-2 ring-blue-300" : ""}`}>
-      <Phone className="h-[18px] w-[18px]" />{(inCall || state.state === "ready") && <span className={`absolute right-0 top-0 h-3 w-3 rounded-full ring-2 ring-white ${inCall ? "animate-pulse bg-blue-500" : "bg-emerald-400"}`} />}
-    </button>
-    {open && <section aria-label="Softphone" aria-hidden={closing} onAnimationEnd={event => { if (closing && event.target === event.currentTarget) { setOpen(false); setClosing(false); } }} style={{ ...(panelPosition ? { left: panelPosition.left, top: panelPosition.top, right: "auto" } : {}), animation: `${closing ? "softphone-minimize" : "softphone-expand"} 240ms cubic-bezier(.2,.8,.2,1) both`, transformOrigin: "top right" }} className={`softphone-motion fixed right-3 top-3 z-[90] flex h-[min(48rem,calc(100dvh-1.5rem))] w-[min(23rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[2.6rem] border-[6px] border-[#3037b1] bg-[#f7f8ff] shadow-[0_24px_70px_rgba(34,42,145,0.38)] md:right-4 md:top-20 md:h-[min(48rem,calc(100dvh-6rem))] md:w-[min(24rem,calc(100vw-2rem))] ${closing ? "pointer-events-none" : ""}`}>
-      <div onPointerDown={beginPanelDrag} onPointerMove={movePanel} onPointerUp={endPanelDrag} onPointerCancel={endPanelDrag} style={{ touchAction: "none" }} className="relative flex cursor-move items-center justify-between gap-3 overflow-hidden bg-gradient-to-br from-[#3037b1] via-[#4654d5] to-[#737cf4] px-5 py-4 text-white">
+  const floatingUI = <>
+    {!dedicated && !open && inCall && <section aria-label="Minimised call controls" className="fixed bottom-5 left-5 z-[91] w-[min(23rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-2xl shadow-slate-900/20">
+      <div className="flex min-h-10 items-center gap-2 bg-gradient-to-r from-[#3037b1] to-[#6576ed] px-3 text-white"><span className={`h-2 w-2 shrink-0 rounded-full ${state.state === "ringing" ? "animate-pulse bg-amber-300" : "bg-emerald-300"}`} /><span className="min-w-0 flex-1 truncate text-xs font-semibold">{state.state === "ringing" ? "Incoming call" : "Online (On call…)"}</span><button type="button" aria-label="Expand softphone" onClick={() => { showPhone(); setAppTab("home"); }} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/15"><ChevronUp className="h-4 w-4" /></button><button type="button" aria-label="Open phone settings" onClick={() => { showPhone(); setAppTab("settings"); }} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/15"><Settings className="h-4 w-4" /></button></div>
+      <div className="flex items-center gap-3 p-3"><AdminAvatar name={state.call?.caller?.name || "Caller"} className="h-11 w-11 shrink-0 rounded-full bg-indigo-100 text-xs font-bold text-indigo-700" fallbackClassName="relative z-10" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-900">{state.call?.caller?.name || state.call?.customer_phone || "Unknown caller"}</p><p className="truncate text-xs text-slate-500">{state.call?.caller?.businessName || state.call?.customer_phone || ""}</p></div><span className="shrink-0 font-mono text-sm font-medium text-slate-700">{state.state === "active" ? callDuration : "Ringing"}</span></div>
+      <div className="flex items-center justify-around border-t border-slate-100 px-2 py-2">{state.state === "ringing" ? <><button type="button" aria-label="Answer call" onClick={() => void phone.current?.answer()} className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><PhoneIncoming className="h-5 w-5" /></button><button type="button" aria-label="Decline call" onClick={() => void phone.current?.end()} className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-700"><PhoneOff className="h-5 w-5" /></button></> : <><button type="button" aria-label={state.muted ? "Unmute call" : "Mute call"} onClick={() => phone.current?.mute()} className={`flex h-10 w-10 items-center justify-center rounded-xl ${state.muted ? "bg-rose-50 text-rose-700" : "bg-slate-50 text-slate-600"}`}>{state.muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button><button type="button" aria-label={state.held ? "Resume call" : "Hold call"} onClick={() => phone.current?.hold()} className={`flex h-10 w-10 items-center justify-center rounded-xl ${state.held ? "bg-indigo-50 text-indigo-700" : "bg-slate-50 text-slate-600"}`}>{state.held ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}</button><button type="button" aria-label="End call" onClick={() => void phone.current?.end()} className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-700"><PhoneOff className="h-5 w-5" /></button></>}</div>
+    </section>}
+    {!dedicated && !open && !inCall && <button type="button" aria-label={`Open softphone${state.state === "ready" ? ": available" : ": offline"}`} aria-expanded={false} onClick={() => { showPhone(); void loadAssignment(); }} className={`fixed bottom-5 left-5 z-[91] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#3037b1] to-[#6576ed] text-white shadow-xl shadow-indigo-900/30 ring-2 ring-white transition hover:scale-105 hover:shadow-2xl ${state.state === "ready" ? "ring-emerald-300" : ""}`}>
+      <Phone className="h-6 w-6" />{state.state === "ready" && <span className="absolute right-0 top-0 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-white" />}
+    </button>}
+    {open && <section aria-label={dedicated ? "Contact Centre phone workspace" : "Softphone"} aria-hidden={closing} onAnimationEnd={event => { if (closing && event.target === event.currentTarget) finishMinimize(); }} style={dedicated ? undefined : { ...(panelPosition ? { left: panelPosition.left, top: panelPosition.top, right: "auto", bottom: "auto" } : {}), animation: `${closing ? "softphone-minimize" : "softphone-expand"} 240ms cubic-bezier(.2,.8,.2,1) both`, transformOrigin: "bottom left" }} className={`softphone-motion ${dedicated ? "relative mx-auto flex h-[min(52rem,calc(100dvh-12rem))] min-h-[520px] w-full flex-col overflow-hidden rounded-[2rem] border-[5px] border-[#3037b1] bg-[#f7f8ff] shadow-[0_24px_70px_rgba(34,42,145,0.22)]" : "fixed bottom-4 left-4 z-[90] flex h-[min(48rem,calc(100dvh-2rem))] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[2.6rem] border-[6px] border-[#3037b1] bg-[#f7f8ff] shadow-[0_24px_70px_rgba(34,42,145,0.38)] md:bottom-5 md:left-5 md:h-[min(48rem,calc(100dvh-2.5rem))] md:w-[min(24rem,calc(100vw-2.5rem))]"} ${closing ? "pointer-events-none" : ""}`}>
+      <div onPointerDown={dedicated ? undefined : beginPanelDrag} onPointerMove={dedicated ? undefined : movePanel} onPointerUp={dedicated ? undefined : endPanelDrag} onPointerCancel={dedicated ? undefined : endPanelDrag} style={dedicated ? undefined : { touchAction: "none" }} className={`relative flex items-center justify-between gap-3 overflow-hidden bg-gradient-to-br from-[#3037b1] via-[#4654d5] to-[#737cf4] px-5 py-4 text-white ${dedicated ? "" : "cursor-move"}`}>
         <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full border-[18px] border-white/10" />
         <div className="flex min-w-0 items-center gap-3"><AdminAvatar name={userName} ariaLabel={`${userName}'s profile avatar. Phone status: ${inCall ? "on a call" : state.state === "ready" ? "available" : state.state === "error" ? "needs attention" : "offline"}`} className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#b3c0ff] to-white text-sm font-bold text-[#1b26bd] shadow-inner ring-1 ring-white/40" fallbackClassName="relative z-10" statusDotClassName={inCall ? "animate-pulse bg-blue-400" : state.state === "ready" ? "bg-emerald-400" : state.state === "error" ? "bg-amber-400" : "bg-slate-300"} /><div className="min-w-0"><h2 className="truncate text-lg font-semibold tracking-tight">Conversations</h2><p className="truncate text-[11px] text-indigo-100">{userName}</p></div></div>
-        <button type="button" aria-label="Minimise phone" onPointerDown={event => event.stopPropagation()} onClick={minimizePhone} className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition hover:bg-white/20"><X className="h-4 w-4" /></button>
+        {!dedicated && <button type="button" aria-label="Minimise phone" onPointerDown={event => event.stopPropagation()} onClick={minimizePhone} className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition hover:bg-white/20"><X className="h-4 w-4" /></button>}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-6">
       {appTab === "home" ? <div className="space-y-4">
@@ -267,11 +297,10 @@ export function AfricaBrowserPhone({ userName }: { userName: string }) {
       </div> : appTab === "messages" ? contactThread ? <div className="space-y-4"><div className="flex items-center gap-3"><button type="button" onClick={() => { setContactThread(null); setThreadData(null); setThreadLoading(false); }} className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-sm font-semibold text-indigo-700">← Back</button><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{contactThread.contact.name}</p><p className="text-xs text-slate-500">{contactThread.kind === "email" ? contactThread.contact.email : contactThread.contact.phone}</p></div></div><h3 className="text-lg font-semibold text-slate-900">{contactThread.kind === "email" ? "Email thread" : "Message thread"}</h3>{threadLoading ? <p className="rounded-2xl border border-indigo-100 bg-white p-5 text-center text-sm text-slate-500">Loading conversation…</p> : threadError ? <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{threadError}</p> : contactThread.kind === "email" ? threadData?.emails?.length ? threadData.emails.map(email => <article key={email.id} className="rounded-2xl border border-indigo-100 bg-white p-3 shadow-sm"><div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold capitalize text-indigo-700">{email.direction || "Email"}</p><time className="text-[10px] text-slate-400">{email.createdAt ? new Date(email.createdAt).toLocaleString() : ""}</time></div><p className="mt-1 text-sm font-semibold text-slate-900">{email.subject || "No subject"}</p><p className="mt-1 text-[11px] text-slate-500">{email.direction === "inbound" ? email.fromEmail : email.toEmail}</p><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-5 text-slate-700">{email.bodyText || email.bodyHtml?.replace(/<[^>]*>/g, " ") || "Email content is unavailable."}</p></article>) : <p className="rounded-2xl border border-dashed border-indigo-200 bg-white p-6 text-center text-sm text-slate-500">No email thread is available for this contact yet.</p> : threadData?.messages?.length ? threadData.messages.map(message => <article key={message.id} className={`max-w-[90%] rounded-2xl p-3 text-sm leading-5 ${message.direction === "outbound" ? "ml-auto bg-indigo-600 text-white" : "border border-indigo-100 bg-white text-slate-700"}`}><p className="whitespace-pre-wrap break-words">{message.message}</p><time className={`mt-2 block text-right text-[10px] ${message.direction === "outbound" ? "text-indigo-100" : "text-slate-400"}`}>{new Date(message.created_at).toLocaleString()}</time></article>) : <p className="rounded-2xl border border-dashed border-indigo-200 bg-white p-6 text-center text-sm text-slate-500">No messages are available for this contact yet.</p>}</div> : <div className="space-y-4"><div><p className="text-xs font-medium text-slate-500">Contact conversations</p><h3 className="text-xl font-semibold text-slate-900">Messages</h3></div><p className="rounded-2xl border border-dashed border-indigo-200 bg-white p-6 text-center text-sm leading-6 text-slate-500">Open a contact from Phone book to view their message or email conversation. SMS campaigns are managed in the main app.</p></div> : appTab === "people" ? <div className="space-y-4"><div><p className="text-xs font-medium text-slate-500">Your saved contacts</p><h3 className="text-xl font-semibold text-slate-900">Phone book</h3></div><label className="flex items-center gap-2 rounded-xl border border-indigo-100 bg-white px-3"><Search className="h-4 w-4 text-slate-400"/><input aria-label="Search contacts" value={searchContacts} onChange={event => setSearchContacts(event.target.value)} placeholder="Search name, number or group" className="min-h-11 w-full bg-transparent text-sm outline-none"/></label><div className="flex gap-2 overflow-x-auto pb-1"><button type="button" aria-pressed={selectedGroup === "all"} onClick={() => setSelectedGroup("all")} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${selectedGroup === "all" ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-700"}`}>All · {workspace?.phonebook.contacts.length || 0}</button>{workspace?.phonebook.groups.map(group => <button key={group.id} type="button" aria-pressed={selectedGroup === group.id} onClick={() => setSelectedGroup(group.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${selectedGroup === group.id ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-700"}`}>{group.name} · {group.count}</button>)}</div>{filteredContacts.map(contact => <article key={contact.id} className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-white p-3 shadow-sm"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-100 to-blue-100 text-sm font-bold text-indigo-700">{contact.name.slice(0,1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-900">{contact.name}</p><p className="truncate text-xs text-slate-500">{contact.phone || contact.email} · {contact.group}</p></div><div className="flex shrink-0 items-center gap-1">{contact.phone && <><button type="button" aria-label={`Call ${contact.name}`} onClick={() => { setName(contact.name); setNumber(contact.phone); setContext({ name: contact.name, phone: contact.phone, target: { phone: contact.phone, name: contact.name } }); setTab("dial"); setAppTab("home"); }} className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md"><Phone className="h-4 w-4"/></button><button type="button" aria-label={`Messages with ${contact.name}`} title="Messages" onClick={() => openContactThread("message", contact)} className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-50 text-indigo-700"><MessageSquare className="h-4 w-4"/></button></>}{contact.email && <button type="button" aria-label={`Email thread with ${contact.name}`} title="Email thread" onClick={() => openContactThread("email", contact)} className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-50 text-violet-700"><Mail className="h-4 w-4"/></button>}</div></article>)}{!!workspace?.phonebook.contacts.length && !filteredContacts.length && <p className="rounded-2xl border border-dashed border-indigo-200 bg-white p-6 text-center text-sm text-slate-500">No contacts match this search in the selected group.</p>}{!workspace?.phonebook.contacts.length && <div className="rounded-2xl border border-dashed border-indigo-200 bg-white p-7 text-center"><ContactRound className="mx-auto h-8 w-8 text-indigo-300"/><p className="mt-2 text-sm font-medium text-slate-700">No phone book contacts available</p><p className="mt-2 text-xs text-slate-500">Business, lead, and saved contact groups appear here when available.</p></div>}</div> : <div className="space-y-4"><div><p className="text-xs font-medium text-slate-500">Personalise your phone</p><h3 className="text-xl font-semibold text-slate-900">Settings</h3></div><div className="rounded-2xl bg-gradient-to-br from-[#3037b1] via-[#4654d5] to-[#737cf4] p-4 text-white shadow-lg"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold">Phone availability</p><p className="mt-1 text-xs text-white/75">{connected ? "You're online and can receive calls" : "Your phone is offline"}</p></div><button type="button" role="switch" aria-checked={connected} aria-label="Phone availability" disabled={assignmentLoading || inCall || state.state === "connecting" || outboundBusy || !!outgoing || (!connected && !state.retrying && !queues.length)} onClick={() => { if (connected || state.retrying) { enabled.current = false; void phone.current?.stop(); } else if (!outbound.current) { enabled.current = true; void phone.current?.start(queues); } }} className={`relative h-7 w-12 rounded-full transition ${connected ? "bg-emerald-400" : "bg-white/30"}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${connected ? "left-6" : "left-1"}`}/></button></div>{!queues.length && <p className="mt-3 text-xs text-white/80">{assignmentLoading ? "Checking your queue assignment…" : assignmentError || "Ask your administrator to assign a voice queue."}</p>}</div>
         {settingsPanel ? <div className="space-y-3">
           <button type="button" onClick={() => setSettingsPanel(null)} className="flex min-h-9 items-center gap-2 rounded-full px-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-50">← Settings</button>
-          {settingsPanel === "voice" ? <AssignedVoiceCampaigns /> : <MediaCallWorkspace />}
+          <AssignedVoiceCampaigns />
         </div> : <div className="space-y-2">
           <button type="button" onClick={() => setSettingsPanel("voice")} className="flex w-full items-center gap-3 rounded-2xl border border-indigo-100 bg-white p-4 text-left shadow-sm"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700"><Megaphone className="h-5 w-5"/></span><span className="flex-1"><strong className="block text-sm text-slate-900">My voice campaigns</strong><small className="text-xs text-slate-500">View campaigns assigned to you or your queues</small></span><ArrowRightLeft className="h-4 w-4 text-slate-400"/></button>
 
-          <button type="button" onClick={() => setSettingsPanel("supervisor")} className="flex w-full items-center gap-3 rounded-2xl border border-indigo-100 bg-white p-4 text-left shadow-sm"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><Headphones className="h-5 w-5"/></span><span className="flex-1"><strong className="block text-sm text-slate-900">Team calls</strong><small className="text-xs text-slate-500">Supervisor and coaching tools</small></span><ArrowRightLeft className="h-4 w-4 text-slate-400"/></button>
           <button type="button" onClick={() => { setAppTab("home"); setShowAllCalls(true); }} className="flex w-full items-center gap-3 rounded-2xl border border-indigo-100 bg-white p-4 text-left shadow-sm"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-fuchsia-50 text-fuchsia-700"><BarChart3 className="h-5 w-5"/></span><span className="flex-1"><strong className="block text-sm text-slate-900">Call reports</strong><small className="text-xs text-slate-500">Your call history and performance</small></span><ArrowRightLeft className="h-4 w-4 text-slate-400"/></button>
         </div>}
       </div>}
@@ -279,5 +308,8 @@ export function AfricaBrowserPhone({ userName }: { userName: string }) {
       <nav aria-label="Softphone navigation" className="grid shrink-0 grid-cols-4 border-t border-indigo-100 bg-white px-2 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2">{[{ id: "home", label: "Home", Icon: Home }, { id: "messages", label: "Messages", Icon: MessageSquare }, { id: "people", label: "People", Icon: Users }, { id: "settings", label: "Settings", Icon: Settings }].map(({ id, label, Icon }) => <button key={id} type="button" aria-pressed={appTab === id} onClick={() => { setSettingsPanel(null); if (id !== "messages") { setContactThread(null); setThreadData(null); setThreadLoading(false); } setAppTab(id as typeof appTab); }} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium transition ${appTab === id ? "text-indigo-700" : "text-slate-400"}`}><Icon className={`h-5 w-5 ${appTab === id ? "fill-indigo-100" : ""}`}/>{label}</button>)}</nav>
     </section>}
     {outgoing && <AzeraOutboundCall contact={outgoing} onClosed={() => setOutgoing(null)} />}
-  </div>;
+  </>;
+  if (dedicated) return <div className="mx-auto w-full max-w-2xl">{floatingUI}</div>;
+  if (!portalMounted || typeof document === "undefined") return null;
+  return createPortal(floatingUI, document.body);
 }

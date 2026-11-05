@@ -29,7 +29,12 @@ export async function GET() {
   }))).filter((row): row is NonNullable<typeof row> => Boolean(row))
   const own = await supabase.from("azera_agent_presence").select("user_id, queues, is_online, last_seen_at").eq("user_id", current.userId).maybeSingle()
   const agent = own.data ? { ...own.data, is_online: own.data.is_online && Date.parse(own.data.last_seen_at) > Date.now() - 90_000 } : null
-  return NextResponse.json({ userId: current.userId, agent, online }, { headers: { "Cache-Control": "no-store" } })
+  const defaultQueues = current.role === "Sales"
+    ? ["sales"]
+    : current.role === "Customer Care"
+      ? ["customer_support", "support"]
+      : ["sales", "support", "customer_support"]
+  return NextResponse.json({ userId: current.userId, agent, defaultQueues, online }, { headers: { "Cache-Control": "no-store" } })
 }
 
 export async function POST(request: Request) {

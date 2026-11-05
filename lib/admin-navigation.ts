@@ -75,6 +75,7 @@ export const ADMIN_SECTION_ORDER = [
   "Approvals & Workflows",
   "Finance",
   "Onboarding & Customers",
+  "Contact Centre",
   "Support & Inbox",
   "Operations",
   "People & Careers",
@@ -406,6 +407,35 @@ export const adminNavItems: AdminNavItem[] = [
     section: "Onboarding & Customers"
   },
 
+  // Contact Centre
+  {
+    href: "/admin/azera/calls",
+    label: "My Phone",
+    icon: PhoneCall,
+    page: "azera",
+    section: "Contact Centre"
+  },
+  {
+    href: "/admin/azera/campaigns",
+    label: "Voice Campaigns",
+    icon: Megaphone,
+    page: "azera",
+    section: "Contact Centre"
+  },
+  {
+    href: "/admin/azera/voicemails",
+    label: "Voicemails",
+    icon: FileAudio,
+    page: "azera",
+    section: "Contact Centre"
+  },
+  {
+    href: "/admin/azera/reports",
+    label: "Call Reports",
+    icon: BarChart3,
+    page: "azera",
+    section: "Contact Centre"
+  },
   // Support & Inbox
   {
     href: "/admin/support",
@@ -419,27 +449,6 @@ export const adminNavItems: AdminNavItem[] = [
     label: "Azera Chat",
     icon: MessageCircle,
     page: "azera",
-    section: "Support & Inbox"
-  },
-  {
-    href: "/admin/azera/voicemails",
-    label: "Voicemails",
-    icon: FileAudio,
-    page: "azera",
-    section: "Support & Inbox"
-  },
-  {
-    href: "/admin/azera/campaigns",
-    label: "Call Campaigns",
-    icon: Megaphone,
-    page: "azera",
-    section: "Support & Inbox"
-  },
-  {
-    href: "/admin/azera/reports",
-    label: "Call Reports",
-    icon: FileAudio,
-    page: "support",
     section: "Support & Inbox"
   },
   {

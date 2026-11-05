@@ -55,6 +55,7 @@ interface Lead {
   email: string
   additionalEmail?: string | null
   phone: string
+  additionalPhone?: string | null
   businessType: string
   industry?: string
   productInterest: string
@@ -203,6 +204,7 @@ export default function AdminLeadsPage() {
     email: "",
     additionalEmail: "",
     phone: "",
+    additionalPhone: "",
     businessType: "",
     industry: "",
     productInterest: "retail",
@@ -586,6 +588,7 @@ export default function AdminLeadsPage() {
           email: "",
           additionalEmail: "",
           phone: "",
+          additionalPhone: "",
           businessType: "",
           industry: "",
           productInterest: "retail",
@@ -1529,6 +1532,11 @@ export default function AdminLeadsPage() {
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="+234..."
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Additional phone</label>
+                <input type="tel" value={addForm.additionalPhone} onChange={(e) => setAddForm((prev) => ({ ...prev, additionalPhone: e.target.value }))} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="+234..." />
+                <p className="mt-1 text-xs text-muted-foreground">Optional alternate contact number.</p>
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">Business Type *</label>

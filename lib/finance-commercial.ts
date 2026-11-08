@@ -1338,12 +1338,13 @@ export async function getFinanceOverview(): Promise<FinanceOverview> {
 
   const in30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
   const in7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const today = new Date().toISOString().slice(0, 10)
 
   const [activeBusinesses, issued, payments, overdue, outstanding, activeSubs, licences, ren30, ren7, pendingComm] = await Promise.all([
     supabase.from("businesses").select("id", { count: "exact", head: true }).eq("status", "ACTIVE"),
     supabase.from("invoices").select("total_amount", { count: "exact", head: true }).in("status", ["ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE"]),
     supabase.from("payments").select("amount, business_id").eq("status", "CONFIRMED"),
-    supabase.from("invoices").select("balance_due").eq("status", "OVERDUE"),
+    supabase.from("invoices").select("balance_due").in("status", ["ISSUED", "PARTIALLY_PAID", "OVERDUE"]).lt("due_date", today).gt("balance_due", 0),
     supabase.from("invoices").select("balance_due").in("status", ["ISSUED", "PARTIALLY_PAID", "OVERDUE"]),
     supabase.from("subscriptions").select("business_id", { count: "exact" }).eq("status", "ACTIVE"),
     supabase.from("business_licenses").select("business_id").in("status", ["ACTIVE", "WAIVED"]),

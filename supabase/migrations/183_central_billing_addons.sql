@@ -25,10 +25,18 @@ ALTER TABLE central_billing_intents ADD COLUMN IF NOT EXISTS addon_product_id UU
 ALTER TABLE central_billing_intents ADD COLUMN IF NOT EXISTS addon_key TEXT;
 ALTER TABLE central_billing_intents ADD COLUMN IF NOT EXISTS billing_period TEXT;
 ALTER TABLE central_billing_intents ADD COLUMN IF NOT EXISTS product_details JSONB NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE central_billing_intents ADD CONSTRAINT central_billing_intent_product_check CHECK (
-  (product_type='CREDIT' AND channel IN ('sms','email') AND credit_units > 0 AND addon_product_id IS NULL)
-  OR (product_type='ADDON' AND channel IS NULL AND COALESCE(credit_units,0)=0 AND addon_product_id IS NOT NULL AND addon_key IS NOT NULL AND billing_period IS NOT NULL AND billing_period IN ('monthly','annual'))
-);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'central_billing_intents'::regclass
+      AND conname = 'central_billing_intent_product_check'
+  ) THEN
+    ALTER TABLE central_billing_intents ADD CONSTRAINT central_billing_intent_product_check CHECK (
+      (product_type='CREDIT' AND channel IN ('sms','email') AND credit_units > 0 AND addon_product_id IS NULL)
+      OR (product_type='ADDON' AND channel IS NULL AND COALESCE(credit_units,0)=0 AND addon_product_id IS NOT NULL AND addon_key IS NOT NULL AND billing_period IS NOT NULL AND billing_period IN ('monthly','annual'))
+    );
+  END IF;
+END $$;
 
 ALTER TABLE central_addon_products ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS sr_central_addon_products_all ON central_addon_products;

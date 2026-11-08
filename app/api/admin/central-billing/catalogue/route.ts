@@ -99,18 +99,26 @@ export async function POST(request: Request) {
       }
       const after = await currentCatalogue()
       const sourceHash = crypto.createHash("sha256").update(JSON.stringify({ products: after.products, addons: after.addons })).digest("hex")
-      await supabase.from("central_billing_catalogue_audit").insert({ actor_user_id: auth.session?.userId || null, source_version: sourceVersion, source_hash: sourceHash, before_snapshot: oldSnapshot, after_snapshot: { products: after.products, addons: after.addons }, central_sync_status: "PENDING" })
-      await supabase.from("central_billing_catalogue_control").update({ source_version: sourceVersion, source_hash: sourceHash, sync_status: "PENDING", updated_at: now }).eq("id", 1)
+      const { error: auditInsertError } = await supabase.from("central_billing_catalogue_audit").insert({ actor_user_id: auth.session?.userId || null, source_version: sourceVersion, source_hash: sourceHash, before_snapshot: oldSnapshot, after_snapshot: { products: after.products, addons: after.addons }, central_sync_status: "PENDING" })
+      if (auditInsertError) throw auditInsertError
+      const { error: pendingError } = await supabase.from("central_billing_catalogue_control").update({ source_version: sourceVersion, source_hash: sourceHash, sync_status: "PENDING", updated_at: now }).eq("id", 1)
+      if (pendingError) throw pendingError
     } else if (body.action !== "publish") return fail("Unknown catalogue action")
 
     if (!sourceVersion) sourceVersion = snapshot.control.source_version || `next-${Date.now()}`
     const hash = await publishCatalogue(sourceVersion)
     const syncedAt = new Date().toISOString()
-    await supabase.from("central_billing_catalogue_control").update({ price_owner: "NEXT", source_version: sourceVersion, source_hash: hash, sync_status: "SYNCED", synced_at: syncedAt, updated_at: syncedAt }).eq("id", 1)
-    await supabase.from("central_billing_catalogue_audit").update({ central_sync_status: "SYNCED" }).eq("source_version", sourceVersion)
+    const { data: savedControl, error: controlError } = await supabase.from("central_billing_catalogue_control").update({ price_owner: "NEXT", source_version: sourceVersion, source_hash: hash, sync_status: "SYNCED", synced_at: syncedAt, updated_at: syncedAt }).eq("id", 1).select("price_owner,source_version,source_hash,sync_status").maybeSingle()
+    if (controlError || savedControl?.sync_status !== "SYNCED" || savedControl.source_version !== sourceVersion || savedControl.source_hash !== hash) {
+      throw new Error("Central accepted the catalogue, but Next Admin could not confirm the saved sync status. Retry synchronization.")
+    }
+    const { error: auditError } = await supabase.from("central_billing_catalogue_audit").update({ central_sync_status: "SYNCED" }).eq("source_version", sourceVersion)
+    if (auditError) throw new Error("Catalogue synced to Central, but the Next Admin audit status could not be updated. Retry synchronization.")
     return NextResponse.json({ success: true, price_owner: "NEXT", source_version: sourceVersion, synced_at: syncedAt })
   } catch (error) {
-    await supabase.from("central_billing_catalogue_control").update({ sync_status: "FAILED", updated_at: new Date().toISOString() }).eq("id", 1)
+    console.error("[central billing catalogue sync]", error)
+    const { error: statusError } = await supabase.from("central_billing_catalogue_control").update({ sync_status: "FAILED", updated_at: new Date().toISOString() }).eq("id", 1)
+    if (statusError) console.error("[central billing catalogue status update failed]", statusError)
     return fail(error instanceof Error ? error.message : "Catalogue save or sync failed", 503)
   }
 }

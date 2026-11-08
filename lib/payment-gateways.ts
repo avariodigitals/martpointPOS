@@ -14,6 +14,16 @@ export function isPaystackConfigured() {
   return Boolean(process.env.PAYSTACK_SECRET_KEY)
 }
 
+/** Server-side transaction lookup used before a Central credit invoice is confirmed. */
+export async function verifyPaystackTransaction(reference: string): Promise<{ status: boolean; reference: string; paymentStatus: string; amountKobo: number; currency: string }> {
+  const secret = process.env.PAYSTACK_SECRET_KEY
+  if (!secret) throw new Error("Paystack not configured")
+  const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, { headers: { Authorization: `Bearer ${secret}` }, cache: "no-store" })
+  if (!response.ok) throw new Error(`Paystack verification unavailable (${response.status})`)
+  const result = await response.json() as { status?: boolean; data?: { status?: string; reference?: string; amount?: number; currency?: string } }
+  return { status: result.status === true, reference: String(result.data?.reference || ""), paymentStatus: String(result.data?.status || ""), amountKobo: Number(result.data?.amount), currency: String(result.data?.currency || "") }
+}
+
 export function isFlutterwaveConfigured() {
   return Boolean(process.env.FLUTTERWAVE_SECRET_KEY)
 }

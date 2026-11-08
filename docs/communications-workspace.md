@@ -27,6 +27,43 @@ account; this feature has no MartPoint credit or wallet dependency.
    stores the exact prepared message in History and will not send it before a
    staff member approves it.
 
+## One-off SMS campaigns and system audiences
+
+The SMS campaign composer can target individual leads, a saved SMS audience,
+or a live system audience such as leads, businesses, partner leads or partners.
+System contacts are read from their source records; sending to them does not
+copy them into `marketing_contacts`. Select contacts deliberately (up to 500
+per message batch) and confirm they have agreed to receive MartPoint SMS. A
+system-audience record does not contain an SMS opt-in field, so the confirmation
+is required each time and is not a substitute for maintaining the business's
+consent records.
+
+The communications templates include reusable SMS campaign starters:
+product announcement, special offer, event invitation/reminder, demo reminder,
+partner update, service announcement, reconnect with a contact, and quote
+follow-up about pricing. Use the quote follow-up when inviting a lead to discuss
+an offer; it does not change the quote or approve a discount. Personalise and
+preview the text before queueing it. SMS bodies are limited to 480 characters.
+The seeded templates are added by migrations 179 and 180; edits to existing
+templates are preserved when those migrations are applied.
+
+Lead records have an optional alternate phone number for staff reference. The
+existing primary phone remains the number used by lead SMS targeting and call
+campaigns; the alternate number is not silently added to campaign recipients.
+
+## Call campaign assignment
+
+An Azera follow-up campaign can be assigned to a specific browser-phone user or
+to a supported queue (Sales, Support, Onboarding or Customer Support). The campaign list displays its assignment. Use this when
+the follow-up should be owned by a named agent or queue; assignment does not change the campaign's audience, consent
+requirements, call cap or business-hours rules. The assignment fields are added
+by migration 177.
+
+For a database upgraded from before these additions, apply Supabase migrations
+177 through 181 in order. Migration 178 enables system-audience attribution for
+SMS history; migration 181 adds the optional alternate phone field to leads.
+Apply migrations 179 and 180 to seed the additional SMS templates.
+
 Set `COMMUNICATION_SMS_CALLBACK_SECRET` to a long random value and configure
 the SMS delivery callback as `/api/communications/sms/delivery?secret=<value>`
 when the provider account supports delivery callbacks. Callback reports update

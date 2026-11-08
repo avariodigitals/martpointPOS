@@ -4,7 +4,7 @@ import { z } from "zod"
 import { authorizeAdmin, hasPermissionForUser } from "@/lib/admin-auth"
 import { supabase } from "@/lib/supabase"
 import { getAiProviderStatus } from "@/lib/ai-chat"
-import { getCommunicationSmsConfig, smsConfigurationSchema } from "@/lib/communication-sms"
+import { getCommunicationSmsConfig, runNigeriaBulkSmsGatewayAction, smsConfigurationSchema } from "@/lib/communication-sms"
 import { getEmailSettings } from "@/lib/email"
 import { prepareCommunication } from "@/lib/communications"
 import { communicationChannel, communicationTemplateSchema, communicationWorkflowSchema, mergeCommunicationTemplate, normalizeCommunicationPhone } from "@/lib/communications-policy"
@@ -14,9 +14,9 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 type Context = { params: Promise<{ resource: string }> }
 async function access(resource: string) {
-  const auth = await authorizeAdmin(resource === "settings" ? "settings" : "marketing")
+  const auth = await authorizeAdmin(resource === "settings" || resource === "nigeria-gateway" ? "settings" : "marketing")
   if (auth.denied) return auth
-  if (resource !== "settings" && !await hasPermissionForUser(auth.session.userId, auth.session.role, "leads")) return { session: null, denied: NextResponse.json({ error: "Lead access is required" }, { status: 403 }) }
+  if (resource !== "settings" && resource !== "nigeria-gateway" && !await hasPermissionForUser(auth.session.userId, auth.session.role, "leads")) return { session: null, denied: NextResponse.json({ error: "Lead access is required" }, { status: 403 }) }
   return auth
 }
 function problem(error: unknown) { return NextResponse.json({ error: error instanceof Error ? error.message : "Communications could not be loaded" }, { status: 400 }) }
@@ -34,7 +34,7 @@ export async function GET(_request: Request, context: Context) {
   try {
     if (resource === "settings") {
       const sms = await getCommunicationSmsConfig()
-      return NextResponse.json({ sms: { ...sms, apiKey: undefined, configured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)) } })
+      return NextResponse.json({ sms: { ...sms, apiKey: undefined, password: undefined, configured: Boolean(sms.sender && (sms.provider === "africastalking" ? sms.apiKey && sms.username : sms.provider === "nigeriabulksms" ? sms.username && sms.password : sms.apiKey)) } })
     }
     if (resource !== "workspace") return NextResponse.json({ error: "Unknown resource" }, { status: 404 })
     const results = await Promise.all([
@@ -86,7 +86,7 @@ export async function GET(_request: Request, context: Context) {
         if (page.contacts.length < 100) break
       }
     }
-    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts, smsSystemAudiences, smsSystemContacts, smsSuppressions: smsSuppressions.data || [], providers: { email: email.provider, sms: sms.provider, smsSender: sms.sender || "", smsConfigured: Boolean(sms.apiKey && sms.sender && (sms.provider !== "africastalking" || sms.username)), ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
+    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts, smsSystemAudiences, smsSystemContacts, smsSuppressions: smsSuppressions.data || [], providers: { email: email.provider, sms: sms.provider, smsSender: sms.sender || "", smsConfigured: Boolean(sms.sender && (sms.provider === "africastalking" ? sms.apiKey && sms.username : sms.provider === "nigeriabulksms" ? sms.username && sms.password : sms.apiKey)), ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
   } catch (error) { return problem(error) }
 }
 export async function POST(request: Request, context: Context) {
@@ -95,14 +95,25 @@ export async function POST(request: Request, context: Context) {
   if (auth.denied) return auth.denied
   try {
     const body = await request.json()
+    if (resource === "nigeria-gateway") {
+      const parsed = z.object({
+        operation: z.enum(["call", "tts", "audio", "upload", "data"]),
+        to: z.string().max(40).optional(), message: z.string().max(1000).optional(), callerId: z.string().max(40).optional(),
+        audioReference: z.string().max(200).optional(), audioUrl: z.url().max(2000).optional(),
+        action: z.enum(["login", "profile", "balance", "contacts", "numbers", "groups", "audios", "history", "scheduled", "reports", "payments"]).optional(),
+      }).parse(body)
+      const result = await runNigeriaBulkSmsGatewayAction(parsed)
+      return NextResponse.json(result, { status: result.ok ? 200 : 400 })
+    }
     if (resource === "settings") {
       const parsed = smsConfigurationSchema.parse(body)
       const { data, error } = await supabase.from("settings").select("data").eq("id", 1).single()
       if (error || !data) throw new Error("Could not load provider settings")
       const existing = data.data || {}
       const previous = existing.communications?.sms || {}
-      if (parsed.provider !== previous.provider && !parsed.apiKey && parsed.provider === "bulksmsnigeria" && !process.env.BULKSMSNIGERIA_API_TOKEN) throw new Error("Enter the BulkSMSNigeria API token when changing providers")
-      const sms = { ...parsed, apiKey: parsed.apiKey || (parsed.provider === previous.provider ? previous.apiKey : "") || "" }
+      if (parsed.provider !== previous.provider && parsed.provider === "bulksmsnigeria" && !parsed.apiKey && !process.env.BULKSMSNIGERIA_API_TOKEN) throw new Error("Enter the BulkSMSNigeria API token when changing providers")
+      if (parsed.provider === "nigeriabulksms" && (!parsed.username || (!parsed.password && !(parsed.provider === previous.provider && previous.password)))) throw new Error("Enter your Nigeria Bulk SMS username and password")
+      const sms = { ...parsed, apiKey: parsed.apiKey || (parsed.provider === previous.provider ? previous.apiKey : "") || "", password: parsed.password || (parsed.provider === previous.provider ? previous.password : "") || "" }
       const saved = await supabase.from("settings").update({ data: { ...existing, communications: { ...existing.communications, sms } } }).eq("id", 1)
       if (saved.error) throw new Error("Could not save SMS settings")
       const { revalidateTag } = await import("next/cache")

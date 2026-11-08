@@ -108,6 +108,7 @@ export default function CommercialFinancePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { label: "Products", href: "/admin/finance/commercial/products", desc: "Commercial products" },
+                { label: "Central Billing Catalogue", href: "/admin/finance/central-billing", desc: "Fleet credit and Automation prices" },
                 { label: "Plans", href: "/admin/finance/commercial/plans", desc: "Pricing plans" },
                 { label: "Add-ons", href: "/admin/finance/commercial/addons", desc: "Optional add-ons" },
                 { label: "Quotes", href: "/admin/finance/commercial/quotes", desc: "Customer quotations" },

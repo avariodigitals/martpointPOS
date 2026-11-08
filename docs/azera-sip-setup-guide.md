@@ -114,6 +114,12 @@ follow-up, expired-quote follow-up or older-enquiry re-engagement; set the
 minimum enquiry age and a call cap; review the masked audience preview; save a
 draft; then use **Start** only when ready to place real calls.
 
+Choose an assignment when creating the campaign: a named browser-phone user or
+a supported queue (Sales, Support, Onboarding or Customer Support). The campaign list shows the
+current owner/queue. Apply migration **177** before using campaign assignments.
+The lead's primary phone remains the campaign number; an optional alternate
+phone stored on a lead is not automatically dialled.
+
 Keep the virtual number’s Callback and Events URLs from Section 3. Campaign
 calls are correlated through Africa’s Talking’s `clientRequestId`; no new
 provider callback path or SIP password is needed. The production API key,

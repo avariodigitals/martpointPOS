@@ -80,7 +80,10 @@ async function checkRecipient(leadId: string | null, channel: "email" | "sms" | 
     if (active.error || !active.data) throw new Error("Status subscriber is no longer active")
     return { context: null, recipient, statusToken: active.data.token as string }
   }
-  if (!context && message.contact_source !== "saved_audience") throw new Error("Contact source is not eligible for this automation")
+  // Campaigns can target uploaded lists with recorded opt-in, or a selected
+  // system audience after the sender confirms SMS consent for that segment.
+  // Keep lead-based automation on the conversation-backed path below.
+  if (!context && !["saved_audience", "system_audience"].includes(message.contact_source)) throw new Error("Contact source is not eligible for this automation")
   if (!context && message.contact_id) {
     const contact = await supabase.from("marketing_contacts").select("id,email,phone,sms_consent_at,whatsapp_consent_at").eq("id", message.contact_id).maybeSingle()
     if (contact.error || !contact.data || (channel === "sms" && (!contact.data.sms_consent_at || normalizeCommunicationPhone(contact.data.phone || "") !== recipient)) || (channel === "whatsapp" && (!contact.data.whatsapp_consent_at || normalizeCommunicationPhone(contact.data.phone || "") !== recipient))) throw new Error(`Saved contact ${channel} consent is missing or has changed`)

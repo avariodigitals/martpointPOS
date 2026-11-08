@@ -36,7 +36,7 @@
 - Invoices and payments live in **Finance**.
 - Only MartPoint admin can confirm a payment.
 - Manual payment requires entering reference, amount, and method.
-- Payment gateway webhooks (Paystack/Flutterwave) are stubbed pending credentials.
+- Paystack and Flutterwave webhook handlers are implemented. Configure the provider secrets and callback URLs before relying on automatic payment updates; verify the invoice and payment record in Finance if a callback is delayed or rejected.
 
 ## 7. Subscription Activation
 
@@ -95,3 +95,15 @@
 - Suspend a partner or partner user to immediately revoke access.
 - Suspended users cannot log in; suspended partners cannot access any API.
 - Audit events record the suspension.
+
+## 17. Quotation Approval
+
+- Quotations that require approval appear in **Approvals & Workflows → Sales & Quotations**.
+- Review the quote details and the requested action, then approve or reject with a decision note. The configured approver roles/users and approval policy determine who can decide.
+- A quotation approval request does not itself create an invoice or record a payment. Continue with the quote's normal send/accept/convert steps after the approval is resolved.
+
+## 18. Lead Contact Details and Messaging
+
+- Lead records support an optional alternate phone number for staff reference. Keep the primary phone current; SMS campaigns and call campaigns continue to target the primary number unless a workflow explicitly says otherwise.
+- In **Communications → SMS Campaigns**, system audiences are drawn from current lead/business/partner records. Before sending to a system audience, select the intended contacts and confirm they gave permission to receive SMS. That source record does not store their SMS opt-in.
+- SMS campaign templates include general announcements and quote follow-up wording. Review the selected audience, message preview, sender and provider delivery result before treating a campaign as sent.

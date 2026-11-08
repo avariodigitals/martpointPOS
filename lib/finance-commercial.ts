@@ -6,6 +6,7 @@ import { buildInvoiceIncomeBuckets, type InvoiceIncomeLine } from "./invoice-inc
 import crypto from "crypto"
 import type { InvoiceStatus } from "./invoice-status"
 import { notifyPartnerPaymentConfirmed, notifyPartnerPaymentRejected } from "./partner-notifications"
+import { queueCentralCreditFulfillment } from "./central-billing-fulfillment"
 
 export * from "./invoice-status"
 
@@ -582,8 +583,14 @@ export async function recordPayment(input: {
   paid_at?: string
   notes?: string
   payment_account_id?: string
+  central_billing_intent_id?: string
 }) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
+  let centralIntentId = input.central_billing_intent_id || ""
+  if (!centralIntentId && input.invoice_id) {
+    const { data: centralIntent } = await supabase.from("central_billing_intents").select("id").eq("invoice_id", input.invoice_id).maybeSingle()
+    centralIntentId = centralIntent?.id || ""
+  }
   const reference = await nextPaymentReference()
   const { data, error } = await supabase.from("payments").insert({
     payment_reference: reference,
@@ -593,6 +600,7 @@ export async function recordPayment(input: {
     currency: input.currency || "NGN",
     payment_method: input.payment_method,
     payment_account_id: input.payment_account_id || null,
+    central_billing_intent_id: centralIntentId || null,
     gateway_reference: input.gateway_reference || null,
     status: "PENDING",
     paid_at: input.paid_at || new Date().toISOString(),
@@ -602,6 +610,7 @@ export async function recordPayment(input: {
   }).select().single()
 
   if (error || !data) throw new Error(`Payment record failed: ${error?.message || "unknown"}`)
+  if (centralIntentId) await supabase.from("central_billing_intents").update({ payment_id: data.id, provider_reference: input.gateway_reference || null, updated_at: new Date().toISOString() }).eq("id", centralIntentId).is("payment_id", null)
   return data as Payment
 }
 
@@ -611,28 +620,33 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
 
   const { data: payment } = await supabase.from("payments").select("*").eq("id", paymentId).single()
   if (!payment) throw new Error("Payment not found")
-  if ((payment as Payment).status !== "PENDING") throw new Error(`Payment is not pending: ${(payment as Payment).status}`)
+  if ((payment as Payment).status !== "PENDING" && (payment as Payment).status !== "CONFIRMED") throw new Error(`Payment is not pending: ${(payment as Payment).status}`)
 
-  const { error } = await supabase.from("payments").update({
+  const { data: confirmedRow, error } = await supabase.from("payments").update({
     status: "CONFIRMED",
     confirmed_at: now,
     confirmed_by: confirmedBy,
     payment_account_id: paymentAccountId || undefined,
     updated_at: now,
-  }).eq("id", paymentId)
+  }).eq("id", paymentId).eq("status", "PENDING").select("id").maybeSingle()
 
   if (error) throw new Error(`Payment confirmation failed: ${error.message}`)
+  if (!confirmedRow) {
+    const { data: current } = await supabase.from("payments").select("status").eq("id", paymentId).maybeSingle()
+    if (current?.status !== "CONFIRMED") throw new Error(`Payment is not pending: ${current?.status || "unknown"}`)
+  }
 
   // Allocate to linked invoice if one exists and no allocations yet
   const p = payment as Payment
-  if (p.invoice_id && p.status === "PENDING") {
+  if (p.invoice_id) {
     await allocatePayment({ payment_id: p.id, invoice_id: p.invoice_id, amount: p.amount })
   }
 
-  await logFinanceAudit("ADMIN", actorId, "PAYMENT_CONFIRMED", "PAYMENT", paymentId, { confirmed_by: confirmedBy })
-
-  // Evaluate commissions where payment is the trigger
-  await evaluateCommissionsForPayment(paymentId, actorId)
+  if (confirmedRow) {
+    await logFinanceAudit("ADMIN", actorId, "PAYMENT_CONFIRMED", "PAYMENT", paymentId, { confirmed_by: confirmedBy })
+    // Evaluate commissions only for the request that won the status transition.
+    await evaluateCommissionsForPayment(paymentId, actorId)
+  }
 
   // On a paid invoice, advance the business onboarding to Payment Confirmed.
   const business = p.business_id ? await getBusinessById(p.business_id) : null
@@ -706,6 +720,10 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
     await sendPaymentConfirmationEmail(paymentId, { type: "ADMIN", id: actorId || confirmedBy })
   } catch (err) {
     console.error("[confirmPayment] confirmation email failed:", err)
+  }
+  if (p.invoice_id) {
+    const { data: centralIntent } = await supabase.from("central_billing_intents").select("id").eq("invoice_id", p.invoice_id).maybeSingle()
+    if (centralIntent?.id) await queueCentralCreditFulfillment(centralIntent.id)
   }
 }
 
@@ -796,8 +814,14 @@ export async function allocatePayment(input: PaymentAllocationInput) {
   // Already allocated on this payment
   const { data: existing } = await supabase
     .from("payment_allocations")
-    .select("amount_allocated")
+    .select("invoice_id, amount_allocated")
     .eq("payment_id", input.payment_id)
+
+  const sameInvoice = ((existing as { invoice_id: string; amount_allocated: number }[]) || []).find((a) => a.invoice_id === input.invoice_id)
+  if (sameInvoice) {
+    if (toKobo(sameInvoice.amount_allocated) !== amountKobo) throw new Error("Existing payment allocation amount does not match")
+    return
+  }
 
   const allocatedKobo = ((existing as { amount_allocated: number }[]) || []).reduce((s, a) => s + toKobo(a.amount_allocated), 0)
   const paymentKobo = toKobo((payment as Payment).amount)
@@ -816,7 +840,10 @@ export async function allocatePayment(input: PaymentAllocationInput) {
     created_at: new Date().toISOString(),
   })
 
-  if (error) throw new Error(`Allocation failed: ${error.message}`)
+  if (error) {
+    const { data: replay } = await supabase.from("payment_allocations").select("amount_allocated").eq("payment_id", input.payment_id).eq("invoice_id", input.invoice_id).maybeSingle()
+    if (!replay || toKobo(replay.amount_allocated) !== amountKobo) throw new Error(`Allocation failed: ${error.message}`)
+  }
 
   await recalculateInvoice(input.invoice_id)
 }
@@ -827,10 +854,14 @@ export async function createReceipt(paymentId: string, issuedBy: string) {
   if (!payment) throw new Error("Payment not found")
   if ((payment as Payment).status !== "CONFIRMED") throw new Error("Cannot issue receipt for unconfirmed payment")
 
+  const { data: existingReceipt } = await supabase.from("receipts").select("*").eq("payment_id", paymentId).maybeSingle()
+  if (existingReceipt) return existingReceipt as Receipt
+
   const receiptNumber = await nextReceiptNumber()
   const { data, error } = await supabase.from("receipts").insert({
     receipt_number: receiptNumber,
     payment_id: paymentId,
+    central_billing_intent_id: (payment as Payment & { central_billing_intent_id?: string | null }).central_billing_intent_id || null,
     business_id: (payment as Payment).business_id,
     amount: (payment as Payment).amount,
     currency: (payment as Payment).currency,
@@ -838,7 +869,11 @@ export async function createReceipt(paymentId: string, issuedBy: string) {
     issued_by: issuedBy,
   }).select().single()
 
-  if (error || !data) throw new Error(`Receipt creation failed: ${error?.message || "unknown"}`)
+  if (error || !data) {
+    const { data: concurrentReceipt } = await supabase.from("receipts").select("*").eq("payment_id", paymentId).maybeSingle()
+    if (concurrentReceipt) return concurrentReceipt as Receipt
+    throw new Error(`Receipt creation failed: ${error?.message || "unknown"}`)
+  }
   await logFinanceAudit("ADMIN", issuedBy, "RECEIPT_ISSUED", "RECEIPT", (data as Receipt).id, { payment_id: paymentId })
   return data as Receipt
 }

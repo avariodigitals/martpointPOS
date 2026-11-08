@@ -6,23 +6,74 @@ import { supabase } from "./supabase"
 import { getSettings } from "./settings"
 
 export const smsConfigurationSchema = z.object({
-  provider: z.enum(["africastalking", "bulksmsnigeria"]), sender: z.string().trim().min(1).max(11).regex(/^[A-Za-z0-9 +]+$/),
-  apiKey: z.string().trim().max(500).optional(), username: z.string().trim().max(100).default(""),
+  provider: z.enum(["africastalking", "bulksmsnigeria", "nigeriabulksms"]), sender: z.string().trim().min(1).max(20).regex(/^[A-Za-z0-9 +]+$/),
+  apiKey: z.string().trim().max(500).optional(), username: z.string().trim().max(100).default(""), password: z.string().trim().max(500).optional(),
   sandbox: z.boolean().default(false),
 })
 export async function getCommunicationSmsConfig() {
   const settings = await readSettings()
   const raw = (settings?.communications || {}) as Record<string, unknown>
   const sms = (raw.sms || {}) as Record<string, unknown>
-  const provider = sms.provider === "africastalking" ? "africastalking" : "bulksmsnigeria"
+  const provider = sms.provider === "africastalking" || sms.provider === "nigeriabulksms" ? sms.provider : "bulksmsnigeria"
   const africa = provider === "africastalking" ? await africaBrowserConfig() : null
   return {
     provider, sender: String(sms.sender || process.env.COMMUNICATION_SMS_SENDER || ""),
-    apiKey: String(sms.apiKey || (provider === "africastalking" ? africa?.apiKey : process.env.BULKSMSNIGERIA_API_TOKEN) || ""),
-    username: String(sms.username || africa?.username || ""), sandbox: sms.sandbox === true,
+    apiKey: String(sms.apiKey || (provider === "africastalking" ? africa?.apiKey : provider === "bulksmsnigeria" ? process.env.BULKSMSNIGERIA_API_TOKEN : "") || ""),
+    username: String(sms.username || africa?.username || ""), password: String(sms.password || ""), sandbox: sms.sandbox === true,
   }
 }
 export type SmsDelivery = { status: "accepted" | "failed" | "unknown"; provider: string; providerId?: string; error?: string }
+
+export type NigeriaGatewayResult = { ok: boolean; data?: unknown; error?: string; errno?: string | number | null }
+
+async function nigeriaGatewayRequest(params: Record<string, string>): Promise<NigeriaGatewayResult> {
+  const cfg = await getCommunicationSmsConfig()
+  if (cfg.provider !== "nigeriabulksms" || !cfg.username || !cfg.password) return { ok: false, error: "Select Nigeria Bulk SMS and save its username and password first" }
+  try {
+    const query = new URLSearchParams({ username: cfg.username, password: cfg.password, ...params })
+    const response = await fetch(`https://portal.nigeriabulksms.com/api/?${query}`, { method: "GET", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(30000), cache: "no-store" })
+    const data = await response.json().catch(() => null)
+    if (!data || typeof data !== "object") return { ok: false, error: "Gateway response could not be parsed" }
+    const status = String(data.status || "").toLowerCase()
+    const errno = data.errno ?? null
+    const ok = response.ok && (status === "ok" || status === "success" || String(errno) === "000")
+    return { ok, data, error: ok ? undefined : String(data.error || data.message || `Gateway rejected the request${errno ? ` (${errno})` : ""}`), errno }
+  } catch {
+    return { ok: false, error: "Gateway outcome is uncertain. Check provider history before retrying." }
+  }
+}
+
+export async function runNigeriaBulkSmsGatewayAction(input: {
+  operation: "call" | "tts" | "audio" | "upload" | "data"
+  to?: string
+  message?: string
+  callerId?: string
+  audioReference?: string
+  audioUrl?: string
+  action?: string
+}) : Promise<NigeriaGatewayResult> {
+  if (input.operation === "upload") {
+    let url: URL
+    try { url = new URL(input.audioUrl || "") } catch { return { ok: false, error: "Enter a public HTTPS audio URL" } }
+    if (url.protocol !== "https:") return { ok: false, error: "Enter a public HTTPS audio URL" }
+    return nigeriaGatewayRequest({ action: "upload", url: url.toString() })
+  }
+  if (input.operation === "data") {
+    const allowed = ["login", "profile", "balance", "contacts", "numbers", "groups", "audios", "history", "scheduled", "reports", "payments"]
+    if (!allowed.includes(input.action || "")) return { ok: false, error: "Unsupported account data action" }
+    return nigeriaGatewayRequest({ action: input.action! })
+  }
+  const phone = normalizeCommunicationPhone(input.to || "")
+  const caller = normalizeCommunicationPhone(input.callerId || "")
+  if (!phone || !caller) return { ok: false, error: "Enter a valid recipient phone and caller ID" }
+  const common = { sender: caller.replace(/^\+/, ""), mobiles: phone.replace(/^\+/, "") }
+  if (input.operation === "audio") {
+    if (!input.audioReference?.trim()) return { ok: false, error: "Enter the uploaded audio reference" }
+    return nigeriaGatewayRequest({ ...common, message: input.audioReference.trim(), type: "call" })
+  }
+  if (!input.message?.trim() || input.message.length > 1000) return { ok: false, error: "Enter a voice message up to 1,000 characters" }
+  return nigeriaGatewayRequest({ ...common, message: input.message.trim(), type: input.operation })
+}
 
 export async function recordCommunicationSmsOptOut(from: string, text: string) {
   if (!/^(STOP|UNSUBSCRIBE|CANCEL|END|QUIT)$/i.test(text.trim())) return false
@@ -69,21 +120,29 @@ export async function sendCommunicationSms(to: string, body: string): Promise<Sm
   const cfg = await getCommunicationSmsConfig()
   const phone = normalizeCommunicationPhone(to)
   if (!phone || !body.trim() || body.length > 480) return { status: "failed", provider: cfg.provider, error: "A valid phone and a message up to 480 characters are required" }
-  if (!cfg.apiKey || !cfg.sender || (cfg.provider === "africastalking" && !cfg.username)) return { status: "failed", provider: cfg.provider, error: "Configure the SMS provider and approved sender ID in Communications settings" }
+  if (!cfg.sender || (cfg.provider === "africastalking" && (!cfg.apiKey || !cfg.username)) || (cfg.provider === "bulksmsnigeria" && !cfg.apiKey) || (cfg.provider === "nigeriabulksms" && (!cfg.username || !cfg.password))) return { status: "failed", provider: cfg.provider, error: "Configure the SMS provider credentials and approved sender ID in Communications settings" }
   try {
     const africa = cfg.provider === "africastalking"
+    const legacyNigeria = cfg.provider === "nigeriabulksms"
     const url = africa
       ? `https://api.${cfg.sandbox ? "sandbox." : ""}africastalking.com/version1/messaging`
-      : `https://www.bulksmsnigeria.com/api/${cfg.sandbox ? "sandbox/" : ""}v2/sms`
-    const response = await fetch(url, {
-      method: "POST", signal: AbortSignal.timeout(12000),
+      : legacyNigeria ? "https://portal.nigeriabulksms.com/api/" : `https://www.bulksmsnigeria.com/api/${cfg.sandbox ? "sandbox/" : ""}v2/sms`
+    const query = new URLSearchParams({ username: cfg.username, password: cfg.password, message: body, sender: cfg.sender, mobiles: phone.replace(/^\+/, "") })
+    const response = await fetch(legacyNigeria ? `${url}?${query}` : url, {
+      method: legacyNigeria ? "GET" : "POST", signal: AbortSignal.timeout(12000),
       headers: africa ? { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded", apiKey: cfg.apiKey }
+        : legacyNigeria ? { Accept: "application/json" }
         : { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${cfg.apiKey}` },
       body: africa ? new URLSearchParams({ username: cfg.username, to: phone, from: cfg.sender, message: body }).toString()
+        : legacyNigeria ? undefined
         : JSON.stringify({ from: cfg.sender, to: phone.replace(/^\+/, ""), body }),
     })
     const data = await response.json().catch(() => null)
     if (!data) return { status: "unknown", provider: cfg.provider, error: "Provider response could not be confirmed. Check provider history before retrying." }
+    if (legacyNigeria) {
+      if (response.ok && String(data.status || "").toLowerCase() === "ok") return { status: "accepted", provider: cfg.provider, providerId: String(data.reference || data.id || "") }
+      return { status: response.status >= 500 ? "unknown" : "failed", provider: cfg.provider, error: String(data.error || "Nigeria Bulk SMS did not accept this message") }
+    }
     if (africa) {
       const recipient = data.SMSMessageData?.Recipients?.[0]
       if (response.ok && Number(recipient?.statusCode) === 101) return { status: "accepted", provider: cfg.provider, providerId: String(recipient.messageId || "") }

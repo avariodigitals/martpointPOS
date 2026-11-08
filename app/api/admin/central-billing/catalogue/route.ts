@@ -55,9 +55,9 @@ async function publishCatalogue(sourceVersion: string) {
   const path = "/messaging_api/sync_billing_catalogue"
   const timestamp = Math.floor(Date.now() / 1000).toString()
   const response = await fetch(`${centralUrl.replace(/\/$/, "")}${path}`, { method: "POST", headers: { "content-type": "application/json", "x-central-timestamp": timestamp, "x-central-signature": centralSignature(timestamp, body, path) }, body, cache: "no-store", signal: AbortSignal.timeout(20000) })
-  if (!response.ok) throw new Error("Central did not confirm catalogue synchronization")
-  const result = await response.json() as { success?: boolean; source_hash?: string }
-  if (!result.success) throw new Error("Central catalogue synchronization was not confirmed")
+  const result = await response.json().catch(() => null) as { success?: boolean; source_hash?: string; message?: string; reference?: string } | null
+  if (!response.ok) throw new Error(`Central returned HTTP ${response.status}: ${result?.message || "Catalogue synchronization was not confirmed."}${result?.reference ? ` (reference ${result.reference})` : ""}`)
+  if (!result?.success) throw new Error(result?.message || "Central catalogue synchronization was not confirmed")
   return result.source_hash || crypto.createHash("sha256").update(body).digest("hex")
 }
 

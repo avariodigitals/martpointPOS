@@ -819,13 +819,13 @@ export default function InvoicesPage() {
     }
   }
 
-  async function runInvoiceAction(action: string, id: string) {
+  async function runInvoiceAction(action: string, id: string, reason?: string) {
     setMessage("")
     try {
       const res = await fetch("/api/admin/finance/commercial/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, data: { id } }),
+        body: JSON.stringify({ action, data: { id, ...(reason ? { reason } : {}) } }),
       })
       const data = await res.json()
       if (data.success) {
@@ -840,7 +840,9 @@ export default function InvoicesPage() {
           reopen: "Invoice reopened",
           waive: "Invoice waived — it will still count as a granted licence",
         }
-        let msg = labels[action] || `Invoice ${action.replace("_", " ")}`
+        let msg = data.data?.approvalRequired
+          ? `Invoice ${action} sent for approval`
+          : labels[action] || `Invoice ${action.replace("_", " ")}`
         if (action === "issue") {
           msg += data.data?.emailSentTo ? ` — emailed ${data.data.emailSentTo}` : data.data?.emailError ? ` — email not sent: ${data.data.emailError}` : ""
         }
@@ -853,6 +855,20 @@ export default function InvoicesPage() {
     } catch {
       setMessage(`Failed to ${action}`)
     }
+  }
+
+  async function cancelInvoice(id: string) {
+    const invoice = invoices.find((item) => item.id === id) || (editing?.id === id ? editing : null)
+    let reason: string | undefined
+    if (invoiceCancelApprovalEnabled) {
+      const enteredReason = await requestReason(
+        "Request invoice cancellation",
+        `Explain why invoice ${invoice?.invoice_number || "this invoice"} should be cancelled.`,
+      )
+      if (!enteredReason) return
+      reason = enteredReason
+    }
+    await runInvoiceAction("cancel", id, reason)
   }
 
   async function requestInvoiceCancellation(id: string, reason: string) {
@@ -1170,7 +1186,7 @@ export default function InvoicesPage() {
                               <button onClick={() => runInvoiceAction("void", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50" title="Void">
                                 <FileX className="h-3.5 w-3.5" />
                               </button>
-                              <button onClick={() => runInvoiceAction("cancel", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50" title="Cancel">
+                              <button onClick={() => cancelInvoice(inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50" title="Cancel">
                                 <Ban className="h-3.5 w-3.5" />
                               </button>
                               <button onClick={() => runInvoiceAction("waive", inv.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-purple-600 hover:bg-purple-50" title="Waive">
@@ -1484,7 +1500,7 @@ export default function InvoicesPage() {
               {canManageInvoices && editing.status !== "VOID" && editing.status !== "CANCELLED" && editing.status !== "WAIVED" && (
                 <>
                   <Button size="sm" variant="outline" onClick={() => runInvoiceAction("void", editing.id)}><FileX className="mr-1 h-3.5 w-3.5" /> Void</Button>
-                  <Button size="sm" variant="outline" onClick={() => runInvoiceAction("cancel", editing.id)}><Ban className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
+                  <Button size="sm" variant="outline" onClick={() => cancelInvoice(editing.id)}><Ban className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
                   <Button size="sm" variant="outline" className="text-purple-600 hover:text-purple-700 hover:bg-purple-50" onClick={() => runInvoiceAction("waive", editing.id)}><BadgeCheck className="mr-1 h-3.5 w-3.5" /> Waive</Button>
                 </>
               )}

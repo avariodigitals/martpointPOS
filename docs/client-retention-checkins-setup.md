@@ -16,9 +16,11 @@ For automatic enrollment, the first URL, the deployment URL, and Fleet's registe
 
 The current production endpoints in the Retail reporter are:
 
-- Enrollment: `https://martpoint.com.ng/api/usage/enroll`
-- Usage report: `https://martpoint.com.ng/api/usage/ping`
+- Enrollment: `https://www.martpoint.com.ng/api/usage/enroll`
+- Usage report: `https://www.martpoint.com.ng/api/usage/ping`
 - Fleet proof: `https://central.martpoint.com.ng/fleet/verify_usage_install` (overridable with MartPointPOS `FLEET_CENTRAL_URL`)
+
+Central's PHP Fleet install must include `fleet/verify_usage_install` and the code-level CSRF exemption in `application/core/MY_Security.php`. This server-to-server endpoint authenticates with the install's private Fleet key and exact registered URL. A Central-side HTTP 403 means the request was blocked before Fleet could verify that identity.
 
 If the public MartPointPOS domain changes, update the Retail reporter's API base URL as part of the same release. If the Fleet domain changes, set `FLEET_CENTRAL_URL` in the MartPointPOS production environment. Do not change only one side of a domain move.
 
@@ -28,7 +30,7 @@ Do this for one affected client first:
 
 1. Copy the public URL from the browser address bar when the user opens the Retail POS. It must load the POS directly over HTTPS and should be the canonical URL, with no query string. Include the subfolder if the app is installed under one.
 2. Confirm Retail generates the same URL as `base_url()`. In cPanel, check the domain's HTTPS/SSL and document root. If TLS terminates at a proxy, verify CodeIgniter still sees HTTPS; `application/config/config.php` currently infers the scheme from `$_SERVER['HTTPS']`.
-3. In MartPointPOS, mirror that URL into the business deployment's `environment_url`. The current business detail page displays this value but does not provide an edit form; the admin `PATCH /api/admin/businesses/{businessId}/deployments` endpoint accepts `environmentUrl` for an authorized admin. Do not mistake the read-only display for a saved change.
+3. In Next Admin, open **Businesses → select the business → Deployment**. Enter the URL under **Retail deployment URL** and save it. This form creates a missing deployment record or updates the existing one. The Deployment domain shown under Canonical Fleet Identity should then match the customer-facing Retail URL.
 4. In Central Fleet, confirm the corresponding installation is registered under the same exact URL. If its URL is stale, correct/re-enroll the installation through Fleet's supported flow so its `install_key` remains associated with that install. Never copy or paste the private key into a ticket or this guide.
 5. Reload the client's POS and use it while signed in. Open browser DevTools → Network and confirm the Retail request to `usage/ping` returns HTTP 200. That response only means the local request completed; it does **not** prove Central matched the install.
 6. In MartPointPOS → Settings → Client Check-Ins, refresh the page. Confirm the client changes from **Not connected** to **Recently active** and inspect recent check-in issues if it does not.
@@ -77,7 +79,7 @@ Check in this order:
    ```
 2. Sign into the Retail installation, then open a page and interact with it. In DevTools → Network, check that the local `usage/ping` request is made. A local HTTP 200 only confirms the PHP endpoint ran; it does not confirm the backend accepted the report.
 3. On the Retail server, confirm `application/cache` is writable by PHP and cURL is enabled. Check `application/logs` for `Client retention reporter` messages if either check-in fails. Confirm the shared Assist panel is included on the page being tested.
-4. Confirm the outbound calls can reach `https://martpoint.com.ng/api/usage/enroll` and `/api/usage/ping`, and that the Retail server's `base_url()` is the same HTTPS install URL recorded in Central Fleet and MartPointPOS `environment_url`.
+4. Confirm the outbound calls can reach `https://www.martpoint.com.ng/api/usage/enroll` and `/api/usage/ping`, and that the Retail server's `base_url()` is the same HTTPS install URL recorded in Central Fleet and MartPointPOS `environment_url`. Use the `www` API hostname: the apex `martpoint.com.ng` responds with HTTP 308, which the Retail client correctly refuses to follow.
 5. If enrollment fails, check MartPointPOS production function logs for `[usage-enroll]` messages. If the retention RPC fails, look for `[client-checkins] retention RPC failed`. If the diagnostics list has no row after the attempt, the request may not have reached the Next.js API, or diagnostic logging/schema may be unavailable. Do not rotate the token as a first step; the client reporter should re-enroll after a confirmed rejected token.
 6. Retail background requests allow up to 10 seconds for enrollment and 5 seconds for a usage ping; Central Fleet proof allows up to 6 seconds. Failed attempts are throttled for 15 minutes, so after a timeout wait 15 minutes before judging a retry.
 
@@ -119,7 +121,7 @@ The configured schedule is hourly. Vercel's current Hobby plan only supports a c
 A cPanel fallback can call the **MartPointPOS production URL**, not the Retail POS URL:
 
 ```cron
-23 * * * * curl -fsS --max-time 55 -H 'Authorization: Bearer REPLACE_WITH_CRON_SECRET' 'https://martpoint.com.ng/api/cron/reminders' >/dev/null 2>&1
+23 * * * * curl -fsS --max-time 55 -H 'Authorization: Bearer REPLACE_WITH_CRON_SECRET' 'https://www.martpoint.com.ng/api/cron/reminders' >/dev/null 2>&1
 ```
 
 Replace the placeholder with the same production `CRON_SECRET`; restrict access to the cPanel account and avoid sharing screenshots of the command. If possible, put the secret in a protected script outside `public_html` instead of directly in the cron command. Remove/disable the Vercel schedule before enabling this fallback.
@@ -129,7 +131,7 @@ GitHub Actions is a last-choice scheduler for this job. It requires a workflow o
 ## What each system does not do
 
 - cPanel cron on a merchant's Retail install does not send the founder milestone emails. Retail usage is reported from signed-in user activity through the Assist panel; the usage report is intentionally outside login and sale submission.
-- Retail's Fleet/system heartbeat updates system-health time only. It must not be treated as user activity or a client login.
+- Retail's Fleet/system heartbeat updates system-health time only. It must not be treated as user activity or a client login. Retail Admin, Super Admin, and Store Admin maintenance sessions are excluded from login/activity reports; Business Owners and ordinary staff still count.
 - Client milestone emails start when onboarding access details are first sent. Existing clients may need **Start** or **Backfill** from Client Check-Ins once migrations and email settings are ready.
 - Dormancy emails are disabled by default. Enable them only after a controlled client's usage timestamp is updating correctly.
 
@@ -137,7 +139,7 @@ GitHub Actions is a last-choice scheduler for this job. It requires a workflow o
 
 1. Apply the three MartPointPOS migrations.
 2. Confirm the production API domain, `FLEET_CENTRAL_URL`, Fleet registration URL, and `environment_url` are correct.
-3. Deploy the Retail integration and MartPointPOS API changes.
+3. Deploy the Central PHP Fleet/security update, the Retail integration, and the MartPointPOS API changes.
 4. Configure exactly one reminders scheduler and set `CRON_SECRET`.
 5. Test one active client. Check `last_login_at`, `last_usage_at`, `last_system_ping_at`, and `usage_ping_log` in the Client Check-Ins page; a user login should update login/activity, while a system heartbeat should update system time only.
 6. Start that client's sequence and use the manual sweep once to verify the email path. Keep dormancy emails off during this check.

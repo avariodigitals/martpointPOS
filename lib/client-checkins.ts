@@ -246,6 +246,7 @@ export interface CheckinOverviewRow {
   id: string
   businessName: string
   contactName: string | null
+  phone: string | null
   email: string
   status: string
   connectedAt: string | null
@@ -275,7 +276,7 @@ export async function getCheckinOverview(): Promise<CheckinOverviewRow[]> {
   const automation = await getAutomationByKey(CLIENT_CHECKIN_KEY)
   const { data: businesses, error: businessError } = await supabase
     .from("businesses")
-    .select("id, business_name, primary_contact_name, primary_email, status, created_at, access_sent_at, last_seen_at, last_usage_at, last_login_at, last_system_ping_at, dormancy_paused")
+    .select("id, business_name, primary_contact_name, primary_phone, primary_email, status, created_at, access_sent_at, last_seen_at, last_usage_at, last_login_at, last_system_ping_at, dormancy_paused")
     .in("status", ["ONBOARDING", "ACTIVE", "SUSPENDED"])
     .order("access_sent_at", { ascending: false, nullsFirst: false })
     .limit(300)
@@ -338,6 +339,7 @@ export async function getCheckinOverview(): Promise<CheckinOverviewRow[]> {
       id: b.id as string,
       businessName: b.business_name as string,
       contactName: (b.primary_contact_name as string) ?? null,
+      phone: (b.primary_phone as string) ?? null,
       email: b.primary_email as string,
       status: b.status as string,
       connectedAt: connected,

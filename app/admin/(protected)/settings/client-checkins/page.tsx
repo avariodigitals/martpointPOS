@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, HeartHandshake, ArrowLeft, Play, RotateCcw, Send, Users, ImagePlus, X, KeyRound, Copy, TriangleAlert } from "lucide-react"
+import { Loader2, Save, HeartHandshake, ArrowLeft, Play, RotateCcw, Send, Users, ImagePlus, X, KeyRound, Copy, TriangleAlert, Phone } from "lucide-react"
 
 interface AutomationState {
   id: string
@@ -18,6 +18,7 @@ interface ClientRow {
   id: string
   businessName: string
   contactName: string | null
+  phone: string | null
   email: string
   status: string
   connectedAt: string | null
@@ -92,6 +93,7 @@ export default function ClientCheckinsPage() {
   const [showAtRiskOnly,setShowAtRiskOnly]=useState(false)
   const [showQuietOnly, setShowQuietOnly] = useState(false)
   const [copiedId, setCopiedId] = useState("")
+  const [softphoneAllowed, setSoftphoneAllowed] = useState(false)
   const sigFileRef = useRef<HTMLInputElement>(null)
 
   const applyOverview = useCallback((json: Overview) => {
@@ -122,6 +124,14 @@ export default function ClientCheckinsPage() {
       .catch(() => setMessage("Network error loading check-ins."))
       .finally(() => setLoading(false))
   }, [applyOverview])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void fetch("/api/azera/calls/africa-browser", { cache: "no-store", signal: controller.signal })
+      .then((response) => { if (!controller.signal.aborted) setSoftphoneAllowed(response.ok) })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [])
 
   const post = async (payload: Record<string, unknown>, busyKey: string, doneMsg: string) => {
     setBusy(busyKey)
@@ -322,7 +332,24 @@ export default function ClientCheckinsPage() {
                             <span className="ml-2 text-xs text-muted-foreground">{c.status}</span>
                           </td>
                           <td className="px-3 py-2 text-muted-foreground">
-                            {c.contactName || "—"} <span className="block text-xs">{c.email}</span>
+                            {c.contactName || "—"}
+                            <span className="block text-xs">{c.email}</span>
+                            {c.phone ? (
+                              <button
+                                type="button"
+                                disabled={!softphoneAllowed}
+                                title={softphoneAllowed ? `Open SoftPhone to call ${c.phone}` : "SoftPhone access is required to call this contact"}
+                                className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+                                onClick={() => {
+                                  const name = c.contactName || c.businessName
+                                  window.dispatchEvent(new CustomEvent("azera:dial", {
+                                    detail: { target: { phone: c.phone, name }, name, phone: c.phone },
+                                  }))
+                                }}
+                              >
+                                <Phone className="h-3 w-3" />{c.phone}
+                              </button>
+                            ) : <span className="mt-1 block text-xs text-muted-foreground">No phone number</span>}
                           </td>
                           <td className="px-3 py-2">{fmtDate(c.connectedAt)}</td>
                           <td className="px-3 py-2">{c.daysUsing}</td>

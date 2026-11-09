@@ -345,8 +345,17 @@ export async function updateBusinessDeployment(
   if (updates.goLiveAt !== undefined) update.go_live_at = updates.goLiveAt
   if (updates.internalNotes !== undefined) update.internal_notes = updates.internalNotes
 
-  const { error } = await supabase.from("business_deployments").update(update).eq("business_id", businessId)
-  if (error) return { ok: false, error: "Failed to update deployment" }
+  const { data: existing, error: lookupError } = await supabase.from("business_deployments")
+    .select("business_id").eq("business_id", businessId).maybeSingle()
+  if (lookupError) return { ok: false, error: "Failed to find deployment record" }
+  const write = existing
+    ? await supabase.from("business_deployments").update(update).eq("business_id", businessId)
+    : await supabase.from("business_deployments").insert({
+        business_id: businessId,
+        status: typeof updates.status === "string" ? updates.status : "PENDING",
+        ...update,
+      })
+  if (write.error) return { ok: false, error: existing ? "Failed to update deployment" : "Failed to create deployment record" }
 
   await recordAudit(ctx, {
     action: AUDIT_ACTIONS.BUSINESS_DEPLOYMENT_STATUS_UPDATED,

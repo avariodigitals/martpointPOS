@@ -165,6 +165,10 @@ export function BusinessDetail({
     completed: false,
   })
   const [savingTraining, setSavingTraining] = useState(false)
+  const [deploymentUrl, setDeploymentUrl] = useState((deployment?.environment_url as string) || "")
+  const [deploymentStatus, setDeploymentStatus] = useState((deployment?.status as string) || "PENDING")
+  const [savingDeployment, setSavingDeployment] = useState(false)
+  const [deploymentMessage, setDeploymentMessage] = useState("")
   const [healthForm, setHealthForm] = useState({
     onboardingOwner: business.onboardingOwner || "",
     onboardingHealth: business.onboardingHealth,
@@ -223,6 +227,29 @@ export function BusinessDetail({
       setMessage("Failed to save")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const saveDeployment = async () => {
+    setSavingDeployment(true)
+    setDeploymentMessage("")
+    try {
+      const res = await fetch(`/api/admin/businesses/${business.id}/deployments`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ environmentUrl: deploymentUrl.trim(), status: deploymentStatus }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setDeploymentMessage(data.error || "Could not save deployment URL")
+        return
+      }
+      setDeploymentMessage("Deployment URL saved.")
+      router.refresh()
+    } catch {
+      setDeploymentMessage("Could not save deployment URL")
+    } finally {
+      setSavingDeployment(false)
     }
   }
 
@@ -1060,8 +1087,31 @@ export function BusinessDetail({
                 </div>
               )}
               <p className="text-xs text-muted-foreground mt-4">
-                Identity is read-only here. Existing Fleet URLs, installation keys, licences and updater behavior are unchanged.
+                Fleet IDs, installation keys, licences and updater identity remain read-only. Set or correct the Retail URL below; it must match the Central Fleet registration.
               </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-sm font-medium">Retail deployment URL</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">Enter the exact public HTTPS URL customers use to open this Retail installation, including its folder path if it is installed in a subfolder. This creates the missing deployment record when needed; the URL must also match Central Fleet.</p>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                <Field label="Retail installation URL">
+                  <input className={inputCls} type="url" placeholder="https://store.example.com/" value={deploymentUrl} onChange={(event) => setDeploymentUrl(event.target.value)} />
+                </Field>
+                <Field label="Deployment status">
+                  <select className={inputCls} value={deploymentStatus} onChange={(event) => setDeploymentStatus(event.target.value)}>
+                    {["PENDING", "PROVISIONING", "PROVISIONED", "CONFIGURATION", "LIVE", "SUSPENDED", "FAILED"].map((status) => <option key={status} value={status}>{status}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button onClick={() => void saveDeployment()} disabled={savingDeployment || !deploymentUrl.trim()}>
+                  {savingDeployment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Save deployment URL
+                </Button>
+                {deploymentMessage && <span className="text-sm text-muted-foreground">{deploymentMessage}</span>}
+              </div>
             </CardContent>
           </Card>
         </div>

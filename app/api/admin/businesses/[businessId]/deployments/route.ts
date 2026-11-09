@@ -6,7 +6,12 @@ import { z } from "zod"
 
 const schema = z.object({
   status: z.enum(["PENDING", "PROVISIONING", "PROVISIONED", "CONFIGURATION", "LIVE", "SUSPENDED", "FAILED"]).optional(),
-  environmentUrl: z.string().optional().nullable(),
+  environmentUrl: z.string().trim().url().refine((value) => {
+    try {
+      const url = new URL(value)
+      return url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash
+    } catch { return false }
+  }, "Deployment URL must be a public HTTPS URL without credentials, query, or fragment").optional().nullable(),
   adminUrl: z.string().optional().nullable(),
   onlineStoreUrl: z.string().optional().nullable(),
   provisionedAt: z.string().optional().nullable(),

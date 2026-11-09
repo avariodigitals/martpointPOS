@@ -263,6 +263,7 @@ export interface CheckinOverviewRow {
   connectionStatus: ConnectionStatus
   dormancyPaused: boolean
   token: string | null
+  tokenLastUsedAt: string | null
   dormantLast: { status: string; at: string; error: string | null } | null
   run: { status: string; step: number; scheduledFor: string | null; lastSentAt: string | null } | null
 }
@@ -292,7 +293,7 @@ export async function getCheckinOverview(): Promise<CheckinOverviewRow[]> {
       .eq("automation_id", automation?.id ?? "00000000-0000-0000-0000-000000000000"),
     supabase
       .from("install_tokens")
-      .select("business_id, token")
+      .select("business_id, token, last_used_at")
       .eq("status", "active")
       .in("business_id", ids),
     supabase
@@ -310,8 +311,11 @@ export async function getCheckinOverview(): Promise<CheckinOverviewRow[]> {
   const runByBusiness = new Map<string, Record<string, unknown>>()
   for (const r of runs || []) runByBusiness.set(r.subject_id as string, r as Record<string, unknown>)
 
-  const tokenByBusiness = new Map<string, string>()
-  for (const t of tokensRes.data || []) tokenByBusiness.set(t.business_id as string, t.token as string)
+  const tokenByBusiness = new Map<string, { token: string; lastUsedAt: string | null }>()
+  for (const t of tokensRes.data || []) tokenByBusiness.set(t.business_id as string, {
+    token: t.token as string,
+    lastUsedAt: (t.last_used_at as string) ?? null,
+  })
 
   const dormantByBusiness = new Map<string, { status: string; at: string; error: string | null }>()
   for (const d of deliveriesRes.data || []) {
@@ -326,6 +330,7 @@ export async function getCheckinOverview(): Promise<CheckinOverviewRow[]> {
     const connected = (b.access_sent_at as string) || (b.created_at as string)
     const run = runByBusiness.get(b.id as string)
     const subscription=(subscriptionsRes.data || []).find((row) => row.business_id===b.id)
+    const token = tokenByBusiness.get(b.id as string)
     const login=(b.last_login_at as string) || null
     const retention=retentionState(login,now)
     const lastUsage = (b.last_usage_at as string) ?? (b.last_seen_at as string) ?? null
@@ -348,7 +353,8 @@ export async function getCheckinOverview(): Promise<CheckinOverviewRow[]> {
       lastSystemPingAt: (b.last_system_ping_at as string) ?? null,
       connectionStatus: computeConnectionStatus(lastUsage, now),
       dormancyPaused: b.dormancy_paused === true,
-      token: tokenByBusiness.get(b.id as string) ?? null,
+      token: token?.token ?? null,
+      tokenLastUsedAt: token?.lastUsedAt ?? null,
       dormantLast: dormantByBusiness.get(b.id as string) ?? null,
       run: run
         ? {
@@ -477,13 +483,21 @@ export async function recordInstallCheckin(opts: {
   const type = opts.type === "system" ? "system" : "usage"
   const token = String(opts.token || "").trim()
   if(opts.loginAt || opts.activityAt || opts.systemAt){
+    const {data:tokenOwner,error:ownerError}=await supabase.from("install_tokens")
+      .select("business_id").eq("token",token).eq("status","active").maybeSingle()
+    if(ownerError) console.error("[client-checkins] token owner lookup failed:",ownerError.message)
+    const businessId=typeof tokenOwner?.business_id==="string"?tokenOwner.business_id:null
     const valid=(v: string | undefined)=>!v || (Number.isFinite(Date.parse(v)) && Date.parse(v)>=Date.parse("2000-01-01") && Date.parse(v)<=Date.now()+300000)
-    if(!token || ![opts.loginAt,opts.activityAt,opts.systemAt].every(valid) || (type==="system" && opts.activityAt))return {matched:false}
+    if(!token || ![opts.loginAt,opts.activityAt,opts.systemAt].every(valid) || (type==="system" && opts.activityAt)){
+      await logPing({businessId,source:"token",pingType:type,outcome:"invalid"})
+      return {matched:false}
+    }
     const {data,error}=await supabase.rpc("record_install_retention",{
       p_token:token,p_login_at:opts.loginAt || null,p_activity_at:opts.activityAt || null,p_system_at:opts.systemAt || null,
     })
     const matched=!error&&data===true
-    await logPing({source:"token",pingType:type,outcome:matched?"saved":"invalid"})
+    if(error) console.error("[client-checkins] retention RPC failed:",error.message)
+    await logPing({businessId,source:"token",pingType:type,outcome:matched?"saved":"invalid"})
     return {matched}
   }
 

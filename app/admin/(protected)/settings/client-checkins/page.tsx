@@ -34,6 +34,7 @@ interface ClientRow {
   connectionStatus: "not_connected" | "recently_active" | "no_checkin_30d"
   dormancyPaused: boolean
   token: string | null
+  tokenLastUsedAt: string | null
   dormantLast: { status: string; at: string; error: string | null } | null
   run: { status: string; step: number; scheduledFor: string | null; lastSentAt: string | null } | null
 }
@@ -366,6 +367,7 @@ export default function ClientCheckinsPage() {
                             ) : (
                               <span className="text-xs text-muted-foreground">none yet</span>
                             )}
+                            <span className="block text-xs text-muted-foreground">Token last accepted: {fmtDate(c.tokenLastUsedAt)}</span>
                             <Button size="sm" variant="ghost" className="ml-1 h-6 px-2 text-xs" disabled={busy !== ""} onClick={() => post({ action: "rotate-token", businessId: c.id }, `token-${c.id}`, c.token ? `New token issued for ${c.businessName} — the old one is retired; updated fleet installations recover automatically on their next check-in.` : `Token generated for ${c.businessName}.`)}>
                               {busy === `token-${c.id}` ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <KeyRound className="mr-1 h-3 w-3" />}
                               {c.token ? "Rotate" : "Generate"}
@@ -557,7 +559,7 @@ export default function ClientCheckinsPage() {
             </CardHeader>
             <CardContent>
               {(data?.issues || []).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No problems recorded — every recent check-in was saved.</p>
+                <p className="text-sm text-muted-foreground">No failed check-ins were recorded. This does not confirm that every client has reported; check each client&apos;s activity and token&apos;s last accepted time above.</p>
               ) : (
                 <ul className="space-y-1 text-sm">
                   {(data?.issues || []).slice(0, 15).map((i) => (

@@ -1,5 +1,5 @@
 import {beforeEach,describe,expect,it,vi} from "vitest"
-const db=vi.hoisted(()=>({from:vi.fn(),rpc:vi.fn(),deps:[] as Array<{business_id:string;environment_url:string}>,error:null as unknown}))
+const db=vi.hoisted(()=>({from:vi.fn(),rpc:vi.fn(),deps:[] as Array<{business_id:string;environment_url:string}>,tokenOwner:{business_id:"one"} as {business_id:string}|null,error:null as unknown}))
 vi.mock("@/lib/supabase",()=>({supabase:{from:db.from,rpc:db.rpc},isSupabaseConfigured:()=>true}))
 vi.mock("@/lib/automations",()=>({getAutomationByKey:vi.fn(),enqueueAutomation:vi.fn(),getClientCheckinConfig:vi.fn(),sendClientCheckinEmail:vi.fn()}))
 import {enrolInstall,installationRoot} from "@/lib/install-enrolment"
@@ -8,8 +8,8 @@ import {POST as enrolRoute} from "@/app/api/usage/enroll/route"
 import {POST as pingRoute} from "@/app/api/usage/ping/route"
 const key="k".repeat(64)
 beforeEach(()=>{
- vi.unstubAllEnvs();vi.unstubAllGlobals();db.deps=[{business_id:"one",environment_url:"https://client.example.com/shop/"}];db.error=null;db.rpc.mockReset();db.rpc.mockResolvedValue({data:"t".repeat(64),error:null});
- db.from.mockImplementation(()=>{const chain:Record<string,unknown>={select:()=>chain,insert:()=>chain,then:(resolve:(r:unknown)=>unknown)=>Promise.resolve({data:db.deps,error:db.error}).then(resolve)};return chain})
+ vi.unstubAllEnvs();vi.unstubAllGlobals();db.deps=[{business_id:"one",environment_url:"https://client.example.com/shop/"}];db.tokenOwner={business_id:"one"};db.error=null;db.rpc.mockReset();db.rpc.mockResolvedValue({data:"t".repeat(64),error:null});
+ db.from.mockImplementation((table:string)=>{const result=table==="install_tokens"?{data:db.tokenOwner,error:db.error}:{data:db.deps,error:db.error};const chain:Record<string,unknown>={select:()=>chain,eq:()=>chain,maybeSingle:()=>chain,insert:()=>chain,then:(resolve:(r:unknown)=>unknown)=>Promise.resolve(result).then(resolve)};return chain})
  vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ok:true,json:async()=>({verified:true})}))
 })
 describe("private automatic enrolment",()=>{

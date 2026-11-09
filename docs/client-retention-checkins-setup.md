@@ -76,9 +76,10 @@ Check in this order:
    LIMIT 20;
    ```
 2. Sign into the Retail installation, then open a page and interact with it. In DevTools → Network, check that the local `usage/ping` request is made. A local HTTP 200 only confirms the PHP endpoint ran; it does not confirm the backend accepted the report.
-3. On the Retail server, confirm `application/cache` is writable by PHP and cURL is enabled. `Usage_reporter` silently skips reporting if it cannot open its local cache file or initialize cURL. Confirm the shared Assist panel is included on the page being tested.
+3. On the Retail server, confirm `application/cache` is writable by PHP and cURL is enabled. Check `application/logs` for `Client retention reporter` messages if either check-in fails. Confirm the shared Assist panel is included on the page being tested.
 4. Confirm the outbound calls can reach `https://martpoint.com.ng/api/usage/enroll` and `/api/usage/ping`, and that the Retail server's `base_url()` is the same HTTPS install URL recorded in Central Fleet and MartPointPOS `environment_url`.
-5. If the diagnostics list has no row after the attempt, the request may not have reached the Next.js API, or diagnostic logging/schema may be unavailable. Check the Retail PHP error log and MartPointPOS production function logs. Do not rotate the token as a first step; the client reporter should re-enroll after a confirmed rejected token.
+5. If enrollment fails, check MartPointPOS production function logs for `[usage-enroll]` messages. If the retention RPC fails, look for `[client-checkins] retention RPC failed`. If the diagnostics list has no row after the attempt, the request may not have reached the Next.js API, or diagnostic logging/schema may be unavailable. Do not rotate the token as a first step; the client reporter should re-enroll after a confirmed rejected token.
+6. Retail background requests allow up to 10 seconds for enrollment and 5 seconds for a usage ping; Central Fleet proof allows up to 6 seconds. Failed attempts are throttled for 15 minutes, so after a timeout wait 15 minutes before judging a retry.
 
 ### Confirming the email cron
 

@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react"
 import { base64ByteLength, LEAD_EMAIL_ATTACHMENT_HINT, MAX_LEAD_EMAIL_ATTACHMENT_BYTES, MAX_LEAD_EMAIL_ATTACHMENTS } from "@/lib/lead-email-attachments"
 import { EmailDraftControls, useEmailDraft } from "@/components/admin/email-draft-controls"
 import EmailRichEditor from "@/components/admin/email-rich-editor"
+import { EmailMessageBody } from "@/components/admin/email-message-body"
 import { EmailLayoutSwitch } from "@/components/admin/email-layout-switch"
 import type { EmailLayout } from "@/lib/email-layout"
 import { htmlToText, textToHtml } from "@/lib/email-html"
@@ -1663,7 +1664,7 @@ export function LeadDetailModal({
                 <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">
                   {emails.map((msg) => {
                     const open = expandedEmailId === msg.id
-                    const preview = (msg.bodyText || "").replace(/\s+/g, " ").trim()
+                    const preview = htmlToText(msg.bodyHtml || msg.bodyText || "").replace(/\s+/g, " ").trim()
                     const attachments = Array.isArray(msg.metadata?.attachments)
                       ? msg.metadata.attachments.flatMap((file: unknown) => {
                           if (!file || typeof file !== "object" || !("filename" in file) || typeof file.filename !== "string") return []
@@ -1744,8 +1745,8 @@ export function LeadDetailModal({
                             {typeof msg.metadata?.cc === "string" && msg.metadata.cc && (
                               <p className="break-all text-xs text-muted-foreground"><span className="font-medium">Cc:</span> {msg.metadata.cc}</p>
                             )}
-                            {msg.bodyText ? (
-                              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{msg.bodyText}</p>
+                            {msg.bodyHtml || msg.bodyText ? (
+                              <EmailMessageBody html={msg.bodyHtml} text={msg.bodyText} className="rounded-lg border border-border bg-background px-4 py-3" />
                             ) : (
                               <p className="text-sm text-muted-foreground italic">No message body stored for this entry.</p>
                             )}

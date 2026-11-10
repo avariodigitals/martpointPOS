@@ -10,6 +10,7 @@ import { z } from "zod"
 import { leadEmailAttachmentsSchema } from "@/lib/lead-email-attachments"
 import { emailComposerFields } from "@/lib/email-correspondence"
 import { extractEmailAddresses as extractAddresses, leadReplyRecipients } from "@/lib/lead-email-reply"
+import { sanitizeSupportHtml } from "@/lib/support-html"
 
 const postSchema = z.object({
   ...emailComposerFields,
@@ -68,7 +69,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     )
   }
 
-  const emails = (data || []).map((row) => mapLeadEmail(row as Record<string, unknown>))
+  const emails = (data || []).map((row) => {
+    const mapped = mapLeadEmail(row as Record<string, unknown>)
+    return { ...mapped, bodyHtml: mapped.bodyHtml ? sanitizeSupportHtml(mapped.bodyHtml) : null }
+  })
   return NextResponse.json({ emails, ownAddresses: await ownEmailAddresses(auth.session.name) })
 }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
-import { canAccessMailbox } from "@/lib/admin-mailbox"
+import { canAccessMailbox, cleanEmailHtml } from "@/lib/admin-mailbox"
 import { supabase } from "@/lib/supabase"
 
 export const dynamic = "force-dynamic"
@@ -18,7 +18,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const { data: labelLinks, error: labelsError } = await supabase.from("admin_mailbox_thread_labels").select("label:admin_mailbox_labels(id,name,color)").eq("thread_id", threadId)
     if (labelsError) throw new Error(labelsError.message)
     await supabase.from("admin_mailbox_thread_state").upsert({ thread_id: threadId, user_id: session.userId, is_read: true }, { onConflict: "thread_id,user_id" })
-    return NextResponse.json({ thread: { ...thread, labels: (labelLinks || []).flatMap((link) => Array.isArray(link.label) ? link.label : [link.label]).filter(Boolean) }, messages: messages || [] })
+    const safeMessages = (messages || []).map((message) => ({ ...message, body_html: message.body_html ? cleanEmailHtml(String(message.body_html)) : "" }))
+    return NextResponse.json({ thread: { ...thread, labels: (labelLinks || []).flatMap((link) => Array.isArray(link.label) ? link.label : [link.label]).filter(Boolean) }, messages: safeMessages })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load conversation." }, { status: 500 })
   }

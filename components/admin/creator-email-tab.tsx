@@ -5,6 +5,7 @@ import { Eye, Loader2, Mail, RefreshCw, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import EmailRichEditor from "@/components/admin/email-rich-editor"
+import { EmailMessageBody } from "@/components/admin/email-message-body"
 import { EmailLayoutSwitch } from "@/components/admin/email-layout-switch"
 import type { EmailLayout } from "@/lib/email-layout"
 import { htmlToText } from "@/lib/email-html"
@@ -148,13 +149,7 @@ export function CreatorEmailTab({ applicationId, name, email }: { applicationId:
                   {message.direction === "inbound" ? "Received" : message.status === "sent" ? "Sent" : "Failed"}
                 </span>
               </div>
-              {message.bodyHtml ? (
-                <div className="mt-3 overflow-hidden rounded-md border bg-white">
-                  <iframe title={`Email from ${message.direction === "inbound" ? "creator" : "MartPoint"}: ${message.subject || "(no subject)"}`} sandbox="" srcDoc={message.bodyHtml} className="min-h-64 w-full border-0" style={{ height: "min(60vh, 520px)" }} />
-                </div>
-              ) : (
-                <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-muted/40 p-3 font-sans text-sm text-muted-foreground">{message.bodyText || "No message body was stored for this email."}</pre>
-              )}
+              <div className="mt-3 rounded-md border bg-white p-3"><EmailMessageBody html={message.bodyHtml} text={message.bodyText || "No message body was stored for this email."} /></div>
             </article>
           ))}
         </CardContent>

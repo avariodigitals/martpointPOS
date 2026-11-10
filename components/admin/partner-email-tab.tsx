@@ -5,6 +5,7 @@ import { ChevronDown, Eye, Loader2, Mail, RefreshCw, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import EmailRichEditor from "@/components/admin/email-rich-editor"
+import { EmailMessageBody } from "@/components/admin/email-message-body"
 import { htmlToText } from "@/lib/email-html"
 import type { PartnerEmailRecipient } from "@/lib/partner-email"
 import { EmailLayoutSwitch } from "@/components/admin/email-layout-switch"
@@ -383,19 +384,7 @@ export function PartnerEmailTab({ partnerId, name }: { partnerId: string; name: 
                     · {new Date(email.createdAt).toLocaleString("en-GB")}
                   </span>
                 </summary>
-                {email.bodyHtml ? (
-                  <div className="mt-3 overflow-hidden rounded-md border bg-white">
-                    <iframe
-                      title={`Email preview: ${email.subject || "(no subject)"}`}
-                      sandbox=""
-                      srcDoc={email.bodyHtml}
-                      className="min-h-64 w-full border-0"
-                      style={{ height: "min(60vh, 520px)" }}
-                    />
-                  </div>
-                ) : (
-                  <pre className="mt-3 whitespace-pre-wrap break-words rounded-md bg-muted/40 p-3 font-sans text-sm">{email.bodyText || "No message body was stored for this email."}</pre>
-                )}
+                <div className="mt-3 rounded-md border bg-white p-3"><EmailMessageBody html={email.bodyHtml} text={email.bodyText || "No message body was stored for this email."} /></div>
                 {email.error && <p className="mt-2 text-sm text-red-700">{email.error}</p>}
                 {canSend &&
                   email.direction === "inbound" &&

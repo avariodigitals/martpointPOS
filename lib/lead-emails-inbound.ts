@@ -10,6 +10,8 @@ import { notifyAllAdmins } from "./admin-notifications"
 import { REPLY_TO } from "./email"
 import { mirrorConversationMessageToMailbox } from "./admin-mailbox-correspondence"
 import { enqueueCommunicationTrigger } from "./communication-events"
+import { sanitizeSupportHtml } from "./support-html"
+import { htmlToText } from "./email-html"
 
 export interface InboundLeadEmail {
   from: string
@@ -86,14 +88,17 @@ export async function fileInboundLeadEmail(email: InboundLeadEmail): Promise<boo
     if (existing) return false
   }
 
+  const safeHtml = email.html ? sanitizeSupportHtml(email.html) : null
+  const bodyText = email.text || (safeHtml ? htmlToText(safeHtml) : "")
+
   const { data: inserted, error } = await supabase.from("lead_emails").insert({
     lead_id: lead.id,
     direction: "inbound",
     from_email: email.from,
     to_email: email.to || null,
     subject: email.subject,
-    body_text: email.text || null,
-    body_html: email.html || null,
+    body_text: bodyText || null,
+    body_html: safeHtml,
     status: "received",
     provider: email.provider || null,
     provider_message_id: messageKey,
@@ -126,8 +131,8 @@ export async function fileInboundLeadEmail(email: InboundLeadEmail): Promise<boo
       to: email.to,
       cc: email.cc || undefined,
       subject: email.subject,
-      text: email.text || "",
-      html: email.html || "",
+      text: bodyText,
+      html: safeHtml || "",
       provider: email.provider || "imap",
       createdAt: email.sentAt || null,
       leadId: lead.id,

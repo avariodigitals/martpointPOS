@@ -72,7 +72,7 @@ export function mapPartnerEmail(row: Record<string, unknown>) {
     toEmail: String(row.to_email),
     subject: String(row.subject),
     bodyText: String(row.body_text || ""),
-    bodyHtml: typeof row.body_html === "string" ? row.body_html : "",
+    bodyHtml: typeof row.body_html === "string" ? sanitizeSupportHtml(row.body_html) : "",
     status: String(row.status),
     sentByName: row.sent_by_name || null,
     error: row.error_message || null,

@@ -9,6 +9,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { renderCreatorEmail } from "@/lib/creator-email"
 import { emailComposerFields } from "@/lib/email-correspondence"
 import { mirrorSentMessageToMailbox } from "@/lib/admin-mailbox-correspondence"
+import { sanitizeSupportHtml } from "@/lib/support-html"
 
 const schema = z.object({
   ...emailComposerFields,
@@ -28,7 +29,7 @@ function mapEmail(row: Record<string, unknown>) {
   return {
     id: String(row.id), direction: String(row.direction), fromEmail: row.from_email || null,
     toEmail: row.to_email || null, subject: String(row.subject || ""),
-    bodyText: row.body_text || "", bodyHtml: row.body_html || "", status: String(row.status || "sent"),
+    bodyText: row.body_text || "", bodyHtml: typeof row.body_html === "string" ? sanitizeSupportHtml(row.body_html) : "", status: String(row.status || "sent"),
     sentByName: row.sent_by_name || null, createdAt: row.created_at,
   }
 }

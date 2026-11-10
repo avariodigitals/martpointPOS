@@ -24,9 +24,9 @@ import {
 import { FAQPageSchema, HowToSchema } from "@/components/structured-data"
 
 export const metadata: Metadata = {
-  title: "Fashion Retail POS & Inventory in Nigeria",
+  title: "Fashion Software in Nigeria | POS for Boutiques & Tailors",
   description:
-    "Manage sizes, colours, seasons and styles with real-time sales visibility. MartPoint Retail is built for African fashion boutiques and retailers.",
+    "Business management software for Nigerian tailors, bespoke fashion designers and ready-to-wear boutiques. Manage client measurements, garment orders, invoices, deposits and stock.",
   alternates: { canonical: "/industries/fashion-stores" },
 }
 
@@ -97,7 +97,9 @@ const faqs = [
   { q: "Can I manage multiple boutiques?", a: "Yes. Search stock across all locations, transfer variants between stores and compare branch performance from one dashboard." },
   { q: "Can I run promotions and discounts?", a: "Yes. Set discounts, bundles and loyalty rewards centrally. Every branch applies them automatically with margin protection." },
   { q: "Can I track customer purchase history?", a: "Yes. Every customer gets a full profile with sizes, preferences, past purchases and recommended items." },
-  { q: "Can I monitor stock across branches?", desc: "Yes. See live stock levels for every variant at every branch. Transfer the right size to where it sells best." },
+  { q: "Can MartPoint help tailors and bespoke fashion designers manage client orders?", a: "Yes. Tailors can keep client measurements, preferences and order details together, then track the work and payments through to collection." },
+  { q: "Can I keep a client's measurements for their next outfit?", a: "Yes. Save dated measurement snapshots and customer preferences so you can find them when a returning client places another order." },
+  { q: "Can I monitor stock across branches?", a: "Yes. See live stock levels for every variant at every branch. Transfer the right size to where it sells best." },
 ]
 
 export default function FashionStoresPage() {
@@ -202,6 +204,24 @@ export default function FashionStoresPage() {
                   <div className="text-sm font-medium text-foreground">{metric.label}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Fashion businesses */}
+        <section className="w-full bg-background py-16 md:py-20">
+          <div className="container-martpoint max-w-4xl mx-auto">
+            <div className="rounded-2xl border border-border bg-card p-8 md:p-10">
+              <span className="text-xs font-semibold uppercase tracking-widest text-retail">For boutiques, tailors & designers</span>
+              <h2 className="mt-3 text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+                One fashion business platform, from ready-to-wear sales to bespoke orders
+              </h2>
+              <p className="mt-4 text-muted-foreground leading-relaxed">
+                Running a ready-to-wear boutique? Track sizes, colours, stock and sales as collections move. Sewing garments or creating custom outfits? Keep client measurements, style preferences and order details together, issue invoices, record deposits and follow outstanding balances through collection. MartPoint helps fashion businesses keep the customer and the work connected, whether a client shops in store or makes an enquiry through your Online Store.
+              </p>
+              <p className="mt-4 text-muted-foreground leading-relaxed">
+                When an outfit is collected, follow up for feedback and invite the client to review your business. For a closer look at order and measurement workflows, see <Link href="/industries/tailoring" className="font-medium text-retail underline underline-offset-4">MartPoint for tailors and fashion designers</Link>.
+              </p>
             </div>
           </div>
         </section>

@@ -32,7 +32,8 @@ export async function POST(request: Request) {
     const expected = Number(invoice.total_amount)
 
     if (!intent.payment_id) {
-      const verification = await verifyPaystackTransaction(body.provider_reference)
+      const verificationKey = intent.payment_mode === "test" ? process.env.PAYSTACK_TEST_SECRET_KEY : undefined
+      const verification = await verifyPaystackTransaction(body.provider_reference, verificationKey)
       if (!verification.status || verification.paymentStatus !== "success" || verification.reference !== body.provider_reference || verification.currency !== "NGN") return NextResponse.json({ error: "Payment is not confirmed" }, { status: 409 })
       if (!Number.isSafeInteger(verification.amountKobo) || verification.amountKobo !== Math.round(expected * 100)) return NextResponse.json({ error: "Verified payment amount does not match invoice" }, { status: 409 })
       let paymentId: string

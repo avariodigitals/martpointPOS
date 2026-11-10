@@ -955,6 +955,42 @@ export async function syncEntitlementsFromSubscription(subscriptionId: string, c
   await logFinanceAudit("SYSTEM", changedBy, "ENTITLEMENT_SYNCED", "BUSINESS_ENTITLEMENTS", subscription.business_id, { subscription_id: subscriptionId })
 }
 
+/** Apply recurring add-ons billed on a fully paid MartPoint invoice. */
+export async function fulfillPaidInvoiceEntitlements(invoiceId: string, changedBy = "PAYSTACK_INVOICE") {
+  const { data: invoice } = await supabase.from("invoices").select("business_id,balance_due").eq("id", invoiceId).maybeSingle()
+  if (!invoice || Number(invoice.balance_due) > 0.01) return
+  const { data: pendingSubscription } = await supabase.from("subscriptions").select("id,status").eq("invoice_id", invoiceId).eq("status", "PENDING").maybeSingle()
+  if (pendingSubscription) await activateSubscription(pendingSubscription.id, changedBy)
+  const { data: subscription } = await supabase.from("subscriptions").select("id,current_period_end").eq("business_id", invoice.business_id).eq("status", "ACTIVE").order("created_at", { ascending: false }).limit(1).maybeSingle()
+  if (!subscription) return
+  const { data: invoiceItems } = await supabase.from("invoice_items").select("reference_id,quantity,unit_price").eq("invoice_id", invoiceId).eq("item_type", "ADDON")
+  let changed = false
+  for (const line of invoiceItems || []) {
+    if (!line.reference_id) continue
+    const { data: addon } = await supabase.from("addons").select("id,recurring").eq("id", line.reference_id).maybeSingle()
+    if (!addon || !addon.recurring) continue
+    const { data: existing } = await supabase.from("subscription_addons").select("id").eq("subscription_id", subscription.id).eq("addon_id", addon.id).eq("status", "ACTIVE").limit(1).maybeSingle()
+    if (existing) continue
+    const quantity = Math.max(1, Number(line.quantity) || 1)
+    const unitPrice = Math.max(0, Number(line.unit_price) || 0)
+    const { error } = await supabase.from("subscription_addons").insert({
+      subscription_id: subscription.id,
+      addon_id: addon.id,
+      quantity,
+      unit_price_at_activation: unitPrice,
+      total_price: Math.round(quantity * unitPrice * 100) / 100,
+      start_date: new Date().toISOString().slice(0, 10),
+      end_date: subscription.current_period_end,
+      status: "ACTIVE",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    if (error) throw new Error(`Paid add-on could not be applied: ${error.message}`)
+    changed = true
+  }
+  if (changed) await syncEntitlementsFromSubscription(subscription.id, changedBy, "Paid invoice add-on applied")
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    LICENCE DERIVATION — plan is the single source of truth
    ───────────────────────────────────────────────────────────────────────────── */

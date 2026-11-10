@@ -42,6 +42,7 @@ export interface InvoicePdfData {
   notes_public?: string | null
   payment_terms?: string | null
   bank_details?: string | null
+  payment_link?: string | null
   template_industry?: string | null
   items: InvoicePdfItem[]
   business: InvoicePdfBusiness
@@ -207,6 +208,16 @@ export function generateInvoicePdf(inv: InvoicePdfData): Buffer {
   if (inv.bank_details) {
     writeBand("Bank account", 10, true)
     for (const line of splitLines(inv.bank_details)) writeBand(line)
+  }
+  if (inv.payment_link) {
+    if (bandY + 26 > FOOTER_TOP) startNewPage()
+    writeBand("Pay online", 10, true)
+    const linkY = bandY
+    doc.setFontSize(9)
+    doc.setTextColor(0, 87, 255)
+    doc.text("Open the secure MartPoint Paystack payment link", margin, linkY)
+    doc.link(margin, linkY - 10, bandW, 14, { url: inv.payment_link })
+    bandY += 18
   }
   if (inv.notes_public) {
     writeBand("Notes", 10, true)

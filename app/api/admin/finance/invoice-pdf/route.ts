@@ -47,6 +47,7 @@ export async function GET(request: Request) {
     notes_public: inv.notes_public,
     payment_terms: inv.payment_terms || template.paymentTerms,
     bank_details: inv.bank_details || siteSettings.accountNumber,
+    payment_link: `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/pay/invoice/${encodeURIComponent(inv.id)}`,
     template_industry: inv.template_industry,
     items: inv.invoice_items || [],
     business,

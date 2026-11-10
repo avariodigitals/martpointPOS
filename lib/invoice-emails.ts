@@ -81,6 +81,7 @@ export async function sendInvoiceEmail(
   const paymentTerms = (inv.payment_terms as string | null) || template.paymentTerms
   const siteSettings = await getPublicSiteSettings()
   const bankDetails = (inv.bank_details as string | null) || siteSettings.accountNumber || ""
+  const paymentUrl = `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/pay/invoice/${encodeURIComponent(invoiceId)}`
 
   const vars = {
     contactName: biz?.primary_contact_name || biz?.business_name || "there",
@@ -99,8 +100,10 @@ export async function sendInvoiceEmail(
   }
 
   const tpl = await renderEmailTemplate(kind === "reminder" ? "invoice_payment_reminder" : "invoice_sent", vars)
-  const emailText = `${tpl.text.trimEnd()}\n\n${SUPPORT_RECOVERY_NOTICE_TEXT}`
-  const emailHtml = tpl.html ? appendSupportRecoveryNoticeToEmail(tpl.html) : undefined
+  const emailText = `${tpl.text.trimEnd()}\n\nPay online: ${paymentUrl}\n${bankDetails ? `Bank transfer details:\n${bankDetails}\n` : ""}\n${SUPPORT_RECOVERY_NOTICE_TEXT}`
+  const paymentBlock = `<p style="margin:24px 0"><a href="${escapeHtml(paymentUrl)}" style="display:inline-block;background:#1769e0;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Pay invoice online</a></p>${bankDetails ? `<p><strong>Bank transfer details</strong><br/>${escapeHtml(bankDetails).replace(/\r?\n/g, "<br/>")}</p>` : ""}`
+  const htmlWithPayment = tpl.html ? (/<\/body>/i.test(tpl.html) ? tpl.html.replace(/<\/body>/i, `${paymentBlock}</body>`) : `${tpl.html}${paymentBlock}`) : undefined
+  const emailHtml = htmlWithPayment ? appendSupportRecoveryNoticeToEmail(htmlWithPayment) : undefined
 
   let attachments: { filename: string; content: string }[] | undefined
   try {
@@ -119,6 +122,7 @@ export async function sendInvoiceEmail(
       notes_public: inv.notes_public,
       payment_terms: paymentTerms,
       bank_details: bankDetails,
+      payment_link: paymentUrl,
       template_industry: inv.template_industry,
       items,
       business: biz || {},

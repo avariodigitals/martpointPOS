@@ -187,10 +187,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     }
 
     if (requiresApproval) {
+      // Capture the database value after replacing the items too. A database
+      // trigger may touch the parent quote timestamp while its lines change.
+      const { data: approvalQuote, error: approvalQuoteError } = await supabase.from("lead_quotations")
+        .select("updated_at").eq("id", id).single()
+      if (approvalQuoteError || !approvalQuote?.updated_at) {
+        return NextResponse.json({ error: "Quote was saved, but its approval version could not be confirmed. Resubmit it for approval." }, { status: 503 })
+      }
       const approval = await supabase.from("approval_requests").insert({
         action_key: "quotation.send", entity_type: "LEAD_QUOTATION", entity_id: id,
         entity_reference: String(existing.quote_number), reason: "Revised quote submitted for technical and business approval.",
-        details: { quote_updated_at: updatePayload.updated_at, requested_action: "approve_before_client_email", quote: { quote_number: existing.quote_number, title: title || "", total_amount: totals.total, valid_until: validUntil || null, items: itemRows } },
+        details: { quote_updated_at: approvalQuote.updated_at, requested_action: "approve_before_client_email", quote: { quote_number: existing.quote_number, title: title || "", total_amount: totals.total, valid_until: validUntil || null, items: itemRows } },
         requested_by: session.userId, requested_by_name: session.name, requested_by_role: session.role,
       }).select("id").single()
       if (approval.error) return NextResponse.json({ error: "Quote was saved, but the approval request could not be created. Ask an Admin to resubmit it." }, { status: 500 })

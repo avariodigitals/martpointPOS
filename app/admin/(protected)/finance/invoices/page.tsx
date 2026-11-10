@@ -10,6 +10,7 @@ import { formatMoney } from "@/lib/money-format"
 import { enumLabel } from "@/lib/utils"
 import { resolveInvoiceStatus } from "@/lib/invoice-status"
 import { quoteTemplateOptions, resolveQuoteTemplate } from "@/lib/quote-templates"
+import { SUPPORT_RECOVERY_NOTICE_PARAGRAPHS, SUPPORT_RECOVERY_NOTICE_TITLE } from "@/lib/support-recovery-notice"
 import { useApprovalReasonDialog } from "@/components/admin/approval-reason-dialog"
 
 interface BusinessMini {
@@ -1472,6 +1473,11 @@ export default function InvoicesPage() {
                 />
               </div>
             </div>
+
+            <section aria-labelledby="invoice-support-recovery-notice" className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 text-sm leading-6 text-slate-700">
+              <h4 id="invoice-support-recovery-notice" className="mb-2 font-semibold text-slate-900">{SUPPORT_RECOVERY_NOTICE_TITLE}</h4>
+              <div className="space-y-2">{SUPPORT_RECOVERY_NOTICE_PARAGRAPHS.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
+            </section>
 
             <div className="flex flex-wrap items-center gap-2">
               {(canManageInvoices || (canRequestFinanceApproval && invoiceUpdateApprovalEnabled)) && modalMode === "edit" && (

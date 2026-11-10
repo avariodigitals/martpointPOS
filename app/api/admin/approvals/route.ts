@@ -119,7 +119,15 @@ export async function POST(request: Request) {
 
       if (decision === "APPROVED" && approval.action_key === "quotation.send") {
         const { data: quote, error: quoteError } = await supabase.from("lead_quotations").select("id,status,updated_at,creator_id,quote_number").eq("id", approval.entity_id).maybeSingle()
-        if (quoteError || !quote || quote.status !== "DRAFT" || quote.creator_id !== approval.requested_by || quote.updated_at !== approval.details?.quote_updated_at) return error("This quote changed or is no longer a draft. The creator must resubmit it.", 409)
+        if (quoteError) return error("Could not verify the quote. Try again.", 503)
+        if (!quote || quote.status !== "DRAFT" || quote.creator_id !== approval.requested_by || quote.updated_at !== approval.details?.quote_updated_at) {
+          await supabase.from("approval_requests").update({
+            status: "CANCELLED",
+            decision_note: "Quote changed after approval was requested; the creator must resubmit the latest draft.",
+            decided_at: new Date().toISOString(),
+          }).eq("id", id).eq("status", "PENDING")
+          return error("This approval request is out of date because the quote changed. Review the latest request after the creator resubmits it.", 409)
+        }
         const changed = await supabase.from("lead_quotations").update({ approval_status: "APPROVED", approved_by: session.userId, approved_at: new Date().toISOString() }).eq("id", approval.entity_id).eq("updated_at", quote.updated_at).select("id").maybeSingle()
         if (changed.error || !changed.data) return error("The quote approval could not be applied", 409)
         await logFinanceAudit("ADMIN", session.userId, "QUOTE_APPROVAL_APPROVED", "LEAD_QUOTATION", String(approval.entity_id), { approval_request_id: id, requested_by: approval.requested_by, quote_number: quote.quote_number, reason: approval.reason })

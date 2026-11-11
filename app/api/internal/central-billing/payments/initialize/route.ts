@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { verifyCentralRequest } from "@/lib/central-billing-auth"
+import { loadPaystackConfiguration } from "@/lib/paystack-settings"
 
 export async function POST(request: Request) {
   const raw = await request.text()
   if (!verifyCentralRequest(request.headers.get("x-central-timestamp") || "", raw, request.headers.get("x-central-signature") || "", new URL(request.url).pathname)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   if (!isSupabaseConfigured() || process.env.CENTRAL_BILLING_ENABLED !== "true") return NextResponse.json({ error: "Central billing is unavailable" }, { status: 503 })
-  const paymentMode = process.env.CENTRAL_BILLING_TEST_MODE === "true" ? "test" : "live"
-  const secret = paymentMode === "test" ? process.env.PAYSTACK_TEST_SECRET_KEY : process.env.PAYSTACK_SECRET_KEY
+  const paystack = await loadPaystackConfiguration().catch((error) => {
+    console.error("[central checkout] Paystack settings unavailable", error)
+    return null
+  })
+  if (!paystack) return NextResponse.json({ error: "Central Paystack settings are unavailable" }, { status: 503 })
+  const paymentMode = paystack.activeMode
+  const secret = paymentMode === "test" ? paystack.testSecret : paystack.liveSecret
   if (!secret) return NextResponse.json({ error: "Central Paystack checkout is not configured" }, { status: 503 })
   if ((paymentMode === "test" && !secret.startsWith("sk_test_")) || (paymentMode === "live" && !secret.startsWith("sk_live_"))) return NextResponse.json({ error: `Central Paystack ${paymentMode} key is invalid` }, { status: 503 })
   try {

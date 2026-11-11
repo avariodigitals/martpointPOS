@@ -1,6 +1,7 @@
-import { createHmac } from "crypto"
+import { createHmac, timingSafeEqual } from "crypto"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { log } from "./logger"
+import { getPaystackSecret, getPaystackWebhookSecrets } from "./paystack-settings"
 
 export type GatewayEvent = {
   gateway: "paystack" | "flutterwave"
@@ -10,14 +11,9 @@ export type GatewayEvent = {
   metadata?: Record<string, unknown>
 }
 
-export function isPaystackConfigured() {
-  return Boolean(process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY)
-}
-
 /** Server-side transaction lookup used before a Central credit invoice is confirmed. */
 export async function verifyPaystackTransaction(reference: string, secretOverride?: string): Promise<{ status: boolean; reference: string; paymentStatus: string; amountKobo: number; currency: string }> {
-  const secret = secretOverride || process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY
-  if (!secret) throw new Error("Paystack not configured")
+  const secret = secretOverride || await getPaystackSecret()
   const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, { headers: { Authorization: `Bearer ${secret}` }, cache: "no-store" })
   if (!response.ok) throw new Error(`Paystack verification unavailable (${response.status})`)
   const result = await response.json() as { status?: boolean; data?: { status?: string; reference?: string; amount?: number; currency?: string } }
@@ -29,10 +25,10 @@ export function isFlutterwaveConfigured() {
 }
 
 export function verifyPaystackSignature(body: string, signature: string, secretOverride?: string): boolean {
-  const secret = secretOverride || process.env.PAYSTACK_SECRET_KEY
-  if (!secret) return false
+  const secret = secretOverride
+  if (!secret || !/^[a-f\d]{128}$/i.test(signature)) return false
   const expected = createHmac("sha512", secret).update(body).digest("hex")
-  return expected === signature
+  return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(signature, "hex"))
 }
 
 export function verifyFlutterwaveSignature(body: string, signature: string): boolean {
@@ -64,22 +60,27 @@ export async function recordWebhookEvent(reference: string, gateway: string, pay
 }
 
 export async function processPaystackWebhook(body: string, signature: string): Promise<{ success: boolean; message: string }> {
-  if (!isPaystackConfigured()) return { success: false, message: "Paystack not configured" }
+  let webhookSecrets: string[]
+  try { webhookSecrets = await getPaystackWebhookSecrets() }
+  catch { return { success: false, message: "Paystack not configured" } }
+  if (!webhookSecrets.length) return { success: false, message: "Paystack not configured" }
 
-  if (!verifyPaystackSignature(body, signature) && !verifyPaystackSignature(body, signature, process.env.PAYSTACK_TEST_SECRET_KEY)) {
+  if (!webhookSecrets.some((secret) => verifyPaystackSignature(body, signature, secret))) {
     log("error", "Paystack webhook signature mismatch", { module: "payments", operation: "paystack_webhook" })
     return { success: false, message: "Invalid signature" }
   }
 
-  let event: any
+  let event: Record<string, unknown> & { event?: string; data?: { reference?: string } }
   try {
-    event = JSON.parse(body)
+    const parsed: unknown = JSON.parse(body)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { success: false, message: "Invalid event" }
+    event = parsed as Record<string, unknown> & { event?: string; data?: { reference?: string } }
   } catch {
     return { success: false, message: "Invalid JSON" }
   }
 
-  const reference = event?.data?.reference
-  const status = event?.event === "charge.success" ? "success" : "failed"
+  const reference = event.data?.reference
+  const status = event.event === "charge.success" ? "success" : "failed"
 
   if (!reference) return { success: false, message: "Missing reference" }
 
@@ -103,15 +104,17 @@ export async function processFlutterwaveWebhook(body: string, signature: string)
     return { success: false, message: "Invalid signature" }
   }
 
-  let event: any
+  let event: Record<string, unknown> & { txRef?: string; status?: string }
   try {
-    event = JSON.parse(body)
+    const parsed: unknown = JSON.parse(body)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { success: false, message: "Invalid event" }
+    event = parsed as Record<string, unknown> & { txRef?: string; status?: string }
   } catch {
     return { success: false, message: "Invalid JSON" }
   }
 
-  const reference = event?.txRef
-  const status = event?.status === "successful" ? "success" : "failed"
+  const reference = event.txRef
+  const status = event.status === "successful" ? "success" : "failed"
 
   if (!reference) return { success: false, message: "Missing txRef" }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, Save, Phone, Radio, Megaphone, Copy, RefreshCw } from "lucide-react"
+import { Loader2, Save, Phone, Radio, Megaphone, Copy, RefreshCw, CreditCard, CheckCircle2, AlertCircle } from "lucide-react"
 
 interface LiveKitSettings {
   serverUrl: string
@@ -53,6 +53,17 @@ interface AdLeadsSettings {
   metaPageAccessToken: string
 }
 
+interface PaystackSettings {
+  activeMode: "test" | "live"
+  liveConfigured: boolean
+  testConfigured: boolean
+  liveSource: "admin" | "environment" | "missing"
+  testSource: "admin" | "environment" | "missing"
+  liveHint: string
+  testHint: string
+  updatedAt: string | null
+}
+
 const defaultAdLeads: AdLeadsSettings = {
   webhookSecret: "",
   tiktokAppSecret: "",
@@ -65,6 +76,16 @@ export default function IntegrationsPage() {
   const [livekit, setLivekit] = useState<LiveKitSettings>(defaultLiveKit)
   const [whatsapp, setWhatsapp] = useState<WhatsAppSettings>(defaultWhatsApp)
   const [adLeads, setAdLeads] = useState<AdLeadsSettings>(defaultAdLeads)
+  const [paystack, setPaystack] = useState<PaystackSettings | null>(null)
+  const [paystackMode, setPaystackMode] = useState<"test" | "live">("live")
+  const [paystackLiveSecret, setPaystackLiveSecret] = useState("")
+  const [paystackTestSecret, setPaystackTestSecret] = useState("")
+  const [clearPaystackLive, setClearPaystackLive] = useState(false)
+  const [clearPaystackTest, setClearPaystackTest] = useState(false)
+  const [paystackLoading, setPaystackLoading] = useState(true)
+  const [paystackSaving, setPaystackSaving] = useState(false)
+  const [paystackMessage, setPaystackMessage] = useState("")
+  const [paystackMessageError, setPaystackMessageError] = useState(false)
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -80,6 +101,18 @@ export default function IntegrationsPage() {
       })
       .catch(() => setMessage("Failed to load settings"))
       .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetch("/api/admin/integrations/paystack", { cache: "no-store" })
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok || !data.success) throw new Error(data.error || "Could not load Paystack settings")
+        setPaystack(data.settings)
+        setPaystackMode(data.settings.activeMode)
+      })
+      .catch((error) => { setPaystackMessage(error instanceof Error ? error.message : "Could not load Paystack settings"); setPaystackMessageError(true) })
+      .finally(() => setPaystackLoading(false))
   }, [])
 
   const save = async () => {
@@ -102,6 +135,21 @@ export default function IntegrationsPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const savePaystack = async () => {
+    setPaystackSaving(true); setPaystackMessage(""); setPaystackMessageError(false)
+    try {
+      const response = await fetch("/api/admin/integrations/paystack", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activeMode: paystackMode, liveSecret: paystackLiveSecret, testSecret: paystackTestSecret, clearLiveSecret: clearPaystackLive, clearTestSecret: clearPaystackTest }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Could not save Paystack settings")
+      setPaystack(data.settings); setPaystackMode(data.settings.activeMode); setPaystackLiveSecret(""); setPaystackTestSecret(""); setClearPaystackLive(false); setClearPaystackTest(false)
+      setPaystackMessage("Paystack settings saved securely.")
+    } catch (error) { setPaystackMessage(error instanceof Error ? error.message : "Could not save Paystack settings"); setPaystackMessageError(true) }
+    finally { setPaystackSaving(false) }
   }
 
   const input = (label: string, value: string, onChange: (v: string) => void, type = "text") => (
@@ -134,6 +182,34 @@ export default function IntegrationsPage() {
       {message && (
         <p className={`text-sm ${message.includes("success") ? "text-green-600" : "text-red-500"}`}>{message}</p>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><CreditCard className="h-4 w-4" />Paystack</CardTitle>
+          <CardDescription>Set the server-side Paystack keys and select which environment new invoice checkouts use. Keys are encrypted before storage and are never shown again after saving.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {paystackMessage && <p role={paystackMessageError ? "alert" : "status"} className={`text-sm ${paystackMessageError ? "text-red-600" : "text-green-700"}`}>{paystackMessage}</p>}
+          {paystackLoading ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading Paystack status…</div> : <>
+            {paystack && <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Live key</p><p className="mt-1 flex items-center gap-1.5 text-sm font-medium">{paystack.liveConfigured ? <><CheckCircle2 className="h-4 w-4 text-emerald-600" />Configured {paystack.liveHint}</> : <><AlertCircle className="h-4 w-4 text-amber-600" />Not configured</>}</p><p className="mt-1 text-xs text-muted-foreground">Source: {paystack.liveSource === "admin" ? "Admin settings" : paystack.liveSource === "environment" ? "Deployment environment variable" : "None"}</p></div>
+              <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Test key</p><p className="mt-1 flex items-center gap-1.5 text-sm font-medium">{paystack.testConfigured ? <><CheckCircle2 className="h-4 w-4 text-emerald-600" />Configured {paystack.testHint}</> : <><AlertCircle className="h-4 w-4 text-amber-600" />Not configured</>}</p><p className="mt-1 text-xs text-muted-foreground">Source: {paystack.testSource === "admin" ? "Admin settings" : paystack.testSource === "environment" ? "Deployment environment variable" : "None"}</p></div>
+            </div>}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1 text-sm"><span className="font-medium">Live secret key</span><input type="password" autoComplete="new-password" value={paystackLiveSecret} onChange={(event) => { setPaystackLiveSecret(event.target.value); setClearPaystackLive(false) }} placeholder={paystack?.liveConfigured ? "Saved key — leave blank to keep it" : "sk_live_…"} className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm" /><span className="block text-xs text-muted-foreground">Paste a secret key beginning with <code>sk_live_</code>.</span></label>
+              <label className="space-y-1 text-sm"><span className="font-medium">Test secret key</span><input type="password" autoComplete="new-password" value={paystackTestSecret} onChange={(event) => { setPaystackTestSecret(event.target.value); setClearPaystackTest(false) }} placeholder={paystack?.testConfigured ? "Saved key — leave blank to keep it" : "sk_test_…"} className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm" /><span className="block text-xs text-muted-foreground">Paste a test key beginning with <code>sk_test_</code>.</span></label>
+            </div>
+            <div className="flex flex-wrap items-end justify-between gap-4 border-t pt-4">
+              <label className="block space-y-1 text-sm"><span className="font-medium">Mode for new checkouts</span><select value={paystackMode} onChange={(event) => setPaystackMode(event.target.value as "test" | "live")} className="block h-10 min-w-48 rounded-md border border-input bg-background px-3"><option value="test">Test</option><option value="live">Live</option></select></label>
+              <div className="flex flex-wrap gap-2">{paystack?.liveSource === "admin" && <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={clearPaystackLive} onChange={(event) => setClearPaystackLive(event.target.checked)} />Remove saved live key</label>}{paystack?.testSource === "admin" && <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={clearPaystackTest} onChange={(event) => setClearPaystackTest(event.target.checked)} />Remove saved test key</label>}<Button onClick={() => void savePaystack()} disabled={paystackSaving || paystackLoading}>{paystackSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Save Paystack settings</Button></div>
+            </div>
+            {paystackMode === "live" && !paystack?.liveConfigured && !paystackLiveSecret.trim() && <p className="text-xs text-amber-700">Live mode is selected, but a live key is not configured. Checkout will stay unavailable until you add one.</p>}
+            {paystackMode === "test" && !paystack?.testConfigured && !paystackTestSecret.trim() && <p className="text-xs text-amber-700">Test mode is selected, but a test key is not configured. Test checkout will stay unavailable until you add one.</p>}
+            {paystack?.updatedAt && <p className="text-xs text-muted-foreground">Last saved {new Date(paystack.updatedAt).toLocaleString()}</p>}
+            <p className="text-xs leading-5 text-muted-foreground">Configure this webhook in Paystack: <code className="break-all">{typeof window !== "undefined" ? `${window.location.origin}/api/payments/webhooks/paystack` : "/api/payments/webhooks/paystack"}</code>. New keys saved here take precedence over deployment environment keys. Switching mode affects new checkouts; existing payment references keep their original mode.</p>
+          </>}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>

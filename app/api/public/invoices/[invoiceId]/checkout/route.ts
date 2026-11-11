@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { randomUUID } from "crypto"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { recordPayment } from "@/lib/finance-commercial"
+import { getPaystackSecret, loadPaystackConfiguration } from "@/lib/paystack-settings"
 
 /** Start a MartPoint receivable checkout. The invoice UUID is the unguessable public link key. */
 export async function POST(_request: Request, { params }: { params: Promise<{ invoiceId: string }> }) {
@@ -13,12 +14,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ in
   if (String(invoice.currency || "NGN").toUpperCase() !== "NGN") return NextResponse.json({ error: "Online card payment is currently available for NGN invoices" }, { status: 409 })
   const amount = Math.round(Number(invoice.balance_due) * 100)
   if (!Number.isSafeInteger(amount) || amount <= 0) return NextResponse.json({ error: "This invoice has no balance due" }, { status: 409 })
-  const secret = process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_TEST_SECRET_KEY
-  if (!secret) return NextResponse.json({ error: "Online payments are not configured" }, { status: 503 })
+  const paystackSettings = await loadPaystackConfiguration().catch(() => null)
+  const secret = paystackSettings ? await getPaystackSecret(paystackSettings.activeMode).catch(() => "") : ""
+  if (!paystackSettings || !secret) return NextResponse.json({ error: "Online payments are not configured" }, { status: 503 })
   const business = Array.isArray(invoice.businesses) ? invoice.businesses[0] : invoice.businesses
   const email = String(business?.primary_email || "").trim()
   if (!email) return NextResponse.json({ error: "Ask MartPoint to add a billing email to this invoice" }, { status: 409 })
-  const { data: pending } = await supabase.from("payments").select("gateway_reference,checkout_url").eq("invoice_id", invoice.id).eq("payment_method", "PAYSTACK").eq("status", "PENDING").order("created_at", { ascending: false }).limit(1).maybeSingle()
+  const { data: pending } = await supabase.from("payments").select("gateway_reference,checkout_url,gateway_mode").eq("invoice_id", invoice.id).eq("payment_method", "PAYSTACK").eq("status", "PENDING").eq("gateway_mode", paystackSettings.activeMode).order("created_at", { ascending: false }).limit(1).maybeSingle()
   if (pending) return pending.checkout_url
     ? NextResponse.json({ success: true, authorization_url: pending.checkout_url, reference: pending.gateway_reference })
     : NextResponse.json({ error: "A Paystack checkout is already being prepared. Refresh this page shortly." }, { status: 409 })
@@ -27,6 +29,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ in
   try {
     const payment = await recordPayment({ business_id: invoice.business_id, invoice_id: invoice.id, amount: amount / 100, currency: "NGN", payment_method: "PAYSTACK", gateway_reference: reference, notes: `Paystack checkout for ${invoice.invoice_number}` })
     paymentId = payment.id
+    const { error: modeError } = await supabase.from("payments").update({ gateway_mode: paystackSettings.activeMode }).eq("id", paymentId)
+    if (modeError) throw modeError
   } catch (error) {
     console.error("[invoice checkout] payment intent record failed", error)
     return NextResponse.json({ error: "Could not prepare this invoice payment" }, { status: 503 })

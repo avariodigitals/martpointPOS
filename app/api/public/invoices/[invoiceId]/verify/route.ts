@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { verifyPaystackTransaction } from "@/lib/payment-gateways"
+import { getPaystackSecret } from "@/lib/paystack-settings"
 import { confirmPayment, createReceipt, fulfillPaidInvoiceEntitlements, syncInvoiceFinanceTransaction } from "@/lib/finance-commercial"
 import { postInvoiceJournal, postPaymentJournal } from "@/lib/finance-ledger"
 
@@ -10,7 +11,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ inv
   const body = await request.json().catch(() => ({})) as { reference?: string }
   const reference = String(body.reference || "")
   if (!/^MPINV_[a-zA-Z0-9_-]{1,120}$/.test(reference)) return NextResponse.json({ error: "Invalid payment reference" }, { status: 400 })
-  const { data: payment } = await supabase.from("payments").select("id,invoice_id,business_id,amount,currency,status,gateway_reference").eq("gateway_reference", reference).eq("invoice_id", invoiceId).maybeSingle()
+  const { data: payment } = await supabase.from("payments").select("id,invoice_id,business_id,amount,currency,status,gateway_reference,gateway_mode").eq("gateway_reference", reference).eq("invoice_id", invoiceId).maybeSingle()
   if (!payment) return NextResponse.json({ error: "Payment attempt not found for this invoice" }, { status: 404 })
   if (payment.status === "CONFIRMED") {
     try {
@@ -25,7 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ inv
       return NextResponse.json({ error: "Payment is confirmed; invoice accounting is being reconciled" }, { status: 503 })
     }
   }
-  const verified = await verifyPaystackTransaction(reference)
+  const verified = await verifyPaystackTransaction(reference, payment.gateway_mode === "test" ? await getPaystackSecret("test") : await getPaystackSecret("live"))
   if (!verified.status || verified.paymentStatus !== "success" || verified.reference !== reference || verified.currency !== "NGN") return NextResponse.json({ error: "Paystack has not confirmed this payment" }, { status: 409 })
   if (!Number.isSafeInteger(verified.amountKobo) || verified.amountKobo !== Math.round(Number(payment.amount) * 100)) return NextResponse.json({ error: "The verified amount does not match the payment attempt" }, { status: 409 })
   const { data: currentInvoice } = await supabase.from("invoices").select("balance_due").eq("id", invoiceId).maybeSingle()

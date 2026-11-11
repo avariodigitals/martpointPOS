@@ -6,6 +6,7 @@ import { postPaymentJournal, postInvoiceJournal } from "@/lib/finance-ledger"
 import { syncInvoiceFinanceTransaction } from "@/lib/finance-commercial"
 import { centralSignature } from "@/lib/central-billing-auth"
 import { verifyPaystackTransaction } from "@/lib/payment-gateways"
+import { getPaystackSecret } from "@/lib/paystack-settings"
 import { queueCentralCreditFulfillment } from "@/lib/central-billing-fulfillment"
 
 export async function POST(request: Request) {
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     const expected = Number(invoice.total_amount)
 
     if (!intent.payment_id) {
-      const verificationKey = intent.payment_mode === "test" ? process.env.PAYSTACK_TEST_SECRET_KEY : undefined
+      const verificationKey = await getPaystackSecret(intent.payment_mode === "test" ? "test" : "live")
       const verification = await verifyPaystackTransaction(body.provider_reference, verificationKey)
       if (!verification.status || verification.paymentStatus !== "success" || verification.reference !== body.provider_reference || verification.currency !== "NGN") return NextResponse.json({ error: "Payment is not confirmed" }, { status: 409 })
       if (!Number.isSafeInteger(verification.amountKobo) || verification.amountKobo !== Math.round(expected * 100)) return NextResponse.json({ error: "Verified payment amount does not match invoice" }, { status: 409 })

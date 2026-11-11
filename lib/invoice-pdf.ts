@@ -9,6 +9,7 @@
 
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
+import { replaceCurrencySymbols } from "./quotations"
 import { SUPPORT_RECOVERY_NOTICE_PARAGRAPHS, SUPPORT_RECOVERY_NOTICE_TITLE } from "./support-recovery-notice"
 
 export interface InvoicePdfItem {
@@ -55,6 +56,12 @@ function fmt(n: number, currency: string): string {
 
 function splitLines(value: string | null | undefined): string[] {
   return String(value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+}
+
+function pdfText(value: string | null | undefined): string {
+  // jsPDF's built-in font cannot display the Naira glyph. Add a readable
+  // separator when it directly precedes an amount (₦521 -> NGN 521).
+  return replaceCurrencySymbols(String(value || "")).replace(/\bNGN(?=\d)/g, "NGN ")
 }
 
 export function generateInvoicePdf(inv: InvoicePdfData): Buffer {
@@ -204,11 +211,11 @@ export function generateInvoicePdf(inv: InvoicePdfData): Buffer {
   writeBand(`Please pay by bank transfer quoting invoice ${inv.invoice_number} as the payment reference, and send proof of payment in reply to the invoice email.`)
   if (inv.payment_terms) {
     writeBand("Payment terms", 10, true)
-    for (const line of splitLines(inv.payment_terms)) writeBand(line)
+    for (const line of splitLines(pdfText(inv.payment_terms))) writeBand(line)
   }
   if (inv.bank_details) {
     writeBand("Bank account", 10, true)
-    for (const line of splitLines(inv.bank_details)) writeBand(line)
+    for (const line of splitLines(pdfText(inv.bank_details))) writeBand(line)
   }
   if (inv.payment_link) {
     if (bandY + 60 > FOOTER_TOP) startNewPage()
@@ -230,7 +237,7 @@ export function generateInvoicePdf(inv: InvoicePdfData): Buffer {
   }
   if (inv.notes_public) {
     writeBand("Notes", 10, true)
-    writeBand(inv.notes_public)
+    writeBand(pdfText(inv.notes_public))
   }
   writeBand(SUPPORT_RECOVERY_NOTICE_TITLE, 10, true)
   for (const paragraph of SUPPORT_RECOVERY_NOTICE_PARAGRAPHS) writeBand(paragraph, 8.5)

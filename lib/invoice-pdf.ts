@@ -178,9 +178,10 @@ export function generateInvoicePdf(inv: InvoicePdfData): Buffer {
   doc.line(totalsX, totalsY - 6, totalsValueX, totalsY - 6)
   totalRow("Balance due:", fmt(inv.balance_due, cur), { bold: true, blue: true })
 
-  // Payment instructions + notes (left column, page-break aware).
-  let bandY = finalY + 20
-  let bandW = Math.max(200, totalsX - margin - 30)
+  // Keep payment instructions below the totals. Sharing the totals' vertical
+  // band made longer payment terms collide with the amounts on some viewers.
+  let bandY = totalsY + 12
+  let bandW = pageW - margin * 2
   const startNewPage = () => {
     doc.addPage()
     bandY = 50
@@ -210,14 +211,22 @@ export function generateInvoicePdf(inv: InvoicePdfData): Buffer {
     for (const line of splitLines(inv.bank_details)) writeBand(line)
   }
   if (inv.payment_link) {
-    if (bandY + 26 > FOOTER_TOP) startNewPage()
+    if (bandY + 60 > FOOTER_TOP) startNewPage()
     writeBand("Pay online", 10, true)
-    const linkY = bandY
+    const buttonLabel = "Pay securely with MartPoint Pay"
+    const buttonX = margin
+    const buttonY = bandY - 11
+    doc.setFont("helvetica", "bold")
     doc.setFontSize(9)
-    doc.setTextColor(0, 87, 255)
-    doc.text("Open the secure MartPoint Paystack payment link", margin, linkY)
-    doc.link(margin, linkY - 10, bandW, 14, { url: inv.payment_link })
-    bandY += 18
+    const buttonW = doc.getTextWidth(buttonLabel) + 28
+    const buttonH = 30
+    doc.setFillColor(0, 87, 255)
+    doc.roundedRect(buttonX, buttonY, buttonW, buttonH, 5, 5, "F")
+    doc.setTextColor(255, 255, 255)
+    doc.text(buttonLabel, buttonX + 14, buttonY + 19)
+    doc.link(buttonX, buttonY, buttonW, buttonH, { url: inv.payment_link })
+    doc.setFont("helvetica", "normal")
+    bandY += buttonH + 12
   }
   if (inv.notes_public) {
     writeBand("Notes", 10, true)

@@ -80,7 +80,7 @@ export async function sendInvoiceEmail(
   const template = resolveQuoteTemplate((inv.template_industry as string | null) || biz?.industry || null)
   const paymentTerms = (inv.payment_terms as string | null) || template.paymentTerms
   const siteSettings = await getPublicSiteSettings()
-  const bankDetails = (inv.bank_details as string | null) || siteSettings.accountNumber || ""
+  const bankDetails = siteSettings.accountNumber.trim() || (inv.bank_details as string | null) || ""
   const paymentUrl = `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/pay/invoice/${encodeURIComponent(invoiceId)}`
 
   const vars = {

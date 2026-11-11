@@ -23,7 +23,7 @@ export function InvoicePaymentActions({ invoiceId, balanceDue, reference, bankDe
 
   const confirm = useCallback(async () => {
     if (!reference) return
-    setBusy(true); setMessage("Checking Paystack for your payment…")
+    setBusy(true); setMessage("Checking your MartPoint Pay transaction…")
     try {
       const response = await fetch(`/api/public/invoices/${encodeURIComponent(invoiceId)}/verify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reference }) })
       const data = await response.json()
@@ -39,7 +39,8 @@ export function InvoicePaymentActions({ invoiceId, balanceDue, reference, bankDe
 
   return <div className="space-y-4">
     {bankDetails && <section className="rounded-xl border bg-white p-4"><h2 className="font-semibold">Bank transfer details</h2><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{bankDetails}</p><p className="mt-2 text-xs text-slate-500">Use the invoice number as your transfer reference, then contact MartPoint with proof of payment.</p></section>}
-    {balanceDue > 0 && <button onClick={reference ? confirm : pay} disabled={busy} className="w-full rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white disabled:opacity-60">{busy ? "Please wait…" : reference ? "Confirm my payment" : `Pay ₦${balanceDue.toLocaleString("en-NG", { minimumFractionDigits: 2 })} with Paystack`}</button>}
+    {balanceDue > 0 && <button onClick={reference ? confirm : pay} disabled={busy} className="w-full rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white disabled:opacity-60">{busy ? "Please wait…" : reference ? "Confirm my payment" : `Pay ₦${balanceDue.toLocaleString("en-NG", { minimumFractionDigits: 2 })} with MartPoint Pay`}</button>}
+    {balanceDue > 0 && !reference && <p className="text-center text-xs text-slate-500">Secure checkout provided by Paystack.</p>}
     {message && <p role="status" className="text-sm text-slate-700">{message}</p>}
   </div>
 }

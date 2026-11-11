@@ -27,10 +27,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ inv
     }
   }
   const verified = await verifyPaystackTransaction(reference, payment.gateway_mode === "test" ? await getPaystackSecret("test") : await getPaystackSecret("live"))
-  if (!verified.status || verified.paymentStatus !== "success" || verified.reference !== reference || verified.currency !== "NGN") return NextResponse.json({ error: "Paystack has not confirmed this payment" }, { status: 409 })
+  if (!verified.status || verified.paymentStatus !== "success" || verified.reference !== reference || verified.currency !== "NGN") return NextResponse.json({ error: "This payment has not been confirmed yet" }, { status: 409 })
   if (!Number.isSafeInteger(verified.amountKobo) || verified.amountKobo !== Math.round(Number(payment.amount) * 100)) return NextResponse.json({ error: "The verified amount does not match the payment attempt" }, { status: 409 })
   const { data: currentInvoice } = await supabase.from("invoices").select("balance_due").eq("id", invoiceId).maybeSingle()
-  if (!currentInvoice || Number(payment.amount) > Number(currentInvoice.balance_due) + 0.01) return NextResponse.json({ error: "Payment is confirmed by Paystack but exceeds the remaining invoice balance; contact MartPoint for reconciliation" }, { status: 409 })
+  if (!currentInvoice || Number(payment.amount) > Number(currentInvoice.balance_due) + 0.01) return NextResponse.json({ error: "Payment is confirmed but exceeds the remaining invoice balance; contact MartPoint for reconciliation" }, { status: 409 })
   try {
     await confirmPayment(payment.id, "Paystack invoice verification")
     await createReceipt(payment.id, "Paystack invoice verification")

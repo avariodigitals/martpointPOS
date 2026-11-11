@@ -23,7 +23,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ in
   const { data: pending } = await supabase.from("payments").select("gateway_reference,checkout_url,gateway_mode").eq("invoice_id", invoice.id).eq("payment_method", "PAYSTACK").eq("status", "PENDING").eq("gateway_mode", paystackSettings.activeMode).order("created_at", { ascending: false }).limit(1).maybeSingle()
   if (pending) return pending.checkout_url
     ? NextResponse.json({ success: true, authorization_url: pending.checkout_url, reference: pending.gateway_reference })
-    : NextResponse.json({ error: "A Paystack checkout is already being prepared. Refresh this page shortly." }, { status: 409 })
+    : NextResponse.json({ error: "Your MartPoint Pay checkout is being prepared. Refresh this page shortly." }, { status: 409 })
   const reference = `MPINV_${String(invoice.invoice_number).replace(/[^a-zA-Z0-9_-]/g, "_")}_${randomUUID().replace(/-/g, "")}`
   let paymentId = ""
   try {
@@ -47,7 +47,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ in
     const checkoutUrl = result?.data?.authorization_url || ""
     if (!response.ok || !result?.status || !checkoutUrl.startsWith("https://")) {
       await supabase.from("payments").update({ status: "FAILED", updated_at: new Date().toISOString() }).eq("id", paymentId).eq("status", "PENDING")
-      return NextResponse.json({ error: "Paystack could not start checkout" }, { status: 502 })
+      return NextResponse.json({ error: "MartPoint Pay could not start checkout" }, { status: 502 })
     }
     const { error: saveError } = await supabase.from("payments").update({ checkout_url: checkoutUrl, updated_at: new Date().toISOString() }).eq("id", paymentId).eq("status", "PENDING")
     if (saveError) {
@@ -58,6 +58,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ in
   } catch (error) {
     console.error("[invoice checkout] Paystack initialization failed", error)
     await supabase.from("payments").update({ status: "FAILED", updated_at: new Date().toISOString() }).eq("id", paymentId).eq("status", "PENDING")
-    return NextResponse.json({ error: "Paystack checkout could not be confirmed. Refresh the invoice before retrying." }, { status: 502 })
+    return NextResponse.json({ error: "MartPoint Pay could not confirm checkout. Refresh the invoice before retrying." }, { status: 502 })
   }
 }

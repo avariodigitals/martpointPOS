@@ -46,7 +46,10 @@ export async function GET(request: Request) {
     balance_due: inv.balance_due,
     notes_public: inv.notes_public,
     payment_terms: inv.payment_terms || template.paymentTerms,
-    bank_details: inv.bank_details || siteSettings.accountNumber,
+    // Use the current company account details so re-issued PDFs reflect the
+    // latest account configured in Site Settings. Keep the invoice snapshot as
+    // a fallback for installations without a current account configured.
+    bank_details: siteSettings.accountNumber.trim() || inv.bank_details,
     payment_link: `${(process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng").replace(/\/$/, "")}/pay/invoice/${encodeURIComponent(inv.id)}`,
     template_industry: inv.template_industry,
     items: inv.invoice_items || [],

@@ -13,7 +13,7 @@ export default async function PublicInvoicePaymentPage({ params, searchParams }:
   if (!invoice) notFound()
   const business = Array.isArray(invoice.businesses) ? invoice.businesses[0] : invoice.businesses
   const settings = await getPublicSiteSettings()
-  const bankDetails = String(invoice.bank_details || settings.accountNumber || "")
+  const bankDetails = String(settings.accountNumber.trim() || invoice.bank_details || "")
   const balance = Math.max(0, Number(invoice.balance_due) || 0)
   const payable = ["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(String(invoice.status)) && balance > 0
   return <main className="min-h-screen bg-slate-50 px-4 py-12 text-slate-900">

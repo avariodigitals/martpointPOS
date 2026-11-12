@@ -1,7 +1,7 @@
 "use client"
 
 import { SearchableSelect } from "@/components/ui/searchable-select"
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1114,6 +1114,7 @@ export function BusinessDetail({
               </div>
             </CardContent>
           </Card>
+          <CentralInstallationMappings businessId={business.id} defaultUrl={deploymentUrl} />
         </div>
       )}
 
@@ -1193,6 +1194,103 @@ export function BusinessDetail({
 }
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
+
+type CentralInstallationMapping = {
+  id: string
+  fleet_install_id: number
+  store_id: number
+  install_url: string
+  status: "ACTIVE" | "DISABLED"
+  paystack_subaccount_code?: string | null
+  paystack_subaccount_enabled?: boolean
+}
+
+function CentralInstallationMappings({ businessId, defaultUrl }: { businessId: string; defaultUrl: string }) {
+  const [mappings, setMappings] = useState<CentralInstallationMapping[]>([])
+  const [fleetInstallId, setFleetInstallId] = useState("")
+  const [storeId, setStoreId] = useState("")
+  const [installUrl, setInstallUrl] = useState(defaultUrl)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState("")
+
+  const loadMappings = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/admin/businesses/${businessId}/installations`, { cache: "no-store" })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Installation mappings could not be loaded")
+      setMappings(data.installations || [])
+      setMessage("")
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Installation mappings could not be loaded")
+    } finally {
+      setLoading(false)
+    }
+  }, [businessId])
+
+  useEffect(() => { void loadMappings() }, [loadMappings])
+
+  async function saveMapping(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSaving(true)
+    setMessage("")
+    try {
+      const response = await fetch(`/api/admin/businesses/${businessId}/installations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fleetInstallId: Number(fleetInstallId), storeId: Number(storeId), installUrl: installUrl.trim() }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Installation mapping could not be saved")
+      setMessage("Installation mapping saved and active.")
+      setFleetInstallId("")
+      setStoreId("")
+      await loadMappings()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Installation mapping could not be saved")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-sm font-medium">Fleet installation mapping</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">This mapping connects a Central fleet and store to this business for Paystack payout routing and Central billing. The business status and deployment URL do not create this mapping automatically.</p>
+        {loading ? <p className="text-sm text-muted-foreground">Loading mappings…</p> : mappings.length ? (
+          <div className="space-y-2">
+            {mappings.map((mapping) => (
+              <div key={mapping.id} className="grid gap-2 rounded-md border p-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <Detail label="Fleet installation ID" value={String(mapping.fleet_install_id)} />
+                <Detail label="Store ID" value={String(mapping.store_id)} />
+                <Detail label="Installation URL" value={mapping.install_url} />
+                <Detail label="Mapping status" value={mapping.status} />
+                {mapping.paystack_subaccount_code && <Detail label="Paystack route" value={mapping.paystack_subaccount_enabled ? "Enabled" : "Disabled"} />}
+              </div>
+            ))}
+          </div>
+        ) : <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">No fleet installation mapping is registered for this business yet.</p>}
+
+        <form onSubmit={saveMapping} className="space-y-3 border-t pt-4">
+          <p className="text-sm font-medium">Add or correct a mapping</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Central fleet installation ID (db_fleet_installs.id)"><input required min="1" step="1" type="number" className={inputCls} value={fleetInstallId} onChange={(event) => setFleetInstallId(event.target.value)} /></Field>
+            <Field label="Store ID (db_store.id)"><input required min="1" step="1" type="number" className={inputCls} value={storeId} onChange={(event) => setStoreId(event.target.value)} /></Field>
+            <Field label="Exact HTTPS installation URL"><input required type="url" className={inputCls} placeholder="https://fleet.example.com/" value={installUrl} onChange={(event) => setInstallUrl(event.target.value)} /></Field>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit" disabled={saving || !fleetInstallId || !storeId || !installUrl.trim()}>
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Save active mapping
+            </Button>
+            {message && <span className="text-sm text-muted-foreground">{message}</span>}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
 
 function Field({ label, hideLabel, children }: { label: string; hideLabel?: boolean; children: React.ReactNode }) {
   return (

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { verifyCentralRequest } from "@/lib/central-billing-auth"
+import { normalizeCentralInstallUrl } from "@/lib/central-billing-installation"
 import crypto from "crypto"
 
 export async function POST(request: Request) {
@@ -12,7 +13,17 @@ export async function POST(request: Request) {
   if (catalogueControl?.price_owner !== "NEXT" || catalogueControl.sync_status !== "SYNCED") return NextResponse.json({ error: "Next-owned Central catalogue is not synchronized" }, { status: 503 })
   try {
     const p = JSON.parse(raw) as { idempotency_key: string; fleet_install_id: number; store_id: number; install_url: string; channel: "sms" | "email"; credit_units: number; amount_kobo: number; tax_kobo: number; package_id?: number }
-    if (!/^[a-zA-Z0-9:_-]{16,160}$/.test(p.idempotency_key) || !Number.isSafeInteger(p.fleet_install_id) || !Number.isSafeInteger(p.store_id) || !/^https:\/\//.test(p.install_url) || !["sms", "email"].includes(p.channel) || !Number.isSafeInteger(p.credit_units) || p.credit_units < 1 || !Number.isSafeInteger(p.amount_kobo) || !Number.isSafeInteger(p.tax_kobo)) return NextResponse.json({ error: "Invalid invoice request" }, { status: 400 })
+    const requestInstallUrl = normalizeCentralInstallUrl(p.install_url)
+    if (!/^[a-zA-Z0-9:_-]{16,160}$/.test(p.idempotency_key) || !Number.isSafeInteger(p.fleet_install_id) || p.fleet_install_id < 1 || !Number.isSafeInteger(p.store_id) || p.store_id < 1 || !requestInstallUrl || !["sms", "email"].includes(p.channel) || !Number.isSafeInteger(p.credit_units) || p.credit_units < 1 || !Number.isSafeInteger(p.amount_kobo) || p.amount_kobo < 1 || !Number.isSafeInteger(p.tax_kobo) || p.tax_kobo < 0) return NextResponse.json({ error: "Invalid invoice request" }, { status: 400 })
+    const { data: mapping, error: mappingError } = await supabase.from("central_installation_mappings").select("install_url").eq("fleet_install_id", p.fleet_install_id).eq("store_id", p.store_id).eq("status", "ACTIVE").maybeSingle()
+    if (mappingError) {
+      console.error("[central invoice mapping lookup]", mappingError)
+      return NextResponse.json({ error: "Installation mapping could not be checked" }, { status: 503 })
+    }
+    if (!mapping || normalizeCentralInstallUrl(mapping.install_url) !== requestInstallUrl) return NextResponse.json({ error: "Active installation mapping not found for this fleet, store and URL" }, { status: 404 })
+    // Send the database's canonical stored URL into the RPC. The mapping lookup
+    // has already verified fleet/store/status and normalized URL identity.
+    p.install_url = mapping.install_url
     const payloadHash = crypto.createHash("sha256").update(JSON.stringify(p)).digest("hex")
     const { data: product, error: productError } = await supabase.from("central_credit_products").select("*").eq("channel", p.channel).eq("active", true).maybeSingle()
     if (productError || !product) return NextResponse.json({ error: "Imported Central catalogue is not available" }, { status: 409 })

@@ -619,6 +619,13 @@ export async function recordPayment(input: {
 export async function confirmPayment(paymentId: string, confirmedBy: string, actorId?: string, paymentAccountId?: string) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
   const now = new Date().toISOString()
+  // `payments.confirmed_by` is a UUID for an admin user. Automated payment
+  // paths pass a descriptive source (for example, "Central Paystack
+  // verification"), which belongs in audit metadata, never in that UUID.
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  const confirmedByUserId = uuidPattern.test(confirmedBy) ? confirmedBy : null
+  const auditActorId = actorId && uuidPattern.test(actorId) ? actorId : confirmedByUserId
+  const confirmationSource = confirmedByUserId ? "ADMIN" : "SYSTEM"
 
   const { data: payment } = await supabase.from("payments").select("*").eq("id", paymentId).single()
   if (!payment) throw new Error("Payment not found")
@@ -627,7 +634,7 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
   const { data: confirmedRow, error } = await supabase.from("payments").update({
     status: "CONFIRMED",
     confirmed_at: now,
-    confirmed_by: confirmedBy,
+    confirmed_by: confirmedByUserId,
     payment_account_id: paymentAccountId || undefined,
     updated_at: now,
   }).eq("id", paymentId).eq("status", "PENDING").select("id").maybeSingle()
@@ -645,9 +652,9 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
   }
 
   if (confirmedRow) {
-    await logFinanceAudit("ADMIN", actorId, "PAYMENT_CONFIRMED", "PAYMENT", paymentId, { confirmed_by: confirmedBy })
+    await logFinanceAudit(confirmationSource, auditActorId || undefined, "PAYMENT_CONFIRMED", "PAYMENT", paymentId, { confirmed_by: confirmedBy, confirmed_by_user_id: confirmedByUserId })
     // Evaluate commissions only for the request that won the status transition.
-    await evaluateCommissionsForPayment(paymentId, actorId)
+    await evaluateCommissionsForPayment(paymentId, auditActorId || undefined)
   }
 
   // On a paid invoice, advance the business onboarding to Payment Confirmed.
@@ -685,7 +692,7 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
     console.error("[confirmPayment] partner notification failed", notifyError)
   }
   if (business && business.status !== "ACTIVE") {
-    const actor: AuditContext = { actorType: "ADMIN", actorId: actorId || confirmedBy, actorName: null }
+    const actor: AuditContext = { actorType: confirmationSource, actorId: auditActorId, actorName: confirmedByUserId ? null : confirmedBy }
     await setOnboardingStage(business.id, "AWAITING_PAYMENT", true, actor)
 
     // If this business is linked to a lead that is not yet Won, mark it Won.
@@ -719,7 +726,7 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
   // to avoid a module cycle (payment-emails imports createReceipt from here).
   try {
     const { sendPaymentConfirmationEmail } = await import("./payment-emails")
-    await sendPaymentConfirmationEmail(paymentId, { type: "ADMIN", id: actorId || confirmedBy })
+    await sendPaymentConfirmationEmail(paymentId, auditActorId ? { type: "ADMIN", id: auditActorId } : { type: "SYSTEM" })
   } catch (err) {
     console.error("[confirmPayment] confirmation email failed:", err)
   }

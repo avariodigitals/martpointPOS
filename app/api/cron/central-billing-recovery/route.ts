@@ -12,8 +12,42 @@ export const maxDuration = 60
 export async function GET(request: Request) {
   const expected = process.env.CRON_SECRET
   if (!expected || request.headers.get("authorization") !== `Bearer ${expected}`) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  let financeRetried = 0, fulfillmentRetried = 0
+  let paymentChecks = 0, paymentsConfirmed = 0, financeRetried = 0, fulfillmentRetried = 0
   try {
+    // Browser returns and Paystack webhooks are fast paths. This server-side
+    // poll is the durable fallback when either callback is missed: verify old
+    // pending references with Paystack and run the exact same settlement path.
+    const pendingCutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+    const { data: pendingIntents, error: pendingError } = await supabase.from("central_billing_intents")
+      .select("id,provider_reference")
+      .eq("payment_status", "PENDING")
+      .not("provider_reference", "is", null)
+      .lt("updated_at", pendingCutoff)
+      .order("updated_at", { ascending: true })
+      .limit(5)
+    if (pendingError) throw pendingError
+    const origin = new URL(request.url).origin
+    const verifyPath = "/api/internal/central-billing/payments/verify"
+    for (const intent of pendingIntents || []) {
+      if (!intent.provider_reference) continue
+      const wire = JSON.stringify({ intent_id: intent.id, provider_reference: intent.provider_reference })
+      const timestamp = Math.floor(Date.now() / 1000).toString()
+      const response = await fetch(`${origin}${verifyPath}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-central-timestamp": timestamp, "x-central-signature": centralSignature(timestamp, wire, verifyPath) },
+        body: wire,
+        cache: "no-store",
+      }).catch(() => null)
+      paymentChecks++
+      if (response?.ok) paymentsConfirmed++
+      else {
+        // updated_at doubles as a poll lease so an unpaid checkout is not
+        // queried on every cron tick. A later retry can still confirm it.
+        await supabase.from("central_billing_intents").update({ updated_at: new Date().toISOString() })
+          .eq("id", intent.id).eq("payment_status", "PENDING").eq("provider_reference", intent.provider_reference)
+      }
+    }
+
     const { data: initialIntents, error } = await supabase.from("central_billing_intents").select("id,invoice_id,payment_id").eq("payment_status", "CONFIRMED").or("accounting_status.neq.POSTED,fulfillment_status.neq.ACKNOWLEDGED").limit(50)
     if (error) throw error
     const { data: confirmedCentralPayments } = await supabase.from("payments").select("central_billing_intent_id").eq("status", "CONFIRMED").not("central_billing_intent_id", "is", null).limit(100)
@@ -65,7 +99,7 @@ export async function GET(request: Request) {
         fulfillmentRetried++
       }
     }
-    return NextResponse.json({ success: true, financeRetried, fulfillmentRetried })
+    return NextResponse.json({ success: true, paymentChecks, paymentsConfirmed, financeRetried, fulfillmentRetried })
   } catch (error) {
     console.error("[central billing recovery]", error)
     return NextResponse.json({ error: "Central billing recovery failed" }, { status: 503 })

@@ -1203,6 +1203,7 @@ type CentralInstallationMapping = {
   status: "ACTIVE" | "DISABLED"
   paystack_subaccount_code?: string | null
   paystack_subaccount_enabled?: boolean
+  allow_payout_account_edit?: boolean
 }
 type CentralFleetInstallation = { id: number; install_url: string; last_seen: string | null; created_at: string | null }
 
@@ -1214,6 +1215,7 @@ function CentralInstallationMappings({ businessId, defaultUrl }: { businessId: s
   const [installUrl, setInstallUrl] = useState(defaultUrl)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [updatingPayoutPolicy, setUpdatingPayoutPolicy] = useState<string | null>(null)
   const [message, setMessage] = useState("")
 
   const loadMappings = useCallback(async () => {
@@ -1277,6 +1279,28 @@ function CentralInstallationMappings({ businessId, defaultUrl }: { businessId: s
     }
   }
 
+  async function setPayoutEditPolicy(mapping: CentralInstallationMapping, allowPayoutAccountEdit: boolean) {
+    setUpdatingPayoutPolicy(mapping.id)
+    setMessage("")
+    try {
+      const response = await fetch(`/api/admin/businesses/${businessId}/installations`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mappingId: mapping.id, allowPayoutAccountEdit }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Payout account edit policy could not be saved")
+      setMappings((old) => old.map((item) => item.id === mapping.id ? { ...item, allow_payout_account_edit: data.allowPayoutAccountEdit } : item))
+      setMessage(allowPayoutAccountEdit
+        ? "Fleet payout account viewing and editing is enabled. You can turn this off after the account is corrected."
+        : "Fleet payout account details are hidden and editing is disabled. Existing Paystack settlement routing is unchanged.")
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Payout account edit policy could not be saved")
+    } finally {
+      setUpdatingPayoutPolicy(null)
+    }
+  }
+
   return (
     <Card>
       <CardHeader><CardTitle className="text-sm font-medium">Fleet installation mapping</CardTitle></CardHeader>
@@ -1291,6 +1315,22 @@ function CentralInstallationMappings({ businessId, defaultUrl }: { businessId: s
                 <Detail label="Installation URL" value={mapping.install_url} />
                 <Detail label="Mapping status" value={mapping.status} />
                 {mapping.paystack_subaccount_code && <Detail label="Paystack route" value={mapping.paystack_subaccount_enabled ? "Enabled" : "Disabled"} />}
+                <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-4">
+                  <input
+                    id={`payout-edit-${mapping.id}`}
+                    type="checkbox"
+                    checked={mapping.allow_payout_account_edit === true}
+                    disabled={updatingPayoutPolicy === mapping.id}
+                    onChange={(event) => void setPayoutEditPolicy(mapping, event.target.checked)}
+                  />
+                  <label htmlFor={`payout-edit-${mapping.id}`} className="text-sm">
+                    Allow fleet to view and edit payout account details
+                    {updatingPayoutPolicy === mapping.id ? " · Saving…" : ""}
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">
+                  Turning this off hides the bank and account number in the fleet and blocks account edits. It does not stop Paystack payments or change the account already registered with Paystack. Enable it temporarily if the fleet needs to correct its settlement details.
+                </p>
               </div>
             ))}
           </div>

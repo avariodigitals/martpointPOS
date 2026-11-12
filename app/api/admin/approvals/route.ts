@@ -138,7 +138,7 @@ export async function POST(request: Request) {
         const status = approval.action_key === "finance.invoice.cancel" ? "CANCELLED" : approval.action_key === "finance.invoice.void" ? "VOID" : approval.action_key === "finance.invoice.waive" ? "WAIVED" : null
         if (!status) return error("This approval action has no apply handler", 409)
         const patch = status === "WAIVED"
-          ? { status, waived_at: new Date().toISOString(), waived_by: session.userId, waive_reason: approval.reason, updated_at: new Date().toISOString() }
+          ? { status, balance_due: 0, waived_at: new Date().toISOString(), waived_by: session.userId, waive_reason: approval.reason, updated_at: new Date().toISOString() }
           : { status, updated_at: new Date().toISOString() }
         const applied = await supabase.from("invoices").update(patch).eq("id", approval.entity_id).eq("status", current.data.status).select("id").maybeSingle()
         if (applied.error || !applied.data) return error("The approved invoice action could not be applied", 409)

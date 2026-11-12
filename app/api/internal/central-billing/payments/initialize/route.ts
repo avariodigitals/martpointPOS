@@ -7,6 +7,12 @@ export async function POST(request: Request) {
   const raw = await request.text()
   if (!verifyCentralRequest(request.headers.get("x-central-timestamp") || "", raw, request.headers.get("x-central-signature") || "", new URL(request.url).pathname)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   if (!isSupabaseConfigured() || process.env.CENTRAL_BILLING_ENABLED !== "true") return NextResponse.json({ error: "Central billing is unavailable" }, { status: 503 })
+  const centralUrl = String(process.env.CENTRAL_BILLING_CENTRAL_URL || "").replace(/\/+$/, "")
+  let centralUrlParsed: URL | null = null
+  try { centralUrlParsed = new URL(centralUrl) } catch { /* handled below */ }
+  if (!centralUrlParsed || centralUrlParsed.protocol !== "https:" || !centralUrlParsed.hostname) {
+    return NextResponse.json({ error: "Credit delivery is not configured. Contact your Administrator before paying." }, { status: 503 })
+  }
   const paystack = await loadPaystackConfiguration().catch((error) => {
     console.error("[central checkout] Paystack settings unavailable", error)
     return null
@@ -38,7 +44,7 @@ export async function POST(request: Request) {
     if (!Number.isSafeInteger(amount) || amount < 1) return NextResponse.json({ error: "Invoice amount is invalid" }, { status: 409 })
     const installUrl = String(mapping.install_url).replace(/\/$/, "")
     if (!/^https:\/\//.test(installUrl)) return NextResponse.json({ error: "Fleet return URL is not secure" }, { status: 409 })
-    const callback = `${installUrl}/messaging_api/payment_return/paystack/${encodeURIComponent(body.provider_reference)}`
+    const callback = `${installUrl}/messaging_api/payment_return/paystack/${encodeURIComponent(body.provider_reference)}?store_id=${encodeURIComponent(String(mapping.store_id))}`
     const response = await fetch("https://api.paystack.co/transaction/initialize", { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" }, body: JSON.stringify({ email, amount, currency: "NGN", reference: body.provider_reference, callback_url: callback, metadata: { purpose: "central_messaging_purchase", intent_id: intent.id, invoice_id: intent.invoice_id, fleet_install_id: mapping.fleet_install_id, store_id: mapping.store_id } }), cache: "no-store" })
     const result = await response.json().catch(() => null) as { status?: boolean; message?: string; data?: { authorization_url?: string } } | null
     const checkoutUrl = result?.data?.authorization_url || ""

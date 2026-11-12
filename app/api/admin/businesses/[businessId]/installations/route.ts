@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase"
 import { z } from "zod"
 
 const schema = z.object({ fleetInstallId: z.number().int().positive(), storeId: z.number().int().positive(), installUrl: z.string().url().refine((v) => v.startsWith("https://"), "HTTPS installation URL required") })
+const payoutEditSchema = z.object({ mappingId: z.string().uuid(), allowPayoutAccountEdit: z.boolean() })
 
 export async function GET(_: Request, { params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params
@@ -25,4 +26,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ bus
   const { data, error } = await supabase.from("central_installation_mappings").upsert({ business_id: businessId, fleet_install_id: parsed.data.fleetInstallId, store_id: parsed.data.storeId, install_url: parsed.data.installUrl, status: "ACTIVE", updated_at: new Date().toISOString() }, { onConflict: "fleet_install_id,store_id" }).select().single()
   if (error) return NextResponse.json({ error: "Installation mapping could not be saved" }, { status: 409 })
   return NextResponse.json({ installation: data })
+}
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ businessId: string }> }) {
+  const { businessId } = await params
+  const auth = await authorizeAdmin("businesses", "manage")
+  if (auth.denied) return auth.denied
+  const parsed = payoutEditSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) return NextResponse.json({ error: "Provide a valid mapping and payout edit setting" }, { status: 400 })
+  const { data, error } = await supabase.from("central_installation_mappings")
+    .update({ allow_payout_account_edit: parsed.data.allowPayoutAccountEdit, updated_at: new Date().toISOString() })
+    .eq("id", parsed.data.mappingId).eq("business_id", businessId).select("id,allow_payout_account_edit").maybeSingle()
+  if (error || !data) return NextResponse.json({ error: "Payout account edit policy could not be saved" }, { status: 409 })
+  return NextResponse.json({ success: true, allowPayoutAccountEdit: data.allow_payout_account_edit })
 }

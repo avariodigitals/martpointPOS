@@ -954,12 +954,14 @@ export async function POST(request: Request, props: { params: Promise<{ resource
         const waiverReason = (reason || "").trim() || "Waived by finance"
         const { data: inv, error } = await supabase.from("invoices").update({
           status: "WAIVED",
+          balance_due: 0,
           waived_at: now(),
           waived_by: actor.id,
           waive_reason: waiverReason,
           updated_at: now(),
         }).eq("id", id).select().single()
         if (error) return err(error.message, 500)
+        await syncInvoiceFinanceTransaction(id)
         await logFinanceAudit("ADMIN", actor.id, "INVOICE_WAIVED", "INVOICE", id, { reason: waiverReason })
         await notifyCommercialAction({ resource, action, actorName: actor.name, sourceId: id, reference: inv.invoice_number, detail: `Invoice waived: ${waiverReason}` })
         return ok(inv)

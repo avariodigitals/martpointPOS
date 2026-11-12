@@ -131,6 +131,10 @@ const STATUS_COLORS: Record<string, string> = {
   WAIVED: "bg-purple-50 text-purple-700",
 }
 
+function invoiceOutstanding(invoice: Invoice): number {
+  return resolveInvoiceStatus(invoice) === "WAIVED" ? 0 : Number(invoice.balance_due) || 0
+}
+
 function formatNgn(n: number | string | undefined | null, currency = "NGN") {
   return formatMoney(n, currency)
 }
@@ -629,8 +633,8 @@ export default function InvoicesPage() {
     return list.sort((a, b) => new Date(b.created_at || b.issue_date).getTime() - new Date(a.created_at || a.issue_date).getTime())
   }, [invoices, filterBusiness, filterStatus, filterIssueFrom, filterIssueTo, searchQuery])
 
-  // KPIs over *recognised* invoices only — DRAFT / VOID / CANCELLED are excluded
-  // (matching the status logic above); WAIVED carries a zero balance anyway.
+  // KPIs over recognised invoices only. Waived invoices may have a stale
+  // stored balance until migration 189 runs, so always treat them as settled.
   const kpis = useMemo(() => {
     const recognised = invoices.filter((i) => {
       const s = resolveInvoiceStatus(i)
@@ -641,9 +645,9 @@ export default function InvoicesPage() {
     return {
       totalInvoiced: sum((i) => i.total_amount),
       collected: sum((i) => i.amount_paid),
-      outstanding: sum((i) => i.balance_due),
+      outstanding: sum(invoiceOutstanding),
       overdueCount: overdue.length,
-      overdueAmount: overdue.reduce((acc, i) => acc + (Number(i.balance_due) || 0), 0),
+      overdueAmount: overdue.reduce((acc, i) => acc + invoiceOutstanding(i), 0),
     }
   }, [invoices])
 
@@ -1156,7 +1160,7 @@ export default function InvoicesPage() {
                       <td className="px-3 py-2">{inv.due_date}</td>
                       <td className="px-3 py-2 text-right">{formatMoney(inv.total_amount, inv.currency)}</td>
                       <td className="px-3 py-2 text-right">{formatMoney(inv.amount_paid, inv.currency)}</td>
-                      <td className="px-3 py-2 text-right">{formatMoney(inv.balance_due, inv.currency)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(invoiceOutstanding(inv), inv.currency)}</td>
                       <td className="px-3 py-2">
                         <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[displayStatus] || "bg-gray-100 text-gray-700"}`}>
                           {enumLabel(displayStatus)}
@@ -1632,7 +1636,7 @@ export default function InvoicesPage() {
               </div>
               <div className="space-y-1">
                 <p className="text-muted-foreground">Paid: <span className="font-medium text-foreground">{formatNgn(editing.amount_paid, editing.currency)}</span></p>
-                <p className="text-muted-foreground">Balance: <span className="font-medium text-foreground">{formatNgn(editing.balance_due, editing.currency)}</span></p>
+                <p className="text-muted-foreground">Balance: <span className="font-medium text-foreground">{formatNgn(invoiceOutstanding(editing), editing.currency)}</span></p>
                 <p className="text-muted-foreground">Status: <span className="font-medium text-foreground">{enumLabel(resolveInvoiceStatus(editing))}</span></p>
               </div>
             </div>

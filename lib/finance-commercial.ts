@@ -532,11 +532,13 @@ export async function recalculateInvoice(invoiceId: string) {
   const paidKobo = ((allocs as { amount_allocated: number; payment_id: string }[]) || [])
     .reduce((sum, a) => sum + toKobo(a.amount_allocated), 0)
 
-  const balanceKobo = Math.max(0, totalKobo - paidKobo)
-
-  let status: InvoiceStatus = "DRAFT"
   const { data: inv } = await supabase.from("invoices").select("status, issue_date, due_date").eq("id", invoiceId).single()
   const currentStatus = (inv as { status: InvoiceStatus; issue_date: string; due_date: string } | null)?.status || "DRAFT"
+  // A waiver settles the remaining amount. Recalculation must not restore it
+  // from invoice line totals or the waived fee reappears as outstanding.
+  const balanceKobo = currentStatus === "WAIVED" ? 0 : Math.max(0, totalKobo - paidKobo)
+
+  let status: InvoiceStatus = "DRAFT"
 
   if (currentStatus === "VOID" || currentStatus === "CANCELLED" || currentStatus === "WAIVED") {
     status = currentStatus
@@ -820,6 +822,9 @@ export async function allocatePayment(input: PaymentAllocationInput) {
   const sameInvoice = ((existing as { invoice_id: string; amount_allocated: number }[]) || []).find((a) => a.invoice_id === input.invoice_id)
   if (sameInvoice) {
     if (toKobo(sameInvoice.amount_allocated) !== amountKobo) throw new Error("Existing payment allocation amount does not match")
+    // Replayed confirmations must also repair a stale invoice summary. The
+    // allocation is idempotent, but amount_paid/balance_due may need recalc.
+    await recalculateInvoice(input.invoice_id)
     return
   }
 

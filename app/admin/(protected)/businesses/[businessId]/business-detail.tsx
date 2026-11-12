@@ -1204,9 +1204,11 @@ type CentralInstallationMapping = {
   paystack_subaccount_code?: string | null
   paystack_subaccount_enabled?: boolean
 }
+type CentralFleetInstallation = { id: number; install_url: string; last_seen: string | null; created_at: string | null }
 
 function CentralInstallationMappings({ businessId, defaultUrl }: { businessId: string; defaultUrl: string }) {
   const [mappings, setMappings] = useState<CentralInstallationMapping[]>([])
+  const [directory, setDirectory] = useState<CentralFleetInstallation[]>([])
   const [fleetInstallId, setFleetInstallId] = useState("")
   const [storeId, setStoreId] = useState("")
   const [installUrl, setInstallUrl] = useState(defaultUrl)
@@ -1228,7 +1230,29 @@ function CentralInstallationMappings({ businessId, defaultUrl }: { businessId: s
     }
   }, [businessId])
 
-  useEffect(() => { void loadMappings() }, [loadMappings])
+  const loadDirectory = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/central-installations", { cache: "no-store" })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Central installations could not be loaded")
+      const installs = (data.installations || []) as CentralFleetInstallation[]
+      setDirectory(installs)
+      if (installs.length === 1) {
+        setFleetInstallId(String(installs[0].id))
+        setInstallUrl(installs[0].install_url)
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Central installations could not be loaded")
+    }
+  }, [])
+
+  useEffect(() => { void loadMappings(); void loadDirectory() }, [loadMappings, loadDirectory])
+
+  function selectInstallation(value: string) {
+    setFleetInstallId(value)
+    const selected = directory.find((installation) => String(installation.id) === value)
+    if (selected) setInstallUrl(selected.install_url)
+  }
 
   async function saveMapping(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1275,9 +1299,15 @@ function CentralInstallationMappings({ businessId, defaultUrl }: { businessId: s
         <form onSubmit={saveMapping} className="space-y-3 border-t pt-4">
           <p className="text-sm font-medium">Add or correct a mapping</p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Central fleet installation ID (db_fleet_installs.id)"><input required min="1" step="1" type="number" className={inputCls} value={fleetInstallId} onChange={(event) => setFleetInstallId(event.target.value)} /></Field>
+            <Field label="Choose a registered Central installation">
+              <select required className={inputCls} value={fleetInstallId} onChange={(event) => selectInstallation(event.target.value)}>
+                <option value="">Select an installation</option>
+                {directory.map((installation) => <option key={installation.id} value={installation.id}>#{installation.id} · {installation.install_url}</option>)}
+              </select>
+              {!directory.length && <span className="mt-1 block text-xs text-muted-foreground">No registered installations loaded. Check the Central connection.</span>}
+            </Field>
             <Field label="Store ID (db_store.id)"><input required min="1" step="1" type="number" className={inputCls} value={storeId} onChange={(event) => setStoreId(event.target.value)} /></Field>
-            <Field label="Exact HTTPS installation URL"><input required type="url" className={inputCls} placeholder="https://fleet.example.com/" value={installUrl} onChange={(event) => setInstallUrl(event.target.value)} /></Field>
+            <Field label="Installation URL"><input readOnly required type="url" className={`${inputCls} bg-muted`} value={installUrl} /></Field>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={saving || !fleetInstallId || !storeId || !installUrl.trim()}>

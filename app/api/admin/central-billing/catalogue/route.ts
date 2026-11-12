@@ -64,7 +64,10 @@ async function publishCatalogue(sourceVersion: string) {
 export async function GET() {
   const auth = await authorizeAdmin("finance", "view")
   if (auth.denied) return auth.denied
-  try { return NextResponse.json({ success: true, ...(await currentCatalogue()) }) }
+  try {
+    const catalogue = await currentCatalogue()
+    return NextResponse.json({ success: true, ...catalogue, addons: catalogue.addons.filter((p) => (p.details as Record<string, unknown> | null)?.archived !== true) })
+  }
   catch (error) { return fail(error instanceof Error ? error.message : "Catalogue load failed", 503) }
 }
 
@@ -92,9 +95,15 @@ export async function POST(request: Request) {
         if (error) throw error
       }
       for (const p of body.addons || []) {
-        const row = { ...p, source_version: sourceVersion, active: p.enabled, source_hash: crypto.createHash("sha256").update(JSON.stringify(p)).digest("hex"), imported_at: now }
+        const row = { ...p, details: { ...p.details, archived: false }, source_version: sourceVersion, active: p.enabled, source_hash: crypto.createHash("sha256").update(JSON.stringify(p)).digest("hex"), imported_at: now }
         delete (row as Partial<AddonProduct>).enabled
         const { error } = await supabase.from("central_addon_products").upsert(row, { onConflict: "product_code" })
+        if (error) throw error
+      }
+      const submittedCodes = new Set((body.addons || []).map((p) => p.product_code))
+      for (const old of snapshot.addons) {
+        if (submittedCodes.has(old.product_code) || (old.details as Record<string, unknown> | null)?.archived === true) continue
+        const { error } = await supabase.from("central_addon_products").update({ active: false, details: { ...(old.details || {}), archived: true }, source_version: sourceVersion, imported_at: now }).eq("product_code", old.product_code)
         if (error) throw error
       }
       const after = await currentCatalogue()

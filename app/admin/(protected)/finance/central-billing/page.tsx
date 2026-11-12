@@ -90,6 +90,33 @@ export default function CentralBillingCataloguePage() {
     } : old)
   }
 
+  function addPlan() {
+    setState((old) => {
+      if (!old) return old
+      const key = `plan_${Date.now().toString(36)}`
+      const details = { max_workflows: 10, template_keys: ["welcome", "winback", "newsletter", "custom"] }
+      return { ...old, addons: [...old.addons,
+        ...(["monthly", "annual"] as const).map((period) => ({ product_code: `automation-${key}-${period}`, addon_key: key, name: "New Automation Plan", fulfillment_type: "AUTOMATION_PLAN" as const, billing_period: period, price: "0.00", tax_percent: old.products[0]?.tax_percent || "7.5", details, enabled: false }))] }
+    })
+  }
+
+  function removePlan(planKey: string) {
+    setState((old) => old ? { ...old, addons: old.addons.filter((p) => p.addon_key !== planKey) } : old)
+  }
+
+  function addPlanFrequency(planKey: string, period: "monthly" | "annual") {
+    setState((old) => {
+      if (!old || old.addons.some((p) => p.addon_key === planKey && p.billing_period === period)) return old
+      const existing = old.addons.find((p) => p.addon_key === planKey)
+      if (!existing) return old
+      return { ...old, addons: [...old.addons, { ...existing, billing_period: period, product_code: `automation-${planKey}-${period}`, price: "0.00", enabled: false }] }
+    })
+  }
+
+  function removePlanFrequency(planKey: string, period: "monthly" | "annual") {
+    setState((old) => old ? { ...old, addons: old.addons.filter((p) => p.addon_key !== planKey || p.billing_period !== period) } : old)
+  }
+
   async function act(action: "take_ownership" | "save" | "publish") {
     if (!state) return
     setWorking(true); setError(""); setMessage("")
@@ -134,8 +161,32 @@ export default function CentralBillingCataloguePage() {
         </div> })}
       </div>
     </CardContent></Card>)}
-    <Card><CardHeader><CardTitle>Supported Automation plans</CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Each plan period is invoiced in Next and activates through Central’s existing plan entitlement flow. Licence products are excluded. Other Central add-ons can be enabled only after their fulfilment behavior is implemented.</p>
-      {state.addons.map((p, index) => { const netKobo = Math.round(Number(p.price) * 100) || 0; const vatKobo = taxKobo(netKobo, p.tax_percent); const unpriced = netKobo === 0 && !p.enabled; return <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-4" key={p.product_code}><label className="space-y-1 text-sm">Plan name<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" value={p.name} onChange={(e) => updateAddon(index, "name", e.target.value)} /></label><label className="space-y-1 text-sm">Period<input disabled className="w-full rounded-md border bg-muted px-3 py-2" value={p.billing_period} /></label><label className="space-y-1 text-sm">Price before tax (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="500000" step="0.01" value={unpriced ? "" : p.price} placeholder={unpriced ? "Set price" : undefined} onChange={(e) => updateAddon(index, "price", e.target.value)} />{unpriced && <span className="block text-xs text-amber-700">Not priced · unavailable until a price is set.</span>}</label><label className="space-y-1 text-sm">Tax rate (%)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="100" step="0.01" value={p.tax_percent} onChange={(e) => updateAddon(index, "tax_percent", e.target.value)} /><span className="block text-xs text-muted-foreground">{unpriced ? "No price set" : `Tax ${money(vatKobo)} · total payable ${money(netKobo + vatKobo)}`}</span></label><label className="flex items-center gap-2 text-sm"><input disabled={state.control.price_owner !== "NEXT" || netKobo === 0} type="checkbox" checked={p.enabled} onChange={(e) => updateAddon(index, "enabled", e.target.checked)} />Available for purchase</label><p className="self-center text-xs text-muted-foreground">{p.product_code}</p></div> })}
+    <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Automation plans</CardTitle><Button type="button" variant="outline" disabled={state.control.price_owner !== "NEXT" || working} onClick={addPlan}><Plus className="mr-1 h-4 w-4" />Add plan</Button></div></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Set each plan’s monthly and annual price here. Removing a plan or frequency archives its offer while preserving past invoices and active customer access. New plans include the standard automation templates and a 10 workflow allowance.</p>
+      {Array.from(new Set(state.addons.map((p) => p.addon_key))).map((key) => {
+        const plan = state.addons.filter((p) => p.addon_key === key).sort((a, b) => a.billing_period.localeCompare(b.billing_period))
+        const first = plan[0]
+        const planName = first?.name || key
+        const setPlanName = (name: string) => setState((old) => old ? { ...old, addons: old.addons.map((p) => p.addon_key === key ? { ...p, name } : p) } : old)
+        return <div className="space-y-3 rounded-lg border p-4" key={key}>
+          <div className="flex flex-wrap items-end justify-between gap-3"><label className="min-w-48 flex-1 space-y-1 text-sm">Plan name<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" value={planName} onChange={(e) => setPlanName(e.target.value)} /></label><span className="pb-2 text-xs text-muted-foreground">{key}</span><Button type="button" variant="ghost" size="sm" className="text-destructive" disabled={state.control.price_owner !== "NEXT"} onClick={() => removePlan(key)}><Trash2 className="mr-1 h-4 w-4" />Remove plan</Button></div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {(["monthly", "annual"] as const).map((period) => {
+              const p = plan.find((item) => item.billing_period === period)
+              if (!p) return <div key={period} className="flex items-center justify-between rounded-md border border-dashed p-3"><span className="text-sm capitalize">{period} frequency not offered</span><Button type="button" variant="outline" size="sm" disabled={state.control.price_owner !== "NEXT"} onClick={() => addPlanFrequency(key, period)}>Add {period}</Button></div>
+              const index = state.addons.indexOf(p)
+              const netKobo = Math.round(Number(p.price) * 100) || 0
+              const vatKobo = taxKobo(netKobo, p.tax_percent)
+              const unpriced = netKobo === 0
+              return <div className="space-y-3 rounded-md bg-muted/30 p-3" key={p.product_code}>
+                <div className="flex items-center justify-between"><h3 className="text-sm font-medium capitalize">{period}</h3><Button type="button" variant="ghost" size="sm" className="text-muted-foreground" disabled={state.control.price_owner !== "NEXT"} onClick={() => removePlanFrequency(key, period)} aria-label={`Remove ${period} frequency`}>Remove frequency</Button></div>
+                <label className="block space-y-1 text-sm">Price before tax (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="500000" step="0.01" value={unpriced ? "" : p.price} placeholder="Set price" onChange={(e) => updateAddon(index, "price", e.target.value)} />{unpriced ? <span className="block text-xs text-amber-700">No price · unavailable for purchase</span> : <span className="block text-xs text-muted-foreground">Tax {money(vatKobo)} · total payable {money(netKobo + vatKobo)}</span>}</label>
+                <label className="flex items-center gap-2 text-sm"><input disabled={state.control.price_owner !== "NEXT" || netKobo === 0} type="checkbox" checked={p.enabled} onChange={(e) => updateAddon(index, "enabled", e.target.checked)} />Available for purchase</label>
+              </div>
+            })}
+          </div>
+        </div>
+      })}
+      {state.addons.length === 0 && <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No Automation plans. Add a plan to create monthly and annual offers.</p>}
     </CardContent></Card>
   </div>
 }

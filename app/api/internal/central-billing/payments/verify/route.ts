@@ -36,7 +36,18 @@ export async function POST(request: Request) {
       const verificationKey = await getPaystackSecret(intent.payment_mode === "test" ? "test" : "live")
       const verification = await verifyPaystackTransaction(body.provider_reference, verificationKey)
       if (!verification.status || verification.paymentStatus !== "success" || verification.reference !== body.provider_reference || verification.currency !== "NGN") return NextResponse.json({ error: "Payment is not confirmed" }, { status: 409 })
-      if (!Number.isSafeInteger(verification.amountKobo) || verification.amountKobo !== Math.round(expected * 100)) return NextResponse.json({ error: "Verified payment amount does not match invoice" }, { status: 409 })
+      const expectedAmountKobo = Math.round(expected * 100)
+      if (!Number.isSafeInteger(verification.requestedAmountKobo) || verification.requestedAmountKobo !== expectedAmountKobo) {
+        const details = { intent_id: intent.id, invoice_id: intent.invoice_id, provider_reference: body.provider_reference,
+          expected_amount_kobo: expectedAmountKobo, verified_amount_kobo: verification.amountKobo,
+          requested_amount_kobo: verification.requestedAmountKobo, currency: verification.currency }
+        console.error("[central payment verify] Paystack amount mismatch", details)
+        await supabase.from("central_billing_intents").update({
+          last_error: `Paystack requested amount mismatch: expected ${expectedAmountKobo} kobo, received ${verification.requestedAmountKobo} kobo`,
+          updated_at: new Date().toISOString(),
+        }).eq("id", intent.id).eq("payment_status", "PENDING")
+        return NextResponse.json({ error: `Paystack requested ₦${(verification.requestedAmountKobo / 100).toFixed(2)}; invoice total is ₦${expected.toFixed(2)}. Amount mismatch requires reconciliation.` }, { status: 409 })
+      }
       let paymentId: string
       const { data: prior } = await supabase.from("payments").select("id").eq("central_billing_intent_id", intent.id).maybeSingle()
       if (prior) paymentId = prior.id
@@ -59,7 +70,7 @@ export async function POST(request: Request) {
     const { data: savedOutbox } = await supabase.from("central_billing_fulfillment_outbox").select("payload").eq("intent_id", intent.id).single()
     const fulfillmentPayload = savedOutbox?.payload
     if (!fulfillmentPayload) throw new Error("Central fulfilment outbox could not be read")
-    await supabase.from("central_billing_intents").update({ payment_status: "CONFIRMED", allocation_status: "ALLOCATED", accounting_status: "PENDING", updated_at: new Date().toISOString() }).eq("id", intent.id)
+    await supabase.from("central_billing_intents").update({ payment_status: "CONFIRMED", allocation_status: "ALLOCATED", accounting_status: "PENDING", last_error: null, updated_at: new Date().toISOString() }).eq("id", intent.id)
     let fulfillment = "queued"
     const centralUrl = (process.env.CENTRAL_BILLING_CENTRAL_URL || "").startsWith("https://") ? process.env.CENTRAL_BILLING_CENTRAL_URL || "" : ""
     if (centralUrl) {

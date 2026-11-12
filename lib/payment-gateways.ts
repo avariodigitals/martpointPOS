@@ -12,12 +12,18 @@ export type GatewayEvent = {
 }
 
 /** Server-side transaction lookup used before a Central credit invoice is confirmed. */
-export async function verifyPaystackTransaction(reference: string, secretOverride?: string): Promise<{ status: boolean; reference: string; paymentStatus: string; amountKobo: number; currency: string }> {
+export async function verifyPaystackTransaction(reference: string, secretOverride?: string): Promise<{ status: boolean; reference: string; paymentStatus: string; amountKobo: number; requestedAmountKobo: number; currency: string }> {
   const secret = secretOverride || await getPaystackSecret()
   const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, { headers: { Authorization: `Bearer ${secret}` }, cache: "no-store" })
   if (!response.ok) throw new Error(`Paystack verification unavailable (${response.status})`)
-  const result = await response.json() as { status?: boolean; data?: { status?: string; reference?: string; amount?: number; currency?: string } }
-  return { status: result.status === true, reference: String(result.data?.reference || ""), paymentStatus: String(result.data?.status || ""), amountKobo: Number(result.data?.amount), currency: String(result.data?.currency || "") }
+  const result = await response.json() as { status?: boolean; data?: { status?: string; reference?: string; amount?: number; requested_amount?: number; currency?: string } }
+  const amountKobo = Number(result.data?.amount)
+  const requestedAmountKobo = Number(result.data?.requested_amount)
+  // Paystack may pass transaction fees to the cardholder. `amount` then
+  // includes that surcharge, while `requested_amount` remains the amount
+  // MartPoint invoiced and should be matched against the invoice/payment row.
+  return { status: result.status === true, reference: String(result.data?.reference || ""), paymentStatus: String(result.data?.status || ""), amountKobo,
+    requestedAmountKobo: Number.isSafeInteger(requestedAmountKobo) ? requestedAmountKobo : amountKobo, currency: String(result.data?.currency || "") }
 }
 
 export function isFlutterwaveConfigured() {

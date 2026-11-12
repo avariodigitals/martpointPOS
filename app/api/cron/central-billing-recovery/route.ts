@@ -24,7 +24,7 @@ export async function GET(request: Request) {
       .not("provider_reference", "is", null)
       .lt("updated_at", pendingCutoff)
       .order("updated_at", { ascending: true })
-      .limit(5)
+      .limit(25)
     if (pendingError) throw pendingError
     const origin = new URL(request.url).origin
     const verifyPath = "/api/internal/central-billing/payments/verify"

@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/central-billing-recovery",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/azera-contact-centre",

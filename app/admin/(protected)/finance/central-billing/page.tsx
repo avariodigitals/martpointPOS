@@ -104,7 +104,7 @@ export default function CentralBillingCataloguePage() {
       if (!response.ok || !data.success) throw new Error(data.error || "Catalogue operation failed")
       setMessage(action === "take_ownership" ? "Next Admin now owns the catalogue and published it to Central." : action === "publish" ? "The current Next catalogue was synchronized to Central." : "Prices saved in Next Admin and synchronized to Central.")
       await load()
-    } catch (e) { setError(e instanceof Error ? e.message : "Catalogue operation failed"); await load() }
+    } catch (e) { setError(e instanceof Error ? e.message : "Catalogue operation failed") }
     finally { setWorking(false) }
   }
 
@@ -120,7 +120,7 @@ export default function CentralBillingCataloguePage() {
     </CardContent></Card>
     {state.products.map((p, index) => <Card key={p.channel}><CardHeader><CardTitle className="capitalize">{p.channel} credits</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">
       <label className="space-y-1 text-sm">Price per credit (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0.01" max="100000" step="0.01" value={p.price} onChange={(e) => updateCredit(index, "price", e.target.value)} /></label>
-      <label className="space-y-1 text-sm">Minimum custom top-up (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="5000" max="500000" step="0.01" value={p.minimum} onChange={(e) => updateCredit(index, "minimum", e.target.value)} /></label>
+      <label className="space-y-1 text-sm">Minimum custom top-up (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0.01" max="500000" step="0.01" value={p.minimum} onChange={(e) => updateCredit(index, "minimum", e.target.value)} /><span className="block text-xs text-muted-foreground">Applies to custom top-ups. Published bundles use their own price and credit quantity.</span></label>
       <label className="space-y-1 text-sm">Tax rate (%)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="100" step="0.01" value={p.tax_percent} onChange={(e) => updateCredit(index, "tax_percent", e.target.value)} /><span className="block text-xs text-muted-foreground">{p.tax_percent || "0"}% · tax per credit {money(taxKobo(Math.round(Number(p.price) * 100) || 0, p.tax_percent))} · total per credit {money((Math.round(Number(p.price) * 100) || 0) + taxKobo(Math.round(Number(p.price) * 100) || 0, p.tax_percent))}</span></label>
       <label className="flex items-center gap-2 text-sm"><input disabled={state.control.price_owner !== "NEXT"} type="checkbox" checked={p.enabled} onChange={(e) => updateCredit(index, "enabled", e.target.checked)} />Available for fleet purchase</label>
       <div className="space-y-3 sm:col-span-2">

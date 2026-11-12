@@ -24,7 +24,7 @@ function validateCatalogue(products: CreditProduct[], addons: AddonProduct[]) {
   const channels = new Set<string>()
   let tax: number | null = null
   for (const p of products) {
-    if (!(["sms", "email"] as string[]).includes(p.channel) || channels.has(p.channel) || p.product_code !== `martpoint-${p.channel}-credit` || !Number.isSafeInteger(p.price_per_credit_kobo) || p.price_per_credit_kobo < 1 || p.price_per_credit_kobo > 10000000 || !Number.isSafeInteger(p.minimum_topup_kobo) || p.minimum_topup_kobo < 500000 || p.minimum_topup_kobo > 50000000 || !Number.isSafeInteger(p.tax_bps) || p.tax_bps < 0 || p.tax_bps > 10000 || typeof p.enabled !== "boolean" || !Array.isArray(p.bundles)) return "Credit product values are invalid."
+    if (!(["sms", "email"] as string[]).includes(p.channel) || channels.has(p.channel) || p.product_code !== `martpoint-${p.channel}-credit` || !Number.isSafeInteger(p.price_per_credit_kobo) || p.price_per_credit_kobo < 1 || p.price_per_credit_kobo > 10000000 || !Number.isSafeInteger(p.minimum_topup_kobo) || p.minimum_topup_kobo < 1 || p.minimum_topup_kobo > 50000000 || !Number.isSafeInteger(p.tax_bps) || p.tax_bps < 0 || p.tax_bps > 10000 || typeof p.enabled !== "boolean" || !Array.isArray(p.bundles)) return "Credit product values are invalid."
     channels.add(p.channel)
     if (tax !== null && tax !== p.tax_bps) return "Central currently has one tax rate for all credit and Automation products."
     tax = p.tax_bps

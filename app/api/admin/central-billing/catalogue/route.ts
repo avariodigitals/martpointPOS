@@ -4,6 +4,8 @@ import { supabase } from "@/lib/supabase"
 import { centralSignature } from "@/lib/central-billing-auth"
 import crypto from "crypto"
 
+export const maxDuration = 60
+
 type CreditProduct = { channel: "sms" | "email"; product_code: string; price_per_credit_kobo: number; minimum_topup_kobo: number; tax_bps: number; bundles: Array<{ id: number; name: string; amount_kobo: number; credit_units: number; enabled: boolean }>; enabled: boolean }
 type AddonProduct = { product_code: string; addon_key: string; name: string; fulfillment_type: "AUTOMATION_PLAN"; billing_period: "monthly" | "annual"; price_kobo: number; tax_bps: number; details: Record<string, unknown>; enabled: boolean }
 
@@ -54,7 +56,15 @@ async function publishCatalogue(sourceVersion: string) {
   const body = JSON.stringify({ source_version: sourceVersion, products, addons })
   const path = "/messaging_api/sync_billing_catalogue"
   const timestamp = Math.floor(Date.now() / 1000).toString()
-  const response = await fetch(`${centralUrl.replace(/\/$/, "")}${path}`, { method: "POST", headers: { "content-type": "application/json", "x-central-timestamp": timestamp, "x-central-signature": centralSignature(timestamp, body, path) }, body, cache: "no-store", signal: AbortSignal.timeout(20000) })
+  let response: Response
+  try {
+    response = await fetch(`${centralUrl.replace(/\/$/, "")}${path}`, { method: "POST", headers: { "content-type": "application/json", "x-central-timestamp": timestamp, "x-central-signature": centralSignature(timestamp, body, path) }, body, cache: "no-store", signal: AbortSignal.timeout(55_000) })
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new Error("Central did not respond within 55 seconds. The catalogue may still have been applied; use Retry synchronization to confirm it safely.")
+    }
+    throw error
+  }
   const result = await response.json().catch(() => null) as { success?: boolean; source_hash?: string; message?: string; reference?: string } | null
   if (!response.ok) throw new Error(`Central returned HTTP ${response.status}: ${result?.message || "Catalogue synchronization was not confirmed."}${result?.reference ? ` (reference ${result.reference})` : ""}`)
   if (!result?.success) throw new Error(result?.message || "Central catalogue synchronization was not confirmed")

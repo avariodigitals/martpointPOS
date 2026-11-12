@@ -7,7 +7,7 @@ import { AlertCircle, CheckCircle2, Loader2, Plus, RefreshCw, Save, Trash2 } fro
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
-type Bundle = { id: number; name: string; amount_kobo: number; credit_units: number; enabled: boolean }
+type Bundle = { id: number; name: string; amount_kobo: number; amount_input: string; credit_units: number; enabled: boolean }
 type Credit = { channel: "sms" | "email"; product_code: string; price: string; minimum: string; tax_percent: string; enabled: boolean; bundles: Bundle[] }
 type Addon = { product_code: string; addon_key: string; name: string; fulfillment_type: "AUTOMATION_PLAN"; billing_period: "monthly" | "annual"; price: string; tax_percent: string; details: Record<string, unknown>; enabled: boolean }
 type State = { products: Credit[]; addons: Addon[]; control: { price_owner: "CENTRAL" | "NEXT"; sync_status: string; source_version: string | null; synced_at: string | null } }
@@ -33,7 +33,7 @@ export default function CentralBillingCataloguePage() {
       if (!response.ok || !data.success) throw new Error(data.error || "Catalogue is unavailable")
       setState({
         control: data.control,
-        products: (data.products || []).map((p: Record<string, unknown>) => ({ channel: p.channel as "sms" | "email", product_code: String(p.product_code), price: naira(Number(p.price_per_credit_kobo)), minimum: naira(Number(p.minimum_topup_kobo)), tax_percent: percentFromBps(Number(p.tax_bps)), enabled: !!p.active, bundles: (p.bundles || []) as Bundle[] })),
+        products: (data.products || []).map((p: Record<string, unknown>) => ({ channel: p.channel as "sms" | "email", product_code: String(p.product_code), price: naira(Number(p.price_per_credit_kobo)), minimum: naira(Number(p.minimum_topup_kobo)), tax_percent: percentFromBps(Number(p.tax_bps)), enabled: !!p.active, bundles: ((p.bundles || []) as Array<Omit<Bundle, "amount_input">>).map((bundle) => ({ ...bundle, amount_input: naira(Number(bundle.amount_kobo)) })) })),
         addons: (data.addons || []).map((p: Record<string, unknown>) => ({ product_code: String(p.product_code), addon_key: String(p.addon_key), name: String(p.name), fulfillment_type: "AUTOMATION_PLAN" as const, billing_period: p.billing_period as "monthly" | "annual", price: naira(Number(p.price_kobo)), tax_percent: percentFromBps(Number(p.tax_bps)), details: (p.details || {}) as Record<string, unknown>, enabled: !!p.active })),
       })
       setError("")
@@ -57,6 +57,18 @@ export default function CentralBillingCataloguePage() {
         : product),
     } : old)
   }
+  function updateBundlePrice(productIndex: number, bundleIndex: number, value: string) {
+    setState((old) => old ? {
+      ...old,
+      products: old.products.map((product, i) => i === productIndex
+        ? { ...product, bundles: product.bundles.map((bundle, j) => {
+          if (j !== bundleIndex) return bundle
+          const parsed = value.trim() === "" ? NaN : Number(value)
+          return { ...bundle, amount_input: value, amount_kobo: Number.isFinite(parsed) ? Math.round(parsed * 100) : 0 }
+        }) }
+        : product),
+    } : old)
+  }
   function addBundle(productIndex: number) {
     setState((old) => {
       if (!old) return old
@@ -64,7 +76,7 @@ export default function CentralBillingCataloguePage() {
       return {
         ...old,
         products: old.products.map((product, i) => i === productIndex
-          ? { ...product, bundles: [...product.bundles, { id: nextId, name: "", amount_kobo: 10000, credit_units: 1, enabled: false }] }
+          ? { ...product, bundles: [...product.bundles, { id: nextId, name: "", amount_kobo: 10000, amount_input: "100.00", credit_units: 1, enabled: false }] }
           : product),
       }
     })
@@ -84,7 +96,7 @@ export default function CentralBillingCataloguePage() {
     try {
       const payload = action === "save" ? {
         action,
-        products: state.products.map((p) => ({ channel: p.channel, product_code: p.product_code, price_per_credit_kobo: Math.round(Number(p.price) * 100), minimum_topup_kobo: Math.round(Number(p.minimum) * 100), tax_bps: bpsFromPercent(p.tax_percent), enabled: p.enabled, bundles: p.bundles })),
+        products: state.products.map((p) => ({ channel: p.channel, product_code: p.product_code, price_per_credit_kobo: Math.round(Number(p.price) * 100), minimum_topup_kobo: Math.round(Number(p.minimum) * 100), tax_bps: bpsFromPercent(p.tax_percent), enabled: p.enabled, bundles: p.bundles.map(({ id, name, amount_kobo, credit_units, enabled }) => ({ id, name, amount_kobo, credit_units, enabled })) })),
         addons: state.addons.map((p) => ({ product_code: p.product_code, addon_key: p.addon_key, name: p.name, fulfillment_type: p.fulfillment_type, billing_period: p.billing_period, price_kobo: Math.round(Number(p.price) * 100), tax_bps: bpsFromPercent(p.tax_percent), details: p.details, enabled: p.enabled })),
       } : { action }
       const response = await fetch("/api/admin/central-billing/catalogue", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) })
@@ -115,7 +127,7 @@ export default function CentralBillingCataloguePage() {
         <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-medium">Credit bundles</h3><p className="text-xs text-muted-foreground">Set the bundle price before tax and the number of credits it includes.</p></div><Button type="button" variant="outline" size="sm" disabled={state.control.price_owner !== "NEXT"} onClick={() => addBundle(index)}><Plus className="mr-1 h-4 w-4" />Add bundle</Button></div>
         {p.bundles.length === 0 ? <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No bundles configured. Add one to offer a fixed-price credit package.</p> : p.bundles.map((bundle, bundleIndex) => { const bundleTax = taxKobo(bundle.amount_kobo, p.tax_percent); return <div key={bundle.id} className="grid items-end gap-3 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(120px,.8fr)_minmax(120px,.8fr)_auto_auto]">
           <label className="space-y-1 text-sm">Bundle name<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" maxLength={100} value={bundle.name} onChange={(e) => updateBundle(index, bundleIndex, "name", e.target.value)} placeholder="e.g. SMS Starter" /></label>
-          <label className="space-y-1 text-sm">Price before tax (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="100" max="500000" step="0.01" value={naira(bundle.amount_kobo)} onChange={(e) => updateBundle(index, bundleIndex, "amount_kobo", Math.round(Number(e.target.value) * 100) || 0)} /><span className="block text-xs text-muted-foreground">Tax {money(bundleTax)} · total {money(bundle.amount_kobo + bundleTax)}</span></label>
+          <label className="space-y-1 text-sm">Price before tax (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="100" max="500000" step="0.01" value={bundle.amount_input} onChange={(e) => updateBundlePrice(index, bundleIndex, e.target.value)} /><span className="block text-xs text-muted-foreground">Tax {money(bundleTax)} · total {money(bundle.amount_kobo + bundleTax)}</span></label>
           <label className="space-y-1 text-sm">Credits<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="1" max="10000000" step="1" value={bundle.credit_units} onChange={(e) => updateBundle(index, bundleIndex, "credit_units", Math.floor(Number(e.target.value)) || 0)} /></label>
           <label className="flex items-center gap-2 pb-2 text-sm"><input disabled={state.control.price_owner !== "NEXT"} type="checkbox" checked={bundle.enabled} onChange={(e) => updateBundle(index, bundleIndex, "enabled", e.target.checked)} />Available</label>
           <Button type="button" variant="ghost" size="icon" disabled={state.control.price_owner !== "NEXT"} onClick={() => removeBundle(index, bundleIndex)} aria-label={`Remove ${bundle.name || "unnamed"} bundle`} title="Remove bundle"><Trash2 className="h-4 w-4 text-destructive" /></Button>

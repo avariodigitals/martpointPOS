@@ -6,7 +6,8 @@ import { supabase } from "@/lib/supabase"
 import { getAiProviderStatus } from "@/lib/ai-chat"
 import { getCommunicationSmsConfig, runNigeriaBulkSmsGatewayAction, smsConfigurationSchema } from "@/lib/communication-sms"
 import { getEmailSettings } from "@/lib/email"
-import { prepareCommunication, runCommunicationsSweep } from "@/lib/communications"
+import { mergeLeadCommunicationTemplate, prepareCommunication, runCommunicationsSweep } from "@/lib/communications"
+import { getSettings } from "@/lib/settings"
 import { communicationChannel, communicationTemplateSchema, communicationWorkflowSchema, mergeCommunicationTemplate, normalizeCommunicationPhone } from "@/lib/communications-policy"
 import { getSystemSmsAudiencePage, SYSTEM_EMAIL_AUDIENCES } from "@/lib/marketing"
 
@@ -37,12 +38,13 @@ export async function GET(_request: Request, context: Context) {
       return NextResponse.json({ sms: { ...sms, apiKey: undefined, password: undefined, configured: Boolean(sms.sender && (sms.provider === "africastalking" ? sms.apiKey && sms.username : sms.provider === "nigeriabulksms" ? sms.username && sms.password : sms.apiKey)) } })
     }
     if (resource !== "workspace") return NextResponse.json({ error: "Unknown resource" }, { status: 404 })
+    const siteSettings = await getSettings()
     const results = await Promise.all([
       supabase.from("communication_templates").select("id,name,channel,subject,body").order("created_at"),
       supabase.from("communication_workflows").select("*").order("created_at", { ascending: false }),
       supabase.from("communication_messages").select("id,lead_id,campaign_id,channel,subject,body,status,mode,recipient,provider,provider_message_id,ai_provider,ai_model,error,scheduled_for,sent_at,created_at,workflow_id").order("created_at", { ascending: false }).limit(500),
       supabase.from("communication_runs").select("id,lead_id,workflow_id,status,step,next_run_at,reason").order("created_at", { ascending: false }).limit(100),
-      supabase.from("leads").select("id,full_name,business_name,email,phone,status").order("submitted_at", { ascending: false }).limit(1000),
+      supabase.from("leads").select("id,full_name,business_name,email,phone,status,product_interest").order("submitted_at", { ascending: false }).limit(1000),
       supabase.from("marketing_audiences").select("id,name").order("created_at", { ascending: false }),
       supabase.from("status_subscribers").select("email").is("unsubscribed_at", null).order("created_at", { ascending: false }).limit(1000),
       supabase.from("communication_status_rules").select("workflow_id,incident_event,recipient_emails"),
@@ -89,7 +91,7 @@ export async function GET(_request: Request, context: Context) {
         if (page.contacts.length < 100) break
       }
     }
-    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts, smsSystemAudiences, smsSystemContacts, smsSuppressions: smsSuppressions.data || [], providers: { email: email.provider, sms: sms.provider, smsSender: sms.sender || "", smsConfigured: Boolean(sms.sender && (sms.provider === "africastalking" ? sms.apiKey && sms.username : sms.provider === "nigeriabulksms" ? sms.username && sms.password : sms.apiKey)), ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
+    return NextResponse.json({ templates: results[0].data, workflows: results[1].data, messages: results[2].data, runs: results[3].data, leads: results[4].data, audiences: results[5].data, statusSubscribers: results[6].data, statusRules: results[7].data, callTasks: results[8].data, campaigns: results[9].data, campaignStats, smsContacts, smsSystemAudiences, smsSystemContacts, smsSuppressions: smsSuppressions.data || [], providers: { email: email.provider, sms: sms.provider, smsSender: sms.sender || "", smsConfigured: Boolean(sms.sender && (sms.provider === "africastalking" ? sms.apiKey && sms.username : sms.provider === "nigeriabulksms" ? sms.username && sms.password : sms.apiKey)), whatsappNumber: siteSettings.whatsapp.phoneNumber || "", ai: ai.configured }, canConfigure: await hasPermissionForUser(auth.session.userId, auth.session.role, "settings") })
   } catch (error) { return problem(error) }
 }
 export async function POST(request: Request, context: Context) {
@@ -170,17 +172,17 @@ export async function POST(request: Request, context: Context) {
       const requestId = parsed.requestId
       const leads = parsed.leadIds.length ? await supabase.from("leads").select("id,full_name,business_name,product_interest,status,email,phone").in("id", [...new Set(parsed.leadIds)]) : { data: [], error: null }
       if (leads.error || leads.data?.length !== new Set(parsed.leadIds).size) throw new Error("One or more selected leads could not be loaded")
-      const leadRows = (leads.data || []).map((lead) => ({ request_id: communicationRequestId(requestId, lead.id), lead_id: lead.id, contact_source: "lead", contact_name: lead.full_name, channel: parsed.channel, mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: parsed.mode === "manual" ? mergeCommunicationTemplate(parsed.subject, lead) : "", body: parsed.mode === "manual" ? mergeCommunicationTemplate(parsed.body, lead) : "", prepared_at: parsed.mode === "manual" ? new Date().toISOString() : null, scheduled_for: scheduledFor.toISOString(), created_by: auth.session.userId }))
+      const leadRows = await Promise.all((leads.data || []).map(async (lead) => ({ request_id: communicationRequestId(requestId, lead.id), lead_id: lead.id, contact_source: "lead", contact_name: lead.full_name, channel: parsed.channel, mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: parsed.mode === "manual" ? mergeCommunicationTemplate(parsed.subject, lead) : "", body: parsed.mode === "manual" ? await mergeLeadCommunicationTemplate(parsed.body, lead) : "", prepared_at: parsed.mode === "manual" ? new Date().toISOString() : null, scheduled_for: scheduledFor.toISOString(), created_by: auth.session.userId })))
       let contactRows: Record<string, unknown>[] = []
       if (parsed.contactIds.length) {
         const contacts = await supabase.from("marketing_contacts").select("id,name,phone,sms_consent_at").eq("audience_id", parsed.audienceId).in("id", [...new Set(parsed.contactIds)]).not("phone", "is", null).not("sms_consent_at", "is", null)
         if (contacts.error || contacts.data?.length !== new Set(parsed.contactIds).size) throw new Error("Only phone contacts with recorded SMS consent can receive an SMS")
         const selectedTemplate = parsed.mode === "template" ? await supabase.from("communication_templates").select("subject,body").eq("id", parsed.template_id || "").eq("channel", "sms").maybeSingle() : { data: null, error: null }
         if (selectedTemplate.error || (parsed.mode === "template" && !selectedTemplate.data)) throw new Error("Choose an available SMS template")
-        contactRows = contacts.data.map((contact) => {
+        contactRows = await Promise.all(contacts.data.map(async (contact) => {
           const person = { full_name: contact.name || "there", business_name: "", product_interest: "MartPoint" }
-          return { request_id: communicationRequestId(requestId, contact.id), lead_id: null, contact_id: contact.id, contact_source: "saved_audience", contact_name: contact.name || "", recipient: contact.phone, channel: parsed.channel, mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: "", body: parsed.mode === "template" ? mergeCommunicationTemplate(selectedTemplate.data!.body, person) : mergeCommunicationTemplate(parsed.body, person), prepared_at: new Date().toISOString(), scheduled_for: scheduledFor.toISOString(), created_by: auth.session.userId }
-        })
+          return { request_id: communicationRequestId(requestId, contact.id), lead_id: null, contact_id: contact.id, contact_source: "saved_audience", contact_name: contact.name || "", recipient: contact.phone, channel: parsed.channel, mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: "", body: parsed.mode === "template" ? await mergeLeadCommunicationTemplate(selectedTemplate.data!.body, person) : await mergeLeadCommunicationTemplate(parsed.body, person), prepared_at: new Date().toISOString(), scheduled_for: scheduledFor.toISOString(), created_by: auth.session.userId }
+        }))
       }
       if (parsed.systemContactIds.length) {
         const audience = SYSTEM_EMAIL_AUDIENCES.find((item) => item.id === parsed.systemAudienceId && "phoneColumn" in item && item.phoneColumn)
@@ -195,10 +197,10 @@ export async function POST(request: Request, context: Context) {
         if (systemContacts.length !== wanted.size || systemContacts.some((contact) => !contact.phone)) throw new Error("Some selected contacts no longer have valid phone numbers")
         const selectedTemplate = parsed.mode === "template" ? await supabase.from("communication_templates").select("subject,body").eq("id", parsed.template_id || "").eq("channel", "sms").maybeSingle() : { data: null, error: null }
         if (selectedTemplate.error || (parsed.mode === "template" && !selectedTemplate.data)) throw new Error("Choose an available SMS template")
-        contactRows.push(...systemContacts.map((contact) => {
+        contactRows.push(...await Promise.all(systemContacts.map(async (contact) => {
           const person = { full_name: contact.name || "there", business_name: "", product_interest: "MartPoint" }
-          return { request_id: communicationRequestId(requestId, contact.id), lead_id: null, contact_id: null, contact_source: "system_audience", contact_name: contact.name || "", recipient: contact.phone, channel: "sms", mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: "", body: parsed.mode === "template" ? mergeCommunicationTemplate(selectedTemplate.data!.body, person) : mergeCommunicationTemplate(parsed.body, person), prepared_at: new Date().toISOString(), scheduled_for: scheduledFor.toISOString(), created_by: auth.session.userId }
-        }))
+          return { request_id: communicationRequestId(requestId, contact.id), lead_id: null, contact_id: null, contact_source: "system_audience", contact_name: contact.name || "", recipient: contact.phone, channel: "sms", mode: parsed.mode, template_id: parsed.template_id, instructions: parsed.instructions, subject: "", body: parsed.mode === "template" ? await mergeLeadCommunicationTemplate(selectedTemplate.data!.body, person) : await mergeLeadCommunicationTemplate(parsed.body, person), prepared_at: new Date().toISOString(), scheduled_for: scheduledFor.toISOString(), created_by: auth.session.userId }
+        })))
       }
       let rows = [...leadRows, ...contactRows]
       const audienceLabel = parsed.contactSource === "saved_audience"

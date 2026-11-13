@@ -45,12 +45,13 @@ export function smsLength(body: string) {
   return { characters: body.length, encoding: unicode ? "Unicode" : "GSM-7", segments: length <= single ? 1 : Math.ceil(length / (unicode ? 67 : 153)) }
 }
 
-export function mergeCommunicationTemplate(value: string, lead: { full_name: string; business_name: string; product_interest?: string }, event: { incidentTitle?: string; incidentStatus?: string; incidentUpdate?: string } = {}) {
-  return value.replace(/\{\{(name|business|product|incidentTitle|incidentStatus|incidentUpdate)\}\}/g, (_match, key: string) => ({
+export function mergeCommunicationTemplate(value: string, lead: { full_name: string; business_name: string; product_interest?: string }, event: { incidentTitle?: string; incidentStatus?: string; incidentUpdate?: string; whatsappLink?: string } = {}) {
+  return value.replace(/\{\{(name|business|product|incidentTitle|incidentStatus|incidentUpdate|whatsapp_link)\}\}/g, (_match, key: string) => ({
     name: lead.full_name, business: lead.business_name, product: lead.product_interest || "MartPoint",
     incidentTitle: event.incidentTitle || "Service status update", incidentStatus: event.incidentStatus || "Updated",
     incidentUpdate: event.incidentUpdate || "Please check the MartPoint status page for details.",
-  })[key as "name" | "business" | "product" | "incidentTitle" | "incidentStatus" | "incidentUpdate"])
+    whatsapp_link: event.whatsappLink || "",
+  })[key as "name" | "business" | "product" | "incidentTitle" | "incidentStatus" | "incidentUpdate" | "whatsapp_link"])
 }
 
 export function communicationStopReason(input: { status: string; reminders_paused?: boolean; converted?: boolean; suppressed?: boolean; lastInbound?: string | null; lastOutbound?: string | null; enrolledAt?: string; stopOnReply?: boolean }) {

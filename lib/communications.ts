@@ -21,10 +21,7 @@ export async function mergeLeadCommunicationTemplate(
   const settings = await getSettings()
   const number = String(settings.whatsapp.phoneNumber || "").replace(/\D/g, "")
   if (!/^\d{7,15}$/.test(number)) throw new Error("Configure a valid WhatsApp number in Admin Settings before using {{whatsapp_link}}")
-  const product = lead.product_interest?.trim() || "MartPoint"
-  const business = lead.business_name?.trim() || "my business"
-  const prefilled = `Hi, I would like to discuss the ${product} quote for ${business}.`
-  const whatsappLink = `https://wa.me/${number}?text=${encodeURIComponent(prefilled)}`
+  const whatsappLink = `https://wa.me/${number}`
   return mergeCommunicationTemplate(value, lead, { whatsappLink })
 }
 

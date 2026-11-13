@@ -131,18 +131,35 @@ type QueuedMessage = {
 }
 
 /** Claims are atomic in Postgres; uncertain dispatches never auto-retry. */
-export async function runCommunicationsSweep() {
-  const scheduled = await supabase.rpc("communication_schedule_due")
-  if (scheduled.error) throw new Error("Apply migration 161 before running Communications")
+export async function runCommunicationsSweep(immediateMessageIds?: string[]) {
   const claim = crypto.randomUUID()
-  const claimed = await supabase.rpc("communication_claim", { p_claim: claim, p_limit: 10 })
-  if (claimed.error) throw new Error("Could not claim queued messages")
-  const result = { processed: 0, accepted: 0, review: 0, stopped: 0 }
+  let claimedRows: QueuedMessage[]
+  if (immediateMessageIds?.length) {
+    const { data, error } = await supabase.from("communication_messages")
+      .update({ status: "preparing", claim_token: claim, claim_expires_at: new Date(Date.now() + 5 * 60_000).toISOString() })
+      .in("id", [...new Set(immediateMessageIds)])
+      .eq("status", "queued")
+      .is("workflow_id", null)
+      .lte("scheduled_for", new Date().toISOString())
+      .select("*")
+    if (error) throw new Error("Could not claim this campaign for immediate delivery")
+    claimedRows = (data || []) as QueuedMessage[]
+  } else {
+    const scheduled = await supabase.rpc("communication_schedule_due")
+    if (scheduled.error) throw new Error("Apply migration 161 before running Communications")
+    const claimed = await supabase.rpc("communication_claim", { p_claim: claim, p_limit: 10 })
+    if (claimed.error) throw new Error("Could not claim queued messages")
+    claimedRows = (claimed.data || []) as QueuedMessage[]
+  }
+  const result = { processed: 0, accepted: 0, review: 0, stopped: 0, deferred: 0 }
   const started = Date.now()
-  for (const message of (claimed.data || []) as QueuedMessage[]) {
+  for (let index = 0; index < claimedRows.length; index++) {
+    const message = claimedRows[index]
     if (Date.now() - started > 40000) {
-      await supabase.from("communication_messages").update({ status: "queued", claim_token: null, claim_expires_at: null }).eq("id", message.id).eq("claim_token", claim)
-      continue
+      const unprocessedIds = claimedRows.slice(index).map((row) => row.id)
+      await supabase.from("communication_messages").update({ status: "queued", claim_token: null, claim_expires_at: null }).in("id", unprocessedIds).eq("claim_token", claim)
+      result.deferred = unprocessedIds.length
+      break
     }
     result.processed++
     let dispatched = false

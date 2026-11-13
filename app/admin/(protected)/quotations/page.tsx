@@ -125,6 +125,7 @@ export default function QuotationsPage() {
   const [quoteFilter, setQuoteFilter] = useState<"all" | "drafts">("all")
   const [accountNumber, setAccountNumber] = useState("")
   const [isAdmin, setIsAdmin] = useState(false)
+  const [canReviveExpiredQuotes, setCanReviveExpiredQuotes] = useState(false)
   const [currentUserId, setCurrentUserId] = useState("")
   const [currentUsername, setCurrentUsername] = useState("")
 
@@ -190,6 +191,7 @@ export default function QuotationsPage() {
         // can be unavailable during partial migration rollouts.
         const role = String(qData.currentRole || permissionData.role || "")
         setIsAdmin(role === "Admin")
+        setCanReviveExpiredQuotes(role === "Sales" || role === "Customer Care")
         setCurrentUserId(String(qData.currentUserId || permissionData.userId || ""))
         setCurrentUsername(String(qData.currentUsername || permissionData.username || ""))
         if (qData.quotations) setQuotations(qData.quotations)
@@ -758,7 +760,7 @@ export default function QuotationsPage() {
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          {(isAdmin || ((qt.creator_id === currentUserId || (!qt.creator_id && qt.created_by === currentUsername)) && (qt.status === "DRAFT" || displayStatus === "EXPIRED"))) && <button
+                          {(isAdmin || (displayStatus === "EXPIRED" && (canReviveExpiredQuotes || qt.creator_id === currentUserId || (!qt.creator_id && qt.created_by === currentUsername))) || ((qt.creator_id === currentUserId || (!qt.creator_id && qt.created_by === currentUsername)) && qt.status === "DRAFT")) && <button
                             onClick={() => openEdit(qt)}
                             className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50 transition-colors"
                             title={displayStatus === "EXPIRED" ? "Revive and edit" : "Edit"}
@@ -1420,7 +1422,7 @@ export default function QuotationsPage() {
               <Button variant="outline" onClick={() => setShowView(null)}>
                 Close
               </Button>
-              {(isAdmin || ((showView.creator_id === currentUserId || (!showView.creator_id && showView.created_by === currentUsername)) && (showView.status === "DRAFT" || resolveQuoteStatus(showView) === "EXPIRED"))) && <Button onClick={() => { setShowView(null); openEdit(showView) }}>
+              {(isAdmin || (resolveQuoteStatus(showView) === "EXPIRED" && (canReviveExpiredQuotes || showView.creator_id === currentUserId || (!showView.creator_id && showView.created_by === currentUsername))) || ((showView.creator_id === currentUserId || (!showView.creator_id && showView.created_by === currentUsername)) && showView.status === "DRAFT")) && <Button onClick={() => { setShowView(null); openEdit(showView) }}>
                 <Pencil className="w-4 h-4 mr-2" />
                 {resolveQuoteStatus(showView) === "EXPIRED" ? "Revive & Edit" : "Edit"}
               </Button>}

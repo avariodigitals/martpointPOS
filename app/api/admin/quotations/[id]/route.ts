@@ -112,7 +112,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     }
     const isCreator = existing.creator_id === session.userId || (!existing.creator_id && existing.created_by === session.username)
     const canReviveExpired = isQuoteExpired(existing)
-    if (requiresApproval && ((!isCreator) || (existing.status !== "DRAFT" && !canReviveExpired))) {
+    const canEditOwnDraft = existing.status === "DRAFT" && isCreator
+    if (requiresApproval && !canEditOwnDraft && !canReviveExpired) {
       return NextResponse.json({ error: "You can edit only your own draft or expired quotations" }, { status: 403 })
     }
     if (requiresApproval && canReviveExpired && (!validUntil || validUntil < new Date().toISOString().slice(0, 10))) {

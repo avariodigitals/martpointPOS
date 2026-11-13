@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase"
 import { getAiProviderStatus } from "@/lib/ai-chat"
 import { getCommunicationSmsConfig, runNigeriaBulkSmsGatewayAction, smsConfigurationSchema } from "@/lib/communication-sms"
 import { getEmailSettings } from "@/lib/email"
-import { prepareCommunication } from "@/lib/communications"
+import { prepareCommunication, runCommunicationsSweep } from "@/lib/communications"
 import { communicationChannel, communicationTemplateSchema, communicationWorkflowSchema, mergeCommunicationTemplate, normalizeCommunicationPhone } from "@/lib/communications-policy"
 import { getSystemSmsAudiencePage, SYSTEM_EMAIL_AUDIENCES } from "@/lib/marketing"
 
@@ -51,7 +51,7 @@ export async function GET(_request: Request, context: Context) {
     ])
     if (results.some((result) => result.error)) return NextResponse.json({ error: "Communications needs database migrations 161, 162 and 164, or a required dataset could not be loaded. No messages were sent." }, { status: 503 })
     const campaignIds = (results[9].data || []).map((campaign) => campaign.id)
-    const campaignStats: Record<string, { accepted: number; pending: number; failed: number }> = {}
+    const campaignStats: Record<string, { accepted: number; pending: number; failed: number; retryable: number }> = {}
     if (campaignIds.length) {
       let offset = 0
       while (true) {
@@ -59,9 +59,12 @@ export async function GET(_request: Request, context: Context) {
           .in("campaign_id", campaignIds).order("created_at", { ascending: true }).range(offset, offset + 999)
         if (page.error) return NextResponse.json({ error: "Could not load campaign delivery stats" }, { status: 503 })
         for (const message of page.data || []) {
-          const stats = campaignStats[message.campaign_id!] ||= { accepted: 0, pending: 0, failed: 0 }
+          const stats = campaignStats[message.campaign_id!] ||= { accepted: 0, pending: 0, failed: 0, retryable: 0 }
           if (["accepted", "delivered"].includes(message.status)) stats.accepted++
-          else if (["failed", "unknown", "skipped"].includes(message.status)) stats.failed++
+          else if (["failed", "unknown", "skipped"].includes(message.status)) {
+            stats.failed++
+            if (message.status === "failed") stats.retryable++
+          }
           else if (["queued", "preparing", "dispatching", "awaiting_approval"].includes(message.status)) stats.pending++
         }
         if ((page.data || []).length < 1000) break
@@ -213,7 +216,15 @@ export async function POST(request: Request, context: Context) {
       rows = rows.map((row) => ({ ...row, campaign_id: requestId }))
       const { data, error } = await supabase.from("communication_messages").upsert(rows, { onConflict: "request_id", ignoreDuplicates: true }).select("id")
       if (error) throw new Error("Could not queue messages")
-      return NextResponse.json({ queued: data?.length || 0, campaignId: requestId })
+      if (!parsed.scheduleAt && data?.length) {
+        try {
+          const dispatch = await runCommunicationsSweep(data.map((row) => row.id))
+          return NextResponse.json({ queued: data.length, campaignId: requestId, dispatch, immediate: true })
+        } catch (dispatchError) {
+          return NextResponse.json({ queued: data.length, campaignId: requestId, immediate: true, dispatchError: dispatchError instanceof Error ? dispatchError.message : "Immediate delivery could not start" })
+        }
+      }
+      return NextResponse.json({ queued: data?.length || 0, campaignId: requestId, immediate: !parsed.scheduleAt })
     }
     if (resource === "enroll") {
       const parsed = z.object({ workflowId: z.uuid(), leadIds: z.array(z.uuid()).min(1).max(50) }).parse(body)
@@ -278,7 +289,26 @@ export async function PATCH(request: Request, context: Context) {
       return NextResponse.json({ success: true })
     }
     if (resource === "messages") {
-      const action = z.enum(["approve", "cancel"]).parse(body.action)
+      const action = z.enum(["approve", "cancel", "retry_failed_campaign"]).parse(body.action)
+      if (action === "retry_failed_campaign") {
+        const campaign = await supabase.from("communication_campaigns").select("id,channel").eq("id", id).maybeSingle()
+        if (campaign.error || !campaign.data) throw new Error("Campaign not found")
+        if (campaign.data.channel !== "sms") throw new Error("Only failed SMS campaign messages can be retried here")
+        const now = new Date().toISOString()
+        const retried = await supabase.from("communication_messages").update({
+          status: "queued", scheduled_for: now, sent_at: null, error: null,
+          provider: null, provider_message_id: null, claim_token: null, claim_expires_at: null,
+        }).eq("campaign_id", id).eq("status", "failed").is("workflow_id", null).select("id")
+        if (retried.error) throw new Error("Could not requeue failed campaign messages")
+        const messageIds = (retried.data || []).map((message) => message.id)
+        if (!messageIds.length) throw new Error("This campaign has no provider-rejected SMS messages to retry")
+        try {
+          const dispatch = await runCommunicationsSweep(messageIds)
+          return NextResponse.json({ retried: messageIds.length, dispatch, immediate: true })
+        } catch (dispatchError) {
+          return NextResponse.json({ retried: messageIds.length, immediate: true, dispatchError: dispatchError instanceof Error ? dispatchError.message : "Retry dispatch could not start" })
+        }
+      }
       const result = await supabase.from("communication_messages").update(action === "approve"
         ? { status: "queued", approved_at: new Date().toISOString(), approved_by: auth.session.userId, error: null }
         : { status: "cancelled", error: "Cancelled by staff" })

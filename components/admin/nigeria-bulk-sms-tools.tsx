@@ -36,7 +36,7 @@ export default function NigeriaBulkSmsTools() {
   }
 
   return <section className="space-y-4 rounded-xl border border-blue-200 bg-blue-50/40 p-4">
-    <div><h3 className="font-semibold text-slate-900">Nigeria Bulk SMS gateway tools</h3><p className="mt-1 text-xs leading-5 text-slate-600">The provider also supports voice calls, text-to-speech, audio playback, audio upload and account reports. Voice actions can incur charges.</p></div>
+    <div><h3 className="font-semibold text-slate-900">Nigeria Bulk SMS account & voice tools</h3><p className="mt-1 text-xs leading-5 text-slate-600">This panel checks account data and runs voice/audio actions; it does not send SMS. Send text messages from the SMS campaign composer on this page. Voice actions can incur charges.</p></div>
     <div className="flex flex-wrap gap-2">{modes.map((mode) => <button key={mode.value} type="button" onClick={() => { setOperation(mode.value); setResult(null) }} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${operation === mode.value ? "border-blue-700 bg-blue-700 text-white" : "border-slate-200 bg-white text-slate-700"}`}>{mode.label}</button>)}</div>
     {operation === "data" && <div><label className="mb-1.5 block text-xs font-semibold text-slate-700">Account data</label><div className="flex flex-wrap gap-2">{actions.map((item) => <button key={item} type="button" onClick={() => setAction(item)} className={`rounded-full border px-3 py-1.5 text-xs capitalize ${action === item ? "border-blue-300 bg-blue-100 text-blue-900" : "border-slate-200 bg-white text-slate-600"}`}>{item}</button>)}</div></div>}
     {(operation === "call" || operation === "tts" || operation === "audio") && <div className="grid gap-3 sm:grid-cols-2">

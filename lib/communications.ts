@@ -88,7 +88,10 @@ async function checkRecipient(leadId: string | null, channel: "email" | "sms" | 
     const contact = await supabase.from("marketing_contacts").select("id,email,phone,sms_consent_at,whatsapp_consent_at").eq("id", message.contact_id).maybeSingle()
     if (contact.error || !contact.data || (channel === "sms" && (!contact.data.sms_consent_at || normalizeCommunicationPhone(contact.data.phone || "") !== recipient)) || (channel === "whatsapp" && (!contact.data.whatsapp_consent_at || normalizeCommunicationPhone(contact.data.phone || "") !== recipient))) throw new Error(`Saved contact ${channel} consent is missing or has changed`)
   }
-  if (context && channel === "sms" && !context.history.some((entry) => entry.direction === "inbound" && entry.channel === "sms" && Date.now() - Date.parse(entry.at) < 24 * 60 * 60 * 1000)) throw new Error("SMS automation needs recorded SMS consent or a recent inbound SMS reply")
+  const hasRecordedSmsConsent = Boolean(context?.lead.sms_consent_at)
+    && normalizeCommunicationPhone(context?.lead.sms_consent_phone || "") === recipient
+  const hasRecentInboundSms = Boolean(context?.history.some((entry) => entry.direction === "inbound" && entry.channel === "sms" && Date.now() - Date.parse(entry.at) < 24 * 60 * 60 * 1000))
+  if (context && channel === "sms" && !hasRecordedSmsConsent && !hasRecentInboundSms) throw new Error("SMS automation needs recorded consent for this phone number or a recent inbound SMS reply")
   if (context && channel === "whatsapp" && !context.history.some((entry) => entry.direction === "inbound" && entry.channel === "whatsapp" && Date.now() - Date.parse(entry.at) < 24 * 60 * 60 * 1000)) throw new Error("WhatsApp free-text automation requires a reply in the last 24 hours. This workspace does not send approved WhatsApp templates outside that window.")
   const automatedReplyExists = Boolean(context?.lastOutbound && enrolledAt && Date.parse(context.lastOutbound) >= Date.parse(enrolledAt))
   const stopOnReply = workflow?.trigger === "lead_replied" ? Boolean(workflow.stop_on_reply && automatedReplyExists) : workflow?.stop_on_reply

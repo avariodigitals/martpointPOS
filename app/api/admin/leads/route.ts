@@ -35,6 +35,10 @@ interface LeadRecord {
   questionnaireSentAt?: string | null
   questionnaireSubmittedAt?: string | null
   remindersPaused?: boolean
+  smsConsentAt?: string | null
+  smsConsentPhone?: string | null
+  smsConsentSource?: string | null
+  smsConsentNote?: string | null
   businessId?: string | null
   submittedAt: string
   updatedAt: string
@@ -92,6 +96,10 @@ export async function GET() {
     questionnaireSentAt: row.questionnaire_sent_at,
     questionnaireSubmittedAt: row.questionnaire_submitted_at,
     remindersPaused: Boolean(row.reminders_paused),
+    smsConsentAt: row.sms_consent_at ?? null,
+    smsConsentPhone: row.sms_consent_phone ?? null,
+    smsConsentSource: row.sms_consent_source ?? null,
+    smsConsentNote: row.sms_consent_note ?? null,
     businessId: null as string | null,
     submittedAt: row.submitted_at,
     updatedAt: row.updated_at,
@@ -213,6 +221,10 @@ export async function PUT(request: Request) {
       questionnaireSentAt: data.questionnaire_sent_at,
       questionnaireSubmittedAt: data.questionnaire_submitted_at,
       remindersPaused: Boolean(data.reminders_paused),
+      smsConsentAt: data.sms_consent_at ?? null,
+      smsConsentPhone: data.sms_consent_phone ?? null,
+      smsConsentSource: data.sms_consent_source ?? null,
+      smsConsentNote: data.sms_consent_note ?? null,
       submittedAt: data.submitted_at,
       updatedAt: data.updated_at,
     }

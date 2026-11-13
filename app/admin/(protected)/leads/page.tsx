@@ -72,6 +72,10 @@ interface Lead {
   questionnaireStatus?: string
   questionnaireSentAt?: string | null
   questionnaireSubmittedAt?: string | null
+  smsConsentAt?: string | null
+  smsConsentPhone?: string | null
+  smsConsentSource?: string | null
+  smsConsentNote?: string | null
   businessId?: string | null
   submittedAt: string
   updatedAt: string

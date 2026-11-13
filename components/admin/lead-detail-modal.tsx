@@ -10,6 +10,7 @@ import { EmailLayoutSwitch } from "@/components/admin/email-layout-switch"
 import type { EmailLayout } from "@/lib/email-layout"
 import { htmlToText, textToHtml } from "@/lib/email-html"
 import { leadReplyRecipients } from "@/lib/lead-email-reply"
+import { normalizeCommunicationPhone } from "@/lib/communications-policy"
 import { SupportTicketsPanel } from "@/components/admin/support-tickets-panel"
 import { Button } from "@/components/ui/button"
 import { businessTypeOptions, industryOptions, resolveIndustryName } from "@/lib/industries"
@@ -84,6 +85,10 @@ export interface Lead {
   questionnaireSentAt?: string | null
   questionnaireSubmittedAt?: string | null
   remindersPaused?: boolean
+  smsConsentAt?: string | null
+  smsConsentPhone?: string | null
+  smsConsentSource?: string | null
+  smsConsentNote?: string | null
   businessId?: string | null
   submittedAt: string
   updatedAt: string
@@ -253,6 +258,14 @@ export function LeadDetailModal({
   const [deleting, setDeleting] = useState(false)
   const [remindersPaused, setRemindersPaused] = useState(Boolean(lead.remindersPaused))
   const [togglingReminders, setTogglingReminders] = useState(false)
+  const [smsConsentAt, setSmsConsentAt] = useState(lead.smsConsentAt || null)
+  const [smsConsentPhone, setSmsConsentPhone] = useState(lead.smsConsentPhone || null)
+  const [smsConsentSource, setSmsConsentSource] = useState(lead.smsConsentSource || "")
+  const [smsConsentNote, setSmsConsentNote] = useState(lead.smsConsentNote || "")
+  const [smsConsentEvidence, setSmsConsentEvidence] = useState("")
+  const [smsConsentConfirmed, setSmsConsentConfirmed] = useState(false)
+  const [smsConsentSaving, setSmsConsentSaving] = useState(false)
+  const [smsConsentMessage, setSmsConsentMessage] = useState("")
   const [questionnaireLoading, setQuestionnaireLoading] = useState(false)
   const [questionnaireData, setQuestionnaireData] = useState<{ fields: QuestionnaireField[]; responses: Record<string, unknown> } | null>(null)
   const [questionRounds, setQuestionRounds] = useState<QuestionRound[]>([])
@@ -327,6 +340,63 @@ export function LeadDetailModal({
     timezone: "Africa/Lagos",
     notes: "",
   })
+
+  useEffect(() => {
+    setSmsConsentAt(lead.smsConsentAt || null)
+    setSmsConsentPhone(lead.smsConsentPhone || null)
+    setSmsConsentSource(lead.smsConsentSource || "")
+    setSmsConsentNote(lead.smsConsentNote || "")
+    setSmsConsentEvidence("")
+    setSmsConsentConfirmed(false)
+  }, [lead.id, lead.phone, lead.smsConsentAt, lead.smsConsentPhone, lead.smsConsentSource, lead.smsConsentNote])
+
+  const activeSmsConsent = Boolean(smsConsentAt) && Boolean(smsConsentPhone)
+    && smsConsentPhone === normalizeCommunicationPhone(lead.phone)
+
+  const recordSmsConsent = async () => {
+    if (!smsConsentConfirmed || !smsConsentEvidence) return
+    setSmsConsentSaving(true)
+    setSmsConsentMessage("")
+    try {
+      const response = await fetch(`/api/admin/leads/${lead.id}/sms-consent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: smsConsentEvidence, note: smsConsentNote, confirmed: true }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Could not record consent")
+      setSmsConsentAt(data.consent.at)
+      setSmsConsentPhone(data.consent.phone)
+      setSmsConsentSource(data.consent.source)
+      setSmsConsentNote(data.consent.note)
+      setSmsConsentConfirmed(false)
+      setSmsConsentMessage("Consent recorded for this phone number.")
+    } catch (error) {
+      setSmsConsentMessage(error instanceof Error ? error.message : "Could not record consent")
+    } finally {
+      setSmsConsentSaving(false)
+    }
+  }
+
+  const withdrawSmsConsent = async () => {
+    if (!confirm("Record that this lead no longer wants SMS and suppress further SMS to this number?")) return
+    setSmsConsentSaving(true)
+    setSmsConsentMessage("")
+    try {
+      const response = await fetch(`/api/admin/leads/${lead.id}/sms-consent`, { method: "DELETE" })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Could not withdraw consent")
+      setSmsConsentAt(null)
+      setSmsConsentPhone(null)
+      setSmsConsentSource("")
+      setSmsConsentNote("")
+      setSmsConsentMessage("SMS opt-out recorded. This number is suppressed.")
+    } catch (error) {
+      setSmsConsentMessage(error instanceof Error ? error.message : "Could not withdraw consent")
+    } finally {
+      setSmsConsentSaving(false)
+    }
+  }
 
   const leadTemplate = getLeadAdditionalQuestionTemplate(lead.industry || lead.businessType || "")
 
@@ -1282,6 +1352,66 @@ export function LeadDetailModal({
                   ))}
                 </div>
               </div>
+
+              <section className="rounded-xl border border-border bg-muted/20 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">SMS permission</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Record explicit permission for this lead’s current phone number before automated SMS follow-ups.</p>
+                  </div>
+                  {activeSmsConsent ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Opted in
+                    </span>
+                  ) : smsConsentAt ? (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Consent is for a different number</span>
+                  ) : (
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">Not recorded</span>
+                  )}
+                </div>
+
+                {activeSmsConsent ? (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-background p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Recorded {smsConsentAt ? new Date(smsConsentAt).toLocaleString() : ""}
+                      {smsConsentSource ? ` · ${smsConsentSource.replace(/_/g, " ")}` : ""}
+                      {smsConsentNote ? ` · ${smsConsentNote}` : ""}
+                    </p>
+                    <Button type="button" variant="outline" size="sm" onClick={withdrawSmsConsent} disabled={smsConsentSaving}>
+                      {smsConsentSaving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                      Record opt-out
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                    <label className="block text-xs font-medium text-muted-foreground">
+                      How was permission given?
+                      <select className={`${inputClass} mt-1`} value={smsConsentEvidence} onChange={(event) => setSmsConsentEvidence(event.target.value)}>
+                        <option value="">Choose source</option>
+                        <option value="web_form">Web form</option>
+                        <option value="verbal">Verbal</option>
+                        <option value="written">Written</option>
+                        <option value="inbound_sms">Inbound SMS</option>
+                        <option value="other">Other documented source</option>
+                      </select>
+                    </label>
+                    <label className="block text-xs font-medium text-muted-foreground">
+                      Evidence note (optional)
+                      <input className={`${inputClass} mt-1`} maxLength={500} value={smsConsentNote} onChange={(event) => setSmsConsentNote(event.target.value)} placeholder="e.g. Agreed during onboarding call" />
+                    </label>
+                    <Button type="button" size="sm" onClick={recordSmsConsent} disabled={smsConsentSaving || !smsConsentEvidence || !smsConsentConfirmed}>
+                      {smsConsentSaving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                      Record consent
+                    </Button>
+                    <label className="flex items-start gap-2 text-xs text-muted-foreground sm:col-span-3">
+                      <input className="mt-0.5" type="checkbox" checked={smsConsentConfirmed} onChange={(event) => setSmsConsentConfirmed(event.target.checked)} />
+                      I confirm this person explicitly agreed to receive SMS at {lead.phone || "this number"}.
+                    </label>
+                  </div>
+                )}
+                {smsConsentMessage && <p className="mt-2 text-xs text-muted-foreground" role="status">{smsConsentMessage}</p>}
+                <p className="mt-2 text-[11px] text-muted-foreground">STOP and other opt-outs remain suppressed even when consent is recorded.</p>
+              </section>
 
               {estimate && (
                 <div className="rounded-xl border border-retail/20 bg-retail-soft/40 p-5">

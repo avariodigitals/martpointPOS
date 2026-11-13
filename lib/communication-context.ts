@@ -5,6 +5,7 @@ import { normalizeCommunicationPhone } from "./communications-policy"
 
 export type CommunicationLead = {
   id: string; full_name: string; business_name: string; email: string; phone: string;
+  sms_consent_at: string | null; sms_consent_phone: string | null;
   status: string; product_interest: string; business_type: string; notes: string | null;
   reminders_paused: boolean; submitted_at: string; message: string | null
 }
@@ -23,7 +24,7 @@ async function allPages<T>(page: (offset: number) => PromiseLike<{ data: T[] | n
 }
 
 export async function loadCommunicationContext(leadId: string) {
-  const { data, error } = await supabase.from("leads").select("id,full_name,business_name,email,phone,status,product_interest,business_type,notes,reminders_paused,submitted_at,message").eq("id", leadId).maybeSingle()
+  const { data, error } = await supabase.from("leads").select("id,full_name,business_name,email,phone,sms_consent_at,sms_consent_phone,status,product_interest,business_type,notes,reminders_paused,submitted_at,message").eq("id", leadId).maybeSingle()
   if (error || !data) throw new Error("Lead not found or its conversation could not be loaded")
   const lead = data as CommunicationLead
   const phone = normalizeCommunicationPhone(lead.phone || "")

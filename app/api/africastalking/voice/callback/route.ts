@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import {
-  recordingConsentAction,
+  recordingNoticeAction,
   recordedDialAction,
 } from "@/lib/africa-recording-actions";
 import { importAfricaCallRecording } from "@/lib/africa-call-recording";
@@ -26,7 +26,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const MENU_AFTER_CONSENT = "__department_menu__";
+const MENU_AFTER_NOTICE = "__department_menu__";
 
 function isoOrNull(value: string): string | null {
   if (!value || value.toLowerCase() === "none") return null;
@@ -177,8 +177,6 @@ export async function POST(request: Request): Promise<Response> {
   const rawCaller = pick(payload, "callerNumber", "caller", "from");
   const requestUrl = new URL(request.url);
   const actionStage = requestUrl.searchParams.get("stage");
-  const consentTimeout = requestUrl.searchParams.get("consent-timeout") === "1";
-  const consentRetry = Math.min(2, Math.max(0, Number(requestUrl.searchParams.get("consent-retry")) || 0));
   const menuTimeout = actionStage === "department-menu" && requestUrl.searchParams.get("menu-timeout") === "1";
   const callbackMenuAttempt = requestUrl.searchParams.get("menu-attempt");
   const dtmfDigits = pick(payload, "dtmfDigits", "digits", "userInput", "input")
@@ -260,7 +258,7 @@ export async function POST(request: Request): Promise<Response> {
     const { data: existing, error: callReadError } = await supabase
       .from("azera_calls")
       .select(
-        "id, status, menu_attempts, selected_department, recording_choice, recording_consent_at, recording_consent_requested_at",
+        "id, status, menu_attempts, selected_department, recording_choice, recording_consent_at, recording_notice_requested_at, recording_notice_acknowledged_at",
       )
       .eq("business_id", businessId)
       .eq("sip_call_sid", sessionId)
@@ -308,7 +306,7 @@ export async function POST(request: Request): Promise<Response> {
     const departments = config.departments.slice(0, 8);
     const menuParts = splitVoiceMenuGreeting(config.greeting);
     const optionsPrompt = menuOptions(departments);
-    const menuText = config.recordCalls && existing?.recording_choice
+    const menuText = config.recordCalls && (existing?.recording_notice_acknowledged_at || existing?.recording_choice === "accepted")
       ? optionsPrompt : menuPrompt(config.greeting, departments);
     // Reserve every available browser agent in this queue. Browser agents and
     // configured phone/SIP fallbacks ring together; the first answer takes it.
@@ -317,13 +315,13 @@ export async function POST(request: Request): Promise<Response> {
       if (!browsers.length) return targets;
       return [...browsers, ...targets.filter(target => !browsers.includes(target))];
     };
-    const requestConsent = async (department: string, greeting: string[] = []) => {
+    const announceRecordingNotice = async (department: string, greeting: string[] = []) => {
       const { error } = await supabase.from("azera_calls")
-        .update({ selected_department: department, recording_consent_requested_at: now, recording_notice: config.recordingNotice, updated_at: now })
-        .eq("id", callId).is("recording_choice", null).is("recording_consent_requested_at", null);
-      if (error) throw new Error("Could not save the pending recording choice");
+        .update({ selected_department: department, recording_notice_requested_at: now, recording_notice: config.recordingNotice, updated_at: now })
+        .eq("id", callId).is("recording_notice_requested_at", null);
+      if (error) throw new Error("Could not save the pending recording notice");
       await finishAfricaWebhookEvent(webhookEventId, "processed");
-      return voiceXml([...greeting, recordingConsentAction(request.url, config.recordingNotice)]);
+      return voiceXml([...greeting, recordingNoticeAction(request.url, config.recordingNotice)]);
     };
     const open = isVoiceBusinessOpen(
       config.timezone,
@@ -331,13 +329,14 @@ export async function POST(request: Request): Promise<Response> {
       config.closedDates,
     );
     const recordingUrl = pick(payload, "recordingUrl", "recording_url");
-    if (recordingUrl && existing?.recording_choice === "accepted") {
+    if (recordingUrl && (existing?.recording_notice_acknowledged_at || (existing?.recording_choice === "accepted" && existing.recording_consent_at))) {
       await importAfricaCallRecording(
         {
           id: callId,
           business_id: businessId,
           recording_choice: existing.recording_choice,
           recording_consent_at: existing.recording_consent_at,
+          recording_notice_acknowledged_at: existing.recording_notice_acknowledged_at,
         },
         recordingUrl,
         pick(payload, "recordingId", "recording_id") || sessionId,
@@ -362,80 +361,51 @@ export async function POST(request: Request): Promise<Response> {
       await finishAfricaWebhookEvent(webhookEventId, "processed");
       return voiceXml([]);
     }
-    // An old menu action cannot become recording consent or replace a selected
-    // route. Delayed callbacks from earlier prompt attempts must not advance it.
+    // A stale menu action cannot replace a selected route or advance an earlier menu.
     if (actionStage === "department-menu" &&
         (existing?.selected_department || (callbackMenuAttempt !== null && Number(callbackMenuAttempt) !== menuAttempts))) {
       await finishAfricaWebhookEvent(webhookEventId, "processed");
       return voiceXml([]);
     }
-    // The stored stage is authoritative even when the provider returns digit
-    // callbacks to the number's default URL rather than the action URL.
-    const awaitingConsent = Boolean(existing?.recording_consent_requested_at && !existing.recording_choice);
-    // A replayed consent digit must never become a department choice, or reset
-    // the menu after the caller already made their recording decision.
+    // The stored stage remains authoritative if a provider callback omits its URL stage.
+    const awaitingNotice = Boolean(existing?.recording_notice_requested_at && !existing.recording_notice_acknowledged_at);
+    // Older consent-stage callbacks are accepted during rollout, but no keypress
+    // is interpreted as permission or used to decide whether to record.
     if (actionStage === "recording-consent" && existing?.recording_choice && menuAttempts > 0 && !existing.selected_department) {
       await finishAfricaWebhookEvent(webhookEventId, "processed");
       return voiceXml([departmentMenuAction(request.url, optionsPrompt, "", menuAttempts)]);
     }
-    const consentRoute = actionStage === "recording-consent" || awaitingConsent ||
-      Boolean(existing?.recording_consent_requested_at && existing.recording_choice && existing.selected_department);
-    if (consentRoute) {
-      // Silence or an invalid key is not consent to record and must not silently
-      // transfer the caller. Repeat the prompt once, then end without dialing.
-      if (!existing?.recording_choice && (consentTimeout || !["1", "2"].includes(dtmfDigits))) {
-        await finishAfricaWebhookEvent(webhookEventId, "processed");
-        const nextRetry = consentTimeout ? consentRetry : consentRetry + 1;
-        if (nextRetry < 2) {
-          return voiceXml([
-            say("Please choose an option to continue."),
-            recordingConsentAction(request.url, config.recordingNotice, nextRetry),
-          ]);
-        }
-        return voiceXml([
-          say("We did not receive a valid response. This call will now end."),
-        ]);
-      }
-      const pendingAge = existing?.recording_consent_requested_at
-        ? Date.now() - Date.parse(existing.recording_consent_requested_at) : Infinity;
-      if (awaitingConsent && !consentTimeout && actionStage !== "recording-consent" && !dtmfDigits && pendingAge < 8_000) {
-        // A prompt-delivery retry must not erase a choice or prompt forever.
-        await finishAfricaWebhookEvent(webhookEventId, "processed");
-        return voiceXml([recordingConsentAction(request.url, config.recordingNotice)]);
-      }
-      let accepted =
-        config.recordCalls &&
-        (existing?.recording_choice
-          ? existing.recording_choice === "accepted" &&
-            Boolean(existing.recording_consent_at)
-          : !consentTimeout && dtmfDigits === "1");
-      const { data: savedConsent, error: consentError } = await supabase
+    const noticeRoute = actionStage === "recording-notice" || actionStage === "recording-consent" || awaitingNotice ||
+      Boolean(existing?.recording_notice_requested_at && existing.recording_notice_acknowledged_at && existing.selected_department === MENU_AFTER_NOTICE);
+    if (noticeRoute) {
+      let recordingEnabled = config.recordCalls && Boolean(existing?.recording_notice_acknowledged_at || (existing?.recording_choice === "accepted" && existing.recording_consent_at));
+      const { data: savedNotice, error: noticeError } = await supabase
         .from("azera_calls")
         .update({
-          recording_choice: accepted ? "accepted" : "declined",
-          recording_consent_at: accepted ? now : null,
+          recording_choice: config.recordCalls ? "accepted" : null,
+          recording_consent_at: null,
+          recording_notice_acknowledged_at: config.recordCalls ? now : null,
           recording_notice: config.recordingNotice,
           updated_at: now,
         })
         .eq("id", callId)
-        .is("recording_choice", null)
-        .select("recording_choice,recording_consent_at")
+        .is("recording_notice_acknowledged_at", null)
+        .select("recording_choice,recording_consent_at,recording_notice_acknowledged_at")
         .maybeSingle();
-      if (consentError) throw new Error("Could not store recording choice");
-      if (savedConsent?.recording_choice) {
-        accepted = config.recordCalls && savedConsent.recording_choice === "accepted" && Boolean(savedConsent.recording_consent_at);
-      } else if (!existing?.recording_choice) {
-        // Another callback may have decided first. Read its stored decision;
-        // never start recording using a losing callback's unsaved press of 1.
+      if (noticeError) throw new Error("Could not save the recording notice");
+      if (savedNotice?.recording_notice_acknowledged_at) {
+        recordingEnabled = config.recordCalls;
+        await supabase.from("azera_call_events").insert({ call_id: callId, event_type: "sip_webhook", actor_type: "system", metadata: { event: "inbound_recording_notice_played", notice: config.recordingNotice, acknowledged_at: now } });
+      } else if (config.recordCalls && !recordingEnabled) {
+        // Concurrent callback may have persisted the notice first.
         const { data: winner, error } = await supabase.from("azera_calls")
-          .select("recording_choice,recording_consent_at").eq("id", callId).maybeSingle();
-        if (error || !winner?.recording_choice) throw new Error("Recording choice could not be confirmed");
-        accepted = config.recordCalls && winner.recording_choice === "accepted" && Boolean(winner.recording_consent_at);
+          .select("recording_choice,recording_consent_at,recording_notice_acknowledged_at").eq("id", callId).maybeSingle();
+        if (error || !(winner?.recording_notice_acknowledged_at || (winner?.recording_choice === "accepted" && winner.recording_consent_at))) throw new Error("Recording notice could not be confirmed");
+        recordingEnabled = true;
       }
       const selected = existing?.selected_department;
-      if (selected === MENU_AFTER_CONSENT) {
-        // Consent is a distinct step. Its 1/2 is consumed here, not reused as
-        // Sales/Support; the next callback starts the department selection.
+      if (selected === MENU_AFTER_NOTICE) {
+        // The notice is a distinct spoken step; the next callback begins menu selection.
         const { error } = await supabase.from("azera_calls")
           .update({ selected_department: null, menu_attempts: 1, updated_at: now }).eq("id", callId);
         if (error) throw new Error("Could not start the department menu");
@@ -463,7 +433,7 @@ export async function POST(request: Request): Promise<Response> {
           targets,
           config.phoneNumber || destination,
           config.waitingAudioUrl,
-          accepted,
+          recordingEnabled,
           !hasBrowserDestination(targets),
         ),
       ]);
@@ -474,11 +444,10 @@ export async function POST(request: Request): Promise<Response> {
         callerId,
         audio,
         config.recordCalls &&
-          existing?.recording_choice === "accepted" &&
-          Boolean(existing.recording_consent_at),
+          Boolean(existing?.recording_notice_acknowledged_at || (existing?.recording_choice === "accepted" && existing.recording_consent_at)),
         !hasBrowserDestination(targets),
       );
-    const consentRequired = config.recordCalls && !existing?.recording_choice;
+    const noticeRequired = config.recordCalls && !existing?.recording_notice_acknowledged_at && !(existing?.recording_choice === "accepted" && existing.recording_consent_at);
 
     // Once the working-hours menu has started, finish that journey even if the
     // clock crosses closing time while the caller is choosing a department.
@@ -488,8 +457,8 @@ export async function POST(request: Request): Promise<Response> {
         "support",
       );
       if (afterHoursTargets.length) {
-        if (consentRequired) {
-          return requestConsent("after-hours", [sayOrPlay(config.afterHoursGreeting, config.afterHoursAudioUrl)]);
+        if (noticeRequired) {
+          return announceRecordingNotice("after-hours", [sayOrPlay(config.afterHoursGreeting, config.afterHoursAudioUrl)]);
         }
         await recordAttempts(
           callId,
@@ -557,11 +526,11 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    if (config.menuEnabled && departments.length && consentRequired && menuAttempts === 0 &&
+    if (config.menuEnabled && departments.length && noticeRequired && menuAttempts === 0 &&
         !existing?.selected_department && !dtmfDigits && actionStage !== "department-menu") {
       // Working-hours journey: welcome -> recording choice -> department ->
       // connection. A combined legacy welcome/menu is split at its options.
-      return requestConsent(MENU_AFTER_CONSENT, [say(menuParts.introduction)]);
+      return announceRecordingNotice(MENU_AFTER_NOTICE, [say(menuParts.introduction)]);
     }
 
     if (config.menuEnabled && departments.length) {
@@ -602,7 +571,7 @@ export async function POST(request: Request): Promise<Response> {
 
         const retryTargets = await withBrowser(config.forwardNumbers);
         if (retryTargets.length) {
-          if (consentRequired) return requestConsent("default");
+          if (noticeRequired) return announceRecordingNotice("default");
           await recordAttempts(
             callId,
             businessId,
@@ -643,8 +612,8 @@ export async function POST(request: Request): Promise<Response> {
           await finishAfricaWebhookEvent(webhookEventId, "processed");
           return voiceXml(voicemailOrEnd(request, config, config.busyGreeting));
         }
-        if (consentRequired) {
-          return requestConsent(department.key);
+        if (noticeRequired) {
+          return announceRecordingNotice(department.key);
         }
         await recordAttempts(
           callId,
@@ -688,8 +657,8 @@ export async function POST(request: Request): Promise<Response> {
       return voiceXml(voicemailOrEnd(request, config, config.busyGreeting));
     }
 
-    if (consentRequired) {
-      return requestConsent("default", [sayOrPlay(config.greeting, config.greetingAudioUrl)]);
+    if (noticeRequired) {
+      return announceRecordingNotice("default", [sayOrPlay(config.greeting, config.greetingAudioUrl)]);
     }
     await recordAttempts(callId, businessId, null, defaultTargets, now);
     await finishAfricaWebhookEvent(webhookEventId, "processed");

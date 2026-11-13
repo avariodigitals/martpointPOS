@@ -79,6 +79,7 @@ export type QuoteStatusInput = { status: string; valid_until: string | null }
 
 /** True when a quote is past `valid_until` and still awaiting a response. */
 export function isQuoteExpired(quote: QuoteStatusInput, now: Date = new Date()): boolean {
+  if (quote.status === "EXPIRED") return true
   if (!EXPIRABLE_QUOTE_STATUSES.includes(quote.status as QuotationStatus)) return false
   if (!quote.valid_until) return false
   const validUntil = new Date(quote.valid_until)

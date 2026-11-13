@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { recalculateQuote, buildQuotePublicUrl, buildQuoteEmailHtml } from "@/lib/quotations"
+import { recalculateQuote, buildQuotePublicUrl, buildQuoteEmailHtml, isQuoteExpired } from "@/lib/quotations"
 import { resolveIndustryName } from "@/lib/industries"
 import { sendEmail, REPLY_TO } from "@/lib/email"
 import { renderEmailTemplate } from "@/lib/email-templates"
@@ -106,13 +106,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "At least one item is required" }, { status: 400 })
     }
 
-    const { data: existing, error: existingError } = await supabase.from("lead_quotations").select("id, quote_number,status,creator_id,created_by,updated_at").eq("id", id).single()
+    const { data: existing, error: existingError } = await supabase.from("lead_quotations").select("id, quote_number,status,valid_until,creator_id,created_by,updated_at").eq("id", id).single()
     if (existingError || !existing) {
       return NextResponse.json({ error: "Quotation not found" }, { status: 404 })
     }
     const isCreator = existing.creator_id === session.userId || (!existing.creator_id && existing.created_by === session.username)
-    if (requiresApproval && (existing.status !== "DRAFT" || !isCreator)) {
-      return NextResponse.json({ error: "You can edit only your own draft quotations" }, { status: 403 })
+    const canReviveExpired = isQuoteExpired(existing)
+    if (requiresApproval && ((!isCreator) || (existing.status !== "DRAFT" && !canReviveExpired))) {
+      return NextResponse.json({ error: "You can edit only your own draft or expired quotations" }, { status: 403 })
+    }
+    if (requiresApproval && canReviveExpired && (!validUntil || validUntil < new Date().toISOString().slice(0, 10))) {
+      return NextResponse.json({ error: "Choose a new validity date before resubmitting this expired quotation" }, { status: 400 })
     }
     if (requiresApproval) {
       const policy = await supabase.from("approval_policies").select("enabled").eq("action_key", "quotation.send").maybeSingle()
@@ -145,6 +149,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       discount_value: quoteDiscountType === "none" ? 0 : quoteDiscountValue,
       tax_amount: totals.taxAmount,
       total_amount: totals.total,
+      // Editing an expired quote revives it as a draft. It must pass through
+      // the normal approval workflow before it can be shared again.
+      ...(requiresApproval && canReviveExpired ? { status: "DRAFT" } : {}),
+      ...(requiresApproval ? { creator_id: session.userId } : {}),
       updated_at: new Date().toISOString(),
       approval_status: requiresApproval ? "PENDING" : "NOT_REQUIRED",
       approved_by: null,
@@ -158,9 +166,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       updatePayload.allow_counter_offer = allowChanges && Boolean(allowCounterOffer)
     }
 
-    if (existing.status === "DRAFT") {
-      await supabase.from("approval_requests").update({ status: "CANCELLED", decision_note: "Quote changed and resubmitted.", decided_at: new Date().toISOString() }).eq("action_key", "quotation.send").eq("entity_type", "LEAD_QUOTATION").eq("entity_id", id).eq("status", "PENDING")
-    }
+    await supabase.from("approval_requests").update({ status: "CANCELLED", decision_note: "Quote changed and resubmitted.", decided_at: new Date().toISOString() }).eq("action_key", "quotation.send").eq("entity_type", "LEAD_QUOTATION").eq("entity_id", id).eq("status", "PENDING")
     const { error: updateError } = await supabase.from("lead_quotations").update(updatePayload).eq("id", id)
     if (updateError) {
       console.error("[admin/quotations/[id]] PUT update", updateError)

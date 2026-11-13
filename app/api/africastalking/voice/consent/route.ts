@@ -7,6 +7,6 @@ export const dynamic = "force-dynamic";
  * Authentication still runs in the shared handler; no public bypass. */
 export async function POST(request: Request) {
   const url = new URL(request.url);
-  url.searchParams.set("stage", "recording-consent");
+  url.searchParams.set("stage", "recording-notice");
   return handleVoice(new Request(url, request));
 }

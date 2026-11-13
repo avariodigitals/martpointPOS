@@ -411,10 +411,10 @@ export async function getAfricaVoiceConfig(businessId: string | null) {
         sip.from_number ||
         process.env.AFRICASTALKING_FROM,
     ),
-    recordCalls: recordingSettings?.voice_record_calls === true,
+    recordCalls: recordingSettings?.voice_record_calls !== false,
     recordingNotice: String(
       recordingSettings?.voice_recording_notice ||
-        "We would like to record this conversation for service quality. Press 1 to agree, or press 2 to continue without recording.",
+        "This call is being recorded for service quality and training.",
     ),
     recordingRetentionDays: Math.min(
       365,

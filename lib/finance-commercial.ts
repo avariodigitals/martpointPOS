@@ -616,15 +616,18 @@ export async function recordPayment(input: {
   return data as Payment
 }
 
+function financeActorUserId(value?: string): string | null {
+  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : null
+}
+
 export async function confirmPayment(paymentId: string, confirmedBy: string, actorId?: string, paymentAccountId?: string) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
   const now = new Date().toISOString()
   // `payments.confirmed_by` is a UUID for an admin user. Automated payment
   // paths pass a descriptive source (for example, "Central Paystack
   // verification"), which belongs in audit metadata, never in that UUID.
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  const confirmedByUserId = uuidPattern.test(confirmedBy) ? confirmedBy : null
-  const auditActorId = actorId && uuidPattern.test(actorId) ? actorId : confirmedByUserId
+  const confirmedByUserId = financeActorUserId(confirmedBy)
+  const auditActorId = financeActorUserId(actorId) || confirmedByUserId
   const confirmationSource = confirmedByUserId ? "ADMIN" : "SYSTEM"
 
   const { data: payment } = await supabase.from("payments").select("*").eq("id", paymentId).single()
@@ -660,7 +663,7 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
   // On a paid invoice, advance the business onboarding to Payment Confirmed.
   const business = p.business_id ? await getBusinessById(p.business_id) : null
   try {
-    if (p.business_id) {
+    if (confirmedRow && p.business_id) {
       const { data: businessRow } = await supabase
         .from("businesses")
         .select("business_name, originating_partner_id")
@@ -724,11 +727,13 @@ export async function confirmPayment(paymentId: string, confirmedBy: string, act
   // Email the payment confirmation + receipt to the client (best-effort; a
   // failure here must never roll back the confirmation). Dynamically imported
   // to avoid a module cycle (payment-emails imports createReceipt from here).
-  try {
-    const { sendPaymentConfirmationEmail } = await import("./payment-emails")
-    await sendPaymentConfirmationEmail(paymentId, auditActorId ? { type: "ADMIN", id: auditActorId } : { type: "SYSTEM" })
-  } catch (err) {
-    console.error("[confirmPayment] confirmation email failed:", err)
+  if (confirmedRow) {
+    try {
+      const { sendPaymentConfirmationEmail } = await import("./payment-emails")
+      await sendPaymentConfirmationEmail(paymentId, auditActorId ? { type: "ADMIN", id: auditActorId } : { type: "SYSTEM" })
+    } catch (err) {
+      console.error("[confirmPayment] confirmation email failed:", err)
+    }
   }
   if (p.invoice_id) {
     const { data: centralIntent } = await supabase.from("central_billing_intents").select("id").eq("invoice_id", p.invoice_id).maybeSingle()
@@ -862,6 +867,8 @@ export async function allocatePayment(input: PaymentAllocationInput) {
 
 export async function createReceipt(paymentId: string, issuedBy: string) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
+  // Automated issuers are audit source labels, while receipts.issued_by is UUID.
+  const issuedByUserId = financeActorUserId(issuedBy)
   const { data: payment } = await supabase.from("payments").select("*, business_id, amount, currency, status").eq("id", paymentId).single()
   if (!payment) throw new Error("Payment not found")
   if ((payment as Payment).status !== "CONFIRMED") throw new Error("Cannot issue receipt for unconfirmed payment")
@@ -878,7 +885,7 @@ export async function createReceipt(paymentId: string, issuedBy: string) {
     amount: (payment as Payment).amount,
     currency: (payment as Payment).currency,
     issued_at: new Date().toISOString(),
-    issued_by: issuedBy,
+    issued_by: issuedByUserId,
   }).select().single()
 
   if (error || !data) {
@@ -886,7 +893,7 @@ export async function createReceipt(paymentId: string, issuedBy: string) {
     if (concurrentReceipt) return concurrentReceipt as Receipt
     throw new Error(`Receipt creation failed: ${error?.message || "unknown"}`)
   }
-  await logFinanceAudit("ADMIN", issuedBy, "RECEIPT_ISSUED", "RECEIPT", (data as Receipt).id, { payment_id: paymentId })
+  await logFinanceAudit(issuedByUserId ? "ADMIN" : "SYSTEM", issuedByUserId || undefined, "RECEIPT_ISSUED", "RECEIPT", (data as Receipt).id, { payment_id: paymentId, issued_by: issuedBy || "SYSTEM" })
   return data as Receipt
 }
 

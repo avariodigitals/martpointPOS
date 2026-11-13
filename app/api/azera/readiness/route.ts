@@ -30,7 +30,7 @@ export async function GET() {
     const { data: rows, error } = await supabase
       .from("azera_settings")
       .select(
-        "business_id,africas_talking_phone_number,voice_menu_enabled,voice_departments,voice_voicemail_enabled,messenger_page_id,messenger_page_access_token,instagram_account_id,instagram_access_token,whatsapp_phone_number_id,whatsapp_access_token,whatsapp_phone_number",
+        "business_id,africas_talking_phone_number,voice_menu_enabled,voice_departments,voice_voicemail_enabled,voice_record_calls,messenger_page_id,messenger_page_access_token,instagram_account_id,instagram_access_token,whatsapp_phone_number_id,whatsapp_access_token,whatsapp_phone_number",
       );
     const schema = await supabase
       .from("azera_messages")
@@ -48,6 +48,19 @@ export async function GET() {
     });
     const business =
       (rows || []).find((row) => row.africas_talking_phone_number) || rows?.[0];
+    const [recordingCallSchema, recordingSchema, recordingBucket] = await Promise.all([
+      supabase.from("azera_calls")
+        .select("recording_notice_requested_at,recording_notice_acknowledged_at").limit(0),
+      supabase.from("azera_call_recordings")
+        .select("recording_notice_acknowledged_at,recording_path,retention_expires_at").limit(0),
+      supabase.storage.from("call-recordings").list("", { limit: 1 }),
+    ]);
+    const recordingReady = Boolean(
+      business?.voice_record_calls !== false &&
+      !recordingCallSchema.error &&
+      !recordingSchema.error &&
+      !recordingBucket.error,
+    );
     const voice = await africaBrowserConfig(business?.business_id);
     checks.push({
       id: "browser-phone",
@@ -193,10 +206,13 @@ export async function GET() {
       });
     checks.push({
       id: "recordings",
-      label: "Recording privacy & playback",
-      status: schemaReady ? "configured" : "needs_setup",
-      detail:
-        "Record a call only after the caller has agreed.",
+      label: "Call recording",
+      status: recordingReady ? "configured" : "needs_setup",
+      detail: recordingCallSchema.error || recordingSchema.error || recordingBucket.error
+        ? "Recording storage is not ready. Apply migration 191 and verify the private call-recordings bucket."
+        : business?.voice_record_calls === false
+          ? "Incoming recording is turned off in Azera Settings. Turn it on to record incoming telephone calls."
+          : "Recording is enabled. Incoming telephone calls play the notice and record through Africa’s Talking; outgoing browser calls start recording from the call panel after staff gives notice. Configure Africa’s Talking callback, events and recording URLs.",
       href: "/admin/azera/reports",
     });
     checks.push({

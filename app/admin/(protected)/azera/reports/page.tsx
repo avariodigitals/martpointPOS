@@ -91,7 +91,7 @@ function CallReports() {
     [followUp, setFollowUp] = useState("new"),
     [due, setDue] = useState(""),
     [saving, setSaving] = useState(false),
-    [consent, setConsent] = useState(false),
+    [recordingNoticeAcknowledged, setRecordingNoticeAcknowledged] = useState(false),
     [detailError, setDetailError] = useState("")
   useEffect(() => {
     if (!selected) return
@@ -178,7 +178,7 @@ function CallReports() {
             .slice(0, 16)
         : ""
     )
-    setConsent(false)
+    setRecordingNoticeAcknowledged(false)
     setDetailError("")
     setRecordings([])
     setRecordingsLoading(true)
@@ -252,7 +252,7 @@ function CallReports() {
     }
   }
   async function upload(file: File | undefined) {
-    if (!selected || !file || !consent) return
+    if (!selected || !file || !recordingNoticeAcknowledged) return
     setSaving(true)
     setDetailError("")
     try {
@@ -260,7 +260,7 @@ function CallReports() {
       form.set("file", file)
       form.set("call_id", selected.id)
       form.set("business_id", selected.business_id)
-      form.set("consent_confirmed", "true")
+      form.set("recording_notice_acknowledged", "true")
       const response = await fetch("/api/azera/call-recordings/upload", {
           method: "POST",
           body: form,
@@ -728,17 +728,17 @@ function CallReports() {
               <label className="flex gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={consent}
-                  onChange={(e) => setConsent(e.target.checked)}
+                  checked={recordingNoticeAcknowledged}
+                  onChange={(e) => setRecordingNoticeAcknowledged(e.target.checked)}
                 />
-                I confirm that both participants consented to this recording.
+                I confirm the contact was told that this call was recorded.
               </label>
               <label className="block text-sm">
                 Attach an existing recording
                 <input
                   type="file"
                   accept="audio/*"
-                  disabled={!consent || saving}
+                  disabled={!recordingNoticeAcknowledged || saving}
                   onChange={(e) => {
                     void upload(e.target.files?.[0])
                     e.target.value = ""
@@ -748,7 +748,7 @@ function CallReports() {
               </label>
               <p className="text-xs text-muted-foreground">
                 Manual upload does not turn on automatic telephone recording.
-                Provider recording requires its own supported setup and consent.
+                Provider recording requires its callback, Events and Recording URLs to be configured.
               </p>
             </div>
           </section>

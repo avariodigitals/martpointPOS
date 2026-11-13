@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     const { data: call } = await supabase
       .from("azera_calls")
       .select(
-        "id, business_id, selected_department, customer_phone, recording_choice, recording_consent_at",
+        "id, business_id, selected_department, customer_phone, recording_choice, recording_consent_at, recording_notice_acknowledged_at",
       )
       .eq("sip_call_sid", sessionId)
       .maybeSingle();
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     const kind = new URL(request.url).searchParams.get("kind");
     if (
       kind === "call" ||
-      (kind !== "voicemail" && call.recording_choice === "accepted")
+      (kind !== "voicemail" && (call.recording_notice_acknowledged_at || (call.recording_choice === "accepted" && call.recording_consent_at)))
     ) {
       await importAfricaCallRecording(
         call,

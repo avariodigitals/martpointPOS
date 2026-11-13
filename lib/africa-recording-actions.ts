@@ -1,26 +1,18 @@
 import { xmlEscape } from "@/lib/africastalking";
 
-export function recordingConsentAction(callback: string, notice: string, retry = 0) {
-  // The call journey now plays the main welcome before this step. Older
-  // settings included that same welcome in the consent notice as a workaround.
+export function recordingNoticeAction(callback: string, notice: string) {
   notice = notice.replace(/^\s*Welcome to MartPoint[.!]?\s*(?:Thank you for calling[.!]?\s*)?/i, "").trim();
-  if (!/press\s+1\b/i.test(notice) || !/press\s+2\b/i.test(notice))
-    notice +=
-      " Press 1 to agree to recording, or press 2 to continue without recording.";
+  if (/press\s+1\b/i.test(notice) && /press\s+2\b/i.test(notice))
+    notice = "This call is being recorded for service quality and training.";
   const url = new URL(callback);
   url.pathname = "/api/africastalking/voice/consent";
-  url.searchParams.set("stage", "recording-consent");
-  url.searchParams.set("consent-retry", String(Math.max(0, Math.min(2, retry))));
+  url.searchParams.set("stage", "recording-notice");
+  url.searchParams.set("notice-complete", "1");
   url.searchParams.delete("consent-timeout");
+  url.searchParams.delete("consent-retry");
   url.searchParams.delete("menu-timeout");
   url.searchParams.delete("menu-attempt");
-  const timeoutUrl = new URL(url);
-  timeoutUrl.searchParams.set("consent-timeout", "1");
-  timeoutUrl.searchParams.set("consent-retry", String(Math.max(0, Math.min(2, retry)) + 1));
-  // GetDigits with no input does not call callbackUrl: AT executes the next
-  // XML action. Redirect back with a timeout marker so the callback can repeat
-  // the prompt once and then end without recording or transferring.
-  return `<GetDigits numDigits="1" timeout="8" callbackUrl="${xmlEscape(url.toString())}"><Say>${xmlEscape(notice)}</Say></GetDigits><Redirect>${xmlEscape(timeoutUrl.toString())}</Redirect>`;
+  return `<Say>${xmlEscape(notice)}</Say><Redirect>${xmlEscape(url.toString())}</Redirect>`;
 }
 export function recordedDialAction(
   destinations: string[],

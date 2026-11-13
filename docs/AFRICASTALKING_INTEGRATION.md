@@ -48,46 +48,37 @@ can produce a retry explanation. The initial prompt does not use up a retry;
 zero retries means one prompt followed by the configured fallback/no-answer path.
 The menu uses explicit action/attempt URLs and a Redirect for no-input handling,
 following [AT's no-input guidance](https://help.africastalking.com/en/articles/5947754-dealing-with-no-user-response-in-get_digits-action).
-Late menu callbacks cannot replace a selected department or become consent.
+Late menu callbacks cannot replace a selected department or change the recording state.
 
-With the menu enabled: welcome/menu → selected department → recording choice,
-if enabled → connecting message → destination. With the menu disabled: main
-greeting → recording choice, if enabled → connecting message → destination.
-After-hours forwarding plays the after-hours greeting before recording choice;
+With the menu enabled: welcome/menu → recording notice, if enabled → selected
+department → connecting message → destination. With the menu disabled: main
+greeting → recording notice, if enabled → connecting message → destination.
+After-hours forwarding plays the after-hours greeting before the recording notice;
 it does not play the working-hours menu. A caller already using the menu can
 finish that journey if the clock crosses closing time during the call.
 Audio greetings retain the same order; a retry explanation is not hidden by a
-configured audio file. Menu fallback also requests consent before any recording.
+configured audio file. Menu fallback plays the recording notice before routing.
 
-### Recording-choice loop repair (migration 139)
+### Recording notice and saved audio (migration 191)
 
-Apply `139_voice_recording_consent_flow.sql` before deploying the repair. The
-pending recording step is stored on the call, not inferred from a department
-digit or dependent only on `?stage=recording-consent`. The dedicated
-`/api/africastalking/voice/consent` action uses the same callback authentication.
-Do **not** set it as the virtual number's main callback: GetDigits uses it
-automatically. Keep the main Callback/Events URLs as documented below.
+Apply migrations through `191_voice_recording_notice_without_consent_prompt.sql`
+and deploy the matching Next.js build. When incoming recording is enabled,
+Africa's Talking plays the configured notice, then routes and records the
+connected telephone leg. There is no keypad consent step. Outgoing browser calls
+are recorded from the call panel after staff gives the contact the notice.
 
-Press 1 saves explicit consent; press 2 continues on the same selected route
-without recording. Silence or an invalid key repeats the consent prompt once;
-if there is still no valid response, the call ends without recording or
-transferring. A Redirect after GetDigits reports silence because AT does not
-call callbackUrl when no input arrives.
-Duplicate or late responses cannot overwrite a stored choice or redial an
-already connected call. Existing call history is not backfilled as consent.
-GetDigits input delivered to the Events URL for a pending native incoming call
-is also handled as a voice action and returns XML, rather than being ignored
-with a JSON status acknowledgement.
+Configure all three provider URLs in Africa's Talking **Voice → Phone Numbers**:
+Callback, Events, and Recording. The Recording URL imports audio into the
+private `call-recordings` bucket. Recordings appear in **Admin → Azera → Reports
+→ Follow-up & recordings** after the provider callback completes. No recordings
+will appear if the SQL migration, matching deploy, bucket, or provider URL setup
+is missing. The recording status check in Azera readiness reports schema and
+bucket problems.
 
-Webhook diagnostics now insert exact-delivery fingerprints, preserving
-different keypresses within one Ringing session. Duplicate inserts use the
-existing partial unique index; PostgREST upsert on just `dedupe_key` could not
-infer that partial index. No production call or diagnostic data is deleted.
-
-Retest the 020 line after deployment with 1, 2, no input and a department choice
-followed by 2. Confirm the same selected destination rings, the prompt does not
-loop and only explicit consent allows `Dial record="true"`. Until deployed,
-local passing tests do not change the live telephone line.
+Webhook diagnostics insert exact-delivery fingerprints, preserving different
+events within one Ringing session. Duplicate inserts use the existing partial
+unique index; PostgREST upsert on just `dedupe_key` could not infer that partial
+index. No production call or diagnostic data is deleted.
 
 ### Browser phones and the production callback (migration 137)
 
@@ -104,9 +95,9 @@ not links to open as webpages. Paste them into Africa's Talking **Voice →
 Phone Numbers** for the virtual number, replacing `/test/voice`:
 
 ```text
-Callback: https://www.martpoint.com.ng/api/africastalking/voice/callback?secret=<Vercel AFRICASTALKING_CALLBACK_SECRET>
-Events:   https://www.martpoint.com.ng/api/africastalking/voice/events?secret=<same secret>
-Recording:https://www.martpoint.com.ng/api/africastalking/voice/recording?secret=<same secret>
+Callback:  https://www.martpoint.com.ng/api/africastalking/voice/callback?secret=<Vercel AFRICASTALKING_CALLBACK_SECRET>
+Events:    https://www.martpoint.com.ng/api/africastalking/voice/events?secret=<same secret>
+Recording: https://www.martpoint.com.ng/api/africastalking/voice/recording?secret=<same secret>
 ```
 
 Set `NEXT_PUBLIC_BASE_URL` to the canonical HTTPS production origin if it differs.
@@ -180,21 +171,18 @@ In Admin → Azera → Settings → Phone Calls:
 ### Incoming prompt order and deployment
 
 With working-hours departments and recording enabled, the sequence is now:
-**welcome → recording choice → department options → connecting → Dial**.
-Consent 1/2 is consumed separately and cannot select Sales/Support. Silence or
-an invalid key at consent repeats the prompt once, then ends the call without
-transferring; silence at the department menu retries up to the configured
-limit, then uses the default route/voicemail. The no-input Redirect is necessary
-because AT does not post an empty GetDigits result.
+**welcome → recording notice → department options → connecting → Dial**.
+The notice plays once before the department menu; callers do not need to press
+a key to agree. Silence at the department menu retries up to the configured
+limit, then uses the default route/voicemail.
 
 Legacy combined greeting/menu text is split at the first option sentence. With
-recording enabled, the separate options use text-to-speech so a combined welcome
-audio file cannot play options before consent. Keep the recording notice to the
-recording explanation and 1/2 instructions; adding “Welcome” there duplicates the
-main welcome. Custom menu audio remains used when recording consent is disabled.
+recording enabled, separate options use text-to-speech so a combined welcome
+audio file cannot play options before the notice. Keep the recording notice
+short; adding “Welcome” there duplicates the main welcome.
 
 These are Next.js route-handler changes, not a database-only fix. Applying SQL
-migration 139 does not deploy them: the updated Next.js build must reach the
+migrations does not deploy them: the updated Next.js build must reach the
 production callback URL before a call to the public number can test this flow.
 Check both Callback and Events URLs in the provider dashboard. The callback
 must remain publicly reachable with its existing secret; never remove callback

@@ -220,12 +220,6 @@ export class AfricaBrowserCall {
     this.recorder = await startAzeraBrowserRecording(this.id, this.sdkMicrophoneStream, this.remoteAudio.srcObject as MediaStream)
     this.change({ recording: true, recordingError: null })
   }
-  async declineRecording() {
-    if (this.snapshot.state !== "active" || !this.id) throw new Error("Recording choice is available after the call connects.")
-    const response = await fetch(`/api/azera/calls/${this.id}/recording`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "consent", recipientAgreed: false }) })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error || "Could not save the recording choice.")
-  }
   async stopRecording() {
     const recorder = this.recorder
     if (!recorder) return

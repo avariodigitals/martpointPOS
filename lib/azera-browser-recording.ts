@@ -1,8 +1,8 @@
 "use client"
 
-type Consent = { path: string; token: string; uploadUrl: string }
+type RecordingUpload = { path: string; token: string; uploadUrl: string }
 
-/** Captures the two browser audio legs only after the staff member records consent. */
+/** Captures both browser call audio legs after staff confirms the recording notice was given. */
 export async function startAzeraBrowserRecording(callId: string, local: MediaStream, remote: MediaStream) {
   if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported("audio/webm")) throw new Error("This browser does not support call recording.")
   const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
@@ -14,14 +14,14 @@ export async function startAzeraBrowserRecording(callId: string, local: MediaStr
   sources.forEach((source) => source.connect(destination))
   const response = await fetch(`/api/azera/calls/${encodeURIComponent(callId)}/recording`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "consent", recipientAgreed: true }),
+    body: JSON.stringify({ action: "notice" }),
   })
-  const consent = await response.json() as Consent & { error?: string }
+  const consent = await response.json() as RecordingUpload & { error?: string }
   if (!response.ok) {
     sources.forEach((source) => source.disconnect())
     destination.stream.getTracks().forEach((track) => track.stop())
     await context.close()
-    throw new Error(consent.error || "Recording consent could not be saved.")
+    throw new Error(consent.error || "Recording notice could not be saved.")
   }
   const mimeType = ["audio/webm;codecs=opus", "audio/webm"].find((type) => MediaRecorder.isTypeSupported(type))
   const storageMimeType = "audio/webm"

@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       return err("call_id, business_id and file are required")
     }
     if (!(file instanceof File) || file.size === 0 || file.size > 4 * 1024 * 1024 || !/^audio\/(wav|x-wav|mp3|mpeg|ogg|webm|mp4)(;.*)?$/.test(file.type)) return err("Choose a supported audio recording up to 4 MB.")
-    if (formData.get("consent_confirmed") !== "true") return err("Confirm that both participants consented to recording.")
+    if (formData.get("recording_notice_acknowledged") !== "true") return err("Confirm that the contact was told this call was recorded.")
     const { data: call } = await supabase.from("azera_calls").select("id").eq("id", callId).eq("business_id", businessId).maybeSingle()
     if (!call) return err("Call and business do not match.", 404)
 
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
         file_size_bytes: file.size,
         mime_type: file.type || "audio/wav",
         recording_type: "manual",
-        consent_confirmed_at: new Date().toISOString(),
+        recording_notice_acknowledged_at: new Date().toISOString(),
         retention_expires_at: new Date(Date.now() + 90 * 86_400_000).toISOString(),
         created_at: new Date().toISOString(),
       })

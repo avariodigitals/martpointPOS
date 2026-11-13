@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
 import { centralSignature } from "@/lib/central-billing-auth"
-import { confirmPayment, syncInvoiceFinanceTransaction } from "@/lib/finance-commercial"
+import { confirmPayment, createReceipt, syncInvoiceFinanceTransaction } from "@/lib/finance-commercial"
 import { postInvoiceJournal, postPaymentJournal } from "@/lib/finance-ledger"
 import { queueCentralCreditFulfillment } from "@/lib/central-billing-fulfillment"
 
@@ -67,6 +67,7 @@ export async function GET(request: Request) {
           // Re-run the idempotent confirmation path so missing allocations and
           // stale invoice amount_paid/balance_due values are repaired as well.
           await confirmPayment(paymentId, "Central billing recovery")
+          await createReceipt(paymentId, "Central billing recovery")
           await supabase.from("central_billing_intents").update({ payment_id: paymentId, payment_status: "CONFIRMED", updated_at: new Date().toISOString() }).eq("id", intent.id)
           await queueCentralCreditFulfillment(intent.id)
           await syncInvoiceFinanceTransaction(intent.invoice_id)

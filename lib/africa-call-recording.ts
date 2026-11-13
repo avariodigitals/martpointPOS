@@ -5,17 +5,18 @@ export type RecordingCall = {
   business_id: string;
   recording_consent_at: string | null;
   recording_choice: string | null;
+  recording_notice_acknowledged_at?: string | null;
 };
 
-/** Import only after explicit consent, and never expose the provider URL. */
+/** Import after an acknowledged recording notice (or a legacy explicit consent), and never expose the provider URL. */
 export async function importAfricaCallRecording(
   call: RecordingCall,
   urlValue: string,
   reference: string,
   retentionDays: number,
 ) {
-  if (call.recording_choice !== "accepted" || !call.recording_consent_at)
-    throw new Error("No recording consent exists for this call");
+  if (!call.recording_notice_acknowledged_at && !(call.recording_choice === "accepted" && call.recording_consent_at))
+    throw new Error("No recording notice acknowledgement exists for this call");
   const { data: existing, error: lookupError } = await supabase
     .from("azera_call_recordings")
     .select("id")
@@ -102,7 +103,8 @@ export async function importAfricaCallRecording(
       recording_path: path,
       recording_type: "auto",
       provider_reference: reference,
-      consent_confirmed_at: call.recording_consent_at,
+      consent_confirmed_at: call.recording_consent_at || null,
+      recording_notice_acknowledged_at: call.recording_notice_acknowledged_at || null,
       retention_expires_at: new Date(
         Date.now() + Math.min(365, Math.max(1, retentionDays)) * 86400_000,
       ).toISOString(),

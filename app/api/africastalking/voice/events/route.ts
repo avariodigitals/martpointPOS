@@ -145,7 +145,7 @@ export async function POST(request: Request): Promise<Response> {
   // through the campaign recipient before falling back to number mapping.
   const { data: campaignEventCall } = campaignRequestId && isSupabaseConfigured()
     ? await supabase.from("azera_calls")
-      .select("id,business_id,status,answered_at,last_provider_event_at,recording_choice,recording_consent_at,agent_user_id,campaign_recipient_id")
+      .select("id,business_id,status,answered_at,last_provider_event_at,recording_choice,recording_consent_at,recording_notice_acknowledged_at,agent_user_id,campaign_recipient_id")
       .eq("campaign_recipient_id", campaignRequestId).maybeSingle()
     : { data: null };
   // Some AT number configurations deliver GetDigits results to Events.
@@ -262,7 +262,7 @@ export async function POST(request: Request): Promise<Response> {
     let { data: call } = await supabase
       .from("azera_calls")
       .select(
-        "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, agent_user_id, campaign_recipient_id",
+        "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, recording_notice_acknowledged_at, agent_user_id, campaign_recipient_id",
       )
       .eq("business_id", businessId)
       .eq("sip_call_sid", sessionId)
@@ -273,7 +273,7 @@ export async function POST(request: Request): Promise<Response> {
         .select("call_id").eq("id", campaignRequestId).maybeSingle();
       if (recipient?.call_id) {
         const { data: campaignCall } = await supabase.from("azera_calls")
-          .select("id,business_id,status,answered_at,last_provider_event_at,recording_choice,recording_consent_at,agent_user_id,campaign_recipient_id")
+          .select("id,business_id,status,answered_at,last_provider_event_at,recording_choice,recording_consent_at,recording_notice_acknowledged_at,agent_user_id,campaign_recipient_id")
           .eq("id", recipient.call_id).maybeSingle();
         call = campaignCall;
       }
@@ -304,7 +304,7 @@ export async function POST(request: Request): Promise<Response> {
           updated_at: now,
         })
         .select(
-          "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, agent_user_id, campaign_recipient_id",
+          "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, recording_notice_acknowledged_at, agent_user_id, campaign_recipient_id",
         )
         .single();
       if (error || !created)
@@ -466,7 +466,7 @@ export async function POST(request: Request): Promise<Response> {
     // must not leave a finished call ringing or keep an agent falsely busy.
     // Still return a retryable error so the recording is not silently lost.
     const recordingUrl = pick(payload, "recordingUrl", "recording_url");
-    if (recordingUrl && call.recording_choice === "accepted") {
+    if (recordingUrl && (call.recording_notice_acknowledged_at || (call.recording_choice === "accepted" && call.recording_consent_at))) {
       const config = await getAfricaVoiceConfig(businessId);
       await importAfricaCallRecording(
         call,

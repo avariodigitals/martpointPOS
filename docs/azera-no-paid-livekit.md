@@ -16,10 +16,10 @@ confirms the account can run it and expose the required TCP/UDP ports.
 ## Works without a separate media server
 
 - Existing Africa’s Talking browser-to-phone calling remains the default.
-- Incoming AT `<Dial>` recording is opt-in. Callers press 1 to agree, or press
-  2 / give no response to continue without recording. No press of 1 means no
-  recording. Approved provider callbacks import audio into private storage;
-  recorded calls are distinct from voicemails. Imports are capped at 25 MB.
+- Incoming AT `<Dial>` recording plays the configured recording notice before
+  routing, then records the connected call when recording is enabled. Approved
+  provider callbacks import audio into private storage; recorded calls are
+  distinct from voicemails. Imports are capped at 25 MB.
 - Continuous **website** AI voice uses the OpenAI Realtime WebRTC interface
   directly. Next.js creates the session with a server-only OpenAI key. No
   LiveKit server, subscription or inference service is used for that path.

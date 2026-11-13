@@ -89,9 +89,9 @@ export default function AzeraSettingsPage() {
     ai_voice_enabled: false,
     ai_voice_provider: "openai",
     ai_voice: "alloy",
-    voice_record_calls: false,
+    voice_record_calls: true,
     voice_recording_notice:
-      "We would like to record this conversation for service quality. Press 1 to agree, or press 2 to continue without recording.",
+      "This call is being recorded for service quality and training.",
     voice_recording_retention_days: 90,
     voice_realtime_enabled: false,
     sip_provider: null,
@@ -547,15 +547,15 @@ export default function AzeraSettingsPage() {
                   setForm({ ...form, voice_record_calls: e.target.checked })
                 }
               />
-              Offer recording on incoming telephone calls
+              Record incoming telephone calls
             </label>
             <p className="text-xs text-muted-foreground">
-              Africa’s Talking records only after the caller presses 1. Pressing
-              2 or giving no answer continues without recording. This does not
-              record calls made directly through the AT browser SDK.
+              When enabled, Africa’s Talking plays the recording notice before
+              routing the incoming call and records the connected call. Calls
+              made through the browser phone can be recorded from the call panel.
             </p>
             <label className="block space-y-1 text-sm">
-              <span>Recording consent notice</span>
+              <span>Recording notice</span>
               <textarea
                 className="w-full rounded-lg border p-3"
                 maxLength={1000}
@@ -567,10 +567,9 @@ export default function AzeraSettingsPage() {
               />
             </label>
             <p className="text-xs text-muted-foreground">
-              Keep the instructions “press 1 to agree” and “press 2 to continue
-              without recording”. The main welcome plays separately before this
-              notice; do not repeat it here. During working hours, department
-              selection follows the recording choice.
+              Use a short, clear announcement that the call is being recorded.
+              Incoming callers hear it before routing; staff should give the
+              same notice before starting a browser-call recording.
             </p>
             <label className="block space-y-1 text-sm">
               <span>Recording retention (days)</span>

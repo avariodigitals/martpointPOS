@@ -335,10 +335,14 @@ export default function QuotationsPage() {
 
   const openEdit = (qt: Quotation) => {
     setEditingId(qt.id)
+    const isExpired = resolveQuoteStatus(qt) === "EXPIRED"
+    const renewalDate = new Date()
+    renewalDate.setDate(renewalDate.getDate() + 30)
+    const renewalDateValue = `${renewalDate.getFullYear()}-${String(renewalDate.getMonth() + 1).padStart(2, "0")}-${String(renewalDate.getDate()).padStart(2, "0")}`
     setForm({
       leadId: qt.lead_id,
       title: qt.title,
-      validUntil: qt.valid_until ? new Date(qt.valid_until).toISOString().split("T")[0] : "",
+      validUntil: isExpired ? renewalDateValue : (qt.valid_until ? new Date(qt.valid_until).toISOString().split("T")[0] : ""),
       notesPublic: qt.notes_public || "",
       notesInternal: qt.notes_internal || "",
       paymentTerms: qt.payment_terms || "",
@@ -754,10 +758,10 @@ export default function QuotationsPage() {
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          {(isAdmin || ((qt.creator_id === currentUserId || (!qt.creator_id && qt.created_by === currentUsername)) && qt.status === "DRAFT")) && <button
+                          {(isAdmin || ((qt.creator_id === currentUserId || (!qt.creator_id && qt.created_by === currentUsername)) && (qt.status === "DRAFT" || displayStatus === "EXPIRED"))) && <button
                             onClick={() => openEdit(qt)}
                             className="p-1 rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50 transition-colors"
-                            title="Edit"
+                            title={displayStatus === "EXPIRED" ? "Revive and edit" : "Edit"}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>}
@@ -1416,9 +1420,9 @@ export default function QuotationsPage() {
               <Button variant="outline" onClick={() => setShowView(null)}>
                 Close
               </Button>
-              {(isAdmin || ((showView.creator_id === currentUserId || (!showView.creator_id && showView.created_by === currentUsername)) && showView.status === "DRAFT")) && <Button onClick={() => { setShowView(null); openEdit(showView) }}>
+              {(isAdmin || ((showView.creator_id === currentUserId || (!showView.creator_id && showView.created_by === currentUsername)) && (showView.status === "DRAFT" || resolveQuoteStatus(showView) === "EXPIRED"))) && <Button onClick={() => { setShowView(null); openEdit(showView) }}>
                 <Pencil className="w-4 h-4 mr-2" />
-                Edit
+                {resolveQuoteStatus(showView) === "EXPIRED" ? "Revive & Edit" : "Edit"}
               </Button>}
             </div>
           </div>

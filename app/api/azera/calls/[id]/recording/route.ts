@@ -75,25 +75,20 @@ export async function POST(request: Request, { params }: Context) {
   if (!body || typeof body.action !== "string") return fail("Choose a recording action.")
   const { data: call } = await supabase.from("azera_calls").select("*").eq("id", id).eq("agent_user_id", session.userId).eq("direction", "outbound").maybeSingle()
   if (!call) return fail("Outgoing call not found for this staff account.", 404)
-  if (body.action === "consent") {
-    if (body.recipientAgreed !== true && body.recipientAgreed !== false) return fail("Record whether the recipient agreed to recording.")
+  if (body.action === "notice") {
     if (call.status !== "active") return fail("Recording can start only after the call connects.", 409)
     const now = new Date().toISOString()
-    if (body.recipientAgreed === false) {
-      await supabase.from("azera_calls").update({ recording_choice: "declined", recording_consent_at: null, recording_notice: "Recipient declined recording; call continued without a recording.", updated_at: now }).eq("id", call.id).eq("agent_user_id", session.userId)
-      await supabase.from("azera_call_events").insert({ call_id: call.id, event_type: "sip_webhook", actor_type: "agent", actor_id: session.userId, metadata: { event: "recording_consent_declined", recorded_at: now } })
-      return NextResponse.json({ declined: true }, { headers: { "Cache-Control": "no-store" } })
-    }
     const path = `${call.business_id}/${call.id}/${randomUUID()}.webm`
     const { data: signed, error } = await supabase.storage.from("call-recordings").createSignedUploadUrl(path)
     if (error || !signed) return fail("Could not prepare private recording storage. Verify the call-recordings bucket.", 503)
-    await supabase.from("azera_calls").update({ recording_choice: "accepted", recording_consent_at: now, recording_notice: "Staff confirmed recipient agreement before recording started.", updated_at: now }).eq("id", call.id).eq("agent_user_id", session.userId)
-    await supabase.from("azera_call_events").insert({ call_id: call.id, event_type: "sip_webhook", actor_type: "agent", actor_id: session.userId, metadata: { event: "recording_consent_accepted", consent_confirmed_at: now } })
+    const { error: noticeError } = await supabase.from("azera_calls").update({ recording_notice_acknowledged_at: now, recording_notice: "Staff confirmed the contact was told the outgoing call is being recorded.", updated_at: now }).eq("id", call.id).eq("agent_user_id", session.userId)
+    if (noticeError) return fail("Could not save the recording notice acknowledgement.", 503)
+    await supabase.from("azera_call_events").insert({ call_id: call.id, event_type: "sip_webhook", actor_type: "agent", actor_id: session.userId, metadata: { event: "outbound_recording_notice_acknowledged", notice_acknowledged_at: now } })
     const encodedPath = path.split("/").map(encodeURIComponent).join("/")
     return NextResponse.json({ path, token: signed.token, uploadUrl: `${process.env.SUPABASE_URL!.replace(/\/$/, "")}/storage/v1/object/upload/sign/call-recordings/${encodedPath}?token=${encodeURIComponent(signed.token)}` }, { headers: { "Cache-Control": "no-store" } })
   }
   if (body.action !== "complete") return fail("Unknown recording action.")
-  if (call.recording_choice !== "accepted" || !call.recording_consent_at) return fail("Recording has no recorded consent.", 403)
+  if (!call.recording_notice_acknowledged_at) return fail("Recording notice must be acknowledged before saving this call recording.", 403)
   const path = String(body.path || "")
   const mimeType = String(body.mimeType || "")
   const size = Number(body.size)
@@ -102,7 +97,7 @@ export async function POST(request: Request, { params }: Context) {
   const { data: existing } = await supabase.storage.from("call-recordings").list(`${call.business_id}/${call.id}`, { search: path.split("/").pop() })
   if (!existing?.some((entry) => entry.name === path.split("/").pop())) return fail("Uploaded recording was not found.", 404)
   const retentionExpiresAt = new Date(Date.now() + 90 * 86_400_000).toISOString()
-  const { data: recording, error } = await supabase.from("azera_call_recordings").insert({ call_id: call.id, business_id: call.business_id, recording_url: "", recording_path: path, duration_seconds: Math.min(24 * 3600, Math.max(0, Math.floor(durationSeconds || 0))), file_size_bytes: size, mime_type: mimeType, recording_type: "auto", consent_confirmed_at: call.recording_consent_at, retention_expires_at: retentionExpiresAt, summary_status: "pending", created_at: new Date().toISOString() }).select("id").single()
+  const { data: recording, error } = await supabase.from("azera_call_recordings").insert({ call_id: call.id, business_id: call.business_id, recording_url: "", recording_path: path, duration_seconds: Math.min(24 * 3600, Math.max(0, Math.floor(durationSeconds || 0))), file_size_bytes: size, mime_type: mimeType, recording_type: "auto", recording_notice_acknowledged_at: call.recording_notice_acknowledged_at, retention_expires_at: retentionExpiresAt, summary_status: "pending", created_at: new Date().toISOString() }).select("id").single()
   if (error || !recording) return fail("The audio is uploaded, but its call record could not be saved.", 503)
   try {
     await summarizeRecording(call as unknown as Record<string, unknown>, path, recording.id)

@@ -99,7 +99,11 @@ export async function POST(request: Request, context: Context) {
       const parsed = z.object({
         operation: z.enum(["call", "tts", "audio", "upload", "data"]),
         to: z.string().max(40).optional(), message: z.string().max(1000).optional(), callerId: z.string().max(40).optional(),
-        audioReference: z.string().max(200).optional(), audioUrl: z.url().max(2000).optional(),
+        audioReference: z.string().max(200).optional(),
+        audioUrl: z.preprocess(
+          (value) => typeof value === "string" && !value.trim() ? undefined : value,
+          z.url().max(2000).optional(),
+        ),
         action: z.enum(["login", "profile", "balance", "contacts", "numbers", "groups", "audios", "history", "scheduled", "reports", "payments"]).optional(),
       }).parse(body)
       const result = await runNigeriaBulkSmsGatewayAction(parsed)

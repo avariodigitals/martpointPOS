@@ -25,7 +25,7 @@ export default async function RequestQuotePage({
   const businessTypeDefault = industry?.formLabel ?? industry?.name
   const partnerCode = typeof sp.partner === "string" ? sp.partner.toUpperCase().trim() : ""
   const partner = partnerCode ? await getPublicPartnerByPartnerId(partnerCode) : null
-  const validPartner = partner && partner.status === "ACTIVE" ? partner : null
+  const validPartner = partner && partner.status === "ACTIVE" && partner.publicProfileEnabled ? partner : null
   // ERP enquiries arrive via the dedicated ?product=erp route only.
   const isErp = typeof sp.product === "string" && sp.product.toLowerCase() === "erp"
 

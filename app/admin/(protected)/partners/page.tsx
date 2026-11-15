@@ -113,6 +113,7 @@ export default function AdminPartnersPage() {
           <Handshake className="w-5 h-5" /> Partners
         </h2>
         <p className="text-muted-foreground">Review partner applications and manage active partners.</p>
+        <Link href="/admin/partners/lifecycle" className="mt-3 inline-flex rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted">Partner lifecycle and performance</Link>
       </div>
 
       {/* Dashboard cards */}

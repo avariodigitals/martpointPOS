@@ -29,7 +29,7 @@ export default async function BookDemoPage({
   const businessTypeDefault = industry?.formLabel ?? industry?.name
   const partnerCode = typeof sp.partner === "string" ? sp.partner.toUpperCase().trim() : ""
   const partner = partnerCode ? await getPublicPartnerByPartnerId(partnerCode) : null
-  const validPartner = partner && partner.status === "ACTIVE" ? partner : null
+  const validPartner = partner && partner.status === "ACTIVE" && partner.publicProfileEnabled ? partner : null
   // ERP demos arrive via the dedicated ?product=erp route only.
   const isErp = typeof sp.product === "string" && sp.product.toLowerCase() === "erp"
 

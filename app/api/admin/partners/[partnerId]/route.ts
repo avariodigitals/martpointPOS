@@ -120,6 +120,13 @@ export async function PATCH(
       await seedPartnerCapabilities(partnerId, current.partner_type, session!.userId)
     }
 
+    // Keep lifecycle account standing aligned with existing Management actions.
+    // Directory lifecycle suspension never writes this field or partners.status.
+    if (body.status !== undefined && body.status !== current.status) {
+      const accountStatus = body.status === "ACTIVE" ? "enabled" : ["TERMINATED", "INACTIVE"].includes(String(body.status)) ? "closed" : body.status === "SUSPENDED" ? "restricted" : null
+      if (accountStatus) await supabase.from("partner_lifecycle").update({ account_status: accountStatus, updated_at: new Date().toISOString() }).eq("partner_id", partnerId)
+    }
+
     const ctx = auditContextFromSession(session, request)
     if (body.status !== undefined && body.status !== current.status) {
       await recordStatusHistory(

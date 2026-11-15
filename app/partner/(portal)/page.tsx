@@ -12,6 +12,7 @@ import { getPartnerDashboardMetrics } from "@/lib/partner-dashboard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BadgeCheck, ShieldAlert, Calendar, MapPin, Building2, User } from "lucide-react"
 import { enumLabel, roleLabel } from "@/lib/utils"
+import { LifecyclePanel } from "./lifecycle-panel"
 
 function Metric({ value, label }: { value: number; label: string }) {
   return (
@@ -57,6 +58,8 @@ export default async function PartnerDashboardPage() {
         <Metric value={metrics.customersOnboarding} label="Customers Onboarding" />
         <Metric value={metrics.tasksRequiringAttention} label="Tasks Requiring Attention" />
       </div>
+
+      <LifecyclePanel />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>

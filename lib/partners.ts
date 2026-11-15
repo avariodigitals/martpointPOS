@@ -463,7 +463,7 @@ async function loadPublicServices(partnerIds: string[]): Promise<Map<string, str
   return map
 }
 
-/** Only ACTIVE + public_profile_enabled partners (enforced also by RLS). */
+/** Only ACTIVE partners with an explicitly published lifecycle listing (enforced also by RLS). */
 export async function listPublicPartners(filters?: {
   country?: string
   state?: string
@@ -474,9 +474,12 @@ export async function listPublicPartners(filters?: {
   if (!isSupabaseConfigured()) return []
   let q = supabase
     .from("partners")
-    .select("id, partner_id, business_name, display_name, partner_type, country, state, city, website, logo_url, public_email, public_phone, public_address, service_areas, partner_since")
+    .select("id, partner_id, business_name, display_name, partner_type, country, state, city, website, logo_url, public_email, public_phone, public_address, service_areas, partner_since, partner_lifecycle!inner(listing_status,account_status,compliance_status)")
     .eq("status", "ACTIVE")
     .eq("public_profile_enabled", true)
+    .in("partner_lifecycle.listing_status", ["published", "pending_suspension"])
+    .eq("partner_lifecycle.account_status", "enabled")
+    .in("partner_lifecycle.compliance_status", ["clear", "open_case", "under_review"])
 
   if (filters?.country) q = q.eq("country", filters.country)
   if (filters?.state) q = q.eq("state", filters.state)
@@ -522,6 +525,10 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
     .eq("partner_id", partnerId)
     .maybeSingle()
   if (!data) return null
+  const { data: lifecycle } = await supabase.from("partner_lifecycle").select("listing_status,account_status,compliance_status").eq("partner_id", data.id).maybeSingle()
+  if (!lifecycle || !["published", "pending_suspension"].includes(lifecycle.listing_status) || lifecycle.account_status !== "enabled" || !["clear", "open_case", "under_review"].includes(lifecycle.compliance_status)) {
+    return { id: data.id, partnerId: data.partner_id, businessName: "Partner not currently listed", displayName: "Partner not currently listed", partnerType: data.partner_type, status: data.status, country: "", state: "", city: "", website: null, logoUrl: null, publicEmail: null, publicPhone: null, publicAddress: null, serviceAreas: "", services: [], partnerSince: null, publicProfileEnabled: false }
+  }
   const services = await loadPublicServices([data.id as string])
   return {
     id: data.id,

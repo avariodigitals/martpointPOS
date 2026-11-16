@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
-import { Node } from "@tiptap/core"
+import { Extension, Node } from "@tiptap/core"
 import { DOMParser as ProseMirrorDOMParser, Slice } from "@tiptap/pm/model"
 import StarterKit from "@tiptap/starter-kit"
 import Image from "@tiptap/extension-image"
@@ -29,6 +29,9 @@ import {
   Pilcrow,
   Eraser,
   X,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
 } from "lucide-react"
 
 interface EmailRichEditorProps {
@@ -86,6 +89,49 @@ const EmailTableHeader = Node.create({
   renderHTML: ({ HTMLAttributes }) => ["th", { ...HTMLAttributes, style: "border:1px solid #cbd5e1;padding:8px;vertical-align:top;background:#f1f5f9;text-align:left;font-weight:600;" }, 0],
 })
 
+const EmailImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: 600,
+        parseHTML: (element) => {
+          const width = element.getAttribute("data-email-width") || element.style.width
+          if (width === "50%" || width === "300" || width === "300px") return 300
+          if (width === "75%" || width === "450" || width === "450px") return 450
+          return 600
+        },
+        renderHTML: (attributes) => {
+          const width = Number(attributes.width) === 300 ? "50%" : Number(attributes.width) === 450 ? "75%" : "100%"
+          return {
+            width: width === "50%" ? 300 : width === "75%" ? 450 : 600,
+            "data-email-width": width,
+            style: `display:block;width:${width};max-width:100%;height:auto;margin:12px auto;`,
+          }
+        },
+      },
+    }
+  },
+})
+
+const EmailAlignment = Extension.create({
+  name: "emailAlignment",
+  addGlobalAttributes() {
+    return [{
+      types: ["paragraph", "heading"],
+      attributes: {
+        textAlign: {
+          default: null,
+          parseHTML: (element) => ["left", "center", "right"].includes(element.style.textAlign) ? element.style.textAlign : null,
+          renderHTML: (attributes) => ["left", "center", "right"].includes(attributes.textAlign)
+            ? { style: `text-align:${attributes.textAlign};` }
+            : {},
+        },
+      },
+    }]
+  },
+})
+
 function escapeTableCell(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
@@ -129,19 +175,23 @@ function ToolbarButton({
 
 export default function EmailRichEditor({ value, onChange, onUploadImage, allowImages = true, minHeight = 220, disabled = false }: EmailRichEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const uploadRef = useRef(onUploadImage)
   const [uploading, setUploading] = useState(false)
   const [urlPanel, setUrlPanel] = useState<"link" | "image" | null>(null)
   const [url, setUrl] = useState("")
   const [urlError, setUrlError] = useState("")
 
+  useEffect(() => { uploadRef.current = onUploadImage }, [onUploadImage])
+
   const editor = useEditor({
     extensions: [
       StarterKit,
+      EmailAlignment,
       EmailTable,
       EmailTableRow,
       EmailTableHeader,
       EmailTableCell,
-      ...(allowImages ? [Image.configure({ inline: false })] : []),
+      ...(allowImages ? [EmailImage.configure({ inline: false })] : []),
     ],
     content: value,
     immediatelyRender: false,
@@ -158,6 +208,20 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
       },
       handlePaste: (view, event) => {
         const clipboard = event.clipboardData
+        const imageFiles = Array.from(clipboard?.files || []).filter((file) => file.type.startsWith("image/"))
+        if (imageFiles.length && uploadRef.current) {
+          event.preventDefault()
+          const position = view.state.selection.from
+          void Promise.all(imageFiles.map(async (file) => ({
+            src: await uploadRef.current?.(file),
+            alt: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "),
+          }))).then((images) => {
+            const content = images.filter((image): image is { src: string; alt: string } => Boolean(image.src))
+              .map((image) => ({ type: "image", attrs: { src: image.src, alt: image.alt, width: 600 } }))
+            if (content.length) editor?.commands.insertContentAt(position, content)
+          })
+          return true
+        }
         if (!clipboard || /<table[\s>]/i.test(clipboard.getData("text/html"))) return false
         const tableHtml = textTableHtml(clipboard.getData("text/plain"))
         if (!tableHtml) return false
@@ -165,6 +229,21 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
         container.innerHTML = tableHtml
         const content = ProseMirrorDOMParser.fromSchema(view.state.schema).parse(container).content
         view.dispatch(view.state.tr.replaceSelection(new Slice(content, 0, 0)).scrollIntoView())
+        return true
+      },
+      handleDrop: (view, event) => {
+        const files = Array.from(event.dataTransfer?.files || []).filter((file) => file.type.startsWith("image/"))
+        if (!files.length || !uploadRef.current) return false
+        event.preventDefault()
+        const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from
+        void Promise.all(files.map(async (file) => ({
+          src: await uploadRef.current?.(file),
+          alt: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "),
+        }))).then((images) => {
+          const content = images.filter((image): image is { src: string; alt: string } => Boolean(image.src))
+            .map((image) => ({ type: "image", attrs: { src: image.src, alt: image.alt, width: 600 } }))
+          if (content.length) editor?.commands.insertContentAt(position, content)
+        })
         return true
       },
     },
@@ -199,7 +278,7 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
       const parsed = new URL(value)
       const protocols = urlPanel === "image" ? ["http:", "https:"] : ["http:", "https:", "mailto:", "tel:"]
       if (!protocols.includes(parsed.protocol)) throw new Error("Unsupported URL")
-      if (urlPanel === "image") editor.chain().focus().setImage({ src: value }).run()
+      if (urlPanel === "image") editor.chain().focus().setImage({ src: value, alt: "", width: 600 }).run()
       else if (editor.state.selection.empty && !editor.isActive("link")) {
         editor.chain().focus().insertContent([{ type: "text", text: value, marks: [{ type: "link", attrs: { href: value } }] }]).run()
       } else editor.chain().focus().extendMarkRange("link").setLink({ href: value }).run()
@@ -217,7 +296,7 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
     try {
       const url = await onUploadImage(file)
       if (url) {
-        editor.chain().focus().setImage({ src: url }).run()
+        editor.chain().focus().setImage({ src: url, alt: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "), width: 600 }).run()
       }
     } finally {
       setUploading(false)
@@ -238,6 +317,12 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
         <ToolbarButton title="Subheading" onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} active={editor?.isActive("heading", { level: 3 })}>
           <Heading3 className="w-4 h-4" />
         </ToolbarButton>
+        <span className="w-px h-4 bg-border mx-1" />
+        {(["left", "center", "right"] as const).map((alignment) => {
+          const Icon = alignment === "left" ? AlignLeft : alignment === "center" ? AlignCenter : AlignRight
+          const node = editor?.isActive("heading") ? "heading" : "paragraph"
+          return <ToolbarButton key={alignment} title={`Align ${alignment}`} onClick={() => editor?.chain().focus().updateAttributes(node, { textAlign: alignment }).run()} active={editor?.getAttributes(node).textAlign === alignment}><Icon className="w-4 h-4" /></ToolbarButton>
+        })}
         <span className="w-px h-4 bg-border mx-1" />
         <ToolbarButton title="Bold" onClick={() => editor?.chain().focus().toggleBold().run()} active={editor?.isActive("bold")}>
           <Bold className="w-4 h-4" />
@@ -274,7 +359,7 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
         <ToolbarButton title="Remove link" onClick={() => editor?.chain().focus().unsetLink().run()} disabled={!editor?.isActive("link")}>
           <Link2Off className="w-4 h-4" />
         </ToolbarButton>
-        {allowImages && <><ToolbarButton title="Insert image (upload)" onClick={pickImage} disabled={uploading || !onUploadImage}>
+        {allowImages && <><ToolbarButton title="Upload an image" onClick={pickImage} disabled={uploading || !onUploadImage}>
           {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
         </ToolbarButton>
         <ToolbarButton title="Insert image from URL" onClick={insertImageUrl}>
@@ -291,6 +376,11 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
           <Eraser className="w-4 h-4" />
         </ToolbarButton>
       </div>
+      {allowImages && editor?.isActive("image") && <div className="flex flex-wrap items-center gap-3 border-b bg-background px-3 py-2 text-xs">
+        <span className="font-medium">Selected image</span>
+        <label className="flex items-center gap-2">Width<select aria-label="Image width" className="rounded border bg-background px-2 py-1" value={Number(editor.getAttributes("image").width) === 300 ? "300" : Number(editor.getAttributes("image").width) === 450 ? "450" : "600"} onChange={(event) => editor.chain().focus().updateAttributes("image", { width: Number(event.target.value) }).run()}><option value="600">Full width</option><option value="450">Three-quarter</option><option value="300">Half width</option></select></label>
+        <label className="flex min-w-[180px] flex-1 items-center gap-2">Alt text<input aria-label="Image alt text" className="min-w-0 flex-1 rounded border bg-background px-2 py-1" value={editor.getAttributes("image").alt || ""} onChange={(event) => editor.commands.updateAttributes("image", { alt: event.target.value })} placeholder="Describe the image" /></label>
+      </div>}
       {urlPanel && (
         <div className="space-y-2 border-b bg-muted/20 p-3">
           <label className="block text-xs font-medium">
@@ -313,6 +403,7 @@ export default function EmailRichEditor({ value, onChange, onUploadImage, allowI
         <span>Ctrl / ⌘ + B bold · I italic · Z undo</span>
         <span>{htmlToText(value).length.toLocaleString()} characters</span>
       </div>
+      <div className="flex items-center justify-between gap-3 border-t bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground"><span>Drop or paste a product photo here, or use Upload image. Images up to 4 MB.</span><button type="button" className="shrink-0 font-medium text-retail hover:underline" onClick={pickImage} disabled={disabled || uploading || !onUploadImage}>{uploading ? "Uploading…" : "Upload image"}</button></div>
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={handleFile} />
     </div>
   )

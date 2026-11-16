@@ -53,6 +53,11 @@ function generateSlug(title: string): string {
 // on every mutation so changes are visible immediately.
 function revalidateBlog(slugs: Array<string | undefined | null>) {
   try {
+    // BlogPreview is also rendered on these ISR pages. Invalidate them when a
+    // post changes so a newly published article appears immediately instead
+    // of waiting for their 24-hour revalidation window.
+    revalidatePath("/")
+    revalidatePath("/martpoint-retail")
     revalidatePath("/blog")
     revalidatePath("/sitemap.xml")
     for (const slug of slugs) {

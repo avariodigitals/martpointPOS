@@ -1,9 +1,7 @@
-/* ────────────────────────  Shared AI chat with configurable fallback  ────────────────────────
- * One entry point for all LLM calls: try OpenAI first; on any failure (or missing
- * key) fall back to a second OpenAI-compatible provider configured in
- * Settings → OpenAI (default: Grok via xAI). Key, base URL and model all come
- * from settings, so the backup can be Grok, Groq, Xiaomi MiMo, OpenRouter, etc.
- * A missing OpenAI key alone is not an error when a fallback key exists.
+/* ────────────────────────  Shared AI chat with configurable providers  ────────────────────────
+ * All LLM calls use the provider selected in Admin Settings. Optional
+ * OpenAI-compatible fallbacks can be enabled and ordered after the active
+ * provider. Provider keys, endpoints and model IDs are configured per provider.
  */
 
 import { readSettings } from "./settings"
@@ -32,10 +30,37 @@ export interface AiChatResult {
 export type AiChatDeltaHandler = (delta: string) => void | Promise<void>
 
 interface ProviderConfig {
+  id: AiProviderId
   name: string
   apiKey?: string
   baseUrl?: string
   model: string
+}
+
+export type AiProviderId = "openai" | "xiaomi" | "xai" | "groq" | "openrouter" | "mistral" | "gemini" | "custom"
+
+interface AiProviderSetting {
+  apiKey?: string
+  baseUrl?: string
+  model?: string
+  enabled?: boolean
+}
+
+interface AiSettings {
+  activeProvider?: AiProviderId
+  fallbackEnabled?: boolean
+  providers?: Partial<Record<AiProviderId, AiProviderSetting>>
+}
+
+const PROVIDER_DEFAULTS: Record<AiProviderId, { name: string; baseUrl?: string; model: string; envKey?: string; envBase?: string; envModel?: string }> = {
+  openai: { name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini", envKey: "OPENAI_API_KEY", envBase: "OPENAI_BASE_URL", envModel: "OPENAI_MODEL" },
+  xiaomi: { name: "Xiaomi MiMo", baseUrl: "https://api.xiaomimimo.com/v1", model: "mimo-v2.6-pro" },
+  xai: { name: "xAI / Grok", baseUrl: "https://api.x.ai/v1", model: "grok-4-fast-latest", envKey: "XAI_API_KEY", envBase: "XAI_BASE_URL", envModel: "XAI_MODEL" },
+  groq: { name: "Groq", baseUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile", envKey: "GROQ_API_KEY", envBase: "GROQ_BASE_URL", envModel: "GROQ_MODEL" },
+  openrouter: { name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", envKey: "OPENROUTER_API_KEY", envBase: "OPENROUTER_BASE_URL", envModel: "OPENROUTER_MODEL" },
+  mistral: { name: "Mistral", baseUrl: "https://api.mistral.ai/v1", model: "mistral-small-latest", envKey: "MISTRAL_API_KEY", envBase: "MISTRAL_BASE_URL", envModel: "MISTRAL_MODEL" },
+  gemini: { name: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash", envKey: "GEMINI_API_KEY", envBase: "GEMINI_BASE_URL", envModel: "GEMINI_MODEL" },
+  custom: { name: "Custom OpenAI-compatible", model: "gpt-4o-mini", envKey: "AI_API_KEY", envBase: "AI_BASE_URL", envModel: "AI_MODEL" },
 }
 
 function usableApiKey(value: unknown): string | undefined {
@@ -45,14 +70,11 @@ function usableApiKey(value: unknown): string | undefined {
   return key
 }
 
-const OPENAI_BASE_MODEL = "gpt-4o-mini"
-const FALLBACK_BASE_URL = "https://api.x.ai/v1"
-const FALLBACK_MODEL = "grok-4-fast-latest"
-
-async function getStoredAiSettings(): Promise<{ openai?: Record<string, string>; xai?: Record<string, string> }> {
+async function getStoredAiSettings(): Promise<{ ai?: AiSettings; openai?: Record<string, string>; xai?: Record<string, string> }> {
   try {
     const settings = await readSettings()
     return {
+      ai: settings?.ai as AiSettings | undefined,
       openai: settings?.openai as Record<string, string> | undefined,
       xai: settings?.xai as Record<string, string> | undefined,
     }
@@ -60,11 +82,6 @@ async function getStoredAiSettings(): Promise<{ openai?: Record<string, string>;
     // ignore
   }
   return {}
-}
-
-function envProvider(keyName: string, name: string, baseUrl: string | undefined, model: string): ProviderConfig | null {
-  const apiKey = usableApiKey(process.env[keyName])
-  return apiKey ? { name, apiKey, baseUrl, model } : null
 }
 
 export function hasAnyAiKey(): boolean {
@@ -81,27 +98,41 @@ export function hasAnyAiKey(): boolean {
 
 async function getProviderCandidates(): Promise<ProviderConfig[]> {
   const stored = await getStoredAiSettings()
-  const openaiKey = usableApiKey(stored.openai?.apiKey) || usableApiKey(process.env.OPENAI_API_KEY)
-  const xaiKey = usableApiKey(stored.xai?.apiKey) || usableApiKey(process.env.XAI_API_KEY)
-  const xaiBaseUrl = (stored.xai?.baseUrl || "").trim() || FALLBACK_BASE_URL
-  const xaiModel = (stored.xai?.model || "").trim() || FALLBACK_MODEL
+  const ai = stored.ai || {}
+  const configured = {} as Record<AiProviderId, ProviderConfig | null>
+  for (const id of Object.keys(PROVIDER_DEFAULTS) as AiProviderId[]) {
+    const defaults = PROVIDER_DEFAULTS[id]
+    const saved = ai.providers?.[id] || {}
+    const legacy = !stored.ai?.providers ? (id === "openai" ? stored.openai : id === "xai" ? stored.xai : undefined) : undefined
+    const apiKey = usableApiKey(saved.apiKey) || usableApiKey(legacy?.apiKey) || (defaults.envKey ? usableApiKey(process.env[defaults.envKey]) : undefined)
+    const envBase = defaults.envBase ? process.env[defaults.envBase]?.trim() : ""
+    const baseUrl = (saved.baseUrl || (id === "xai" ? legacy?.baseUrl : "") || envBase || defaults.baseUrl || "").trim() || undefined
+    const envModel = defaults.envModel ? process.env[defaults.envModel]?.trim() : ""
+    const model = (saved.model || (id === "xai" ? legacy?.model : "") || envModel || defaults.model).trim()
+    configured[id] = apiKey ? { id, name: defaults.name, apiKey, baseUrl, model } : null
+  }
 
-  const candidates = [
-    openaiKey ? {
-      name: "OpenAI",
-      apiKey: openaiKey,
-      baseUrl: (process.env.OPENAI_BASE_URL || "").trim() || undefined,
-      model: (process.env.OPENAI_MODEL || "").trim() || OPENAI_BASE_MODEL,
-    } : null,
-    xaiKey ? { name: "XAI / fallback", apiKey: xaiKey, baseUrl: xaiBaseUrl, model: xaiModel } : null,
-    envProvider("GROQ_API_KEY", "Groq", (process.env.GROQ_BASE_URL || "").trim() || "https://api.groq.com/openai/v1", (process.env.GROQ_MODEL || "").trim() || "llama-3.3-70b-versatile"),
-    envProvider("OPENROUTER_API_KEY", "OpenRouter", (process.env.OPENROUTER_BASE_URL || "").trim() || "https://openrouter.ai/api/v1", (process.env.OPENROUTER_MODEL || "").trim() || "openai/gpt-4o-mini"),
-    envProvider("MISTRAL_API_KEY", "Mistral", (process.env.MISTRAL_BASE_URL || "").trim() || "https://api.mistral.ai/v1", (process.env.MISTRAL_MODEL || "").trim() || "mistral-small-latest"),
-    envProvider("GEMINI_API_KEY", "Gemini", (process.env.GEMINI_BASE_URL || "").trim() || "https://generativelanguage.googleapis.com/v1beta/openai", (process.env.GEMINI_MODEL || "").trim() || "gemini-2.0-flash"),
-    envProvider("AI_API_KEY", "Configured AI provider", (process.env.AI_BASE_URL || "").trim() || undefined, (process.env.AI_MODEL || "").trim() || OPENAI_BASE_MODEL),
+  const customEnvKey = usableApiKey(process.env.AI_API_KEY)
+  if (customEnvKey && !configured.custom) {
+    configured.custom = {
+      id: "custom",
+      name: PROVIDER_DEFAULTS.custom.name,
+      apiKey: customEnvKey,
+      baseUrl: process.env.AI_BASE_URL?.trim() || undefined,
+      model: process.env.AI_MODEL?.trim() || PROVIDER_DEFAULTS.custom.model,
+    }
+  }
+
+  const activeId = ai.activeProvider && PROVIDER_DEFAULTS[ai.activeProvider] ? ai.activeProvider : "openai"
+  const activeProvider = configured[activeId]
+  const fallbackEnabled = ai.fallbackEnabled !== false
+  const fallbackIds = (Object.keys(PROVIDER_DEFAULTS) as AiProviderId[]).filter((id) =>
+    id !== activeId && ai.providers?.[id]?.enabled !== false && Boolean(configured[id]),
+  )
+  return [
+    ...(activeProvider ? [activeProvider] : []),
+    ...(fallbackEnabled ? fallbackIds.map((id) => configured[id]!).filter(Boolean) : []),
   ]
-
-  return candidates.filter((candidate): candidate is ProviderConfig => Boolean(candidate))
 }
 
 /** Safe, non-secret provider status for admin diagnostics. */
@@ -109,12 +140,17 @@ export async function getAiProviderStatus(): Promise<{
   openaiConfigured: boolean
   fallbackConfigured: boolean
   configured: boolean
+  activeProvider: AiProviderId
+  fallbackEnabled: boolean
 }> {
+  const stored = await getStoredAiSettings()
   const providers = await getProviderCandidates()
   return {
-    openaiConfigured: providers.some((provider) => provider.name === "OpenAI"),
-    fallbackConfigured: providers.some((provider) => provider.name !== "OpenAI"),
+    openaiConfigured: providers.some((provider) => provider.id === "openai"),
+    fallbackConfigured: providers.some((provider) => provider.id !== "openai"),
     configured: providers.length > 0,
+    activeProvider: stored.ai?.activeProvider || "openai",
+    fallbackEnabled: stored.ai?.fallbackEnabled !== false,
   }
 }
 
@@ -130,7 +166,7 @@ async function complete(
     ...(provider.baseUrl ? { baseURL: provider.baseUrl } : {}),
     timeout: Math.max(1000, opts.timeoutMs ?? 12000),
   })
-  const model = provider.model || opts.model || OPENAI_BASE_MODEL
+  const model = provider.model || opts.model || PROVIDER_DEFAULTS.openai.model
   const completion = await client.chat.completions.create({
     model,
     messages: opts.messages,
@@ -158,7 +194,7 @@ async function streamComplete(
     ...(provider.baseUrl ? { baseURL: provider.baseUrl } : {}),
     timeout: Math.max(1000, opts.timeoutMs ?? 12000),
   })
-  const model = provider.model || opts.model || OPENAI_BASE_MODEL
+  const model = provider.model || opts.model || PROVIDER_DEFAULTS.openai.model
   const completion = await client.chat.completions.create({
     model,
     messages: opts.messages,

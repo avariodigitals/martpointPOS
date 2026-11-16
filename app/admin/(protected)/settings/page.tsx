@@ -29,14 +29,40 @@ interface MartpointEntitySettings {
   liabilityFloor: string
 }
 
-interface OpenAISettings {
-  apiKey: string
-}
+type AiProviderId = "openai" | "xiaomi" | "xai" | "groq" | "openrouter" | "mistral" | "gemini" | "custom"
 
-interface XaiSettings {
+interface AiProviderSettings {
   apiKey: string
   baseUrl: string
   model: string
+  enabled: boolean
+}
+
+interface AiSettings {
+  activeProvider: AiProviderId
+  fallbackEnabled: boolean
+  providers: Record<AiProviderId, AiProviderSettings>
+}
+
+const AI_PROVIDER_DEFAULTS: Record<AiProviderId, Omit<AiProviderSettings, "apiKey" | "enabled"> & { label: string }> = {
+  openai: { label: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+  xiaomi: { label: "Xiaomi MiMo", baseUrl: "https://api.xiaomimimo.com/v1", model: "mimo-v2.6-pro" },
+  xai: { label: "xAI / Grok", baseUrl: "https://api.x.ai/v1", model: "grok-4-fast-latest" },
+  groq: { label: "Groq", baseUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" },
+  openrouter: { label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini" },
+  mistral: { label: "Mistral", baseUrl: "https://api.mistral.ai/v1", model: "mistral-small-latest" },
+  gemini: { label: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash" },
+  custom: { label: "Custom OpenAI-compatible", baseUrl: "", model: "" },
+}
+
+function defaultAiSettings(): AiSettings {
+  return {
+    activeProvider: "openai",
+    fallbackEnabled: true,
+    providers: Object.fromEntries(Object.entries(AI_PROVIDER_DEFAULTS).map(([id, provider]) => [id, {
+      apiKey: "", baseUrl: provider.baseUrl, model: provider.model, enabled: false,
+    }])) as AiSettings["providers"],
+  }
 }
 
 interface SecuritySettings {
@@ -150,14 +176,7 @@ export default function AdminSettingsPage() {
   const [searchConsole, setSearchConsole] = useState<SearchConsoleSettings>({
     verificationCode: "",
   })
-  const [openai, setOpenai] = useState<OpenAISettings>({
-    apiKey: "",
-  })
-  const [xai, setXai] = useState<XaiSettings>({
-    apiKey: "",
-    baseUrl: "",
-    model: "",
-  })
+  const [ai, setAi] = useState<AiSettings>(defaultAiSettings)
   const [martpointEntity, setMartpointEntity] = useState<MartpointEntitySettings>({
     legalName: "MartPoint",
     registrationNo: "",
@@ -300,8 +319,18 @@ export default function AdminSettingsPage() {
         if (data.general) setSettings(data.general)
         if (data.social) setSocial(data.social)
         if (data.searchConsole) setSearchConsole(data.searchConsole)
-        if (data.openai) setOpenai(data.openai)
-        if (data.xai) setXai(data.xai)
+        const aiDefaults = defaultAiSettings()
+        const storedAi = (data.ai || {}) as Partial<AiSettings>
+        const providers = Object.fromEntries(Object.entries(aiDefaults.providers).map(([id, provider]) => {
+          const configured = storedAi.providers?.[id as AiProviderId]
+          const legacy = id === "openai" ? data.openai : id === "xai" ? data.xai : undefined
+          return [id, { ...provider, ...(legacy || {}), ...(configured || {}) }]
+        })) as AiSettings["providers"]
+        setAi({
+          ...aiDefaults,
+          ...storedAi,
+          providers,
+        })
         if (data.martpointEntity) setMartpointEntity((prev) => ({ ...prev, ...data.martpointEntity }))
         if (data.security) setSecurity((prev) => ({ ...prev, ...data.security }))
         if (data.popup) setPopup(data.popup)
@@ -462,8 +491,7 @@ export default function AdminSettingsPage() {
       general: settings,
       social,
       searchConsole,
-      openai,
-      xai,
+      ai,
       security,
       martpointEntity,
       popup,
@@ -833,73 +861,65 @@ export default function AdminSettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-retail" />
-                OpenAI Configuration
+                AI Provider Configuration
               </CardTitle>
-              <CardDescription>API key for AI content generation in the blog editor.</CardDescription>
+              <CardDescription>Configure providers once, choose which one runs first, and optionally enable automatic fallback. Credentials stay in admin settings.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">OpenAI API Key</label>
-                <input
-                  type="password"
-                  value={openai.apiKey}
-                  onChange={(e) => setOpenai({ apiKey: e.target.value })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Get your key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-retail underline">platform.openai.com</a>. Falls back to OPENAI_API_KEY env variable if empty.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Fallback AI API Key</label>
-                <input
-                  type="password"
-                  value={xai.apiKey}
-                  onChange={(e) => setXai({ ...xai, apiKey: e.target.value })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="xai-… / gsk_… / MiMo token plan key…"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Used automatically when OpenAI fails or has no key. Any OpenAI-compatible provider works — Grok (<a href="https://console.x.ai" target="_blank" rel="noopener noreferrer" className="text-retail underline">console.x.ai</a>), Groq (<a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-retail underline">console.groq.com/keys</a>), Xiaomi MiMo (<a href="https://platform.xiaomimimo.com" target="_blank" rel="noopener noreferrer" className="text-retail underline">platform.xiaomimimo.com</a>). Falls back to XAI_API_KEY env variable if empty.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CardContent className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Fallback Base URL</label>
-                  <input
-                    type="text"
-                    value={xai.baseUrl}
-                    onChange={(e) => setXai({ ...xai, baseUrl: e.target.value })}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    placeholder="https://api.x.ai/v1"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Empty = Grok. MiMo: <code>https://api.xiaomimimo.com/v1</code> · Groq: <code>https://api.groq.com/openai/v1</code>
-                  </p>
+                  <label className="mb-1 block text-sm font-medium">Active AI provider</label>
+                  <select value={ai.activeProvider} onChange={(e) => setAi({ ...ai, activeProvider: e.target.value as AiProviderId })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    {(Object.keys(AI_PROVIDER_DEFAULTS) as AiProviderId[]).map((id) => <option key={id} value={id}>{AI_PROVIDER_DEFAULTS[id].label}</option>)}
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">The selected provider is tried first for AI requests.</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Fallback Model</label>
-                  <input
-                    type="text"
-                    value={xai.model}
-                    onChange={(e) => setXai({ ...xai, model: e.target.value })}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    placeholder="grok-4-fast-latest"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">The model your fallback key has access to, e.g. <code>gpt-oss-120b</code> on Groq.</p>
-                </div>
+                <label className="flex items-center gap-2 self-end rounded-md border p-3 text-sm">
+                  <input type="checkbox" checked={ai.fallbackEnabled} onChange={(e) => setAi({ ...ai, fallbackEnabled: e.target.checked })} />
+                  Automatically try enabled providers if the active provider fails
+                </label>
+              </div>
+              <div className="space-y-4">
+                {(Object.keys(AI_PROVIDER_DEFAULTS) as AiProviderId[]).map((id) => {
+                  const provider = ai.providers[id]
+                  const defaults = AI_PROVIDER_DEFAULTS[id]
+                  return (
+                    <section key={id} className="rounded-xl border p-4">
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold">{defaults.label}{ai.activeProvider === id ? " · Active" : ""}</h3>
+                          <p className="text-xs text-muted-foreground">Configure a key, endpoint and model for this provider.</p>
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input type="checkbox" checked={provider.enabled} onChange={(e) => setAi({ ...ai, providers: { ...ai.providers, [id]: { ...provider, enabled: e.target.checked } } })} />
+                          Enable as fallback
+                        </label>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-medium">API key</label>
+                          <input type="password" autoComplete="new-password" value={provider.apiKey} onChange={(e) => setAi({ ...ai, providers: { ...ai.providers, [id]: { ...provider, apiKey: e.target.value } } })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Paste provider API key" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium">Base URL</label>
+                          <input type="url" value={provider.baseUrl} onChange={(e) => setAi({ ...ai, providers: { ...ai.providers, [id]: { ...provider, baseUrl: e.target.value } } })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder={defaults.baseUrl || "https://your-provider.example/v1"} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium">Model ID</label>
+                          <input type="text" value={provider.model} onChange={(e) => setAi({ ...ai, providers: { ...ai.providers, [id]: { ...provider, model: e.target.value } } })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder={defaults.model || "provider-model-name"} />
+                        </div>
+                      </div>
+                      {id === "xiaomi" && <p className="mt-2 text-xs text-muted-foreground">MiMo pay-as-you-go uses <code>https://api.xiaomimimo.com/v1</code> and a model such as <code>mimo-v2.6-pro</code>. For Token Plan keys (tp-/ttp-), use the exact OpenAI-compatible Base URL shown on your MiMo Token Plan page.</p>}
+                    </section>
+                  )
+                })}
               </div>
             </CardContent>
-            <CardFooter className="border-t pt-4 flex items-center justify-end gap-3 flex-wrap">
-              {message.openai && (
-                <span className={`text-sm px-2 py-1 rounded ${message.openai.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                  {message.openai}
-                </span>
-              )}
-              <Button type="button" onClick={() => doSave("openai", { openai, xai })} disabled={saving["openai"]}>
-                {saving["openai"] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Save OpenAI
+            <CardFooter className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
+              {message.ai && <span className={`rounded px-2 py-1 text-sm ${message.ai.includes("success") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{message.ai}</span>}
+              <Button type="button" onClick={() => doSave("ai", { ai })} disabled={saving.ai}>
+                {saving.ai ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save AI Settings
               </Button>
             </CardFooter>
           </Card>

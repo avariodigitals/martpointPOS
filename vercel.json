@@ -29,6 +29,10 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/api/cron/business-growth",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/partner-ops",
       "schedule": "17 * * * *"
     },

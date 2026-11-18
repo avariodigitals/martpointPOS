@@ -293,6 +293,7 @@ export const adminNavItems: AdminNavItem[] = [
   },
 
   // Sales
+  { href: "/admin/programmes", label: "Business Growth Programme", icon: Sparkles, page: "business_growth.manage", section: "Sales" },
   { href: "/admin/leads", label: "Leads", icon: Funnel, page: "leads", section: "Sales" },
   { href: "/admin/calendar", label: "Calendar", icon: CalendarIcon, page: "leads", section: "Sales" },
   {

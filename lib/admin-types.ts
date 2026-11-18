@@ -114,6 +114,11 @@ export const CREATOR_PERMISSIONS = [
   "creator.notifications.send",
 ] as const
 
+/** Business Growth Programme is restricted to Admin by default. */
+export const BUSINESS_GROWTH_PERMISSIONS = [
+  "business_growth.manage",
+] as const
+
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   Admin: "Full access to all Control Centre features",
   Finance: "Dashboard, finance, partner quotes, tracker, analytics, leads, customers, onboarding",

@@ -38,7 +38,7 @@ export const DEFAULT_GROWTH_QUESTIONS: GrowthQuestion[] = [
   { id: "previous_attempts", label: "What have you already tried to improve these challenges? What worked or did not work?", type: "textarea", required: true, maxLength: 1800 },
   { id: "capabilities", label: "Which MartPoint Basic capabilities would you use regularly, and what would you use each for?", type: "textarea", required: true, maxLength: 1800 },
   { id: "basic_fit", label: "Can you use the existing Basic package without custom development?", type: "select", required: true, options: ["Yes", "No", "Unsure"] },
-  { id: "90_day_goal", label: "What would you like to improve within your first 90 days? How could we tell whether it improved?", type: "textarea", required: true, maxLength: 1800 },
+  { id: "goal_90_days", label: "What would you like to improve within your first 90 days? How could we tell whether it improved?", type: "textarea", required: true, maxLength: 1800 },
   { id: "operator", label: "Who will be responsible for setting up and using MartPoint? Who will cover when they are unavailable?", type: "textarea", required: true, maxLength: 1200 },
   { id: "records_readiness", label: "What records can you prepare for onboarding?", type: "select", required: true, options: ["Ready now", "Can prepare within 14 days", "Need guidance", "Cannot prepare yet"] },
   { id: "barriers", label: "What could make it difficult for your business to use MartPoint consistently?", type: "textarea", required: true, maxLength: 1500 },

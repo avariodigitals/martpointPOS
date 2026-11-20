@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   calculateGrowthScore,
   canOfferGrowthAward,
+  DEFAULT_GROWTH_QUESTIONS,
   growthAssessmentSchema,
   growthEligibilityFlags,
   growthQuestionnaireSchema,
@@ -32,6 +33,7 @@ describe("Business Growth Programme application policy", () => {
   })
 
   it("enforces a bounded questionnaire with unique IDs and valid select options", () => {
+    expect(growthQuestionnaireSchema.safeParse(DEFAULT_GROWTH_QUESTIONS).success).toBe(true)
     const valid = Array.from({ length: 5 }, (_, index) => ({ id: `question_${index}`, label: `Question number ${index}`, type: "text", required: true }))
     expect(growthQuestionnaireSchema.safeParse(valid).success).toBe(true)
     expect(growthQuestionnaireSchema.safeParse([...valid, { ...valid[0], id: "different" }]).success).toBe(true)

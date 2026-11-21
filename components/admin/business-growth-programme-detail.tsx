@@ -13,6 +13,38 @@ type Detail = { programme: AppRecord; applications: AppRecord[]; awards: AppReco
 const badge = "inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
 const editorInput = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
 const editorLabel = "block text-sm font-medium text-slate-700"
+const programmeEventLabels: Record<string, string> = {
+  AI_ASSESSMENT_COMPLETED: "Application assessment completed",
+  APPLICATION_INELIGIBLE: "Application marked ineligible",
+  APPLICATION_NEEDS_CLARIFICATION: "More information requested",
+  APPLICATION_NOT_SELECTED: "Application not selected",
+  APPLICATION_OFFER: "Sponsored licence offered",
+  APPLICATION_READY: "Application marked ready for review",
+  APPLICATION_RETRY_ASSESSMENT: "Application assessment retried",
+  APPLICATION_SHORTLIST: "Application shortlisted",
+  APPLICATION_SUBMITTED: "Application received",
+  APPLICATION_WAITLIST: "Application added to the waitlist",
+  AWARD_OFFER_EMAIL_FAILED: "Offer reserved, but email could not be sent",
+  AWARD_OFFER_SENT: "Sponsored licence offer sent",
+  AWARD_OFFERED: "Sponsored licence offer created",
+  CLARIFICATION_REQUESTED: "More information requested",
+  CLARIFICATION_SUBMITTED: "Applicant submitted more information",
+  LICENCE_ACTIVATED: "Sponsored licence activated",
+  LICENCE_ACTIVATION_PREPARED: "Licence activation prepared",
+  OFFER_ACCEPTED: "Offer accepted",
+  OFFER_DECLINED: "Offer declined",
+  OFFER_EXPIRED: "Offer expired",
+  PROGRAMME_ARCHIVE: "Programme archived",
+  PROGRAMME_CLOSE: "Applications closed",
+  PROGRAMME_COMPLETE: "Programme completed",
+  PROGRAMME_CREATED: "Programme created",
+  PROGRAMME_DRAFT_UPDATED: "Programme details updated",
+  PROGRAMME_PUBLISH: "Programme published",
+}
+
+function programmeEventLabel(eventType: string) {
+  return programmeEventLabels[eventType] || eventType.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
 
 function localDateTime(value: string | null | undefined) {
   if (!value) return ""
@@ -146,7 +178,7 @@ export function BusinessGrowthProgrammeDetail({ id }: { id: string }) {
         </div>
       </details>
     }) : <p className="p-10 text-center text-sm text-slate-500">No applications received yet.</p>}</div></section>
-    <section className="rounded-xl border bg-white p-5"><h2 className="font-semibold">Recent programme audit events</h2><div className="mt-3 space-y-2">{data.events.slice(0, 30).map((event) => <div key={event.id} className="flex flex-wrap justify-between gap-2 border-b pb-2 text-xs"><span className="font-medium">{event.event_type}{event.reason ? ` — ${event.reason}` : ""}</span><time className="text-slate-500">{new Date(event.created_at).toLocaleString("en-NG", { timeZone: "Africa/Lagos" })}</time></div>)}</div></section>
+    <section className="rounded-xl border bg-white p-5"><h2 className="font-semibold">Recent programme audit events</h2><div className="mt-3 space-y-2">{data.events.slice(0, 30).map((event) => <div key={event.id} className="flex flex-wrap justify-between gap-2 border-b pb-2 text-xs"><div><p className="font-medium">{programmeEventLabel(String(event.event_type || "Programme updated"))}</p>{event.reason && <p className="mt-1 text-slate-600">Reason: {event.reason}</p>}</div><time className="text-slate-500">{new Date(event.created_at).toLocaleString("en-NG", { timeZone: "Africa/Lagos" })}</time></div>)}</div></section>
     {loading && <p className="text-xs text-slate-400">Refreshing…</p>}
   </div>
 }

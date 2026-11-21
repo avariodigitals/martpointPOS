@@ -7,7 +7,7 @@ import crypto from "crypto"
 export const maxDuration = 60
 
 type CreditProduct = { channel: "sms" | "email"; product_code: string; price_per_credit_kobo: number; minimum_topup_kobo: number; tax_bps: number; bundles: Array<{ id: number; name: string; amount_kobo: number; credit_units: number; enabled: boolean }>; enabled: boolean }
-type AddonProduct = { product_code: string; addon_key: string; name: string; fulfillment_type: "AUTOMATION_PLAN"; billing_period: "monthly" | "annual"; price_kobo: number; tax_bps: number; details: Record<string, unknown>; enabled: boolean }
+type AddonProduct = { product_code: string; addon_key: string; name: string; fulfillment_type: "AUTOMATION_PLAN" | "AI_ADS_SUBSCRIPTION"; billing_period: "monthly" | "annual"; price_kobo: number; tax_bps: number; details: Record<string, unknown>; enabled: boolean }
 
 const fail = (error: string, status = 400) => NextResponse.json({ success: false, error }, { status })
 
@@ -28,7 +28,7 @@ function validateCatalogue(products: CreditProduct[], addons: AddonProduct[]) {
   for (const p of products) {
     if (!(["sms", "email"] as string[]).includes(p.channel) || channels.has(p.channel) || p.product_code !== `martpoint-${p.channel}-credit` || !Number.isSafeInteger(p.price_per_credit_kobo) || p.price_per_credit_kobo < 1 || p.price_per_credit_kobo > 10000000 || !Number.isSafeInteger(p.minimum_topup_kobo) || p.minimum_topup_kobo < 1 || p.minimum_topup_kobo > 50000000 || !Number.isSafeInteger(p.tax_bps) || p.tax_bps < 0 || p.tax_bps > 10000 || typeof p.enabled !== "boolean" || !Array.isArray(p.bundles)) return "Credit product values are invalid."
     channels.add(p.channel)
-    if (tax !== null && tax !== p.tax_bps) return "Central currently has one tax rate for all credit and Automation products."
+    if (tax !== null && tax !== p.tax_bps) return "Central currently has one tax rate for paid catalogue products."
     tax = p.tax_bps
     const bundleIds = new Set<number>()
     for (const b of p.bundles) {
@@ -39,7 +39,9 @@ function validateCatalogue(products: CreditProduct[], addons: AddonProduct[]) {
   const addonKeys = new Set<string>()
   for (const p of addons) {
     const key = `${p.addon_key}:${p.billing_period}`
-    if (!/^automation-[a-z][a-z0-9_]{1,39}-(monthly|annual)$/.test(p.product_code) || p.product_code !== `automation-${p.addon_key}-${p.billing_period}` || addonKeys.has(key) || !/^[a-z][a-z0-9_]{1,39}$/.test(p.addon_key) || !["monthly", "annual"].includes(p.billing_period) || p.fulfillment_type !== "AUTOMATION_PLAN" || !p.name.trim() || !Number.isSafeInteger(p.price_kobo) || p.price_kobo < 0 || p.price_kobo > 50000000 || (p.enabled && (p.price_kobo === 0 || p.price_kobo + Math.round(p.price_kobo * p.tax_bps / 10000) > 50000000)) || p.tax_bps !== tax || typeof p.enabled !== "boolean" || !p.details || typeof p.details !== "object") return "An Automation product is invalid."
+    const automation = p.fulfillment_type === "AUTOMATION_PLAN" && p.addon_key !== "ai_ads" && p.product_code === `automation-${p.addon_key}-${p.billing_period}`
+    const aiAds = p.fulfillment_type === "AI_ADS_SUBSCRIPTION" && p.addon_key === "ai_ads" && p.product_code === `ai-ads-${p.billing_period}`
+    if ((!automation && !aiAds) || addonKeys.has(key) || !/^[a-z][a-z0-9_]{1,39}$/.test(p.addon_key) || !["monthly", "annual"].includes(p.billing_period) || !p.name.trim() || !Number.isSafeInteger(p.price_kobo) || p.price_kobo < 0 || p.price_kobo > 50000000 || (p.enabled && (p.price_kobo === 0 || p.price_kobo + Math.round(p.price_kobo * p.tax_bps / 10000) > 50000000)) || p.tax_bps !== tax || typeof p.enabled !== "boolean" || !p.details || typeof p.details !== "object") return "A paid add-on product is invalid."
     addonKeys.add(key)
   }
   return null

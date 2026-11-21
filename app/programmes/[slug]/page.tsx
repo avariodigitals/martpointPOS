@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { isSupabaseConfigured, supabase } from "@/lib/supabase"
+import { Footer } from "@/components/layout/footer"
 import { GrowthProgrammeApplicationForm } from "./application-form"
 import type { GrowthQuestion } from "@/lib/business-growth-policy"
 
@@ -30,6 +31,7 @@ export default async function GrowthProgrammePage({ params }: Props) {
   const questions = Array.isArray(programme.questions) ? programme.questions as GrowthQuestion[] : []
 
   return (
+    <>
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:py-16">
       <div className="mx-auto max-w-4xl">
         <header className="mb-8 rounded-3xl bg-white p-6 shadow-sm sm:p-10">
@@ -51,5 +53,7 @@ export default async function GrowthProgrammePage({ params }: Props) {
         )}
       </div>
     </main>
+    <Footer />
+    </>
   )
 }

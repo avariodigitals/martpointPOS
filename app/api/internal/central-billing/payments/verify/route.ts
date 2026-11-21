@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   if (!verifyCentralRequest(request.headers.get("x-central-timestamp") || "", raw, request.headers.get("x-central-signature") || "", new URL(request.url).pathname)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Finance service unavailable" }, { status: 503 })
   try {
-    const body = JSON.parse(raw) as { intent_id: string; provider_reference: string }
+    const body = JSON.parse(raw) as { intent_id: string; provider_reference: string; fleet_install_id?: number; store_id?: number }
     const { data: intent, error: readError } = await supabase.from("central_billing_intents").select("*").eq("id", body.intent_id).single()
     if (readError || !intent || !body.provider_reference) return NextResponse.json({ error: "Purchase not found" }, { status: 404 })
     const { data: invoice } = await supabase.from("invoices").select("total_amount").eq("id", intent.invoice_id).maybeSingle()
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     }
     const { data: mapping } = await supabase.from("central_installation_mappings").select("id,business_id,fleet_install_id,store_id").eq("id", intent.mapping_id).eq("business_id", intent.business_id).maybeSingle()
     if (!mapping || Number(mapping.fleet_install_id) !== Number(intent.fleet_install_id) || Number(mapping.store_id) !== Number(intent.store_id)) return NextResponse.json({ error: "Installation mapping unavailable" }, { status: 409 })
+    if ((body.fleet_install_id !== undefined && Number(body.fleet_install_id) !== Number(mapping.fleet_install_id)) || (body.store_id !== undefined && Number(body.store_id) !== Number(mapping.store_id))) return NextResponse.json({ error: "This payment belongs to another Fleet or store" }, { status: 403 })
     const expected = Number(invoice.total_amount)
 
     if (!intent.payment_id) {

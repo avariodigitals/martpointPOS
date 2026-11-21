@@ -4,10 +4,30 @@ import { readSettings, getPublicSiteSettings } from "@/lib/settings"
 import { footerColumns, partnerLoginNav, socialLinks } from "@/lib/navigation"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { isSupabaseConfigured, supabase } from "@/lib/supabase"
+
+type FooterProgramme = { name: string; slug: string; opens_at: string | null; closes_at: string | null }
+
+async function getAvailableProgrammes(): Promise<FooterProgramme[]> {
+  if (!isSupabaseConfigured()) return []
+  try {
+    const { data } = await supabase.from("business_growth_programmes")
+      .select("name,slug,opens_at,closes_at")
+      .eq("status", "OPEN")
+      .order("opens_at", { ascending: true })
+      .limit(5)
+    const now = Date.now()
+    return (data || []).filter((programme) =>
+      (!programme.opens_at || new Date(programme.opens_at).getTime() <= now) &&
+      (!programme.closes_at || new Date(programme.closes_at).getTime() > now),
+    ) as FooterProgramme[]
+  } catch {
+    return []
+  }
+}
 
 export async function Footer() {
-  const settings = await readSettings()
-  const site = await getPublicSiteSettings()
+  const [settings, site, programmes] = await Promise.all([readSettings(), getPublicSiteSettings(), getAvailableProgrammes()])
   const social = (settings?.social as Record<string, string>) || {}
   const footer = (settings?.footer as Record<string, string>) || {}
   const phone = "+2342017001229"
@@ -20,7 +40,7 @@ export async function Footer() {
   return (
     <footer className="w-full border-t border-white/15 bg-[#0047CC] text-white relative overflow-hidden">
       <div className="container-martpoint py-12 md:py-16 relative">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-10 md:gap-10 lg:gap-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-10 md:gap-10 xl:gap-8">
           {/* Column 1: Brand */}
           <div>
             <Link href="/" className="inline-block">
@@ -33,9 +53,6 @@ export async function Footer() {
             </Link>
             <p className="mt-4 text-sm text-white/90 leading-relaxed max-w-xs">
               The operating system for African retail and growing businesses.
-            </p>
-            <p className="mt-3 text-xs text-white/80">
-              Built in Africa for African businesses.
             </p>
             <ul className="mt-6 space-y-2.5">
               {site.contactEmail && (
@@ -118,7 +135,7 @@ export async function Footer() {
           <div>
             <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">{footerColumns.company.title}</h4>
             <ul className="space-y-3">
-              {footerColumns.company.links.map((link) => (
+              {footerColumns.company.links.filter((link) => link.href !== partnerLoginNav.href).map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
@@ -135,6 +152,26 @@ export async function Footer() {
             >
               {partnerLoginNav.label}
             </Link>
+          </div>
+
+          {/* Column 6: Currently available programmes */}
+          <div>
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">Programmes</h4>
+            <ul className="space-y-3">
+              {programmes.map((programme) => (
+                <li key={programme.slug}>
+                  <Link href={`/programmes/${programme.slug}`} className="text-sm text-white/90 hover:text-white transition-colors">
+                    {programme.name}
+                  </Link>
+                </li>
+              ))}
+              {programmes.length === 0 && <li className="text-sm text-white/75">No programmes currently open</li>}
+              <li>
+                <Link href="/programmes" className="text-sm text-white/90 underline underline-offset-4 hover:text-white transition-colors">
+                  View all programmes
+                </Link>
+              </li>
+            </ul>
           </div>
         </div>
 

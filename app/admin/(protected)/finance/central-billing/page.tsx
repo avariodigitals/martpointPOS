@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 
 type Bundle = { id: number; name: string; amount_kobo: number; amount_input: string; credit_units: number; enabled: boolean }
 type Credit = { channel: "sms" | "email"; product_code: string; price: string; minimum: string; tax_percent: string; enabled: boolean; bundles: Bundle[] }
-type Addon = { product_code: string; addon_key: string; name: string; fulfillment_type: "AUTOMATION_PLAN"; billing_period: "monthly" | "annual"; price: string; tax_percent: string; details: Record<string, unknown>; enabled: boolean }
+type Addon = { product_code: string; addon_key: string; name: string; fulfillment_type: "AUTOMATION_PLAN" | "AI_ADS_SUBSCRIPTION"; billing_period: "monthly" | "annual"; price: string; tax_percent: string; details: Record<string, unknown>; enabled: boolean }
 type State = { products: Credit[]; addons: Addon[]; control: { price_owner: "CENTRAL" | "NEXT"; sync_status: string; source_version: string | null; synced_at: string | null } }
 
 const naira = (kobo: number) => (Number(kobo) / 100).toFixed(2)
@@ -31,10 +31,13 @@ export default function CentralBillingCataloguePage() {
       const response = await fetch("/api/admin/central-billing/catalogue", { cache: "no-store" })
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || "Catalogue is unavailable")
+      const tax = percentFromBps(Number(data.products?.[0]?.tax_bps ?? 0))
+      const addons: Addon[] = (data.addons || []).map((p: Record<string, unknown>) => ({ product_code: String(p.product_code), addon_key: String(p.addon_key), name: String(p.name), fulfillment_type: p.fulfillment_type === "AI_ADS_SUBSCRIPTION" ? "AI_ADS_SUBSCRIPTION" : "AUTOMATION_PLAN", billing_period: p.billing_period as "monthly" | "annual", price: naira(Number(p.price_kobo)), tax_percent: percentFromBps(Number(p.tax_bps)), details: (p.details || {}) as Record<string, unknown>, enabled: !!p.active }))
+      for (const period of ["monthly", "annual"] as const) if (!addons.some((p) => p.fulfillment_type === "AI_ADS_SUBSCRIPTION" && p.billing_period === period)) addons.push({ product_code: `ai-ads-${period}`, addon_key: "ai_ads", name: "MartPoint AI Ads", fulfillment_type: "AI_ADS_SUBSCRIPTION", billing_period: period, price: "0.00", tax_percent: tax, details: { access: "AI Ads workspace and campaign tools", renewal: "manual", ad_spend: "paid directly by the merchant to Meta" }, enabled: false })
       setState({
         control: data.control,
         products: (data.products || []).map((p: Record<string, unknown>) => ({ channel: p.channel as "sms" | "email", product_code: String(p.product_code), price: naira(Number(p.price_per_credit_kobo)), minimum: naira(Number(p.minimum_topup_kobo)), tax_percent: percentFromBps(Number(p.tax_bps)), enabled: !!p.active, bundles: ((p.bundles || []) as Array<Omit<Bundle, "amount_input">>).map((bundle) => ({ ...bundle, amount_input: naira(Number(bundle.amount_kobo)) })) })),
-        addons: (data.addons || []).map((p: Record<string, unknown>) => ({ product_code: String(p.product_code), addon_key: String(p.addon_key), name: String(p.name), fulfillment_type: "AUTOMATION_PLAN" as const, billing_period: p.billing_period as "monthly" | "annual", price: naira(Number(p.price_kobo)), tax_percent: percentFromBps(Number(p.tax_bps)), details: (p.details || {}) as Record<string, unknown>, enabled: !!p.active })),
+        addons,
       })
       setError("")
     } catch (e) { setError(e instanceof Error ? e.message : "Catalogue load failed") }
@@ -161,9 +164,10 @@ export default function CentralBillingCataloguePage() {
         </div> })}
       </div>
     </CardContent></Card>)}
+    <Card><CardHeader><CardTitle>AI Ads subscription</CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Monthly and annual software access. Renewals are invoiced; automatic charging is not enabled. Ad spend is paid directly by each merchant to Meta. Campaign publishing is not released yet, so keep these offers disabled until that feature is ready. After expiry, an existing Meta campaign will remain in the merchant’s account and follow its own end date.</p><div className="grid gap-3 md:grid-cols-2">{(["monthly", "annual"] as const).map((period) => { const p = state.addons.find((item) => item.fulfillment_type === "AI_ADS_SUBSCRIPTION" && item.billing_period === period); if (!p) return null; const index = state.addons.indexOf(p); const net = Math.round(Number(p.price) * 100) || 0; const vat = taxKobo(net, p.tax_percent); return <div className="space-y-3 rounded-md border p-3" key={period}><h3 className="text-sm font-medium capitalize">{period}</h3><label className="block space-y-1 text-sm">Price before tax (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="500000" step="0.01" value={net ? p.price : ""} placeholder="Set price" onChange={(e) => updateAddon(index, "price", e.target.value)} /></label><label className="block space-y-1 text-sm">Tax rate (%)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="100" step="0.01" value={p.tax_percent} onChange={(e) => updateAddon(index, "tax_percent", e.target.value)} /><span className="block text-xs text-muted-foreground">Tax {money(vat)} · total payable {money(net + vat)}</span></label><label className="flex items-center gap-2 text-sm"><input disabled={state.control.price_owner !== "NEXT" || !net} type="checkbox" checked={p.enabled} onChange={(e) => updateAddon(index, "enabled", e.target.checked)} />Available for purchase</label></div> })}</div></CardContent></Card>
     <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Automation plans</CardTitle><Button type="button" variant="outline" disabled={state.control.price_owner !== "NEXT" || working} onClick={addPlan}><Plus className="mr-1 h-4 w-4" />Add plan</Button></div></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Set each plan’s monthly and annual price here. Removing a plan or frequency archives its offer while preserving past invoices and active customer access. New plans include the standard automation templates and a 10 workflow allowance.</p>
-      {Array.from(new Set(state.addons.map((p) => p.addon_key))).map((key) => {
-        const plan = state.addons.filter((p) => p.addon_key === key).sort((a, b) => a.billing_period.localeCompare(b.billing_period))
+      {Array.from(new Set(state.addons.filter((p) => p.fulfillment_type === "AUTOMATION_PLAN").map((p) => p.addon_key))).map((key) => {
+        const plan = state.addons.filter((p) => p.fulfillment_type === "AUTOMATION_PLAN" && p.addon_key === key).sort((a, b) => a.billing_period.localeCompare(b.billing_period))
         const first = plan[0]
         const planName = first?.name || key
         const setPlanName = (name: string) => setState((old) => old ? { ...old, addons: old.addons.map((p) => p.addon_key === key ? { ...p, name } : p) } : old)
@@ -186,7 +190,7 @@ export default function CentralBillingCataloguePage() {
           </div>
         </div>
       })}
-      {state.addons.length === 0 && <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No Automation plans. Add a plan to create monthly and annual offers.</p>}
+      {state.addons.filter((p) => p.fulfillment_type === "AUTOMATION_PLAN").length === 0 && <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No Automation plans. Add a plan to create monthly and annual offers.</p>}
     </CardContent></Card>
   </div>
 }

@@ -24,8 +24,8 @@ export async function POST(request: Request) {
   if ((paymentMode === "test" && !secret.startsWith("sk_test_")) || (paymentMode === "live" && !secret.startsWith("sk_live_"))) return NextResponse.json({ error: `Central Paystack ${paymentMode} key is invalid` }, { status: 503 })
   try {
     const body = JSON.parse(raw) as { intent_id: string; provider_reference: string }
-    if (!/^[0-9a-f-]{36}$/i.test(body.intent_id || "") || !/^MPMSG_[a-f0-9]{40}$/i.test(body.provider_reference || "")) return NextResponse.json({ error: "Invalid checkout request" }, { status: 400 })
-    const { data: intent } = await supabase.from("central_billing_intents").select("id,invoice_id,business_id,mapping_id,payment_status,provider_reference,checkout_url").eq("id", body.intent_id).maybeSingle()
+    if (!/^[0-9a-f-]{36}$/i.test(body.intent_id || "") || !/^(MPMSG|MPADS)_[a-f0-9]{40}$/i.test(body.provider_reference || "")) return NextResponse.json({ error: "Invalid checkout request" }, { status: 400 })
+    const { data: intent } = await supabase.from("central_billing_intents").select("id,invoice_id,business_id,mapping_id,payment_status,provider_reference,checkout_url,product_type,addon_product_id,addon_key,billing_period").eq("id", body.intent_id).maybeSingle()
     if (!intent || !intent.invoice_id) return NextResponse.json({ error: "Central invoice not found" }, { status: 404 })
     if (intent.payment_status !== "PENDING") return NextResponse.json({ error: "This purchase is no longer payable" }, { status: 409 })
     if (intent.provider_reference && intent.provider_reference !== body.provider_reference) return NextResponse.json({ error: "Payment reference conflict" }, { status: 409 })
@@ -44,8 +44,11 @@ export async function POST(request: Request) {
     if (!Number.isSafeInteger(amount) || amount < 1) return NextResponse.json({ error: "Invoice amount is invalid" }, { status: 409 })
     const installUrl = String(mapping.install_url).replace(/\/$/, "")
     if (!/^https:\/\//.test(installUrl)) return NextResponse.json({ error: "Fleet return URL is not secure" }, { status: 409 })
-    const callback = `${installUrl}/messaging_api/payment_return/paystack/${encodeURIComponent(body.provider_reference)}?store_id=${encodeURIComponent(String(mapping.store_id))}`
-    const response = await fetch("https://api.paystack.co/transaction/initialize", { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" }, body: JSON.stringify({ email, amount, currency: "NGN", reference: body.provider_reference, callback_url: callback, metadata: { purpose: "central_messaging_purchase", intent_id: intent.id, invoice_id: intent.invoice_id, fleet_install_id: mapping.fleet_install_id, store_id: mapping.store_id } }), cache: "no-store" })
+    const isAiAds = intent.product_type === "ADDON" && intent.addon_key === "ai_ads" && body.provider_reference.startsWith("MPADS_")
+    const callback = isAiAds
+      ? `${installUrl}/marketing/ai_ads/billing_return?reference=${encodeURIComponent(body.provider_reference)}&store_id=${encodeURIComponent(String(mapping.store_id))}`
+      : `${installUrl}/messaging_api/payment_return/paystack/${encodeURIComponent(body.provider_reference)}?store_id=${encodeURIComponent(String(mapping.store_id))}`
+    const response = await fetch("https://api.paystack.co/transaction/initialize", { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" }, body: JSON.stringify({ email, amount, currency: "NGN", reference: body.provider_reference, callback_url: callback, metadata: { purpose: isAiAds ? "ai_ads_subscription" : "central_messaging_purchase", intent_id: intent.id, invoice_id: intent.invoice_id, fleet_install_id: mapping.fleet_install_id, store_id: mapping.store_id } }), cache: "no-store" })
     const result = await response.json().catch(() => null) as { status?: boolean; message?: string; data?: { authorization_url?: string } } | null
     const checkoutUrl = result?.data?.authorization_url || ""
     if (!response.ok || !result?.status || !checkoutUrl.startsWith("https://")) return NextResponse.json({ error: "Paystack could not start Central checkout" }, { status: 502 })

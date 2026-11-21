@@ -26,6 +26,7 @@ export async function POST(request: Request) {
     if (productError || !product || !["AUTOMATION_PLAN", "AI_ADS_SUBSCRIPTION"].includes(product.fulfillment_type) || (product.fulfillment_type === "AI_ADS_SUBSCRIPTION" && (product.addon_key !== "ai_ads" || !p.product_code.startsWith("ai-ads-")))) return NextResponse.json({ error: "Imported paid add-on is unavailable" }, { status: 409 })
     const amountKobo = aiAdsCode ? Number(product.price_kobo) + Math.round(Number(product.price_kobo) * Number(product.tax_bps) / 10000) : Number(p.amount_kobo)
     const taxKobo = aiAdsCode ? Math.round(Number(product.price_kobo) * Number(product.tax_bps) / 10000) : Number(p.tax_kobo)
+    if (aiAdsCode && amountKobo < 5000) return NextResponse.json({ error: "AI Ads invoice total is below Paystack's ₦50 NGN minimum" }, { status: 409 })
     if (amountKobo - taxKobo !== Number(product.price_kobo) || Math.round(Number(product.price_kobo) * Number(product.tax_bps) / 10000) !== taxKobo) return NextResponse.json({ error: "Add-on price or tax does not match the imported catalogue" }, { status: 409 })
     const hash = crypto.createHash("sha256").update(JSON.stringify(p)).digest("hex")
     const { data, error } = await supabase.rpc("central_create_addon_invoice", { p_idempotency_key: p.idempotency_key, p_payload_hash: hash, p_fleet_install_id: p.fleet_install_id, p_store_id: p.store_id, p_install_url: p.install_url, p_product_code: p.product_code, p_amount_kobo: amountKobo, p_tax_kobo: taxKobo })

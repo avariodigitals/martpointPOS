@@ -42,6 +42,7 @@ function validateCatalogue(products: CreditProduct[], addons: AddonProduct[]) {
     const automation = p.fulfillment_type === "AUTOMATION_PLAN" && p.addon_key !== "ai_ads" && p.product_code === `automation-${p.addon_key}-${p.billing_period}`
     const aiAds = p.fulfillment_type === "AI_ADS_SUBSCRIPTION" && p.addon_key === "ai_ads" && p.product_code === `ai-ads-${p.billing_period}`
     if ((!automation && !aiAds) || addonKeys.has(key) || !/^[a-z][a-z0-9_]{1,39}$/.test(p.addon_key) || !["monthly", "annual"].includes(p.billing_period) || !p.name.trim() || !Number.isSafeInteger(p.price_kobo) || p.price_kobo < 0 || p.price_kobo > 50000000 || (p.enabled && (p.price_kobo === 0 || p.price_kobo + Math.round(p.price_kobo * p.tax_bps / 10000) > 50000000)) || p.tax_bps !== tax || typeof p.enabled !== "boolean" || !p.details || typeof p.details !== "object") return "A paid add-on product is invalid."
+    if (aiAds && p.enabled && p.price_kobo + Math.round(p.price_kobo * p.tax_bps / 10000) < 5000) return "An AI Ads plan must total at least ₦50 after tax to use Paystack."
     addonKeys.add(key)
   }
   return null

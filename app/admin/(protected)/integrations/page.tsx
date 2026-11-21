@@ -49,8 +49,18 @@ interface AdLeadsSettings {
   webhookSecret: string
   tiktokAppSecret: string
   metaVerifyToken: string
-  metaAppSecret: string
   metaPageAccessToken: string
+}
+
+interface MetaAdsSettings {
+  appId: string
+  loginConfigId: string
+  redirectUri: string
+  graphVersion: string
+  appSecretConfigured: boolean
+  appSecretSource: "admin" | "environment" | "missing"
+  appSecretHint: string
+  updatedAt: string | null
 }
 
 interface PaystackSettings {
@@ -68,7 +78,6 @@ const defaultAdLeads: AdLeadsSettings = {
   webhookSecret: "",
   tiktokAppSecret: "",
   metaVerifyToken: "",
-  metaAppSecret: "",
   metaPageAccessToken: "",
 }
 
@@ -77,6 +86,12 @@ export default function IntegrationsPage() {
   const [whatsapp, setWhatsapp] = useState<WhatsAppSettings>(defaultWhatsApp)
   const [adLeads, setAdLeads] = useState<AdLeadsSettings>(defaultAdLeads)
   const [paystack, setPaystack] = useState<PaystackSettings | null>(null)
+  const [metaAds, setMetaAds] = useState<MetaAdsSettings | null>(null)
+  const [metaAdsAppSecret, setMetaAdsAppSecret] = useState("")
+  const [clearMetaAdsSecret, setClearMetaAdsSecret] = useState(false)
+  const [metaAdsSaving, setMetaAdsSaving] = useState(false)
+  const [metaAdsMessage, setMetaAdsMessage] = useState("")
+  const [metaAdsMessageError, setMetaAdsMessageError] = useState(false)
   const [paystackMode, setPaystackMode] = useState<"test" | "live">("live")
   const [paystackLiveSecret, setPaystackLiveSecret] = useState("")
   const [paystackTestSecret, setPaystackTestSecret] = useState("")
@@ -113,6 +128,16 @@ export default function IntegrationsPage() {
       })
       .catch((error) => { setPaystackMessage(error instanceof Error ? error.message : "Could not load Paystack settings"); setPaystackMessageError(true) })
       .finally(() => setPaystackLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetch("/api/admin/integrations/meta-ads", { cache: "no-store" })
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok || !data.success) throw new Error(data.error || "Could not load Meta settings")
+        setMetaAds(data.settings)
+      })
+      .catch((error) => { setMetaAdsMessage(error instanceof Error ? error.message : "Could not load Meta settings"); setMetaAdsMessageError(true) })
   }, [])
 
   const save = async () => {
@@ -152,6 +177,22 @@ export default function IntegrationsPage() {
     finally { setPaystackSaving(false) }
   }
 
+  const saveMetaAds = async () => {
+    if (!metaAds) return
+    setMetaAdsSaving(true); setMetaAdsMessage(""); setMetaAdsMessageError(false)
+    try {
+      const response = await fetch("/api/admin/integrations/meta-ads", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...metaAds, appSecret: metaAdsAppSecret, clearAppSecret: clearMetaAdsSecret }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Could not save Meta settings")
+      setMetaAds(data.settings); setMetaAdsAppSecret(""); setClearMetaAdsSecret(false)
+      setMetaAdsMessage("Meta Ads credentials saved securely.")
+    } catch (error) { setMetaAdsMessage(error instanceof Error ? error.message : "Could not save Meta settings"); setMetaAdsMessageError(true) }
+    finally { setMetaAdsSaving(false) }
+  }
+
   const input = (label: string, value: string, onChange: (v: string) => void, type = "text") => (
     <div>
       <label className="block text-sm font-medium mb-1">{label}</label>
@@ -182,6 +223,27 @@ export default function IntegrationsPage() {
       {message && (
         <p className={`text-sm ${message.includes("success") ? "text-green-600" : "text-red-500"}`}>{message}</p>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Megaphone className="h-4 w-4" />Meta Ads Platform</CardTitle>
+          <CardDescription>Manage the shared Meta app credentials here. The App Secret is encrypted in Central storage, never sent to the browser after saving, and can be rotated without a Fleet hosting change.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {metaAdsMessage && <p role={metaAdsMessageError ? "alert" : "status"} className={`text-sm ${metaAdsMessageError ? "text-red-600" : "text-green-700"}`}>{metaAdsMessage}</p>}
+          {!metaAds ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading Meta settings…</div> : <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1 text-sm"><span className="font-medium">Meta App ID</span><input value={metaAds.appId} onChange={(e) => setMetaAds({ ...metaAds, appId: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono" /></label>
+              <label className="space-y-1 text-sm"><span className="font-medium">Business Login configuration ID</span><input value={metaAds.loginConfigId} onChange={(e) => setMetaAds({ ...metaAds, loginConfigId: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono" /></label>
+              <label className="space-y-1 text-sm"><span className="font-medium">Graph API version</span><input value={metaAds.graphVersion} onChange={(e) => setMetaAds({ ...metaAds, graphVersion: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono" /></label>
+              <label className="space-y-1 text-sm"><span className="font-medium">OAuth callback URI</span><input value={metaAds.redirectUri} onChange={(e) => setMetaAds({ ...metaAds, redirectUri: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono" /></label>
+            </div>
+            <label className="block space-y-1 text-sm"><span className="font-medium">Meta App Secret</span><input type="password" autoComplete="new-password" value={metaAdsAppSecret} onChange={(e) => { setMetaAdsAppSecret(e.target.value); setClearMetaAdsSecret(false) }} placeholder={metaAds.appSecretConfigured ? `Saved ${metaAds.appSecretHint} — leave blank to keep it` : "Enter the Meta App Secret"} className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono" /><span className="block text-xs text-muted-foreground">The secret is encrypted before storage and is never returned to the page. Source: {metaAds.appSecretSource === "admin" ? "Central Admin" : metaAds.appSecretSource === "environment" ? "legacy server setting" : "not configured"}.</span></label>
+            <div className="flex flex-wrap items-center gap-3 border-t pt-4"><Button onClick={() => void saveMetaAds()} disabled={metaAdsSaving}>{metaAdsSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Save Meta credentials</Button>{metaAds.appSecretConfigured && <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={clearMetaAdsSecret} onChange={(e) => { setClearMetaAdsSecret(e.target.checked); setMetaAdsAppSecret("") }} />Remove saved App Secret</label>}</div>
+            <p className="text-xs text-muted-foreground">Callback used by the current PHP Central broker. Keep this URI identical to Facebook Login for Business → Valid OAuth Redirect URIs.</p>
+          </>}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -341,7 +403,7 @@ export default function IntegrationsPage() {
                   </Button>
                 </div>
               </div>
-              {input("Meta App Secret", adLeads.metaAppSecret, (v) => setAdLeads({ ...adLeads, metaAppSecret: v }), "password")}
+              <p className="text-xs text-muted-foreground">Meta webhook signature verification uses the shared Meta App Secret configured in the Meta Ads Platform section above.</p>
               {input("Meta Page Access Token (leads_retrieval)", adLeads.metaPageAccessToken, (v) => setAdLeads({ ...adLeads, metaPageAccessToken: v }), "password")}
             </div>
           </CardContent>

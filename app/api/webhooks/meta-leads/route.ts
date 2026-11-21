@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createHmac, timingSafeEqual } from "crypto"
 import { processLead } from "@/lib/process-lead"
 import { getSettings } from "@/lib/settings"
+import { getMetaAdsCredentials } from "@/lib/meta-ads-settings"
 import {
   extractAdLeadFields,
   normalizeProductInterest,
@@ -110,7 +111,7 @@ async function ingestMetaLead(fields: AdLeadFields, leadgenId: string): Promise<
 
 export async function POST(request: Request) {
   const raw = await request.text()
-  const settings = await getSettings()
+  const [settings, metaAds] = await Promise.all([getSettings(), getMetaAdsCredentials()])
 
   // --- Auth: shared secret (Make.com relay) or Meta x-hub-signature-256 (native) ---
   const url = new URL(request.url)
@@ -141,8 +142,9 @@ export async function POST(request: Request) {
   }
 
   const appSecrets = [
+    process.env.MP_META_APP_SECRET,
     process.env.META_APP_SECRET,
-    settings.adLeads?.metaAppSecret,
+    metaAds.appSecret,
   ].filter(Boolean) as string[]
   const signature = request.headers.get("x-hub-signature-256")
   if (!appSecrets.some((s) => verifyMetaSignature(raw, signature, s))) {

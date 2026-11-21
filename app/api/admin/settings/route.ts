@@ -321,8 +321,13 @@ export async function GET() {
   const settings = await readSettings()
   // Never ship the Google refresh token to the browser; the UI only needs to know it exists.
   const google = (settings.google as Record<string, unknown> | undefined) || {}
+  const adLeads = { ...((settings.adLeads as Record<string, unknown> | undefined) || {}) }
+  // Meta App Secret now lives in the encrypted Meta credential store. Never return
+  // the legacy plaintext value from the generic settings document to the browser.
+  delete adLeads.metaAppSecret
   return NextResponse.json({
     ...settings,
+    adLeads,
     communications: settings.communications ? {
       ...(settings.communications as Record<string, unknown>),
       sms: { ...((settings.communications as { sms?: Record<string, unknown> }).sms || {}), apiKey: undefined },
@@ -350,6 +355,12 @@ export async function POST(request: Request) {
     }
     const current = await readSettings()
     const updated = { ...current }
+    if (body.adLeads && typeof body.adLeads === "object" && !Array.isArray(body.adLeads)) {
+      const safeAdLeads = { ...(body.adLeads as Record<string, unknown>) }
+      // Credentials must be written through /api/admin/integrations/meta-ads.
+      delete safeAdLeads.metaAppSecret
+      body.adLeads = safeAdLeads
+    }
     if (body.google && typeof body.google === "object") {
       // Refresh token is only ever written by the OAuth callback.
       const { refreshToken: _rt, connected: _c, ...rest } = body.google as Record<string, unknown>
@@ -373,6 +384,10 @@ export async function POST(request: Request) {
         value && typeof value === "object" && !Array.isArray(value)
           ? { ...(existing as Record<string, unknown>), ...(value as Record<string, unknown>) }
           : value
+    }
+    if (updated.adLeads && typeof updated.adLeads === "object") {
+      updated.adLeads = { ...(updated.adLeads as Record<string, unknown>) }
+      delete (updated.adLeads as Record<string, unknown>).metaAppSecret
     }
 
     const result = await writeSettings(updated)

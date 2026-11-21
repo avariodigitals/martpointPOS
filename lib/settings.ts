@@ -131,11 +131,12 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
 export async function getSettings(): Promise<Record<string, unknown> & IntegrationSettings> {
   const stored = (await readSettings()) || {}
   const defaults = getIntegrationDefaults()
+  const storedAdLeads = (stored.adLeads || {}) as Partial<IntegrationSettings["adLeads"]>
 
   return {
     ...stored,
     livekit: { ...defaults.livekit, ...((stored.livekit || {}) as Partial<IntegrationSettings["livekit"]>) },
     whatsapp: { ...defaults.whatsapp, ...((stored.whatsapp || {}) as Partial<IntegrationSettings["whatsapp"]>) },
-    adLeads: { ...defaults.adLeads, ...((stored.adLeads || {}) as Partial<IntegrationSettings["adLeads"]>) },
+    adLeads: { ...defaults.adLeads, ...storedAdLeads },
   } as Record<string, unknown> & IntegrationSettings
 }

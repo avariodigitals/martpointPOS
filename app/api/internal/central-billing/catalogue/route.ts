@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { verifyCentralRequest } from "@/lib/central-billing-auth"
 import crypto from "crypto"
+import { isAiAdsOffer, normalizeAiAdsEntitlements } from "@/lib/ai-ads-entitlements"
 
 export async function POST(request: Request) {
   const raw = await request.text()
@@ -30,8 +31,14 @@ export async function POST(request: Request) {
     }
     for (const addon of body.addons || []) {
       const automation = addon.fulfillment_type === "AUTOMATION_PLAN" && addon.addon_key !== "ai_ads" && addon.product_code === `automation-${addon.addon_key}-${addon.billing_period}`
-      const aiAds = addon.fulfillment_type === "AI_ADS_SUBSCRIPTION" && addon.addon_key === "ai_ads" && addon.product_code === `ai-ads-${addon.billing_period}`
+      const aiAds = addon.fulfillment_type === "AI_ADS_SUBSCRIPTION" && isAiAdsOffer(addon.addon_key, addon.product_code, addon.billing_period)
       if ((!automation && !aiAds) || !/^[a-z][a-z0-9_-]{1,79}$/.test(addon.product_code) || !/^[a-z][a-z0-9_]{1,39}$/.test(addon.addon_key) || !addon.name.trim() || !["monthly", "annual"].includes(addon.billing_period) || !Number.isSafeInteger(addon.price_kobo) || addon.price_kobo < 0 || (addon.enabled && addon.price_kobo === 0) || !Number.isSafeInteger(addon.tax_bps) || addon.tax_bps < 0 || addon.tax_bps > 10000 || typeof addon.enabled !== "boolean" || !addon.details || typeof addon.details !== "object") return NextResponse.json({ error: "Invalid add-on catalogue snapshot" }, { status: 400 })
+      if (aiAds && addon.enabled) {
+        const raw = addon.details.entitlements
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) return NextResponse.json({ error: "AI Ads plan allowances are missing" }, { status: 400 })
+        const clean = normalizeAiAdsEntitlements(raw)
+        if (Object.entries(clean).some(([key, value]) => Number((raw as Record<string, unknown>)[key]) !== value)) return NextResponse.json({ error: "AI Ads plan allowances are invalid" }, { status: 400 })
+      }
       const hash = crypto.createHash("sha256").update(JSON.stringify({ ...addon, source_version: body.source_version })).digest("hex")
       const { data: old, error: readError } = await supabase.from("central_addon_products").select("source_hash").eq("product_code", addon.product_code).maybeSingle()
       if (readError) throw readError

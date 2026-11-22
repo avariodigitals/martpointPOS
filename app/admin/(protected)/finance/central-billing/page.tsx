@@ -6,10 +6,11 @@ import { useEffect, useState } from "react"
 import { AlertCircle, CheckCircle2, Loader2, Plus, RefreshCw, Save, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { DEFAULT_AI_ADS_ENTITLEMENTS, normalizeAiAdsEntitlements, type AiAdsEntitlements } from "@/lib/ai-ads-entitlements"
 
 type Bundle = { id: number; name: string; amount_kobo: number; amount_input: string; credit_units: number; enabled: boolean }
 type Credit = { channel: "sms" | "email"; product_code: string; price: string; minimum: string; tax_percent: string; enabled: boolean; bundles: Bundle[] }
-type Addon = { product_code: string; addon_key: string; name: string; fulfillment_type: "AUTOMATION_PLAN" | "AI_ADS_SUBSCRIPTION"; billing_period: "monthly" | "annual"; price: string; tax_percent: string; details: Record<string, unknown>; enabled: boolean }
+type Addon = { product_code: string; addon_key: string; name: string; fulfillment_type: "AUTOMATION_PLAN" | "AI_ADS_SUBSCRIPTION"; billing_period: "monthly" | "annual"; price: string; tax_percent: string; details: Record<string, unknown>; entitlements: AiAdsEntitlements; enabled: boolean }
 type State = { products: Credit[]; addons: Addon[]; control: { price_owner: "CENTRAL" | "NEXT"; sync_status: string; source_version: string | null; synced_at: string | null } }
 
 const naira = (kobo: number) => (Number(kobo) / 100).toFixed(2)
@@ -32,8 +33,11 @@ export default function CentralBillingCataloguePage() {
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || "Catalogue is unavailable")
       const tax = percentFromBps(Number(data.products?.[0]?.tax_bps ?? 0))
-      const addons: Addon[] = (data.addons || []).map((p: Record<string, unknown>) => ({ product_code: String(p.product_code), addon_key: String(p.addon_key), name: String(p.name), fulfillment_type: p.fulfillment_type === "AI_ADS_SUBSCRIPTION" ? "AI_ADS_SUBSCRIPTION" : "AUTOMATION_PLAN", billing_period: p.billing_period as "monthly" | "annual", price: naira(Number(p.price_kobo)), tax_percent: percentFromBps(Number(p.tax_bps)), details: (p.details || {}) as Record<string, unknown>, enabled: !!p.active }))
-      for (const period of ["monthly", "annual"] as const) if (!addons.some((p) => p.fulfillment_type === "AI_ADS_SUBSCRIPTION" && p.billing_period === period)) addons.push({ product_code: `ai-ads-${period}`, addon_key: "ai_ads", name: "MartPoint AI Ads", fulfillment_type: "AI_ADS_SUBSCRIPTION", billing_period: period, price: "0.00", tax_percent: tax, details: { access: "AI Ads workspace and campaign tools", renewal: "manual", ad_spend: "paid directly by the merchant to Meta" }, enabled: false })
+      const addons: Addon[] = (data.addons || []).map((p: Record<string, unknown>) => {
+        const details = (p.details || {}) as Record<string, unknown>
+        return { product_code: String(p.product_code), addon_key: String(p.addon_key), name: String(p.name), fulfillment_type: p.fulfillment_type === "AI_ADS_SUBSCRIPTION" ? "AI_ADS_SUBSCRIPTION" : "AUTOMATION_PLAN", billing_period: p.billing_period as "monthly" | "annual", price: naira(Number(p.price_kobo)), tax_percent: percentFromBps(Number(p.tax_bps)), details, entitlements: normalizeAiAdsEntitlements(details.entitlements), enabled: !!p.active }
+      })
+      for (const period of ["monthly", "annual"] as const) if (!addons.some((p) => p.fulfillment_type === "AI_ADS_SUBSCRIPTION" && p.billing_period === period && p.addon_key === "ai_ads")) addons.push({ product_code: `ai-ads-${period}`, addon_key: "ai_ads", name: "AI Ads Starter", fulfillment_type: "AI_ADS_SUBSCRIPTION", billing_period: period, price: "0.00", tax_percent: tax, details: { access: "AI Ads workspace and campaign tools", renewal: "manual", ad_spend: "paid directly by the merchant to Meta", entitlements: DEFAULT_AI_ADS_ENTITLEMENTS }, entitlements: DEFAULT_AI_ADS_ENTITLEMENTS, enabled: false })
       setState({
         control: data.control,
         products: (data.products || []).map((p: Record<string, unknown>) => ({ channel: p.channel as "sms" | "email", product_code: String(p.product_code), price: naira(Number(p.price_per_credit_kobo)), minimum: naira(Number(p.minimum_topup_kobo)), tax_percent: percentFromBps(Number(p.tax_bps)), enabled: !!p.active, bundles: ((p.bundles || []) as Array<Omit<Bundle, "amount_input">>).map((bundle) => ({ ...bundle, amount_input: naira(Number(bundle.amount_kobo)) })) })),
@@ -51,6 +55,27 @@ export default function CentralBillingCataloguePage() {
   }
   function updateAddon(index: number, key: keyof Addon, value: unknown) {
     setState((old) => old ? { ...old, addons: old.addons.map((p, i) => i === index ? { ...p, [key]: value } : p) } : old)
+  }
+  function updateAiAdsEntitlement(addonKey: string, key: keyof AiAdsEntitlements, value: string) {
+    setState((old) => old ? { ...old, addons: old.addons.map((p) => p.fulfillment_type === "AI_ADS_SUBSCRIPTION" && p.addon_key === addonKey ? { ...p, entitlements: { ...p.entitlements, [key]: Math.max(0, Math.floor(Number(value) || 0)) } } : p) } : old)
+  }
+  function updateAiAdsPlanName(addonKey: string, value: string) {
+    setState((old) => old ? { ...old, addons: old.addons.map((p) => p.fulfillment_type === "AI_ADS_SUBSCRIPTION" && p.addon_key === addonKey ? { ...p, name: value } : p) } : old)
+  }
+  function addAiAdsTier() {
+    setState((old) => {
+      if (!old) return old
+      const slug = `tier_${Date.now().toString(36)}`
+      const addonKey = `ai_ads_${slug}`
+      const name = "New AI Ads Tier"
+      const details = { access: "AI Ads workspace and campaign tools", renewal: "manual", ad_spend: "paid directly by the merchant to Meta", entitlements: DEFAULT_AI_ADS_ENTITLEMENTS }
+      const additions = (["monthly", "annual"] as const).map((period) => ({ product_code: `ai-ads-${slug}-${period}`, addon_key: addonKey, name, fulfillment_type: "AI_ADS_SUBSCRIPTION" as const, billing_period: period, price: "0.00", tax_percent: old.products[0]?.tax_percent || "7.5", details, entitlements: DEFAULT_AI_ADS_ENTITLEMENTS, enabled: false }))
+      return { ...old, addons: [...old.addons, ...additions] }
+    })
+  }
+  function removeAiAdsTier(addonKey: string) {
+    if (addonKey === "ai_ads") return
+    setState((old) => old ? { ...old, addons: old.addons.filter((p) => p.fulfillment_type !== "AI_ADS_SUBSCRIPTION" || p.addon_key !== addonKey) } : old)
   }
   function updateBundle(productIndex: number, bundleIndex: number, key: keyof Bundle, value: unknown) {
     setState((old) => old ? {
@@ -99,7 +124,7 @@ export default function CentralBillingCataloguePage() {
       const key = `plan_${Date.now().toString(36)}`
       const details = { max_workflows: 10, template_keys: ["welcome", "winback", "newsletter", "custom"] }
       return { ...old, addons: [...old.addons,
-        ...(["monthly", "annual"] as const).map((period) => ({ product_code: `automation-${key}-${period}`, addon_key: key, name: "New Automation Plan", fulfillment_type: "AUTOMATION_PLAN" as const, billing_period: period, price: "0.00", tax_percent: old.products[0]?.tax_percent || "7.5", details, enabled: false }))] }
+        ...(["monthly", "annual"] as const).map((period) => ({ product_code: `automation-${key}-${period}`, addon_key: key, name: "New Automation Plan", fulfillment_type: "AUTOMATION_PLAN" as const, billing_period: period, price: "0.00", tax_percent: old.products[0]?.tax_percent || "7.5", details, entitlements: DEFAULT_AI_ADS_ENTITLEMENTS, enabled: false }))] }
     })
   }
 
@@ -127,7 +152,7 @@ export default function CentralBillingCataloguePage() {
       const payload = action === "save" ? {
         action,
         products: state.products.map((p) => ({ channel: p.channel, product_code: p.product_code, price_per_credit_kobo: Math.round(Number(p.price) * 100), minimum_topup_kobo: Math.round(Number(p.minimum) * 100), tax_bps: bpsFromPercent(p.tax_percent), enabled: p.enabled, bundles: p.bundles.map(({ id, name, amount_kobo, credit_units, enabled }) => ({ id, name, amount_kobo, credit_units, enabled })) })),
-        addons: state.addons.map((p) => ({ product_code: p.product_code, addon_key: p.addon_key, name: p.name, fulfillment_type: p.fulfillment_type, billing_period: p.billing_period, price_kobo: Math.round(Number(p.price) * 100), tax_bps: bpsFromPercent(p.tax_percent), details: p.details, enabled: p.enabled })),
+        addons: state.addons.map((p) => ({ product_code: p.product_code, addon_key: p.addon_key, name: p.name, fulfillment_type: p.fulfillment_type, billing_period: p.billing_period, price_kobo: Math.round(Number(p.price) * 100), tax_bps: bpsFromPercent(p.tax_percent), details: p.fulfillment_type === "AI_ADS_SUBSCRIPTION" ? { ...p.details, entitlements: p.entitlements } : p.details, enabled: p.enabled })),
       } : { action }
       const response = await fetch("/api/admin/central-billing/catalogue", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) })
       const data = await response.json()
@@ -164,7 +189,36 @@ export default function CentralBillingCataloguePage() {
         </div> })}
       </div>
     </CardContent></Card>)}
-    <Card><CardHeader><CardTitle>AI Ads subscription</CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Monthly and annual software access. Renewals are invoiced; automatic charging is not enabled. Ad spend is paid directly by each merchant to Meta. Campaign publishing is not released yet, so keep these offers disabled until that feature is ready. After expiry, an existing Meta campaign will remain in the merchant’s account and follow its own end date. Each Paystack charge must be at least ₦50 after tax.</p><div className="grid gap-3 md:grid-cols-2">{(["monthly", "annual"] as const).map((period) => { const p = state.addons.find((item) => item.fulfillment_type === "AI_ADS_SUBSCRIPTION" && item.billing_period === period); if (!p) return null; const index = state.addons.indexOf(p); const net = Math.round(Number(p.price) * 100) || 0; const vat = taxKobo(net, p.tax_percent); return <div className="space-y-3 rounded-md border p-3" key={period}><h3 className="text-sm font-medium capitalize">{period}</h3><label className="block space-y-1 text-sm">Price before tax (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="500000" step="0.01" value={net ? p.price : ""} placeholder="Set price" onChange={(e) => updateAddon(index, "price", e.target.value)} /></label><label className="block space-y-1 text-sm">Tax rate (%)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="100" step="0.01" value={p.tax_percent} onChange={(e) => updateAddon(index, "tax_percent", e.target.value)} /><span className="block text-xs text-muted-foreground">Tax {money(vat)} · total payable {money(net + vat)}</span></label><label className="flex items-center gap-2 text-sm"><input disabled={state.control.price_owner !== "NEXT" || !net} type="checkbox" checked={p.enabled} onChange={(e) => updateAddon(index, "enabled", e.target.checked)} />Available for purchase</label></div> })}</div></CardContent></Card>
+    <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>AI Ads plans</CardTitle><Button type="button" variant="outline" disabled={state.control.price_owner !== "NEXT" || working} onClick={addAiAdsTier}><Plus className="mr-1 h-4 w-4" />Add tier</Button></div></CardHeader><CardContent className="space-y-4">
+      <p className="text-sm text-muted-foreground">Annual subscribers receive allowances monthly for 12 months; unused generations do not roll over. Annual pricing discounts the software portion to 10 months and includes 12 months of video-generation credits. Videos created from a prompt or merchant media use the same included AI-video allowance. Keep offers disabled until generation, storage and quota enforcement are deployed and exercised.</p>
+      {Array.from(new Set(state.addons.filter((p) => p.fulfillment_type === "AI_ADS_SUBSCRIPTION").map((p) => p.addon_key))).map((planKey) => {
+        const plans = state.addons.filter((p) => p.fulfillment_type === "AI_ADS_SUBSCRIPTION" && p.addon_key === planKey).sort((a, b) => a.billing_period.localeCompare(b.billing_period))
+        const first = plans[0]
+        const fields: Array<[keyof AiAdsEntitlements, string]> = [
+          ["copy_generations_per_month", "AI copy suggestions per month"],
+          ["ai_images_per_month", "AI image generations per month"],
+          ["ai_video_generations_per_month", "AI-generated videos (up to 10 seconds) per month"],
+          ["media_storage_mb", "Uploaded media storage limit (MB)"],
+        ]
+        return <div className="space-y-3 rounded-lg border p-4" key={planKey}>
+          <div className="flex flex-wrap items-end justify-between gap-3"><label className="min-w-48 flex-1 space-y-1 text-sm">Tier name<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" value={first?.name || planKey} onChange={(e) => updateAiAdsPlanName(planKey, e.target.value)} /></label><span className="pb-2 text-xs text-muted-foreground">{planKey}</span><Button type="button" variant="ghost" size="sm" className="text-destructive" disabled={state.control.price_owner !== "NEXT" || planKey === "ai_ads"} onClick={() => removeAiAdsTier(planKey)}><Trash2 className="mr-1 h-4 w-4" />Remove tier</Button></div>
+          <div className="grid gap-3 md:grid-cols-2">{(["monthly", "annual"] as const).map((period) => {
+            const p = plans.find((item) => item.billing_period === period)
+            if (!p) return <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground" key={period}>{period} offer is missing</div>
+            const index = state.addons.indexOf(p)
+            const net = Math.round(Number(p.price) * 100) || 0
+            const vat = taxKobo(net, p.tax_percent)
+            return <div className="space-y-3 rounded-md border p-3" key={period}>
+              <h3 className="text-sm font-medium capitalize">{period}</h3>
+              <label className="block space-y-1 text-sm">Price before tax (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="1000000" step="0.01" value={net ? p.price : ""} placeholder="Set price" onChange={(e) => updateAddon(index, "price", e.target.value)} /></label>
+              <label className="block space-y-1 text-sm">Tax rate (%)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="100" step="0.01" value={p.tax_percent} onChange={(e) => updateAddon(index, "tax_percent", e.target.value)} /><span className="block text-xs text-muted-foreground">Tax {money(vat)} · total payable {money(net + vat)}</span></label>
+              <div className="space-y-2 rounded-md bg-muted/40 p-3"><p className="text-sm font-medium">Included allowance</p>{fields.map(([key, label]) => <label className="flex items-center justify-between gap-3 text-xs" key={key}>{label}<input disabled={state.control.price_owner !== "NEXT"} className="w-24 rounded-md border bg-background px-2 py-1 text-right" type="number" min="0" step="1" max={key === "media_storage_mb" ? 10000 : 500} value={first?.entitlements[key] ?? p.entitlements[key]} onChange={(e) => updateAiAdsEntitlement(planKey, key, e.target.value)} /></label>)}<p className="text-xs text-muted-foreground">Monthly and annual offers for this tier share the same caps. Annual plans renew the allowance monthly. A video made from uploaded media uses one of the same included AI-video credits.</p></div>
+              <label className="flex items-center gap-2 text-sm"><input disabled={state.control.price_owner !== "NEXT" || !net} type="checkbox" checked={p.enabled} onChange={(e) => updateAddon(index, "enabled", e.target.checked)} />Available for purchase</label>
+            </div>
+          })}</div>
+        </div>
+      })}
+    </CardContent></Card>
     <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Automation plans</CardTitle><Button type="button" variant="outline" disabled={state.control.price_owner !== "NEXT" || working} onClick={addPlan}><Plus className="mr-1 h-4 w-4" />Add plan</Button></div></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Set each plan’s monthly and annual price here. Removing a plan or frequency archives its offer while preserving past invoices and active customer access. New plans include the standard automation templates and a 10 workflow allowance.</p>
       {Array.from(new Set(state.addons.filter((p) => p.fulfillment_type === "AUTOMATION_PLAN").map((p) => p.addon_key))).map((key) => {
         const plan = state.addons.filter((p) => p.fulfillment_type === "AUTOMATION_PLAN" && p.addon_key === key).sort((a, b) => a.billing_period.localeCompare(b.billing_period))
@@ -183,7 +237,7 @@ export default function CentralBillingCataloguePage() {
               const unpriced = netKobo === 0
               return <div className="space-y-3 rounded-md bg-muted/30 p-3" key={p.product_code}>
                 <div className="flex items-center justify-between"><h3 className="text-sm font-medium capitalize">{period}</h3><Button type="button" variant="ghost" size="sm" className="text-muted-foreground" disabled={state.control.price_owner !== "NEXT"} onClick={() => removePlanFrequency(key, period)} aria-label={`Remove ${period} frequency`}>Remove frequency</Button></div>
-                <label className="block space-y-1 text-sm">Price before tax (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="500000" step="0.01" value={unpriced ? "" : p.price} placeholder="Set price" onChange={(e) => updateAddon(index, "price", e.target.value)} />{unpriced ? <span className="block text-xs text-amber-700">No price · unavailable for purchase</span> : <span className="block text-xs text-muted-foreground">Tax {money(vatKobo)} · total payable {money(netKobo + vatKobo)}</span>}</label>
+              <label className="block space-y-1 text-sm">Price before tax (NGN)<input disabled={state.control.price_owner !== "NEXT"} className="w-full rounded-md border bg-background px-3 py-2" type="number" min="0" max="1000000" step="0.01" value={unpriced ? "" : p.price} placeholder="Set price" onChange={(e) => updateAddon(index, "price", e.target.value)} />{unpriced ? <span className="block text-xs text-amber-700">No price · unavailable for purchase</span> : <span className="block text-xs text-muted-foreground">Tax {money(vatKobo)} · total payable {money(netKobo + vatKobo)}</span>}</label>
                 <label className="flex items-center gap-2 text-sm"><input disabled={state.control.price_owner !== "NEXT" || netKobo === 0} type="checkbox" checked={p.enabled} onChange={(e) => updateAddon(index, "enabled", e.target.checked)} />Available for purchase</label>
               </div>
             })}

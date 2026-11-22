@@ -3,6 +3,7 @@ import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase } from "@/lib/supabase"
 import { centralSignature } from "@/lib/central-billing-auth"
 import crypto from "crypto"
+import { isAiAdsOffer, normalizeAiAdsEntitlements } from "@/lib/ai-ads-entitlements"
 
 export const maxDuration = 60
 
@@ -40,9 +41,15 @@ function validateCatalogue(products: CreditProduct[], addons: AddonProduct[]) {
   for (const p of addons) {
     const key = `${p.addon_key}:${p.billing_period}`
     const automation = p.fulfillment_type === "AUTOMATION_PLAN" && p.addon_key !== "ai_ads" && p.product_code === `automation-${p.addon_key}-${p.billing_period}`
-    const aiAds = p.fulfillment_type === "AI_ADS_SUBSCRIPTION" && p.addon_key === "ai_ads" && p.product_code === `ai-ads-${p.billing_period}`
-    if ((!automation && !aiAds) || addonKeys.has(key) || !/^[a-z][a-z0-9_]{1,39}$/.test(p.addon_key) || !["monthly", "annual"].includes(p.billing_period) || !p.name.trim() || !Number.isSafeInteger(p.price_kobo) || p.price_kobo < 0 || p.price_kobo > 50000000 || (p.enabled && (p.price_kobo === 0 || p.price_kobo + Math.round(p.price_kobo * p.tax_bps / 10000) > 50000000)) || p.tax_bps !== tax || typeof p.enabled !== "boolean" || !p.details || typeof p.details !== "object") return "A paid add-on product is invalid."
+    const aiAds = p.fulfillment_type === "AI_ADS_SUBSCRIPTION" && isAiAdsOffer(p.addon_key, p.product_code, p.billing_period)
+    if ((!automation && !aiAds) || addonKeys.has(key) || !/^[a-z][a-z0-9_]{1,39}$/.test(p.addon_key) || !["monthly", "annual"].includes(p.billing_period) || !p.name.trim() || !Number.isSafeInteger(p.price_kobo) || p.price_kobo < 0 || p.price_kobo > 100000000 || (p.enabled && (p.price_kobo === 0 || p.price_kobo + Math.round(p.price_kobo * p.tax_bps / 10000) > 110000000)) || p.tax_bps !== tax || typeof p.enabled !== "boolean" || !p.details || typeof p.details !== "object") return "A paid add-on product is invalid."
     if (aiAds && p.enabled && p.price_kobo + Math.round(p.price_kobo * p.tax_bps / 10000) < 5000) return "An AI Ads plan must total at least ₦50 after tax to use Paystack."
+    if (aiAds && p.enabled) {
+      const raw = (p.details as Record<string, unknown>).entitlements
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "Set the AI Ads monthly allowances before publishing this offer."
+      const clean = normalizeAiAdsEntitlements(raw)
+      if (Object.entries(clean).some(([key, value]) => Number((raw as Record<string, unknown>)[key]) !== value)) return "AI Ads allowances must be whole numbers within the supported limits."
+    }
     addonKeys.add(key)
   }
   return null
@@ -53,7 +60,10 @@ async function publishCatalogue(sourceVersion: string) {
   if (!centralUrl.startsWith("https://")) throw new Error("Central HTTPS endpoint is not configured")
   const snapshot = await currentCatalogue()
   const products: CreditProduct[] = snapshot.products.map((p) => ({ channel: p.channel, product_code: p.product_code, price_per_credit_kobo: Number(p.price_per_credit_kobo), minimum_topup_kobo: Number(p.minimum_topup_kobo), tax_bps: Number(p.tax_bps), bundles: p.bundles, enabled: !!p.active }))
-  const addons: AddonProduct[] = snapshot.addons.map((p) => ({ product_code: p.product_code, addon_key: p.addon_key, name: p.name, fulfillment_type: p.fulfillment_type, billing_period: p.billing_period, price_kobo: Number(p.price_kobo), tax_bps: Number(p.tax_bps), details: p.details || {}, enabled: !!p.active }))
+  const addons: AddonProduct[] = snapshot.addons.map((p) => {
+    const details = p.details && typeof p.details === "object" ? p.details as Record<string, unknown> : {}
+    return { product_code: p.product_code, addon_key: p.addon_key, name: p.name, fulfillment_type: p.fulfillment_type, billing_period: p.billing_period, price_kobo: Number(p.price_kobo), tax_bps: Number(p.tax_bps), details: p.fulfillment_type === "AI_ADS_SUBSCRIPTION" ? { ...details, entitlements: normalizeAiAdsEntitlements(details.entitlements) } : details, enabled: !!p.active }
+  })
   const invalid = validateCatalogue(products, addons)
   if (invalid) throw new Error(invalid)
   const body = JSON.stringify({ source_version: sourceVersion, products, addons })

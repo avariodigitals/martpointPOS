@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     if (!Number.isSafeInteger(amount) || amount < 1) return NextResponse.json({ error: "Invoice amount is invalid" }, { status: 409 })
     const installUrl = String(mapping.install_url).replace(/\/$/, "")
     if (!/^https:\/\//.test(installUrl)) return NextResponse.json({ error: "Fleet return URL is not secure" }, { status: 409 })
-    const isAiAds = intent.product_type === "ADDON" && intent.addon_key === "ai_ads" && body.provider_reference.startsWith("MPADS_")
+    const isAiAds = intent.product_type === "ADDON" && (intent.addon_key === "ai_ads" || intent.addon_key?.startsWith("ai_ads_")) && body.provider_reference.startsWith("MPADS_")
     const callback = isAiAds
       ? `${installUrl}/marketing/ai_ads/billing_return?reference=${encodeURIComponent(body.provider_reference)}&store_id=${encodeURIComponent(String(mapping.store_id))}`
       : `${installUrl}/messaging_api/payment_return/paystack/${encodeURIComponent(body.provider_reference)}?store_id=${encodeURIComponent(String(mapping.store_id))}`

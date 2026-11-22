@@ -135,6 +135,26 @@ async function getProviderCandidates(): Promise<ProviderConfig[]> {
   ]
 }
 
+/** Server-only provider credentials for non-chat APIs such as image generation.
+ * Never call this from a client component or return its result in an API response.
+ */
+export async function getAiProviderCredentials(id: AiProviderId): Promise<ProviderConfig | null> {
+  const stored = await getStoredAiSettings()
+  const defaults = PROVIDER_DEFAULTS[id]
+  const saved = stored.ai?.providers?.[id] || {}
+  // An explicitly disabled provider must not be used for creative generation,
+  // even if a previous key remains stored.
+  if (saved.enabled === false && usableApiKey(saved.apiKey)) return null
+  const legacy = !stored.ai?.providers ? (id === "openai" ? stored.openai : id === "xai" ? stored.xai : undefined) : undefined
+  const apiKey = usableApiKey(saved.apiKey) || usableApiKey(legacy?.apiKey) || (defaults.envKey ? usableApiKey(process.env[defaults.envKey]) : undefined)
+  if (!apiKey) return null
+  const envBase = defaults.envBase ? process.env[defaults.envBase]?.trim() : ""
+  const baseUrl = (saved.baseUrl || (id === "xai" ? legacy?.baseUrl : "") || envBase || defaults.baseUrl || "").trim() || undefined
+  const envModel = defaults.envModel ? process.env[defaults.envModel]?.trim() : ""
+  const model = (saved.model || (id === "xai" ? legacy?.model : "") || envModel || defaults.model).trim()
+  return { id, name: defaults.name, apiKey, baseUrl, model }
+}
+
 /** Safe, non-secret provider status for admin diagnostics. */
 export async function getAiProviderStatus(): Promise<{
   openaiConfigured: boolean

@@ -47,17 +47,28 @@ export async function POST(request: Request) {
   const offerEntries = products.map((product) => {
     const productCode = String(product.product_code || "")
     const match = /^ai-ads(?:-[a-z][a-z0-9_]{1,31})?-(monthly|annual)$/.exec(productCode)
-    if (!match) return [productCode, { enabled: false, product_code: productCode, plan_code: "", plan_name: "", billing_period: "", total_kobo: 0, tax_included: false, entitlements: normalizeAiAdsEntitlements(undefined) }] as const
+    if (!match) return [productCode, { enabled: false, catalogue_active: !!product?.active, blockers: ["Unsupported AI Ads offer code"], product_code: productCode, plan_code: "", plan_name: "", billing_period: "", total_kobo: 0, tax_included: false, entitlements: normalizeAiAdsEntitlements(undefined) }] as const
     const period = match[1] as "monthly" | "annual"
     const netKobo = Math.max(0, Math.round(Number(product?.price_kobo || 0)))
     const taxBps = Math.max(0, Math.round(Number(product?.tax_bps || 0)))
     const taxKobo = Math.round(netKobo * taxBps / 10000)
     const totalKobo = netKobo + taxKobo
-    const enabled = checkoutReady && !!product?.active && totalKobo >= 5000
+    const blockers: string[] = []
+    if (!isSupabaseConfigured() || !!adsError) blockers.push("Next billing database unavailable")
+    if (process.env.CENTRAL_BILLING_ENABLED !== "true") blockers.push("Central billing is turned off")
+    if (!catalogueReady) blockers.push("Catalogue is not synchronized")
+    if (!paystackReady) blockers.push("Paystack is not ready")
+    if (!aiAdsImageProviderReady) blockers.push("OpenAI image provider is not configured")
+    if (!aiAdsVideoProviderReady) blockers.push("Gemini video provider is not configured")
+    if (!renderer) blockers.push("Video renderer is unavailable")
+    if (!creativeReleaseEnabled) blockers.push("Creative features are not released")
+    if (!product?.active) blockers.push("Plan is disabled in the Next catalogue")
+    if (totalKobo < 5000) blockers.push("Plan price is below the minimum")
+    const enabled = checkoutReady && blockers.length === 0
     const details = product?.details && typeof product.details === "object" ? product.details as Record<string, unknown> : {}
-    return [productCode, { enabled, product_code: productCode, plan_code: String(product?.addon_key || ""), plan_name: String(product?.name || "AI Ads"), billing_period: period, total_kobo: totalKobo, tax_included: taxKobo > 0, entitlements: normalizeAiAdsEntitlements(details.entitlements) }] as const
+    return [productCode, { enabled, catalogue_active: !!product?.active, blockers, product_code: productCode, plan_code: String(product?.addon_key || ""), plan_name: String(product?.name || "AI Ads"), billing_period: period, total_kobo: totalKobo, tax_included: taxKobo > 0, entitlements: normalizeAiAdsEntitlements(details.entitlements) }] as const
   })
-  const offers = Object.fromEntries(offerEntries) as Record<string, { enabled: boolean; product_code: string; plan_code: string; plan_name: string; billing_period: string; total_kobo: number; tax_included: boolean; entitlements: ReturnType<typeof normalizeAiAdsEntitlements> }>
+  const offers = Object.fromEntries(offerEntries) as Record<string, { enabled: boolean; catalogue_active: boolean; blockers: string[]; product_code: string; plan_code: string; plan_name: string; billing_period: string; total_kobo: number; tax_included: boolean; entitlements: ReturnType<typeof normalizeAiAdsEntitlements> }>
   const monthlyReady = Object.values(offers).some((offer) => offer.enabled && offer.billing_period === "monthly")
   const annualReady = Object.values(offers).some((offer) => offer.enabled && offer.billing_period === "annual")
   return NextResponse.json({ success: true, supabase_ready: isSupabaseConfigured() && !adsError, central_billing_enabled: process.env.CENTRAL_BILLING_ENABLED === "true", catalogue_ready: catalogueReady, ai_ads_monthly_ready: monthlyReady, ai_ads_annual_ready: annualReady, paystack_ready: paystackReady, ai_ads_image_provider_ready: aiAdsImageProviderReady, ai_ads_video_provider_ready: aiAdsVideoProviderReady, ai_ads_renderer_ready: renderer, ai_ads_creative_ready: creativeProvidersReady, ai_ads_creative_release_enabled: creativeReleaseEnabled, ai_ads_offers: offers }, { headers: { "cache-control": "no-store" } })

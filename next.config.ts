@@ -3,6 +3,16 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
+  outputFileTracingIncludes: {
+    "/api/internal/central-billing/health": [
+      "./node_modules/ffmpeg-static/**/*",
+      "./assets/ai-ads/fonts/**/*",
+    ],
+    "/api/internal/central-billing/ai-ads/media": [
+      "./node_modules/ffmpeg-static/**/*",
+      "./assets/ai-ads/fonts/**/*",
+    ],
+  },
   serverExternalPackages: ["nodemailer", "imapflow", "mailparser"],
   images: {
     unoptimized: true,

@@ -6,15 +6,17 @@ import { normalizeAiAdsEntitlements } from "@/lib/ai-ads-entitlements"
 import { getAiProviderCredentials } from "@/lib/ai-chat"
 import { access } from "node:fs/promises"
 import { execFile } from "node:child_process"
+import path from "node:path"
 import { promisify } from "node:util"
+import ffmpegStaticPath from "ffmpeg-static"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 const runFile = promisify(execFile)
 
 async function rendererReady() {
-  const ffmpeg = process.env.AI_ADS_FFMPEG_PATH || "ffmpeg"
-  const font = process.env.AI_ADS_FONT_PATH || "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+  const ffmpeg = ffmpegStaticPath || process.env.AI_ADS_FFMPEG_PATH || "ffmpeg"
+  const font = path.join(process.cwd(), "assets/ai-ads/fonts/Roboto.ttf")
   try {
     await Promise.all([runFile(ffmpeg, ["-version"], { timeout: 3000, maxBuffer: 4096 }), access(font)])
     return true

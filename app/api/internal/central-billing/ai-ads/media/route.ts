@@ -5,6 +5,7 @@ import path from "node:path"
 import { promisify } from "node:util"
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
+import ffmpegStaticPath from "ffmpeg-static"
 import { verifyCentralRequest } from "@/lib/central-billing-auth"
 import { getAiProviderCredentials } from "@/lib/ai-chat"
 
@@ -173,8 +174,8 @@ async function createVideo(providerKey: string, openAiKey: string, prompt: strin
   const speech = await openai.audio.speech.create({ model: process.env.AI_ADS_TTS_MODEL || "gpt-4o-mini-tts", voice: "coral", input: plan.voiceover_script, response_format: "mp3" })
   const speechBytes = Buffer.from(await speech.arrayBuffer())
 
-  const ffmpeg = process.env.AI_ADS_FFMPEG_PATH || "ffmpeg"
-  const font = process.env.AI_ADS_FONT_PATH || "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+  const ffmpeg = ffmpegStaticPath || process.env.AI_ADS_FFMPEG_PATH || "ffmpeg"
+  const font = path.join(process.cwd(), "assets/ai-ads/fonts/Roboto.ttf")
   const dir = await mkdtemp(path.join(os.tmpdir(), "mp-ai-ads-"))
   try {
     const clipPaths = await Promise.all(clips.map(async (bytes, i) => { const file = path.join(dir, `scene-${i + 1}.mp4`); await writeFile(file, bytes); return file }))

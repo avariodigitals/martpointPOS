@@ -4,9 +4,22 @@ import { verifyCentralRequest } from "@/lib/central-billing-auth"
 import { loadPaystackConfiguration } from "@/lib/paystack-settings"
 import { normalizeAiAdsEntitlements } from "@/lib/ai-ads-entitlements"
 import { getAiProviderCredentials } from "@/lib/ai-chat"
+import { access } from "node:fs/promises"
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+const runFile = promisify(execFile)
+
+async function rendererReady() {
+  const ffmpeg = process.env.AI_ADS_FFMPEG_PATH || "ffmpeg"
+  const font = process.env.AI_ADS_FONT_PATH || "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+  try {
+    await Promise.all([runFile(ffmpeg, ["-version"], { timeout: 3000, maxBuffer: 4096 }), access(font)])
+    return true
+  } catch { return false }
+}
 
 export async function POST(request: Request) {
   const raw = await request.text()
@@ -21,10 +34,10 @@ export async function POST(request: Request) {
   const { data: ads, error: adsError } = await supabase.from("central_addon_products").select("product_code,addon_key,name,active,price_kobo,tax_bps,details").eq("fulfillment_type", "AI_ADS_SUBSCRIPTION")
   const products = ads || []
   const catalogueReady = !controlError && control?.price_owner === "NEXT" && control.sync_status === "SYNCED"
-  const [imageProvider, videoProvider] = await Promise.all([getAiProviderCredentials("openai"), getAiProviderCredentials("gemini")])
+  const [imageProvider, videoProvider, renderer] = await Promise.all([getAiProviderCredentials("openai"), getAiProviderCredentials("gemini"), rendererReady()])
   const aiAdsImageProviderReady = !!imageProvider
   const aiAdsVideoProviderReady = !!videoProvider
-  const creativeProvidersReady = aiAdsImageProviderReady && aiAdsVideoProviderReady
+  const creativeProvidersReady = aiAdsImageProviderReady && aiAdsVideoProviderReady && renderer
   // This release switch is deliberately separate from key presence: platform
   // operations enable it only after the deployed generation paths are proven.
   const creativeReleaseEnabled = process.env.AI_ADS_CREATIVE_ENABLED === "true"
@@ -45,5 +58,5 @@ export async function POST(request: Request) {
   const offers = Object.fromEntries(offerEntries) as Record<string, { enabled: boolean; product_code: string; plan_code: string; plan_name: string; billing_period: string; total_kobo: number; tax_included: boolean; entitlements: ReturnType<typeof normalizeAiAdsEntitlements> }>
   const monthlyReady = Object.values(offers).some((offer) => offer.enabled && offer.billing_period === "monthly")
   const annualReady = Object.values(offers).some((offer) => offer.enabled && offer.billing_period === "annual")
-  return NextResponse.json({ success: true, supabase_ready: isSupabaseConfigured() && !adsError, central_billing_enabled: process.env.CENTRAL_BILLING_ENABLED === "true", catalogue_ready: catalogueReady, ai_ads_monthly_ready: monthlyReady, ai_ads_annual_ready: annualReady, paystack_ready: paystackReady, ai_ads_image_provider_ready: aiAdsImageProviderReady, ai_ads_video_provider_ready: aiAdsVideoProviderReady, ai_ads_creative_ready: creativeProvidersReady, ai_ads_creative_release_enabled: creativeReleaseEnabled, ai_ads_offers: offers }, { headers: { "cache-control": "no-store" } })
+  return NextResponse.json({ success: true, supabase_ready: isSupabaseConfigured() && !adsError, central_billing_enabled: process.env.CENTRAL_BILLING_ENABLED === "true", catalogue_ready: catalogueReady, ai_ads_monthly_ready: monthlyReady, ai_ads_annual_ready: annualReady, paystack_ready: paystackReady, ai_ads_image_provider_ready: aiAdsImageProviderReady, ai_ads_video_provider_ready: aiAdsVideoProviderReady, ai_ads_renderer_ready: renderer, ai_ads_creative_ready: creativeProvidersReady, ai_ads_creative_release_enabled: creativeReleaseEnabled, ai_ads_offers: offers }, { headers: { "cache-control": "no-store" } })
 }

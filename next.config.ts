@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
       "./assets/ai-ads/fonts/**/*",
     ],
   },
-  serverExternalPackages: ["nodemailer", "imapflow", "mailparser"],
+  serverExternalPackages: ["nodemailer", "imapflow", "mailparser", "ffmpeg-static"],
   images: {
     unoptimized: true,
     formats: ["image/webp", "image/avif"],

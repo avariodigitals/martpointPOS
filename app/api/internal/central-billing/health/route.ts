@@ -19,13 +19,17 @@ async function rendererStatus() {
   const font = path.join(process.cwd(), "assets/ai-ads/fonts/Roboto.ttf")
   try { await access(font) }
   catch { return { ready: false, reason: "Overlay font is missing from the deployed Next app." } }
+  if (ffmpeg !== "ffmpeg") {
+    try { await access(ffmpeg) }
+    catch { return { ready: false, reason: "FFmpeg package was included, but its binary file is missing from the deployed function." } }
+  }
   try {
     await runFile(ffmpeg, ["-version"], { timeout: 3000, maxBuffer: 4096 })
     return { ready: true, reason: "FFmpeg and the overlay font are available." }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       if (ffmpeg === "ffmpeg") return { ready: false, reason: "No FFmpeg binary is bundled and no system FFmpeg is installed." }
-      return { ready: false, reason: "The bundled FFmpeg binary is missing from the deployed Next app." }
+      return { ready: false, reason: "FFmpeg is present but cannot start on the deployed server (check its platform architecture)." }
     }
     return { ready: false, reason: "The FFmpeg binary is present but could not start in this deployment." }
   }

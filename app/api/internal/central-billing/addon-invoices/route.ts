@@ -35,7 +35,15 @@ export async function POST(request: Request) {
     const invoice = Array.isArray(data) ? data[0] : data
     return NextResponse.json({ success: true, ...invoice, product_type: "ADDON", fulfillment_type: product.fulfillment_type, addon_key: product.addon_key, billing_period: product.billing_period, product_code: p.product_code, tax_bps: product.tax_bps, name: product.name, details: product.details })
   } catch (error) {
-    console.error("[central add-on invoice create]", error)
-    return NextResponse.json({ error: "Add-on invoice could not be created or verified" }, { status: 409 })
+    const diagnosticId = crypto.randomUUID()
+    const record = error && typeof error === "object" ? error as Record<string, unknown> : {}
+    const code = typeof record.code === "string" ? record.code.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) : ""
+    const message = error instanceof Error ? error.message : typeof record.message === "string" ? record.message : "Unknown invoice database error"
+    const safeMessage = message.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").slice(0, 240)
+    console.error(`[central add-on invoice create:${diagnosticId}]`, { code, message: safeMessage })
+    // This is a signed Central-to-Next endpoint. Include the database diagnostic
+    // so Central's server log identifies the real failure; Fleet UI still gets
+    // only its generic no-payment-taken message.
+    return NextResponse.json({ error: `Add-on invoice failed${code ? ` (${code})` : ""}: ${safeMessage}`, diagnostic_id: diagnosticId }, { status: 500 })
   }
 }

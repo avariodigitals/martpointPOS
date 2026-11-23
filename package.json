@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "prebuild": "node node_modules/ffmpeg-static/install.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

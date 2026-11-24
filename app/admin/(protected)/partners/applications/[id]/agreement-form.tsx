@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Loader2, FileText, Download, Plus, Trash2 } from "lucide-react"
 import { COUNTRIES, STATES } from "@/lib/locations"
 import { enumLabel } from "@/lib/utils"
-import { REFERRAL_GRADES, REFERRAL_GRADE_LABELS } from "@/lib/partner-grades"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-xs font-medium mb-1"
@@ -127,6 +126,8 @@ export function AgreementForm({ applicationId, onGenerated }: {
   const [assignedUsers, setAssignedUsers] = useState<AssignedUser[]>([])
   const [open, setOpen] = useState(false)
   const [msg, setMsg] = useState("")
+  const [signingUrl, setSigningUrl] = useState("")
+  const [authorizeCompanySignature, setAuthorizeCompanySignature] = useState(false)
 
   const [form, setForm] = useState<Record<string, string>>({
     effectiveDate: "", initialTermMonths: "3", renewalRule: "", noticeDays: "30",
@@ -201,11 +202,13 @@ export function AgreementForm({ applicationId, onGenerated }: {
       setPt(d.partner || {})
       setAppt({
         levelByType: "Standard",
-        gradeByType: "",
         additionalProhibitions: "None beyond the Common Terms and the applicable Partner Type Schedule.",
         martpointOwnerName: "",
         martpointOwnerEmail: "",
         ...(d.appointment || {}),
+        gradeByType: data.partnerType === "REFERRAL"
+          ? "Provisional / ungraded during the first 90 days; Silver requires a performance review"
+          : (d.appointment?.gradeByType || ""),
       })
       setCustomOperatingLevel(Boolean(d.appointment?.levelByType && d.appointment.levelByType !== "Standard"))
       setMartpointOwnerUserId((data.assignedUsers || []).find((u: AssignedUser) => u.email && u.email === d.appointment?.martpointOwnerEmail)?.id || "")
@@ -240,12 +243,16 @@ export function AgreementForm({ applicationId, onGenerated }: {
           appointment: appt,
           technology: partnerType === "TECHNOLOGY" ? tech : undefined,
           commercials,
+          authorizeCompanySignature,
           additionalSchedules: extraSchedules.filter((s) => s.title.trim() && s.body.trim()),
         }),
       })
       const data = await res.json()
       if (data.success) {
-        setMsg(`Agreement ${data.agreementId} generated (${data.includedSchedules.length} sections).`)
+        setSigningUrl(data.signing?.emailSent ? "" : data.signing?.signingUrl || "")
+        setMsg(data.signing?.emailSent
+          ? `Agreement ${data.agreementId} generated, electronically signed by MartPoint, and sent to the partner for signature.`
+          : `Agreement ${data.agreementId} generated and MartPoint-signed, but the partner email was not sent. Use the signing link below.`)
         if (data.document?.signedUrl) window.open(data.document.signedUrl, "_blank")
         load()
         onGenerated()
@@ -435,7 +442,10 @@ export function AgreementForm({ applicationId, onGenerated }: {
                 {customOperatingLevel && (
                   <Field label="Custom operating level" value={appt.levelByType || ""} onChange={apptField("levelByType")} placeholder="Enter operating level" />
                 )}
-                <SelectField label="Starting grade" value={appt.gradeByType || ""} onChange={apptField("gradeByType")} options={REFERRAL_GRADES.map((grade) => ({ value: REFERRAL_GRADE_LABELS[grade], label: REFERRAL_GRADE_LABELS[grade] }))} placeholder="No grade selected" />
+                {partnerType === "REFERRAL" && <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+                  <p className={labelCls}>Initial referral grade</p>
+                  <p className="text-muted-foreground">Provisional and ungraded for the first 90 days. Silver or a higher grade requires a performance review after day 90.</p>
+                </div>}
                 <Field label="Required insurance" value={appt.insurance || ""} onChange={apptField("insurance")} />
                 <SelectField label="MartPoint owner" value={martpointOwnerUserId} onChange={(id) => {
                   const user = assignedUsers.find((u) => u.id === id)
@@ -515,8 +525,17 @@ export function AgreementForm({ applicationId, onGenerated }: {
               </Button>
             </div>
 
+            {signingUrl && <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+              <p className="font-medium text-amber-900">Email delivery failed</p>
+              <a className="mt-1 block break-all text-retail underline" href={signingUrl} target="_blank" rel="noreferrer">Open secure signing link</a>
+              <button type="button" className="mt-2 text-xs underline" onClick={() => void navigator.clipboard.writeText(signingUrl)}>Copy signing link</button>
+            </div>}
+            <label className="flex items-start gap-2 rounded-md border border-border p-3 text-sm">
+              <input type="checkbox" checked={authorizeCompanySignature} onChange={(e) => setAuthorizeCompanySignature(e.target.checked)} />
+              <span>I confirm this agreement is approved for issue and authorize the configured MartPoint signatory to sign it electronically.</span>
+            </label>
             <div className="flex gap-2">
-              <Button onClick={generate} disabled={generating}>
+              <Button onClick={generate} disabled={generating || !authorizeCompanySignature}>
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                 Generate Agreement PDF
               </Button>

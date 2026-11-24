@@ -104,6 +104,12 @@ export interface AgreementInput {
   }
   commercials: CommercialSection[]
   additionalSchedules?: AdditionalSchedule[]
+  execution?: {
+    termsSha256: string
+    martpointSignedAt: string
+    martpointEventId: string
+    partner?: { name: string; title: string; email: string; signedAt: string; eventId: string }
+  }
 }
 
 export interface GeneratedAgreement {
@@ -397,8 +403,14 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
     body: [
       [`Name: ${orBlank(input.martpoint.signatoryName)}`, `Name: ${orBlank(input.partner.signatoryName)}`],
       [`Title: ${orBlank(input.martpoint.signatoryTitle)}`, `Title: ${orBlank(input.partner.signatoryTitle)}`],
-      ["Signature: ______________________________", "Signature: ______________________________"],
-      ["Date: ______________________________", "Date: ______________________________"],
+      [
+        `Signature: ${input.execution ? `Electronically signed by ${input.martpoint.signatoryName}` : "______________________________"}`,
+        `Signature: ${input.execution?.partner ? `Electronically signed by ${input.execution.partner.name}` : "Pending partner signature"}`,
+      ],
+      [
+        `Date: ${input.execution ? input.execution.martpointSignedAt : "______________________________"}`,
+        `Date: ${input.execution?.partner ? input.execution.partner.signedAt : "Pending partner signature"}`,
+      ],
       [`Email: ${orBlank(input.martpoint.signatoryEmail)}`, `Email: ${orBlank(input.partner.signatoryEmail)}`],
     ],
     styles: { font: "times", fontSize: 10, cellPadding: 8, overflow: "linebreak", valign: "top", textColor: [31, 41, 55] },
@@ -410,10 +422,11 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
   clauseHeading("Electronic signature record")
   fieldTable([
     ["Agreement ID", input.agreementId],
-    ["Final document hash", BLANK],
-    ["MartPoint signature event", BLANK],
-    ["Partner signature event", BLANK],
-    ["Completion certificate", BLANK],
+    ["Agreement terms SHA-256", input.execution?.termsSha256 || BLANK],
+    ["MartPoint signature event", input.execution?.martpointEventId || BLANK],
+    ["MartPoint signed at", input.execution?.martpointSignedAt || BLANK],
+    ["Partner signature event", input.execution?.partner?.eventId || "Pending partner signature"],
+    ["Partner signed at", input.execution?.partner?.signedAt || "Pending partner signature"],
   ])
 
   /* ── Footer on every page ── */

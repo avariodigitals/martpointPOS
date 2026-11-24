@@ -11,6 +11,7 @@ export interface CalculatedMetrics {
   activeAgreement: boolean
   orientationCompleted: boolean
   daysSinceActivation: number
+  inactiveMonths: number
   misleadingClaim: boolean
   consentFailure: boolean
   strategicContribution: boolean
@@ -57,6 +58,7 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
     .from("db_referrals")
     .select("*", { count: 'exact', head: true })
     .eq("partner_id", partnerId)
+    .gte("created_at", twelveMonthsAgo)
 
   const totalSubmissionCount = totalSubs || 0
   const validRate = totalSubmissionCount > 0 ? (acc12m || 0) / totalSubmissionCount * 100 : 0
@@ -66,6 +68,7 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
     .select("*", { count: 'exact', head: true })
     .eq("referral_partner_id", partnerId)
     .eq("status", "REFUNDED")
+    .gte("created_at", twelveMonthsAgo)
 
   const paidConversionCount12m = paid12m || 0
   const refundRate = paidConversionCount12m > 0 ? (refunds || 0) / paidConversionCount12m * 100 : 0
@@ -79,14 +82,21 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
 
   const { data: history } = await supabase
     .from("partner_grade_history")
-    .select("new_grade")
+    .select("new_grade, review_period")
     .eq("partner_id", partnerId)
     .order("created_at", { ascending: false })
 
-  // Simple consecutive pass count (simplified for demo)
-  const passing = history?.filter(h => h.new_grade !== "SILVER").length || 0
+  const countedPeriods = new Set<string>()
+  let passing = 0
+  for (const row of history || []) {
+    const period = String(row.review_period || "")
+    if (!period || countedPeriods.has(period)) continue
+    countedPeriods.add(period)
+    if (row.new_grade === "SILVER") break
+    passing++
+  }
 
-  const [{ data: agreement }, { data: application }] = await Promise.all([
+  const [{ data: agreement }, { data: application }, { data: complianceCases }] = await Promise.all([
     supabase
       .from("partner_agreements")
       .select("id")
@@ -101,10 +111,25 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
           .eq("id", profile.application_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase
+      .from("partner_cases")
+      .select("id")
+      .eq("partner_id", partnerId)
+      .eq("case_type", "compliance_review")
+      .in("status", ["open", "under_review"]),
   ])
 
   const activationDate = profile?.partner_since ? new Date(profile.partner_since) : new Date()
   const daysSince = Math.floor((now.getTime() - activationDate.getTime()) / (1000 * 60 * 60 * 24))
+  const { data: lastReferral } = await supabase
+    .from("db_referrals")
+    .select("created_at")
+    .eq("partner_id", partnerId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const lastActivityAt = lastReferral?.created_at ? new Date(lastReferral.created_at as string) : activationDate
+  const inactiveMonths = Math.max(0, Math.floor((now.getTime() - lastActivityAt.getTime()) / (30 * 24 * 60 * 60 * 1000)))
 
   return {
     acceptedReferrals6m: acc6m || 0,
@@ -117,8 +142,9 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
     activeAgreement: Array.isArray(agreement) ? agreement.length > 0 : Boolean(agreement),
     orientationCompleted: Boolean(application?.orientation_completed_at),
     daysSinceActivation: daysSince,
-    misleadingClaim: false, // Default to false, would check compliance table
-    consentFailure: false,
+    inactiveMonths,
+    misleadingClaim: Boolean((complianceCases || []).length),
+    consentFailure: Boolean((complianceCases || []).length),
     strategicContribution: false, // Manual flag
     managementApproved: false,
   }

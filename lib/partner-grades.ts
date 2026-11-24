@@ -56,13 +56,17 @@ export const BASE_METRICS: GradeMetrics = {
 }
 
 export interface GradeDecision {
-  grade: ReferralGrade
+  grade: ReferralGrade | null
   reasons: string[]
 }
 
 export function evaluateReferralGrade(m: GradeMetrics): GradeDecision {
   const reasons: string[] = []
   const cleanConduct = !m.misleadingClaim && !m.consentFailure
+
+  if (m.daysSinceActivation < 90) {
+    return { grade: null, reasons: ["Provisional period: no grade is awarded before completion of the first 90 calendar days."] }
+  }
 
   // DIAMOND — 30 accepted + 12 paid in 12 months, ≥90% valid, refunds ≤5%,
   // documented strategic contribution and management approval.
@@ -104,19 +108,19 @@ export function evaluateReferralGrade(m: GradeMetrics): GradeDecision {
     return { grade: "GOLD", reasons }
   }
 
-  // SILVER — active terms + orientation, and at least one accepted referral in
-  // the preceding six months or still within the first 90 days after activation.
+  // SILVER — awarded only after the initial 90-day period, based on the baseline.
   if (
     m.activeAgreement &&
     m.orientationCompleted &&
-    (m.acceptedReferrals6m >= 1 || m.daysSinceActivation <= 90)
+    m.acceptedReferrals6m >= 1 &&
+    cleanConduct
   ) {
-    reasons.push("Active agreement and orientation; baseline referral activity maintained")
+    reasons.push("After the first 90 days: active agreement, completed orientation, at least 1 accepted referral in the preceding 6 months, and clean conduct")
     return { grade: "SILVER", reasons }
   }
 
-  reasons.push("Below Silver baseline — agreement, orientation or baseline activity not met")
-  return { grade: "SILVER", reasons }
+  reasons.push("Not yet eligible for Silver: active agreement, completed orientation, at least 1 accepted referral in the preceding 6 months, and clean conduct are all required")
+  return { grade: null, reasons }
 }
 
 /**

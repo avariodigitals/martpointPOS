@@ -703,6 +703,8 @@ export async function registerAgreementDocument(opts: {
   checksum: string
   templateVersion: string
   generatedBy: string
+  status?: "ISSUED" | "SIGNED"
+  metadata?: Record<string, unknown>
 }): Promise<void> {
   if (!isSupabaseConfigured()) return
   const documentId = await generateDocumentId()
@@ -718,13 +720,13 @@ export async function registerAgreementDocument(opts: {
       template_version: opts.templateVersion,
       source_record_type: "partner_application",
       source_record_id: opts.applicationId,
-      status: "ISSUED",
+      status: opts.status || "ISSUED",
       storage_path: opts.storagePath,
       file_size: opts.fileSize,
       checksum_sha256: opts.checksum,
       generated_by: opts.generatedBy,
       generated_at: now,
-      metadata: { agreementId: opts.agreementId },
+      metadata: { agreementId: opts.agreementId, ...(opts.metadata || {}) },
       created_at: now,
       updated_at: now,
     })

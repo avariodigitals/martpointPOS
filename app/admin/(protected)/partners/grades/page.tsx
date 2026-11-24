@@ -12,7 +12,7 @@ type Sheet = {
   metrics: Record<string, unknown>
   observedAt: string
   inactiveMonths: number
-  proposal: { grade: ReferralGrade; label: string; reasons: string[] }
+  proposal: { grade: ReferralGrade | null; label: string; reasons: string[] }
   protections: { grade: ReferralGrade; demoted: boolean; blockedFromPromotion: boolean }
   history: Record<string, unknown>[]
   can: { decide: boolean }
@@ -103,7 +103,7 @@ export default function PartnerGradesPage() {
       setSheet(json)
       setForm((f) => ({
         ...f,
-        grade: (json.proposal.grade as ReferralGrade) ?? "SILVER",
+        grade: (json.proposal.grade as ReferralGrade | null) ?? "SILVER",
         reason: "",
         reviewPeriod: `${new Date().getFullYear()}-Q${Math.floor(new Date().getMonth() / 3) + 1}`,
       }))
@@ -114,6 +114,10 @@ export default function PartnerGradesPage() {
 
   async function decide() {
     if (!sheet || !selectedId) return
+    if (!sheet.proposal.grade) {
+      toast({ title: "No grade is eligible yet", description: "The 90-day minimum and Silver performance criteria must be met first.", variant: "warning" })
+      return
+    }
     if (form.reason.trim().length < 5) {
       toast({ title: "A written reason is required", description: "It is stored in the grade history and printed on the confirmation document.", variant: "warning" })
       return
@@ -227,6 +231,7 @@ export default function PartnerGradesPage() {
                   <Fact label="Refund / credit rate" value={number(sheet.metrics.refundRate, "%")} />
                   <Fact label="Consecutive passing reviews" value={number(sheet.metrics.consecutivePassingReviews)} />
                   <Fact label="Months since last activity" value={number(sheet.inactiveMonths)} />
+                  <Fact label="Days since activation" value={number(sheet.metrics.daysSinceActivation)} />
                 </div>
 
                 <div className="rounded-md border border-border p-3 space-y-2">
@@ -242,6 +247,7 @@ export default function PartnerGradesPage() {
                   <ul className="text-[11px] text-muted-foreground list-disc pl-4 space-y-1">
                     {sheet.proposal.reasons.map((r) => <li key={r}>{r}</li>)}
                   </ul>
+                  {!sheet.proposal.grade && <p className="text-xs font-medium text-amber-800">No grade can be awarded until the partner completes 90 days and meets Silver criteria.</p>}
                 </div>
 
                 {sheet.can.decide ? (
@@ -294,7 +300,7 @@ export default function PartnerGradesPage() {
                       </p>
                     )}
 
-                    <Button onClick={decide} disabled={busy} className="w-full">
+                    <Button onClick={decide} disabled={busy || !sheet.proposal.grade} className="w-full">
                       {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Recording…</> : "Record grade and issue confirmation"}
                     </Button>
                   </div>

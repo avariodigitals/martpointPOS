@@ -24,7 +24,7 @@ export function ProductSplit() {
         <SectionHeader
           label="MartPoint Retail"
           headline="One platform. Every way you sell."
-          description="Sell at the counter, online and on WhatsApp — inventory, payments and reports stay in sync across every branch."
+          description="Sell at the counter, online and on WhatsApp — then market to customers from the same retail workspace. Keep inventory, invoices and sales records together as you grow."
         />
 
         <div className="mt-14 grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
@@ -45,7 +45,9 @@ export function ProductSplit() {
               Retail management software for supermarkets, pharmacies,
               restaurants, and fashion stores. Handle sales, track inventory,
               manage cashiers, and monitor every branch from one place —
-              with your online store included.
+              with your online store included. Add SMS and email campaigns,
+              follow-up automation and AI Ads to help bring customers back and
+              promote the products you already stock.
             </p>
 
             <div className="grid grid-cols-2 gap-3 mb-8">

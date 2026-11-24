@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { SectionHeader } from "@/components/shared/section-header"
+import { BreadcrumbSchema, FAQPageSchema } from "@/components/structured-data"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import {
@@ -13,15 +14,63 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Product Updates — Changelog",
+  title: "Product Updates: MartPoint Pay, AI Ads & Customer Messaging",
   description:
-    "Latest releases, improvements and upcoming features for MartPoint Retail. See what we have shipped and what is coming next.",
+    "See the latest MartPoint releases: online invoice payments with MartPoint Pay, AI Ads connected to your product catalogue, and SMS, email and automation tools.",
+  keywords: [
+    "MartPoint product updates", "MartPoint Pay", "retail invoice payments Nigeria",
+    "AI Ads for retailers", "retail SMS campaigns", "retail email marketing",
+    "sales automation software", "POS and inventory updates",
+  ],
   alternates: {
     canonical: "/product-updates",
+  },
+  openGraph: {
+    title: "MartPoint Product Updates: Payments, AI Ads & Customer Messaging",
+    description:
+      "Run retail operations and customer growth from one connected system: online invoice payments, AI Ads, SMS, email and automation.",
+    url: "https://martpoint.com.ng/product-updates",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MartPoint Product Updates",
+    description:
+      "Explore MartPoint Pay, AI Ads, SMS and email campaigns, and customer follow-up automation.",
   },
 }
 
 const latestReleases = [
+  {
+    month: "November 2026",
+    items: [
+      {
+        title: "AI Ads — Turn Product Knowledge Into Campaigns",
+        description: "Plan Meta campaigns from the products you already manage in MartPoint. AI helps prepare ad copy and creative, while the campaign workspace keeps drafts, publishing and results alongside your retail operation.",
+        value: "Choose what to promote with your catalogue and stock context close at hand. Your sales and inventory stay in MartPoint; advertising spend is charged separately by Meta to your advertising account.",
+      },
+      {
+        title: "MartPoint Pay — Online Invoice Payments",
+        description: "Send customers an invoice with a secure online card-payment option. When an invoice is paid, the payment is verified and the invoice balance updates in MartPoint.",
+        value: "MartPoint Pay is the name of MartPoint’s in-app payment experience. Card transactions are processed by integrated payment providers (currently Paystack for invoice checkout); MartPoint is retail software, not a fintech or financial institution, and does not itself process or hold customer funds.",
+      },
+    ],
+  },
+  {
+    month: "October 2026",
+    items: [
+      {
+        title: "SMS & Email Campaigns",
+        description: "Reach customers from the same workspace where you manage sales and customer records. Prepare and send SMS or email campaigns to selected audiences, then review delivery and engagement activity.",
+        value: "Keep customers informed about new stock, offers and store news without exporting contact lists into separate tools. SMS and email delivery charges may apply.",
+      },
+      {
+        title: "Customer Follow-up Automation",
+        description: "Set up scheduled follow-ups for supported customer and sales events, including new leads, meetings, questionnaires, estimates and quotes. Email workflows can also help follow up on unpaid invoices.",
+        value: "MartPoint can keep the next follow-up moving while your team focuses on customers. Workflows respect replies, opt-outs and approval settings, so your business stays in control of what is sent.",
+      },
+    ],
+  },
   {
     month: "September 2026",
     items: [
@@ -179,11 +228,6 @@ const comingSoon = [
     status: "Coming Soon",
     description: "Direct sync with popular accounting packages to reduce manual reconciliation.",
   },
-  {
-    title: "Expanded AI Capabilities",
-    status: "In Development",
-    description: "Smarter reorder suggestions, demand forecasting and automated pricing recommendations based on your actual sales data.",
-  },
 ]
 
 const feedbackSources = [
@@ -196,8 +240,32 @@ const feedbackSources = [
 ]
 
 export default function ProductUpdatesPage() {
+  const featureFaqs = [
+    {
+      question: "What is MartPoint Pay?",
+      answer: "MartPoint Pay is the name of MartPoint’s in-app online payment experience for customer invoices. Card payments are processed by an integrated payment provider; invoice card checkout currently uses Paystack. MartPoint is not a fintech or financial institution and does not itself process or hold customer funds.",
+    },
+    {
+      question: "Can customers pay a MartPoint invoice online by card?",
+      answer: "Yes. A customer can open the invoice payment link and pay an eligible NGN invoice online by card through Paystack. The payment is verified and applied to the invoice in MartPoint. Bank transfer details can also be included where the business has provided them.",
+    },
+    {
+      question: "What does MartPoint AI Ads do?",
+      answer: "AI Ads helps a retailer prepare product-led Meta advertising campaigns from the MartPoint workspace, including AI-assisted ad copy and creative. The retailer connects their Meta account and controls campaign publishing and spend; Meta charges advertising spend directly to that account.",
+    },
+    {
+      question: "Can MartPoint send SMS and email campaigns or automate follow-ups?",
+      answer: "MartPoint supports SMS and email campaigns for selected audiences and scheduled follow-up workflows for supported events such as leads, meetings, estimates and quotes. Email workflows can also follow up on unpaid invoices. Availability depends on the business setup and configured messaging services.",
+    },
+  ]
+
   return (
     <>
+      <BreadcrumbSchema items={[
+        { name: "Home", href: "/" },
+        { name: "Product Updates", href: "/product-updates" },
+      ]} />
+      <FAQPageSchema faqs={featureFaqs} />
       <Header />
       <main className="flex-1">
         {/* Hero */}
@@ -211,7 +279,7 @@ export default function ProductUpdatesPage() {
                 Product Updates
               </h1>
               <p className="mt-6 text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-                The official source for everything MartPoint. See what we have shipped, what we have improved and what is coming next.
+                New ways to collect invoice payments, market products and keep customer conversations moving — all connected to the system that runs your stock and sales.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="retail">
@@ -234,7 +302,7 @@ export default function ProductUpdatesPage() {
             <SectionHeader
               label="Shipped"
               headline="Latest Releases"
-              description="New capabilities recently added to MartPoint Retail."
+              description="Recent releases for retail payments, customer marketing and sales follow-up — alongside the POS and inventory tools your team already uses."
             />
             <div className="mt-14 space-y-16">
               {latestReleases.map((group) => (
@@ -254,10 +322,10 @@ export default function ProductUpdatesPage() {
                             {item.title}
                           </h4>
                         </div>
-                        <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+                        <p className="text-base text-muted-foreground leading-relaxed mb-3">
                           {item.description}
                         </p>
-                        <p className="text-sm text-foreground font-medium leading-relaxed">
+                        <p className="text-base text-foreground font-medium leading-relaxed">
                           {item.value}
                         </p>
                       </div>
@@ -266,6 +334,28 @@ export default function ProductUpdatesPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* Clear answers for customers and search engines */}
+        <section className="w-full bg-background py-16 md:py-24">
+          <div className="container-martpoint max-w-4xl">
+            <SectionHeader
+              label="Feature Guide"
+              headline="Payments and marketing, connected to retail operations"
+              description="Short answers about MartPoint Pay, AI Ads and customer messaging."
+            />
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-5">
+              {featureFaqs.map((faq) => (
+                <article key={faq.question} className="rounded-xl border border-border bg-card p-6">
+                  <h3 className="text-base font-semibold text-foreground">{faq.question}</h3>
+                  <p className="mt-3 text-base leading-relaxed text-muted-foreground">{faq.answer}</p>
+                </article>
+              ))}
+            </div>
+            <p className="mt-8 text-center text-sm text-muted-foreground">
+              Explore <Link className="font-medium text-retail underline underline-offset-4" href="/martpoint-retail">MartPoint Retail</Link> or compare <Link className="font-medium text-retail underline underline-offset-4" href="/pricing">plans and pricing</Link>.
+            </p>
           </div>
         </section>
 

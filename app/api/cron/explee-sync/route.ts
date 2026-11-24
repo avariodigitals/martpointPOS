@@ -14,7 +14,8 @@ import { syncExpleeHotLeads } from "@/lib/explee"
  *     the Authorization header, x-webhook-secret header, or ?secret= param.
  *   - If neither secret is configured the route is open — set one in prod.
  *
- * Requires EXPLEE_API_KEY (https://explee.com/app-auto-gtm/api-keys).
+ * Requires EXPLEE_API_KEY. The sync resolves the exact martpoint.com.ng
+ * project and refuses the account-wide feed if it is missing or ambiguous.
  */
 
 export const runtime = "nodejs"

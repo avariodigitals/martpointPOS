@@ -47,9 +47,9 @@ import {
 } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Retail Cloud — POS & Inventory Software in Nigeria",
+  title: "Retail POS, Inventory, Payments & AI Ads in Nigeria",
   description:
-    "Complete retail commerce platform. Sell in-store, online and on WhatsApp. POS, inventory, loyalty rewards, installment payments, online store and multi-branch management. Built for supermarkets, pharmacies, restaurants & fashion stores in Nigeria.",
+    "Run your store and reach more customers from one retail platform. Manage POS, inventory, online orders, invoice card payments, SMS and email campaigns, follow-up automation and AI Ads.",
   keywords: [
     "retail POS software Nigeria", "inventory management system",
     "supermarket POS system", "pharmacy software Nigeria",
@@ -62,14 +62,17 @@ export const metadata: Metadata = {
     "inventory software in Nigeria", "inventory software for small business",
     "retail store inventory management software free",
     "pharmacy inventory management software",
+    "invoice payment link Nigeria", "online card payment for invoices",
+    "SMS campaigns for retail", "email marketing for retailers",
+    "AI Ads for retail businesses", "POS with marketing automation",
   ],
   alternates: {
     canonical: "/martpoint-retail",
   },
   openGraph: {
-    title: "MartPoint Retail — POS & Inventory Software in Nigeria",
+    title: "MartPoint Retail — POS, Inventory, Payments & AI Ads",
     description:
-      "Sell in-store, online and on WhatsApp. POS, inventory, loyalty, installment payments & multi-branch management for African retail.",
+      "Connect in-store and online sales, inventory, invoice payments and customer marketing in one retail platform.",
     url: "https://martpoint.com.ng/martpoint-retail",
   },
 }
@@ -81,6 +84,21 @@ const trustBullets = [
   "WhatsApp Ordering",
   "Flexible Payment Plans",
   "Loyalty Rewards",
+]
+
+const growthFaqs = [
+  {
+    question: "What is MartPoint Pay, and who processes card payments?",
+    answer: "MartPoint Pay is MartPoint’s in-app name for its online invoice payment experience. Eligible NGN invoices can be paid by card through the integrated Paystack checkout. MartPoint is retail software, not a fintech or financial institution, and does not itself process or hold customer funds.",
+  },
+  {
+    question: "Can MartPoint help me advertise the products I sell?",
+    answer: "AI Ads helps retailers prepare Meta advertising campaigns using product information from their MartPoint workspace, with AI-assisted copy and creative. Retailers connect their own Meta account and control publishing and advertising spend; Meta bills ad spend directly to that account.",
+  },
+  {
+    question: "Can I send SMS and email campaigns from MartPoint?",
+    answer: "Yes. MartPoint supports SMS and email campaigns to selected audiences, plus automated follow-ups for supported sales and customer events. Messaging availability depends on your business setup and configured services; sending charges may apply.",
+  },
 ]
 
 const whoUses = [
@@ -251,7 +269,7 @@ export default async function MartPointRetailPage() {
       ]} />
       <SoftwareApplicationSchema
         name="MartPoint Retail"
-        description="Complete retail commerce platform for African businesses. Sell in-store, online and on WhatsApp with POS, inventory, loyalty rewards, installment payments, online store and multi-branch management."
+        description="Retail POS and inventory software for African businesses, with online storefronts, invoice card payments through integrated providers, SMS and email campaigns, follow-up automation and AI-assisted Meta advertising."
         image="https://martpoint.ng/og-image.jpg"
         url="https://martpoint.ng/martpoint-retail"
         category="BusinessApplication"
@@ -267,6 +285,7 @@ export default async function MartPointRetailPage() {
             question: "Does MartPoint Retail work offline?",
             answer: "Yes. MartPoint Retail works offline and syncs data when the internet connection is restored. Your business never stops.",
           },
+          ...growthFaqs,
           {
             question: "How much does MartPoint Retail cost?",
             answer: "MartPoint Retail Cloud is billed annually in four plans — Basic ₦99,999, Standard ₦249,999, Premium ₦499,999 and Enterprise Retail ₦999,999 — each with included branches, users and catalogue limits. Standard Online Store is included in every plan. Implementation is assessed and quoted according to your requirements, unless expressly included in your selected offer.",
@@ -373,6 +392,43 @@ export default async function MartPointRetailPage() {
 
         {/* TRUST & IMPACT */}
         <TrustLayer />
+
+        {/* RETAIL OPERATIONS AND CUSTOMER GROWTH */}
+        <section className="w-full bg-background py-16 md:py-24">
+          <div className="container-martpoint">
+            <SectionHeader
+              label="Sell, Collect, Grow"
+              headline="From stock on the shelf to customers coming back"
+              description="Use the same MartPoint workspace to manage what you sell, collect invoice payments and run customer campaigns."
+            />
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-5">
+              <article className="rounded-xl border border-border bg-card p-6 md:p-7">
+                <CreditCard className="h-6 w-6 text-retail" aria-hidden="true" />
+                <h3 className="mt-4 text-lg font-semibold text-foreground">Make invoice payment easier</h3>
+                <p className="mt-2 text-base leading-relaxed text-muted-foreground">Send an invoice with an online card-payment link. Payments for eligible NGN invoices are processed by Paystack and reconciled to the invoice in MartPoint.</p>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">MartPoint Pay is the name of this in-app payment experience. MartPoint is not a fintech or financial institution; payment processing is provided by the integrated payment provider.</p>
+              </article>
+              <article className="rounded-xl border border-border bg-card p-6 md:p-7">
+                <MessageCircle className="h-6 w-6 text-retail" aria-hidden="true" />
+                <h3 className="mt-4 text-lg font-semibold text-foreground">Keep customers in the conversation</h3>
+                <p className="mt-2 text-base leading-relaxed text-muted-foreground">Send SMS and email campaigns to selected audiences, then use follow-up workflows for supported leads, meetings, estimates and quotes.</p>
+              </article>
+              <article className="rounded-xl border border-border bg-card p-6 md:p-7">
+                <TrendingUp className="h-6 w-6 text-retail" aria-hidden="true" />
+                <h3 className="mt-4 text-lg font-semibold text-foreground">Promote products with AI Ads</h3>
+                <p className="mt-2 text-base leading-relaxed text-muted-foreground">Build product-led Meta campaigns from your MartPoint catalogue, with AI-assisted ad copy and creative. Connect your Meta account to manage campaign publishing and results; Meta bills advertising spend to you directly.</p>
+              </article>
+            </div>
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-5">
+              {growthFaqs.map((faq) => (
+                <article key={faq.question} className="rounded-xl bg-muted p-5">
+                  <h3 className="text-base font-semibold text-foreground">{faq.question}</h3>
+                  <p className="mt-2 text-base leading-relaxed text-muted-foreground">{faq.answer}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
 
         {/* SECTION 2 — WHO USES MARTPOINT RETAIL */}
         <section className="w-full bg-muted py-10 md:py-16 lg:py-20">

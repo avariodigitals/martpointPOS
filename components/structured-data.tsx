@@ -39,7 +39,7 @@ export async function OrganizationSchema() {
     ],
     email,
     description:
-      "MartPoint is an African retail software company providing POS, inventory management, online store, and business operations tools for supermarkets, pharmacies, restaurants, and fashion stores.",
+      "MartPoint is an African retail software company providing point-of-sale, inventory, online store, invoice management and customer growth tools for retailers. Its platform includes SMS and email campaigns, follow-up automation and AI-assisted Meta advertising. MartPoint Pay is the brand name for an in-app payment experience; payment processing is provided by integrated third parties.",
     foundingDate: "2019",
     address: {
       "@type": "PostalAddress",
@@ -151,10 +151,14 @@ export function SoftwareApplicationSchema({
       "Staff Performance Tracking",
       "Receipt Printing",
       "Customer Management",
+      "Online Invoice Payments Through Integrated Payment Providers",
+      "SMS and Email Campaigns",
+      "Customer Follow-up Automation",
+      "AI-Assisted Meta Advertising",
     ],
-    softwareVersion: "2025",
+    softwareVersion: "2026",
     datePublished: "2019-01-01",
-    dateModified: "2025-06-01",
+    dateModified: "2026-11-24",
   }
 
   return (

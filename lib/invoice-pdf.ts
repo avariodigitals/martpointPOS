@@ -234,6 +234,7 @@ export function generateInvoicePdf(inv: InvoicePdfData): Buffer {
     doc.link(buttonX, buttonY, buttonW, buttonH, { url: inv.payment_link })
     doc.setFont("helvetica", "normal")
     bandY += buttonH + 12
+    writeBand("MartPoint Pay is the name of this in-app checkout experience. Card payments are processed by Paystack; MartPoint is retail software, not a financial institution, and does not itself process or hold customer funds.", 8.5)
   }
   if (inv.notes_public) {
     writeBand("Notes", 10, true)

@@ -21,7 +21,7 @@ export default async function PublicInvoicePaymentPage({ params, searchParams }:
       <header><p className="text-sm font-semibold text-blue-700">MartPoint</p><h1 className="mt-2 text-2xl font-bold">Invoice payment</h1><p className="mt-1 text-slate-600">{business?.business_name || "Customer"} · {invoice.invoice_number}</p></header>
       <section className="rounded-xl border bg-white p-5"><p className="text-sm text-slate-500">Amount due</p><p className="mt-1 text-3xl font-bold">{formatMoney(balance, invoice.currency || "NGN")}</p><p className="mt-2 text-sm text-slate-600">Invoice total: {formatMoney(Number(invoice.total_amount) || 0, invoice.currency || "NGN")}</p><p className="mt-1 text-xs text-slate-500">Status: {payable ? "Payment due" : String(invoice.status).replaceAll("_", " ").toLowerCase()}</p></section>
       {payable ? <InvoicePaymentActions invoiceId={invoice.id} balanceDue={balance} reference={query.reference} bankDetails={bankDetails} /> : bankDetails ? <section className="rounded-xl border bg-white p-4"><h2 className="font-semibold">Bank transfer details</h2><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{bankDetails}</p></section> : null}
-      <p className="text-xs text-slate-500">This payment is collected by MartPoint for the invoice shown above. For payment help, reply to your invoice email.</p>
+      <p className="text-sm leading-relaxed text-slate-600">MartPoint Pay is the name of this in-app checkout experience. Card payments are processed by Paystack; MartPoint provides retail software and is not a fintech or financial institution. For questions about this invoice, reply to your invoice email.</p>
     </div>
   </main>
 }

@@ -53,9 +53,20 @@ interface ExpleeHotLeadsPage {
   has_more: boolean
 }
 
+interface ExpleeProject {
+  id: number
+  domain: string
+}
+
+interface ExpleeProjectsResponse {
+  projects: ExpleeProject[]
+}
+
 interface ExpleeThread {
   messages: ExpleeThreadMessage[]
 }
+
+const EXPLEE_SYNC_DOMAIN = "martpoint.com.ng"
 
 async function expleeGet<T>(path: string, apiKey: string): Promise<T> {
   const res = await fetch(`${EXPLEE_API_BASE}${path}`, {
@@ -66,10 +77,31 @@ async function expleeGet<T>(path: string, apiKey: string): Promise<T> {
   return (await res.json()) as T
 }
 
-export async function fetchHotLeads(apiKey: string, since: string | null): Promise<ExpleeHotLead[]> {
+function normalizeProjectDomain(value: string): string {
+  const input = value.trim().toLowerCase()
+  if (!input) return ""
+  try {
+    const url = new URL(input.includes("://") ? input : `https://${input}`)
+    return url.hostname.replace(/^www\./, "").replace(/\.$/, "")
+  } catch {
+    return ""
+  }
+}
+
+async function resolveSyncProjectId(apiKey: string): Promise<number | null> {
+  const data = await expleeGet<ExpleeProjectsResponse>("/public/api/v1/autogtm/projects", apiKey)
+  const matches = (data.projects || []).filter(
+    (project) => normalizeProjectDomain(project.domain || "") === EXPLEE_SYNC_DOMAIN,
+  )
+  if (matches.length !== 1) return null
+  const projectId = Number(matches[0].id)
+  return Number.isSafeInteger(projectId) && projectId > 0 ? projectId : null
+}
+
+export async function fetchHotLeads(apiKey: string, since: string | null, projectId: number): Promise<ExpleeHotLead[]> {
   const out: ExpleeHotLead[] = []
   for (let page = 0; page < MAX_PAGES; page++) {
-    const qs = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) })
+    const qs = new URLSearchParams({ project_id: String(projectId), limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) })
     if (since) qs.set("since", since)
     const data = await expleeGet<ExpleeHotLeadsPage>(`/public/api/v1/autogtm/hot-leads?${qs}`, apiKey)
     out.push(...(data.leads || []))
@@ -210,6 +242,17 @@ export async function syncExpleeHotLeads(): Promise<ExpleeSyncResult> {
     notes.push("EXPLEE_API_KEY not configured")
     return result
   }
+  let projectId: number | null
+  try {
+    projectId = await resolveSyncProjectId(apiKey)
+  } catch (err) {
+    notes.push(`could not resolve Explee project ${EXPLEE_SYNC_DOMAIN}: ${err instanceof Error ? err.message : String(err)}`)
+    return result
+  }
+  if (!projectId) {
+    notes.push(`expected exactly one Explee project for ${EXPLEE_SYNC_DOMAIN}; refusing the account-wide feed`)
+    return result
+  }
   if (!isSupabaseConfigured()) {
     notes.push("supabase not configured")
     return result
@@ -217,16 +260,21 @@ export async function syncExpleeHotLeads(): Promise<ExpleeSyncResult> {
 
   // Cursor: the newest became_hot_at already imported. The feed returns hot
   // leads at/after `since`, so overlap is re-fetched and deduped by external_id.
-  const { data: cursorRow } = await supabase
+  const { data: cursorRow, error: cursorError } = await supabase
     .from("explee_leads")
     .select("became_hot_at")
+    .eq("project_id", projectId)
     .not("became_hot_at", "is", null)
     .order("became_hot_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+  if (cursorError) {
+    notes.push(`project-scoped Explee sync state unavailable: ${cursorError.message}`)
+    return result
+  }
   const since = (cursorRow?.became_hot_at as string | null) ?? null
 
-  const hot = await fetchHotLeads(apiKey, since)
+  const hot = await fetchHotLeads(apiKey, since, projectId)
   // Oldest first: if a run hits the cap, the cursor only advances past what was
   // processed, so the newer remainder is picked up next run — nothing is skipped.
   hot.sort((a, b) => (a.became_hot_at || "").localeCompare(b.became_hot_at || ""))
@@ -257,6 +305,7 @@ export async function syncExpleeHotLeads(): Promise<ExpleeSyncResult> {
       lead_id: leadId,
       person_id: lead.person_id,
       campaign_id: lead.campaign_id ?? null,
+      project_id: projectId,
       became_hot_at: lead.became_hot_at ?? null,
     })
 
@@ -276,6 +325,7 @@ export async function syncExpleeHotLeads(): Promise<ExpleeSyncResult> {
   const { data: stale } = await supabase
     .from("explee_leads")
     .select("lead_id, person_id, campaign_id, thread_synced_at")
+    .eq("project_id", projectId)
     .or(`thread_synced_at.is.null,thread_synced_at.lt.${staleBefore}`)
     .gte("became_hot_at", lookback)
     .order("became_hot_at", { ascending: false })

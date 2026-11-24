@@ -8,7 +8,7 @@ import type { PartnerType } from "./partners"
  * schedules per approved partner type; unused schedules are omitted entirely.
  */
 
-export const AGREEMENT_TEMPLATE_VERSION = "1.0"
+export const AGREEMENT_TEMPLATE_VERSION = "1.1"
 
 export type AgreementTypeKey = "referral" | "channel" | "implementation" | "technology" | "payment_provider"
 
@@ -223,8 +223,8 @@ export function commonTerms(v: AgreementVars): { part: string | null; clauses: C
         },
         {
           num: "5",
-          title: "Partner obligations",
-          body: "The Partner shall act honestly and professionally; follow applicable law, this Agreement and Approved Materials; keep accurate records; obtain necessary customer consent; use trained personnel; protect credentials and data; disclose conflicts; report complaints and incidents promptly; cooperate with audits and handovers; and avoid conduct likely to mislead customers or damage MartPoint.",
+          title: "Partner obligations and performance",
+          body: "The Partner shall act honestly and professionally; follow applicable law, this Agreement and Approved Materials; keep accurate records; obtain necessary customer consent; use trained personnel; protect credentials and data; disclose conflicts; report complaints and incidents promptly; cooperate with audits and handovers; and avoid conduct likely to mislead customers or damage MartPoint. Performance is a continuing condition of appointment and public directory listing. During the 90-calendar-day activation period starting on the date MartPoint confirms that policy acceptance and approved onboarding are complete, the Partner must achieve at least one verified qualifying activity: a qualified lead, attended customer demonstration, submitted proposal, closed-won deal or documented customer meeting. Logins alone do not qualify. If the activation threshold is not met, MartPoint may decline directory publication and may end the appointment following review. After publication, the Partner must maintain verified qualifying activity; 90 consecutive calendar days without it may trigger a written directory suspension notice and a 10-business-day response period. If no qualifying activity is verified and no active review hold or approved extension applies by the end of that period, MartPoint will suspend or remove the public listing. Directory publication is conditional on performance and is not guaranteed or permanent. A listing suspension alone does not terminate this Agreement, disable the Partner's account or forfeit commissions already properly earned under the applicable Schedule.",
         },
         {
           num: "6",

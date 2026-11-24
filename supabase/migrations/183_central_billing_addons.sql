@@ -59,6 +59,13 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'Active installation mapping not found'; END IF;
   SELECT * INTO p FROM central_addon_products WHERE product_code=p_product_code AND active=true FOR SHARE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Active imported add-on product not found'; END IF;
+  -- Serialize checkout creation for this Fleet/store/offer, even if two
+  -- callers send different idempotency keys at the same time. A retry with a
+  -- new key must not create a second unpaid invoice for the same purchase.
+  PERFORM pg_advisory_xact_lock(hashtext(
+    'central-addon-checkout:' || p_fleet_install_id::TEXT || ':' ||
+    p_store_id::TEXT || ':' || p.id::TEXT
+  )::BIGINT);
   SELECT * INTO i FROM central_billing_intents WHERE idempotency_key=p_idempotency_key;
   IF FOUND THEN
     IF i.payload_hash <> p_payload_hash THEN RAISE EXCEPTION 'Idempotency key payload conflict'; END IF;
@@ -69,6 +76,28 @@ BEGIN
   IF p_amount_kobo <= 0 OR p_tax_kobo < 0 OR p_tax_kobo >= p_amount_kobo
      OR round((p_amount_kobo-p_tax_kobo)::NUMERIC*p.tax_bps/10000)::BIGINT <> p_tax_kobo
      OR p_amount_kobo-p_tax_kobo <> p.price_kobo THEN RAISE EXCEPTION 'Amount or tax does not match imported add-on catalogue'; END IF;
+  -- Reuse an exact-price unpaid invoice for this offer. Confirmed/paid intents
+  -- are excluded, so renewing or buying again after payment creates a new one.
+  SELECT cbi.* INTO i
+    FROM central_billing_intents cbi
+    JOIN invoices inv ON inv.id=cbi.invoice_id
+   WHERE cbi.fleet_install_id=p_fleet_install_id
+     AND cbi.store_id=p_store_id
+     AND cbi.mapping_id=m.id
+     AND cbi.product_type='ADDON'
+     AND cbi.addon_product_id=p.id
+     AND cbi.payment_status='PENDING'
+     AND inv.status IN ('ISSUED','OVERDUE')
+     AND inv.balance_due > 0
+     AND round(inv.total_amount*100)::BIGINT=p_amount_kobo
+   ORDER BY cbi.created_at DESC
+   LIMIT 1;
+  IF FOUND THEN
+    RETURN QUERY SELECT i.id,i.invoice_id,i.invoice_item_id,inv.invoice_number,i.business_id,
+      (inv.total_amount*100)::BIGINT,(inv.tax_amount*100)::BIGINT,i.addon_key,i.billing_period
+      FROM invoices inv WHERE inv.id=i.invoice_id;
+    RETURN;
+  END IF;
   v_total := p_amount_kobo::NUMERIC/100; v_tax := p_tax_kobo::NUMERIC/100; v_sub := v_total-v_tax;
   v_num := next_invoice_number(EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER);
   INSERT INTO invoices(invoice_number,business_id,currency,issue_date,due_date,subtotal,tax_amount,total_amount,balance_due,status,notes_public,created_at,updated_at)

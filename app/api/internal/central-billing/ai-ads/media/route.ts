@@ -225,7 +225,10 @@ export async function POST(request: Request) {
     if (kind === "image") {
       const provider = await getAiProviderCredentials("openai")
       if (!provider?.apiKey) return failure("Image generation is temporarily unavailable. Please contact MartPoint support.", 503)
-      const client = new OpenAI({ apiKey: provider.apiKey, timeout: 220000 })
+      // Use the AI provider endpoint configured in Next Admin (including an
+      // OpenAI-compatible image endpoint), while keeping the image model as
+      // an explicit image-capable model rather than the text/chat model.
+      const client = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseUrl, timeout: 220000 })
       const result = await client.images.generate({ model: process.env.AI_ADS_IMAGE_MODEL || "gpt-image-2", prompt, n: 1, size: aspectRatio === "9:16" ? "1024x1536" : aspectRatio === "16:9" ? "1536x1024" : "1024x1024", quality: "medium", output_format: "jpeg" })
       const image = result.data?.[0]?.b64_json
       if (!image) return failure("The image provider did not return an image. Try a simpler description.", 502)

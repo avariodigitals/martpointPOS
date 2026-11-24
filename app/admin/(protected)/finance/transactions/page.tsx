@@ -74,6 +74,43 @@ function formatNgn(n: number) {
   return formatMoney(n)
 }
 
+type TransactionDatePeriod = "all" | "day" | "week" | "month" | "year"
+
+function getLocalDateInputValue(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function getISOWeekInputValue(date = new Date()) {
+  const weekDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayOfWeek = weekDate.getUTCDay() || 7
+  weekDate.setUTCDate(weekDate.getUTCDate() + 4 - dayOfWeek)
+  const weekYear = weekDate.getUTCFullYear()
+  const yearStart = new Date(Date.UTC(weekYear, 0, 1))
+  const week = Math.ceil(((weekDate.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+  return `${weekYear}-W${String(week).padStart(2, "0")}`
+}
+
+function getISOWeekBounds(value: string) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(value)
+  if (!match) return null
+  const year = Number(match[1])
+  const week = Number(match[2])
+  if (week < 1 || week > 53) return null
+  const jan4 = new Date(Date.UTC(year, 0, 4))
+  const dayOfWeek = jan4.getUTCDay() || 7
+  const start = new Date(jan4)
+  start.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1 + (week - 1) * 7)
+  const end = new Date(start)
+  end.setUTCDate(start.getUTCDate() + 6)
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+  }
+}
+
 export default function FinanceTransactionsPage() {
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
   const [loading, setLoading] = useState(true)
@@ -85,6 +122,7 @@ export default function FinanceTransactionsPage() {
     category: "",
     amount: "",
     tax: "",
+    taxEnabled: false,
     account: "",
     paymentAccountId: "",
     description: "",
@@ -103,6 +141,7 @@ export default function FinanceTransactionsPage() {
     category: "",
     amount: "",
     tax: "",
+    taxEnabled: false,
     account: "",
     paymentAccountId: "",
     description: "",
@@ -117,6 +156,11 @@ export default function FinanceTransactionsPage() {
 
   const [filterType, setFilterType] = useState<string>(validType)
   const [searchQuery, setSearchQuery] = useState("")
+  const [datePeriod, setDatePeriod] = useState<TransactionDatePeriod>("all")
+  const [filterDay, setFilterDay] = useState(() => getLocalDateInputValue())
+  const [filterWeek, setFilterWeek] = useState(() => getISOWeekInputValue())
+  const [filterMonth, setFilterMonth] = useState(() => getLocalDateInputValue().slice(0, 7))
+  const [filterYear, setFilterYear] = useState(() => String(new Date().getFullYear()))
   const [categoryList, setCategoryList] = useState<Array<{ id: string; type: string; name: string; active: boolean }>>([])
   const [paymentAccounts, setPaymentAccounts] = useState<Array<{ id: string; name: string; active: boolean }>>([])
 
@@ -156,6 +200,17 @@ export default function FinanceTransactionsPage() {
   const filteredTransactions = useMemo(() => {
     let list = transactions
     if (filterType !== "all") list = list.filter((t) => t.type === filterType)
+    if (datePeriod === "day") {
+      list = list.filter((t) => t.date.slice(0, 10) === filterDay)
+    } else if (datePeriod === "week") {
+      const bounds = getISOWeekBounds(filterWeek)
+      if (bounds) list = list.filter((t) => t.date.slice(0, 10) >= bounds.start && t.date.slice(0, 10) <= bounds.end)
+      else list = []
+    } else if (datePeriod === "month") {
+      list = filterMonth ? list.filter((t) => t.date.startsWith(filterMonth)) : []
+    } else if (datePeriod === "year") {
+      list = filterYear ? list.filter((t) => t.date.startsWith(filterYear)) : []
+    }
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
       list = list.filter((t) =>
@@ -163,7 +218,7 @@ export default function FinanceTransactionsPage() {
       )
     }
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [transactions, filterType, searchQuery])
+  }, [transactions, filterType, searchQuery, datePeriod, filterDay, filterWeek, filterMonth, filterYear])
 
   const addTransaction = async () => {
     setAdding(true)
@@ -175,6 +230,7 @@ export default function FinanceTransactionsPage() {
         body: JSON.stringify({
           ...addForm,
           amount: Number(addForm.amount),
+          tax: addForm.taxEnabled ? Number(addForm.tax) : 0,
         }),
       })
       const data = await res.json()
@@ -186,6 +242,7 @@ export default function FinanceTransactionsPage() {
           category: "",
           amount: "",
           tax: "",
+          taxEnabled: false,
           account: "",
           paymentAccountId: "",
           description: "",
@@ -212,6 +269,7 @@ export default function FinanceTransactionsPage() {
       category: t.category,
       amount: String(t.amount),
       tax: t.tax !== undefined ? String(t.tax) : "",
+      taxEnabled: Number(t.tax) > 0,
       account: t.account || "",
       paymentAccountId: (t as { paymentAccountId?: string }).paymentAccountId || "",
       description: t.description,
@@ -234,7 +292,7 @@ export default function FinanceTransactionsPage() {
           id: editingId,
           ...editForm,
           amount: Number(editForm.amount),
-          tax: editForm.tax ? Number(editForm.tax) : undefined,
+          tax: editForm.taxEnabled ? Number(editForm.tax) : 0,
         }),
       })
       const data = await res.json()
@@ -345,7 +403,7 @@ export default function FinanceTransactionsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
@@ -355,6 +413,60 @@ export default function FinanceTransactionsPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm"
           />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="transaction-date-period" className="text-sm text-muted-foreground">Period</label>
+          <select
+            id="transaction-date-period"
+            value={datePeriod}
+            onChange={(e) => setDatePeriod(e.target.value as TransactionDatePeriod)}
+            className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="all">All time</option>
+            <option value="day">Day</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+            <option value="year">Year</option>
+          </select>
+          {datePeriod === "day" && (
+            <input
+              type="date"
+              aria-label="Filter transactions by day"
+              value={filterDay}
+              onChange={(e) => setFilterDay(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          )}
+          {datePeriod === "week" && (
+            <input
+              type="week"
+              aria-label="Filter transactions by week"
+              value={filterWeek}
+              onChange={(e) => setFilterWeek(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          )}
+          {datePeriod === "month" && (
+            <input
+              type="month"
+              aria-label="Filter transactions by month"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          )}
+          {datePeriod === "year" && (
+            <input
+              type="number"
+              aria-label="Filter transactions by year"
+              min="1900"
+              max="9999"
+              step="1"
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="w-28 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          )}
         </div>
         <div className="flex gap-2">
           <Button variant={filterType === "all" ? "default" : "outline"} size="sm" onClick={() => setFilterType("all")}>All</Button>
@@ -490,15 +602,46 @@ export default function FinanceTransactionsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Tax (₦)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={addForm.tax}
-                  onChange={(e) => setAddForm((prev) => ({ ...prev, tax: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="0.00"
-                />
+                {addForm.type === "expense" ? (
+                  <>
+                    <label className="block text-xs font-medium mb-1">Tax</label>
+                    <select
+                      value={addForm.taxEnabled ? "tax" : "no-tax"}
+                      onChange={(e) => setAddForm((prev) => ({
+                        ...prev,
+                        taxEnabled: e.target.value === "tax",
+                        tax: e.target.value === "tax" ? prev.tax : "",
+                      }))}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="no-tax">No tax</option>
+                      <option value="tax">Tax</option>
+                    </select>
+                    {addForm.taxEnabled && (
+                      <input
+                        type="number"
+                        min="0"
+                        value={addForm.tax}
+                        onChange={(e) => setAddForm((prev) => ({ ...prev, tax: e.target.value }))}
+                        className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        placeholder="Tax amount (₦)"
+                        aria-label="Tax amount in Naira"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <label className="block text-xs font-medium mb-1">Tax (₦)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={addForm.tax}
+                      onChange={(e) => setAddForm((prev) => ({ ...prev, tax: e.target.value }))}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="0.00"
+                    />
+                  </>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">{addForm.type === "expense" ? "Paid From" : "Paid Into"}</label>
@@ -552,7 +695,7 @@ export default function FinanceTransactionsPage() {
 
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" size="sm" onClick={() => setShowAddModal(false)} disabled={adding}>Cancel</Button>
-              <Button size="sm" onClick={addTransaction} disabled={adding || !addForm.category || !addForm.amount || !addForm.description}>
+              <Button size="sm" onClick={addTransaction} disabled={adding || !addForm.category || !addForm.amount || !addForm.description || (addForm.type === "expense" && addForm.taxEnabled && !addForm.tax)}>
                 {adding ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
                 Add Transaction
               </Button>
@@ -617,14 +760,45 @@ export default function FinanceTransactionsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Tax (₦)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={editForm.tax}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, tax: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
+                {editForm.type === "expense" ? (
+                  <>
+                    <label className="block text-xs font-medium mb-1">Tax</label>
+                    <select
+                      value={editForm.taxEnabled ? "tax" : "no-tax"}
+                      onChange={(e) => setEditForm((prev) => ({
+                        ...prev,
+                        taxEnabled: e.target.value === "tax",
+                        tax: e.target.value === "tax" ? prev.tax : "",
+                      }))}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="no-tax">No tax</option>
+                      <option value="tax">Tax</option>
+                    </select>
+                    {editForm.taxEnabled && (
+                      <input
+                        type="number"
+                        min="0"
+                        value={editForm.tax}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, tax: e.target.value }))}
+                        className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        placeholder="Tax amount (₦)"
+                        aria-label="Tax amount in Naira"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <label className="block text-xs font-medium mb-1">Tax (₦)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editForm.tax}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, tax: e.target.value }))}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </>
+                )}
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium">{editForm.type === "expense" ? "Paid From" : "Paid Into"}</label>
@@ -677,7 +851,7 @@ export default function FinanceTransactionsPage() {
 
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" size="sm" onClick={() => setShowEditModal(false)} disabled={editing}>Cancel</Button>
-              <Button size="sm" onClick={updateTransaction} disabled={editing || !editForm.category || !editForm.amount || !editForm.description}>
+              <Button size="sm" onClick={updateTransaction} disabled={editing || !editForm.category || !editForm.amount || !editForm.description || (editForm.type === "expense" && editForm.taxEnabled && !editForm.tax)}>
                 {editing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
                 Save Changes
               </Button>

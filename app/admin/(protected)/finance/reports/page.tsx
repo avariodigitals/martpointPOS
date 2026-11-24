@@ -59,6 +59,17 @@ function formatNgnFull(n: number) {
   return formatMoney(n)
 }
 
+// jsPDF's built-in fonts do not contain the Naira glyph. The report heading
+// already identifies the currency, so keep PDF cell values to font-safe digits.
+function formatPdfAmount(n: number) {
+  const value = Number.isFinite(n) ? n : 0
+  const hasMinor = Math.abs(value % 1) > 0.0000001
+  return `${value < 0 ? "-" : ""}${Math.abs(value).toLocaleString("en-NG", {
+    minimumFractionDigits: hasMinor ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`
+}
+
 const PnL_SECTIONS = [
   {
     title: "Revenue",
@@ -222,46 +233,46 @@ export default function FinanceReportsPage() {
     doc.text(`Generated: ${new Date().toLocaleString("en-NG")}`, margin, y)
     y += 30
 
-    const tableData: Array<[string, string, string]> = []
+    const tableData: Array<[string, string]> = []
 
     // Revenue
     PnL_SECTIONS[0].items.forEach((cat) => {
       const val = categoryTotal([cat])
-      if (val > 0) tableData.push([cat, "", formatNgnFull(val)])
+      if (val > 0) tableData.push([cat, formatPdfAmount(val)])
     })
-    if (unclassifiedRevenue !== 0) tableData.push(["Other Income (unclassified)", "", formatNgnFull(unclassifiedRevenue)])
-    tableData.push(["Total Revenue", "", formatNgnFull(totalRevenue)])
+    if (unclassifiedRevenue !== 0) tableData.push(["Other Income (unclassified)", formatPdfAmount(unclassifiedRevenue)])
+    tableData.push(["Total Revenue", formatPdfAmount(totalRevenue)])
 
     // Cost of Revenue
     PnL_SECTIONS[1].items.forEach((cat) => {
       const val = categoryTotal([cat])
-      if (val > 0) tableData.push([cat, "", formatNgnFull(val)])
+      if (val > 0) tableData.push([cat, formatPdfAmount(val)])
     })
-    tableData.push(["Total Cost of Revenue", "", formatNgnFull(costOfRevenue)])
-    tableData.push(["Gross Profit", "", formatNgnFull(grossProfit)])
+    tableData.push(["Total Cost of Revenue", formatPdfAmount(costOfRevenue)])
+    tableData.push(["Gross Profit", formatPdfAmount(grossProfit)])
 
     // Operating Expenses
     PnL_SECTIONS[2].items.forEach((cat) => {
       const val = categoryTotal([cat])
-      if (val > 0) tableData.push([cat, "", formatNgnFull(val)])
+      if (val > 0) tableData.push([cat, formatPdfAmount(val)])
     })
-    tableData.push(["Total Operating Expenses", "", formatNgnFull(operatingExpenses)])
-    tableData.push(["EBITDA", "", formatNgnFull(ebitda)])
-    if (taxTotal > 0) tableData.push(["Taxes", "", formatNgnFull(taxTotal)])
-    tableData.push(["Net Profit / Loss", "", formatNgnFull(netProfit)])
+    tableData.push(["Total Operating Expenses", formatPdfAmount(operatingExpenses)])
+    tableData.push(["EBITDA", formatPdfAmount(ebitda)])
+    if (taxTotal > 0) tableData.push(["Taxes", formatPdfAmount(taxTotal)])
+    tableData.push(["Net Profit / Loss", formatPdfAmount(netProfit)])
 
     autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
-      head: [["Item", "", "Amount (NGN)"]],
+      head: [["Item", "Amount (NGN)"]],
       body: tableData,
-      styles: { fontSize: 9, cellPadding: 6 },
+      tableWidth: "auto",
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 6, overflow: "linebreak" },
       headStyles: { fillColor: [0, 87, 255], textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: [248, 249, 250] },
       columnStyles: {
         0: { cellWidth: "auto" },
-        1: { cellWidth: 20 },
-        2: { cellWidth: "auto", halign: "right", fontStyle: "bold" },
+        1: { cellWidth: 130, halign: "right", fontStyle: "bold" },
       },
       didParseCell: (data) => {
         const label = (data.row.raw as unknown as Array<string>)?.[0]

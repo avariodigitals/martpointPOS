@@ -235,7 +235,7 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
     disputeDays: input.disputeDays.trim() || "30",
     securityNoticeHours: input.securityNoticeHours.trim() || "4",
     liabilityFloor: orBlank(input.liabilityFloor),
-    initialTermMonths: input.initialTermMonths.trim() || "12",
+    initialTermMonths: input.initialTermMonths.trim() || "3",
     renewalRule:
       input.renewalRule.trim() ||
       "renews automatically for successive twelve (12) month periods unless either Party gives written notice of non-renewal at least thirty (30) days before expiry",

@@ -1,6 +1,6 @@
 import type { PartnerType } from "./partners"
 
-/* ───────────────────  Partner Agreement content (master template v1.0)  ───────────────────
+/* ───────────────────  Partner Agreement content (master template v1.1)  ───────────────────
  * Partner-facing wording ONLY. The master .docx is an internal "LEGAL AND AUTOMATION
  * MASTER" that also carries generation rules, internal approval logic, merge-field
  * documentation and a legal review checklist — none of which belongs in a partner's

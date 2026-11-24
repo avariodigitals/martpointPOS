@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2, FileText, Download, Plus, Trash2 } from "lucide-react"
 import { COUNTRIES, STATES } from "@/lib/locations"
 import { enumLabel } from "@/lib/utils"
+import { REFERRAL_GRADES, REFERRAL_GRADE_LABELS } from "@/lib/partner-grades"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-xs font-medium mb-1"
@@ -67,6 +68,32 @@ interface GeneratedDoc {
   signedUrl: string | null
 }
 
+interface AssignedUser {
+  id: string
+  name: string
+  username: string
+  email: string | null
+  role: string
+}
+
+function SelectField({ label, value, onChange, options, placeholder = "Select…" }: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string }[]
+  placeholder?: string
+}) {
+  return (
+    <div>
+      <label className={labelCls}>{label}</label>
+      <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{placeholder}</option>
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </div>
+  )
+}
+
 function Field({ label, value, onChange, textarea, placeholder, type }: {
   label: string
   value: string
@@ -97,11 +124,12 @@ export function AgreementForm({ applicationId, onGenerated }: {
   const [partnerTypeLabel, setPartnerTypeLabel] = useState("")
   const [partnerType, setPartnerType] = useState("")
   const [agreements, setAgreements] = useState<GeneratedDoc[]>([])
+  const [assignedUsers, setAssignedUsers] = useState<AssignedUser[]>([])
   const [open, setOpen] = useState(false)
   const [msg, setMsg] = useState("")
 
   const [form, setForm] = useState<Record<string, string>>({
-    effectiveDate: "", initialTermMonths: "12", renewalRule: "", noticeDays: "30",
+    effectiveDate: "", initialTermMonths: "3", renewalRule: "", noticeDays: "30",
     disputeDays: "30", securityNoticeHours: "4", referralProtectionDays: "90", liabilityFloor: "",
   })
   const [mp, setMp] = useState<Record<string, string>>({})
@@ -114,6 +142,8 @@ export function AgreementForm({ applicationId, onGenerated }: {
   const [selectedCoverage, setSelectedCoverage] = useState<string[]>([])
   const [territoryCountry, setTerritoryCountry] = useState("")
   const [territoryStates, setTerritoryStates] = useState<string[]>([])
+  const [customOperatingLevel, setCustomOperatingLevel] = useState(false)
+  const [martpointOwnerUserId, setMartpointOwnerUserId] = useState("")
 
   /* Territory is stored as a composed string. The picker drives it: states selected
    * under a country are written as "State, Country"; applicant coverage entries are
@@ -157,6 +187,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
       setPartnerType(data.partnerType)
       setPartnerTypeLabel(data.partnerTypeLabel)
       setAgreements(data.agreements || [])
+      setAssignedUsers(data.assignedUsers || [])
       const d = data.defaults || {}
       setForm((p) => ({
         ...p,
@@ -176,6 +207,8 @@ export function AgreementForm({ applicationId, onGenerated }: {
         martpointOwnerEmail: "",
         ...(d.appointment || {}),
       })
+      setCustomOperatingLevel(Boolean(d.appointment?.levelByType && d.appointment.levelByType !== "Standard"))
+      setMartpointOwnerUserId((data.assignedUsers || []).find((u: AssignedUser) => u.email && u.email === d.appointment?.martpointOwnerEmail)?.id || "")
       setCommercials((data.earningBases || []).map(emptyCommercial))
     } catch {
       setMsg("Failed to load agreement defaults")
@@ -190,6 +223,10 @@ export function AgreementForm({ applicationId, onGenerated }: {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function generate() {
+    if (customOperatingLevel && !appt.levelByType?.trim()) {
+      setMsg("Enter the custom operating level before generating the agreement.")
+      return
+    }
     setGenerating(true)
     setMsg("")
     try {
@@ -275,16 +312,26 @@ export function AgreementForm({ applicationId, onGenerated }: {
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Agreement</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Effective date" type="date" value={form.effectiveDate} onChange={set("effectiveDate")} />
-                <Field label="Initial term (months)" value={form.initialTermMonths} onChange={set("initialTermMonths")} />
-                <Field label="Termination notice (days)" value={form.noticeDays} onChange={set("noticeDays")} />
-                <Field label="Statement dispute window (days)" value={form.disputeDays} onChange={set("disputeDays")} />
-                <Field label="Security incident notice (hours)" value={form.securityNoticeHours} onChange={set("securityNoticeHours")} />
+                <SelectField label="Initial term (months)" value={form.initialTermMonths} onChange={set("initialTermMonths")} options={[
+                  { value: "3", label: "3 months (90 days)" }, { value: "6", label: "6 months" }, { value: "12", label: "12 months" },
+                ]} />
+                <SelectField label="Termination notice (days)" value={form.noticeDays} onChange={set("noticeDays")} options={[
+                  { value: "7", label: "7 days" }, { value: "14", label: "14 days" }, { value: "30", label: "30 days" }, { value: "60", label: "60 days" }, { value: "90", label: "90 days" },
+                ]} />
+                <SelectField label="Statement dispute window (days)" value={form.disputeDays} onChange={set("disputeDays")} options={[
+                  { value: "7", label: "7 days" }, { value: "14", label: "14 days" }, { value: "30", label: "30 days" }, { value: "60", label: "60 days" },
+                ]} />
+                <SelectField label="Security incident notice (hours)" value={form.securityNoticeHours} onChange={set("securityNoticeHours")} options={[
+                  { value: "1", label: "1 hour" }, { value: "4", label: "4 hours" }, { value: "12", label: "12 hours" }, { value: "24", label: "24 hours" },
+                ]} />
                 <div>
                   <Field label="Liability floor amount" value={form.liabilityFloor} onChange={set("liabilityFloor")} placeholder="e.g. NGN 5,000,000" />
                   <p className="text-[11px] text-muted-foreground mt-0.5">Minimum liability cap — each party&apos;s liability is capped at the greater of trailing-12-month fees or this amount. Default comes from Settings → MartPoint Legal Entity.</p>
                 </div>
                 {["REFERRAL", "CHANNEL", "CHANNEL_IMPLEMENTATION"].includes(partnerType) && (
-                  <Field label="Referral protection (days)" value={form.referralProtectionDays} onChange={set("referralProtectionDays")} />
+                  <SelectField label="Referral protection (days)" value={form.referralProtectionDays} onChange={set("referralProtectionDays")} options={[
+                    { value: "30", label: "30 days" }, { value: "60", label: "60 days" }, { value: "90", label: "90 days" }, { value: "180", label: "180 days" },
+                  ]} />
                 )}
                 <div className="sm:col-span-2">
                   <Field label="Renewal rule" textarea value={form.renewalRule} onChange={set("renewalRule")} placeholder="Blank = renews automatically for successive 12-month periods unless either Party gives 30 days' notice of non-renewal" />
@@ -379,11 +426,22 @@ export function AgreementForm({ applicationId, onGenerated }: {
                   )}
                   <Field label="Territory / service area (as written into the agreement)" textarea value={appt.territory || ""} onChange={apptField("territory")} />
                 </div>
-                <Field label="Operating level" value={appt.levelByType || ""} onChange={apptField("levelByType")} />
-                <Field label="Starting grade" value={appt.gradeByType || ""} onChange={apptField("gradeByType")} placeholder="e.g. Silver" />
+                <SelectField label="Operating level" value={customOperatingLevel ? "CUSTOM" : appt.levelByType || ""} onChange={(v) => {
+                  setCustomOperatingLevel(v === "CUSTOM")
+                  apptField("levelByType")(v === "CUSTOM" ? "" : v)
+                }} options={[
+                  { value: "Standard", label: "Standard" }, { value: "CUSTOM", label: "Other (specify)" },
+                ]} />
+                {customOperatingLevel && (
+                  <Field label="Custom operating level" value={appt.levelByType || ""} onChange={apptField("levelByType")} placeholder="Enter operating level" />
+                )}
+                <SelectField label="Starting grade" value={appt.gradeByType || ""} onChange={apptField("gradeByType")} options={REFERRAL_GRADES.map((grade) => ({ value: REFERRAL_GRADE_LABELS[grade], label: REFERRAL_GRADE_LABELS[grade] }))} placeholder="No grade selected" />
                 <Field label="Required insurance" value={appt.insurance || ""} onChange={apptField("insurance")} />
-                <Field label="MartPoint owner name" value={appt.martpointOwnerName || ""} onChange={apptField("martpointOwnerName")} />
-                <Field label="MartPoint owner email" value={appt.martpointOwnerEmail || ""} onChange={apptField("martpointOwnerEmail")} />
+                <SelectField label="MartPoint owner" value={martpointOwnerUserId} onChange={(id) => {
+                  const user = assignedUsers.find((u) => u.id === id)
+                  setMartpointOwnerUserId(id)
+                  setAppt((p) => ({ ...p, martpointOwnerName: user?.name || "", martpointOwnerEmail: user?.email || "" }))
+                }} options={assignedUsers.filter((u) => ["Admin", "Sales"].includes(u.role) && Boolean(u.email)).map((u) => ({ value: u.id, label: `${u.name || u.username} · ${u.role}` }))} placeholder="Select an Admin or Sales user with email" />
                 <div className="sm:col-span-2"><Field label="Permitted activities" textarea value={appt.permittedActivities || ""} onChange={apptField("permittedActivities")} /></div>
                 <div className="sm:col-span-2"><Field label="Express prohibitions" textarea value={appt.additionalProhibitions || ""} onChange={apptField("additionalProhibitions")} /></div>
               </div>
@@ -413,16 +471,21 @@ export function AgreementForm({ applicationId, onGenerated }: {
                     <Field label="Eligible revenue definition" value={c.eligibleRevenueDefinition} onChange={setComm(i, "eligibleRevenueDefinition")} placeholder="Blank = Eligible Revenue per clause 2" />
                     <Field label="Excluded amounts" value={c.exclusions} onChange={setComm(i, "exclusions")} />
                     <Field label="Attribution requirement" value={c.attributionRule} onChange={setComm(i, "attributionRule")} />
-                    <Field label="Statement cycle" value={c.statementCycle} onChange={setComm(i, "statementCycle")} placeholder="e.g. Monthly" />
+                    <SelectField label="Statement cycle" value={c.statementCycle} onChange={setComm(i, "statementCycle")} options={[
+                      { value: "Monthly", label: "Monthly" }, { value: "Quarterly", label: "Quarterly" },
+                    ]} />
                     <Field label="Payout timing" value={c.payoutTiming} onChange={setComm(i, "payoutTiming")} placeholder="e.g. Within 15 days of statement" />
                     <Field label="Currency and taxes" value={c.currencyAndTaxRule} onChange={setComm(i, "currencyAndTaxRule")} placeholder="e.g. NGN, exclusive of VAT and WHT" />
-                    <Field label="Holding period (days)" value={c.holdingDays} onChange={setComm(i, "holdingDays")} />
+                    <SelectField label="Holding period (days)" value={c.holdingDays} onChange={setComm(i, "holdingDays")} options={[
+                      { value: "0", label: "No holding period" }, { value: "7", label: "7 days" }, { value: "14", label: "14 days" },
+                      { value: "30", label: "30 days" }, { value: "60", label: "60 days" }, { value: "90", label: "90 days" }, { value: "180", label: "180 days" },
+                    ]} />
                     <Field label="Holding starts from" value={c.holdingStartEvent} onChange={setComm(i, "holdingStartEvent")} placeholder="e.g. licence activation" />
                     <Field label="Renewal eligibility" value={c.renewalRule} onChange={setComm(i, "renewalRule")} />
                     <Field label="Refund / chargeback treatment" value={c.reversalRule} onChange={setComm(i, "reversalRule")} />
                     <Field label="Split / non-stacking rule" value={c.splitRule} onChange={setComm(i, "splitRule")} />
-                    <Field label="Finance approver" value={c.financeApprover} onChange={setComm(i, "financeApprover")} />
-                    <Field label="Management approver" value={c.managementApprover} onChange={setComm(i, "managementApprover")} />
+                    <SelectField label="Finance approver" value={assignedUsers.find((u) => u.name === c.financeApprover && ["Admin", "Finance"].includes(u.role))?.id || ""} onChange={(id) => setComm(i, "financeApprover")(assignedUsers.find((u) => u.id === id)?.name || "")} options={assignedUsers.filter((u) => ["Admin", "Finance"].includes(u.role)).map((u) => ({ value: u.id, label: `${u.name || u.username} · ${u.role}` }))} placeholder="Select Finance or Admin user" />
+                    <SelectField label="Management approver" value={assignedUsers.find((u) => u.name === c.managementApprover && u.role === "Admin")?.id || ""} onChange={(id) => setComm(i, "managementApprover")(assignedUsers.find((u) => u.id === id)?.name || "")} options={assignedUsers.filter((u) => u.role === "Admin").map((u) => ({ value: u.id, label: `${u.name || u.username} · ${u.role}` }))} placeholder="Select an Admin user" />
                   </div>
                   <Field label="Payment and activation trigger" textarea value={c.trigger} onChange={setComm(i, "trigger")} />
                 </div>

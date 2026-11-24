@@ -23,7 +23,7 @@ import {
 } from "@/lib/partner-agreement"
 
 /* ─── Partner agreement generation ───
- * Generates the clean partner signing copy from the master template (v1.0): Common
+ * Generates the clean partner signing copy from the master template (v1.1): Common
  * Terms + Appointment Summary + only the Partner Type Schedules matching the approved
  * type + Commercial Terms (admin-entered, one section per earning basis) + Signature
  * Page. The internal automation/approval sections and unused schedules are never
@@ -65,6 +65,11 @@ export async function GET(
 
   const partnerType = app.requested_partner_type as string
   const mp = await getMartPointEntity()
+  const { data: assignedUsers } = await supabase
+    .from("users")
+    .select("id, name, username, email, role")
+    .eq("status", "ACTIVE")
+    .order("name")
   const earningBases = earningBasesFor(partnerType).map((b) => ({
     ...b,
     defaults: { ...commercialFieldDefaults(b.earningCategory), trigger: defaultTrigger(b.earningCategory) },
@@ -93,6 +98,7 @@ export async function GET(
     templateVersion: AGREEMENT_TEMPLATE_VERSION,
     partnerType,
     partnerTypeLabel: PARTNER_TYPE_LABELS[partnerType as keyof typeof PARTNER_TYPE_LABELS] || partnerType,
+    assignedUsers: assignedUsers || [],
     earningBases,
     agreements,
     defaults: {
@@ -201,6 +207,34 @@ export async function POST(
       return NextResponse.json({ error: "At least one commercial section is required" }, { status: 400 })
     }
 
+    const { data: activeUsers, error: activeUsersError } = await supabase
+      .from("users")
+      .select("name, email, role")
+      .eq("status", "ACTIVE")
+    if (activeUsersError) {
+      return NextResponse.json({ error: "Could not verify the assigned MartPoint users" }, { status: 500 })
+    }
+    const users = activeUsers || []
+    const ownerIsAssigned = users.some((user) =>
+      ["Admin", "Sales"].includes(user.role as string) &&
+      user.name === appointment.martpointOwnerName &&
+      Boolean(user.email) && user.email === appointment.martpointOwnerEmail
+    )
+    if (!ownerIsAssigned) {
+      return NextResponse.json({ error: "Select an active Admin or Sales user as the MartPoint owner" }, { status: 400 })
+    }
+    for (const [index, commercial] of commercials.entries()) {
+      if (!commercial.rateOrFee?.trim()) {
+        return NextResponse.json({ error: `Commercial section ${index + 1} needs a rate or fixed fee` }, { status: 400 })
+      }
+      if (!users.some((user) => ["Admin", "Finance"].includes(user.role as string) && user.name === commercial.financeApprover)) {
+        return NextResponse.json({ error: `Select an active Finance or Admin user for commercial section ${index + 1}` }, { status: 400 })
+      }
+      if (!users.some((user) => user.role === "Admin" && user.name === commercial.managementApprover)) {
+        return NextResponse.json({ error: `Select an active Admin user as the management approver for commercial section ${index + 1}` }, { status: 400 })
+      }
+    }
+
     if (partnerType === "TECHNOLOGY" && !body.technology?.solutionName?.trim()) {
       return NextResponse.json(
         { error: "Technology Partner agreements require the approved solution name, version and use case" },
@@ -215,7 +249,7 @@ export async function POST(
     const input: AgreementInput = {
       agreementId: `AGR-${app.reference_number}`,
       effectiveDate: body.effectiveDate || new Date().toISOString().slice(0, 10),
-      initialTermMonths: body.initialTermMonths || "12",
+      initialTermMonths: body.initialTermMonths || "3",
       renewalRule: body.renewalRule || "",
       noticeDays: body.noticeDays || "30",
       disputeDays: body.disputeDays || "30",

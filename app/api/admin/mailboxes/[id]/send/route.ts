@@ -7,7 +7,7 @@ import { sendEmail } from "@/lib/email"
 import { appendSignatureToHtml, buildSignatureHtml, htmlToText, normalizeCompanySignatureContacts, textToHtml } from "@/lib/email-html"
 import { sanitizeSupportHtml } from "@/lib/support-html"
 import { readSettings } from "@/lib/settings"
-import { getProfileSignatureScale, prepareProfileSignatureHtml } from "@/lib/email-signature"
+import { getProfileSignatureScale, normalizeMartPointSignatureAssets, prepareProfileSignatureHtml } from "@/lib/email-signature"
 import { resolveUniqueLeadIdByAddress } from "@/lib/lead-emails-inbound"
 
 export const dynamic = "force-dynamic"
@@ -38,7 +38,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const bodyHtml = sanitizeSupportHtml(payload.bodyHtml)
     const bodyText = htmlToText(bodyHtml)
     if (!bodyText.trim()) return NextResponse.json({ error: "Write a message before sending." }, { status: 400 })
-    const storedSignature = normalizeCompanySignatureContacts(String(mailbox.signature_html || ""))
+    const storedSignature = normalizeCompanySignatureContacts(normalizeMartPointSignatureAssets(String(mailbox.signature_html || "")))
     const signatureHtml = mailbox.signature_format === "plain" ? textToHtml(storedSignature) : sanitizeSupportHtml(storedSignature)
     const globalSettings = await readSettings()
     const emailSettings = (globalSettings?.email || {}) as Record<string, unknown>

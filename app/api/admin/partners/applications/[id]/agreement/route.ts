@@ -4,13 +4,10 @@ import path from "path"
 import { NextResponse } from "next/server"
 import { authorizeAdmin } from "@/lib/admin-auth"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { recordStatusHistory, PARTNER_TYPE_LABELS } from "@/lib/partners"
+import { PARTNER_TYPE_LABELS } from "@/lib/partners"
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } from "@/lib/audit"
 import { uploadPartnerDocument, createSignedDocUrl } from "@/lib/partner-documents"
-import { sendEmail } from "@/lib/email"
-import { escapeHtml } from "@/lib/email-html"
 import { getMartPointEntity } from "@/lib/martpoint-entity"
-import { registerAgreementDocument } from "@/lib/partner-generated-docs"
 import {
   generatePartnerAgreementPdf,
   earningBasesFor,
@@ -95,6 +92,22 @@ export async function GET(
     }))
   )
 
+  const { data: draft } = await supabase
+    .from("partner_agreement_drafts")
+    .select("id, agreement_id, agreement_payload, draft_document_path, created_at, status")
+    .eq("application_id", id)
+    .eq("status", "AWAITING_REVIEW")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const pendingDraft = draft ? {
+    id: String(draft.id),
+    agreementId: String(draft.agreement_id),
+    createdAt: String(draft.created_at),
+    previewUrl: await createSignedDocUrl(String(draft.draft_document_path), 300),
+    payload: draft.agreement_payload,
+  } : null
+
   return NextResponse.json({
     generatable: GENERATABLE_STATUSES.includes(app.status as string),
     templateVersion: AGREEMENT_TEMPLATE_VERSION,
@@ -103,6 +116,7 @@ export async function GET(
     assignedUsers: assignedUsers || [],
     earningBases,
     agreements,
+    pendingDraft,
     defaults: {
       agreementId: `AGR-${app.reference_number}`,
       effectiveDate: new Date().toISOString().slice(0, 10),
@@ -134,14 +148,14 @@ export async function GET(
   })
 }
 
-/* ─── POST: generate the agreement, store it, move status to AGREEMENT_PENDING ─── */
+/* ─── POST: generate and store an unsigned draft for admin review ─── */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { session, denied } = await authorizeAdmin("partners", "manage")
   if (denied) return denied
-  if (session?.role !== "Admin") return NextResponse.json({ error: "Only an Admin can authorize MartPoint's electronic signature" }, { status: 403 })
+  if (session?.role !== "Admin") return NextResponse.json({ error: "Only an Admin can prepare partner agreement drafts" }, { status: 403 })
 
   const { id } = await params
   if (!isSupabaseConfigured()) {
@@ -150,10 +164,6 @@ export async function POST(
 
   try {
     const body = await request.json().catch(() => ({}))
-    if (body.authorizeCompanySignature !== true) {
-      return NextResponse.json({ error: "Confirm that this agreement is approved and authorize MartPoint's electronic signature" }, { status: 400 })
-    }
-
     const { data: app, error } = await supabase
       .from("partner_applications")
       .select("*")
@@ -275,9 +285,6 @@ export async function POST(
     }
 
     const termsSha256 = crypto.createHash("sha256").update(JSON.stringify(input)).digest("hex")
-    const martpointSignedAt = new Date().toISOString()
-    const martpointSignatureEventId = `MPES-${crypto.randomUUID()}`
-    input.execution = { termsSha256, martpointSignedAt, martpointEventId: martpointSignatureEventId }
 
     // jsPDF can't embed WebP — the committed PNG logo is used for the letterhead.
     let logoDataUrl: string | undefined
@@ -291,9 +298,9 @@ export async function POST(
     const generated = generatePartnerAgreementPdf(input, { logoDataUrl })
     const docHash = crypto.createHash("sha256").update(generated.bytes).digest("hex")
 
-    const upload = await uploadPartnerDocument(id, generated.fileName, "application/pdf", generated.bytes)
+    const upload = await uploadPartnerDocument(id, generated.fileName.replace(/\.pdf$/i, "-review-draft.pdf"), "application/pdf", generated.bytes)
     if (!upload.ok || !upload.doc) {
-      return NextResponse.json({ error: upload.error || "Failed to store agreement" }, { status: 500 })
+      return NextResponse.json({ error: upload.error || "Failed to store agreement draft" }, { status: 500 })
     }
 
     const { data: partnerRow } = await supabase
@@ -303,33 +310,38 @@ export async function POST(
       .maybeSingle()
 
     const now = new Date().toISOString()
-    const { data: docRow, error: docErr } = await supabase
-      .from("partner_documents")
+    await supabase
+      .from("partner_agreement_drafts")
+      .update({ status: "SUPERSEDED", updated_at: now })
+      .eq("application_id", id)
+      .eq("status", "AWAITING_REVIEW")
+
+    const { data: draftRow, error: draftError } = await supabase
+      .from("partner_agreement_drafts")
       .insert({
         application_id: id,
         partner_id: (partnerRow?.id as string) || null,
-        document_type: GENERATED_DOC_TYPE,
-        storage_path: upload.doc.storagePath,
-        original_filename: generated.fileName,
-        mime_type: "application/pdf",
-        file_size: generated.bytes.length,
-        verification_status: "UNDER_REVIEW",
-        required: false,
-        requested_by: session!.userId,
-        notes: `Generated from master template v${AGREEMENT_TEMPLATE_VERSION}. SHA-256: ${docHash}`,
-        uploaded_at: now,
+        agreement_id: input.agreementId,
+        agreement_payload: input,
+        terms_sha256: termsSha256,
+        draft_document_path: upload.doc.storagePath,
+        draft_document_sha256: docHash,
+        status: "AWAITING_REVIEW",
+        created_by: session!.userId,
+        created_at: now,
+        updated_at: now,
       })
-      .select()
+      .select("id")
       .single()
-    if (docErr || !docRow) {
-      return NextResponse.json({ error: "Failed to record agreement document" }, { status: 500 })
+    if (draftError || !draftRow) {
+      return NextResponse.json({ error: "Failed to save agreement draft for review" }, { status: 500 })
     }
 
     const ctx = auditContextFromSession(session, request)
     await recordAudit(ctx, {
       action: AUDIT_ACTIONS.PARTNER_AGREEMENT_GENERATED,
-      entityType: AUDIT_ENTITIES.PARTNER_DOCUMENT,
-      entityId: docRow.id,
+      entityType: AUDIT_ENTITIES.PARTNER_APPLICATION,
+      entityId: id,
       metadata: {
         applicationId: id,
         reference: app.reference_number,
@@ -338,95 +350,18 @@ export async function POST(
         partnerType,
         includedSchedules: generated.includedSchedules,
         sha256: docHash,
+        draftId: draftRow.id,
+        status: "AWAITING_REVIEW",
         fileName: generated.fileName,
       },
     })
-
-    // Mirror the agreement into the generated-documents registry so partners
-    // see it alongside other portal-issued records.
-    await registerAgreementDocument({
-      partnerId: (partnerRow?.id as string) || null,
-      applicationId: id,
-      agreementId: input.agreementId,
-      storagePath: upload.doc.storagePath,
-      fileName: generated.fileName,
-      fileSize: generated.bytes.length,
-      checksum: docHash,
-      templateVersion: String(AGREEMENT_TEMPLATE_VERSION),
-      generatedBy: session!.userId,
-    }).catch((e) => console.error("[agreement] registry insert failed:", e))
-
-    await supabase
-      .from("partner_agreement_signing")
-      .update({ status: "SUPERSEDED", updated_at: now })
-      .eq("application_id", id)
-      .eq("status", "AWAITING_PARTNER")
-
-    const signingToken = crypto.randomBytes(32).toString("hex")
-    const signingExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
-    const { error: signingError } = await supabase.from("partner_agreement_signing").insert({
-      application_id: id,
-      partner_id: (partnerRow?.id as string) || null,
-      source_document_id: docRow.id,
-      agreement_id: input.agreementId,
-      token_hash: crypto.createHash("sha256").update(signingToken).digest("hex"),
-      token_expires_at: signingExpiresAt,
-      status: "AWAITING_PARTNER",
-      agreement_payload: input,
-      terms_sha256: termsSha256,
-      martpoint_signatory_name: input.martpoint.signatoryName,
-      martpoint_signatory_title: input.martpoint.signatoryTitle,
-      martpoint_signatory_email: input.martpoint.signatoryEmail,
-      martpoint_signed_at: martpointSignedAt,
-      martpoint_signature_event_id: martpointSignatureEventId,
-      martpoint_signed_by_user_id: session!.userId,
-      created_at: now,
-      updated_at: now,
-    })
-    if (signingError) return NextResponse.json({ error: "Agreement was generated, but its signing request could not be created" }, { status: 500 })
-
-    // First generation off an approved application moves it to AGREEMENT_PENDING.
-    if (app.status === "APPROVED") {
-      await supabase
-        .from("partner_applications")
-        .update({ status: "AGREEMENT_PENDING", updated_at: now, reviewed_at: now, reviewed_by: session!.userId })
-        .eq("id", id)
-      await recordStatusHistory(id, null, "APPROVED", "AGREEMENT_PENDING", `Partner agreement generated (${input.agreementId})`, session!.userId, {
-        changedByName: session!.name || session!.username,
-        eventType: "STATUS_CHANGE",
-      })
-    } else {
-      await recordStatusHistory(id, null, app.status as string, app.status as string, `Partner agreement regenerated (${input.agreementId})`, session!.userId, {
-        changedByName: session!.name || session!.username,
-        eventType: "NOTE_ADDED",
-      })
-    }
-
-    const appBaseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
-    const signingUrl = `${appBaseUrl}/partners/sign-agreement?token=${encodeURIComponent(signingToken)}`
-    const partnerName = (app.full_name as string) || (app.business_name as string) || "Partner"
-    const signingEmailSent = await sendEmail({
-      to: app.email as string,
-      subject: "Please review and sign your MartPoint Partner Agreement",
-      text: `Hello ${partnerName},\n\nYour MartPoint Partner Agreement ${input.agreementId} is ready. MartPoint has signed it electronically. Please review the agreement and sign it using this secure link within 14 days:\n\n${signingUrl}\n\nIf you have questions, reply to this email or contact partners@martpoint.com.ng.`,
-      html: `<p>Hello ${escapeHtml(partnerName)},</p><p>Your MartPoint Partner Agreement <strong>${escapeHtml(input.agreementId)}</strong> is ready. MartPoint has signed it electronically. Please review and sign it using the secure link below within 14 days.</p><p><a href="${escapeHtml(signingUrl)}" style="display:inline-block;background:#0057ff;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px">Review and sign agreement</a></p><p>If you have questions, reply to this email or contact partners@martpoint.com.ng.</p>`,
-      route: "partner_application",
-      useRouteRecipients: false,
-      replyTo: "partners@martpoint.com.ng",
-    })
-    await supabase.from("partner_agreement_signing").update({
-      email_sent: signingEmailSent,
-      email_sent_at: signingEmailSent ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
-    }).eq("token_hash", crypto.createHash("sha256").update(signingToken).digest("hex"))
 
     const signedUrl = await createSignedDocUrl(upload.doc.storagePath, 300)
     return NextResponse.json({
       success: true,
       agreementId: input.agreementId,
       includedSchedules: generated.includedSchedules,
-      document: { id: docRow.id, fileName: generated.fileName, signedUrl },
-      signing: { emailSent: signingEmailSent, signingUrl, expiresAt: signingExpiresAt },
+      draft: { id: draftRow.id, fileName: upload.doc.originalFilename, previewUrl: signedUrl },
     })
   } catch (err) {
     console.error("[agreement] generation failed:", err)

@@ -67,6 +67,13 @@ interface GeneratedDoc {
   signedUrl: string | null
 }
 
+interface PendingDraft {
+  id: string
+  agreementId: string
+  createdAt: string
+  previewUrl: string | null
+}
+
 interface AssignedUser {
   id: string
   name: string
@@ -123,6 +130,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
   const [partnerTypeLabel, setPartnerTypeLabel] = useState("")
   const [partnerType, setPartnerType] = useState("")
   const [agreements, setAgreements] = useState<GeneratedDoc[]>([])
+  const [pendingDraft, setPendingDraft] = useState<PendingDraft | null>(null)
   const [assignedUsers, setAssignedUsers] = useState<AssignedUser[]>([])
   const [open, setOpen] = useState(false)
   const [msg, setMsg] = useState("")
@@ -188,6 +196,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
       setPartnerType(data.partnerType)
       setPartnerTypeLabel(data.partnerTypeLabel)
       setAgreements(data.agreements || [])
+      setPendingDraft(data.pendingDraft || null)
       setAssignedUsers(data.assignedUsers || [])
       const d = data.defaults || {}
       setForm((p) => ({
@@ -213,6 +222,17 @@ export function AgreementForm({ applicationId, onGenerated }: {
       setCustomOperatingLevel(Boolean(d.appointment?.levelByType && d.appointment.levelByType !== "Standard"))
       setMartpointOwnerUserId((data.assignedUsers || []).find((u: AssignedUser) => u.email && u.email === d.appointment?.martpointOwnerEmail)?.id || "")
       setCommercials((data.earningBases || []).map(emptyCommercial))
+      if (data.pendingDraft?.payload) {
+        const saved = data.pendingDraft.payload
+        setForm((current) => ({ ...current, ...saved }))
+        setMp(saved.martpoint || d.martpoint || {})
+        setPt(saved.partner || d.partner || {})
+        setAppt(saved.appointment || d.appointment || {})
+        setTech(saved.technology || { solutionName: "", solutionVersion: "", approvedUseCase: "" })
+        setCommercials(saved.commercials || [])
+        setExtraSchedules(saved.additionalSchedules || [])
+        setCustomOperatingLevel(Boolean(saved.appointment?.levelByType && saved.appointment.levelByType !== "Standard"))
+      }
     } catch {
       setMsg("Failed to load agreement defaults")
     } finally {
@@ -243,22 +263,52 @@ export function AgreementForm({ applicationId, onGenerated }: {
           appointment: appt,
           technology: partnerType === "TECHNOLOGY" ? tech : undefined,
           commercials,
-          authorizeCompanySignature,
           additionalSchedules: extraSchedules.filter((s) => s.title.trim() && s.body.trim()),
         }),
       })
       const data = await res.json()
       if (data.success) {
-        setSigningUrl(data.signing?.emailSent ? "" : data.signing?.signingUrl || "")
-        setMsg(data.signing?.emailSent
-          ? `Agreement ${data.agreementId} generated, electronically signed by MartPoint, and sent to the partner for signature.`
-          : `Agreement ${data.agreementId} generated and MartPoint-signed, but the partner email was not sent. Use the signing link below.`)
-        if (data.document?.signedUrl) window.open(data.document.signedUrl, "_blank")
-        load()
-        onGenerated()
+        setPendingDraft({ id: data.draft.id, agreementId: data.agreementId, createdAt: new Date().toISOString(), previewUrl: data.draft.previewUrl || null })
+        setAuthorizeCompanySignature(false)
+        setMsg(`Draft ${data.agreementId} is ready. Review the PDF before approving it for signature and sending.`)
+        setOpen(false)
+        if (data.draft.previewUrl) window.open(data.draft.previewUrl, "_blank")
+        void load()
       } else {
         setMsg(data.error || "Generation failed")
       }
+    } catch {
+      setMsg("Network error. Please try again.")
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function issueDraft() {
+    if (!pendingDraft || !authorizeCompanySignature) return
+    setGenerating(true)
+    setMsg("")
+    setSigningUrl("")
+    try {
+      const res = await fetch(`/api/admin/partners/applications/${applicationId}/agreement/issue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId: pendingDraft.id, authorizeCompanySignature }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setMsg(data.error || "Agreement could not be issued")
+        return
+      }
+      setPendingDraft(null)
+      setAuthorizeCompanySignature(false)
+      setSigningUrl(data.signingUrl || "")
+      setMsg(data.emailSent
+        ? `Agreement ${data.agreementId} was signed by MartPoint and sent to the partner for review and signature.`
+        : `Agreement ${data.agreementId} was issued, but the partner email could not be sent. Use the secure signing link below.`)
+      if (data.document?.previewUrl) window.open(data.document.previewUrl, "_blank")
+      await load()
+      onGenerated()
     } catch {
       setMsg("Network error. Please try again.")
     } finally {
@@ -279,6 +329,11 @@ export function AgreementForm({ applicationId, onGenerated }: {
       </CardHeader>
       <CardContent className="space-y-4">
         {msg && <p className={`text-sm ${msg.toLowerCase().includes("fail") || msg.toLowerCase().includes("error") ? "text-red-500" : "text-green-600"}`}>{msg}</p>}
+        {signingUrl && <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+          <p className="font-medium text-amber-900">Email delivery failed</p>
+          <a className="mt-1 block break-all text-retail underline" href={signingUrl} target="_blank" rel="noreferrer">Open secure signing link</a>
+          <button type="button" className="mt-2 text-xs underline" onClick={() => void navigator.clipboard.writeText(signingUrl)}>Copy signing link</button>
+        </div>}
 
         {agreements.length > 0 && (
           <div className="space-y-1">
@@ -293,6 +348,27 @@ export function AgreementForm({ applicationId, onGenerated }: {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {pendingDraft && !open && (
+          <div className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4">
+            <div>
+              <p className="font-medium text-amber-950">Draft awaiting your review · {pendingDraft.agreementId}</p>
+              <p className="mt-1 text-xs text-amber-900">The partner has not been emailed. Open and review the PDF before approving it for signature.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {pendingDraft.previewUrl && <a className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-white px-3 py-2 text-sm text-amber-950" href={pendingDraft.previewUrl} target="_blank" rel="noreferrer"><Download className="h-4 w-4" />Review draft PDF</a>}
+              <Button variant="outline" onClick={() => { setOpen(true); setMsg("") }}>Edit and generate a new draft</Button>
+            </div>
+            <label className="flex items-start gap-2 rounded-md border border-amber-300 bg-white p-3 text-sm">
+              <input type="checkbox" checked={authorizeCompanySignature} onChange={(e) => setAuthorizeCompanySignature(e.target.checked)} />
+              <span>I reviewed this agreement, confirm it is approved for issue, and authorize the configured MartPoint signatory to sign it electronically.</span>
+            </label>
+            <Button onClick={issueDraft} disabled={generating || !authorizeCompanySignature}>
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+              Approve, sign and send to partner
+            </Button>
           </div>
         )}
 
@@ -525,24 +601,15 @@ export function AgreementForm({ applicationId, onGenerated }: {
               </Button>
             </div>
 
-            {signingUrl && <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
-              <p className="font-medium text-amber-900">Email delivery failed</p>
-              <a className="mt-1 block break-all text-retail underline" href={signingUrl} target="_blank" rel="noreferrer">Open secure signing link</a>
-              <button type="button" className="mt-2 text-xs underline" onClick={() => void navigator.clipboard.writeText(signingUrl)}>Copy signing link</button>
-            </div>}
-            <label className="flex items-start gap-2 rounded-md border border-border p-3 text-sm">
-              <input type="checkbox" checked={authorizeCompanySignature} onChange={(e) => setAuthorizeCompanySignature(e.target.checked)} />
-              <span>I confirm this agreement is approved for issue and authorize the configured MartPoint signatory to sign it electronically.</span>
-            </label>
             <div className="flex gap-2">
-              <Button onClick={generate} disabled={generating || !authorizeCompanySignature}>
+              <Button onClick={generate} disabled={generating}>
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                Generate Agreement PDF
+                Generate draft for review
               </Button>
               <Button variant="outline" onClick={() => setOpen(false)} disabled={generating}>Cancel</Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Generating moves an approved application to Agreement Pending and stores the PDF in the private documents vault.
+              Draft generation does not sign or email the agreement. Review the PDF first; partner delivery happens only after approval in the review panel.
             </p>
           </div>
         )}

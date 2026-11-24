@@ -11,6 +11,15 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { postFinanceTransactionJournal, voidEntriesForSource } from "@/lib/finance-ledger"
 import crypto from "crypto"
 
+const RECURRING_FREQUENCIES = ["monthly", "quarterly", "yearly"] as const
+
+function normalizeTransactionFrequency(recurring: boolean, frequency: unknown): NonNullable<FinanceTransaction["frequency"]> {
+  if (!recurring) return "one-time"
+  return typeof frequency === "string" && RECURRING_FREQUENCIES.includes(frequency as typeof RECURRING_FREQUENCIES[number])
+    ? frequency as NonNullable<FinanceTransaction["frequency"]>
+    : "monthly"
+}
+
 /* ─── GET ─── */
 export async function GET(request: Request) {
   const authenticated = await isAdminAuthenticated()
@@ -54,6 +63,7 @@ export async function POST(request: Request) {
     }
 
     const finance = await readFinanceData()
+    const isRecurring = Boolean(recurring)
 
     const txn: FinanceTransaction = {
       id: crypto.randomUUID(),
@@ -67,8 +77,8 @@ export async function POST(request: Request) {
       leadId: leadId || "",
       account: account || "",
       paymentAccountId: paymentAccountId || "",
-      recurring: recurring || false,
-      frequency: frequency || "one-time",
+      recurring: isRecurring,
+      frequency: normalizeTransactionFrequency(isRecurring, frequency),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -144,8 +154,12 @@ export async function PUT(request: Request) {
     if (leadId !== undefined) finance.transactions[idx].leadId = leadId
     if (account !== undefined) finance.transactions[idx].account = account
     if (paymentAccountId !== undefined) finance.transactions[idx].paymentAccountId = paymentAccountId
-    if (recurring !== undefined) finance.transactions[idx].recurring = recurring
+    if (recurring !== undefined) finance.transactions[idx].recurring = Boolean(recurring)
     if (frequency !== undefined) finance.transactions[idx].frequency = frequency
+    finance.transactions[idx].frequency = normalizeTransactionFrequency(
+      finance.transactions[idx].recurring,
+      finance.transactions[idx].frequency,
+    )
     finance.transactions[idx].updatedAt = new Date().toISOString()
 
     if (isSupabaseConfigured()) {

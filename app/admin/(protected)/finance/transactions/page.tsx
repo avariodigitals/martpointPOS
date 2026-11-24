@@ -275,7 +275,7 @@ export default function FinanceTransactionsPage() {
       description: t.description,
       date: t.date,
       recurring: t.recurring,
-      frequency: t.frequency || "one-time",
+      frequency: t.recurring && (!t.frequency || t.frequency === "one-time") ? "monthly" : (t.frequency || "one-time"),
     })
     setShowEditModal(true)
   }
@@ -510,7 +510,7 @@ export default function FinanceTransactionsPage() {
                   </td>
                   <td className="px-4 py-3 text-center">
                     {t.recurring ? (
-                      <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{t.frequency}</span>
+                      <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{t.frequency && t.frequency !== "one-time" ? enumLabel(t.frequency) : "Monthly"}</span>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
@@ -671,7 +671,11 @@ export default function FinanceTransactionsPage() {
                   <input
                     type="checkbox"
                     checked={addForm.recurring}
-                    onChange={(e) => setAddForm((prev) => ({ ...prev, recurring: e.target.checked }))}
+                    onChange={(e) => setAddForm((prev) => ({
+                      ...prev,
+                      recurring: e.target.checked,
+                      frequency: e.target.checked && prev.frequency === "one-time" ? "monthly" : prev.frequency,
+                    }))}
                     className="rounded border-input"
                   />
                   Recurring
@@ -827,7 +831,11 @@ export default function FinanceTransactionsPage() {
                   <input
                     type="checkbox"
                     checked={editForm.recurring}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, recurring: e.target.checked }))}
+                    onChange={(e) => setEditForm((prev) => ({
+                      ...prev,
+                      recurring: e.target.checked,
+                      frequency: e.target.checked && prev.frequency === "one-time" ? "monthly" : prev.frequency,
+                    }))}
                     className="rounded border-input"
                   />
                   Recurring

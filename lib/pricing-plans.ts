@@ -206,6 +206,12 @@ export const COMPARISON_GROUPS: ComparisonGroup[] = [
     ],
   },
   {
+    title: "Store notifications",
+    rows: [
+      { label: "Storefront order emails", values: ["Up to 1,000 recipients/month", "Up to 1,000 recipients/month", "Up to 1,000 recipients/month", "Up to 1,000 recipients/month"] },
+    ],
+  },
+  {
     title: "Payment methods",
     rows: [
       { label: "Paystack", values: ["yes", "yes", "yes", "yes"] },

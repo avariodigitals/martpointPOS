@@ -9,7 +9,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { generateSetupQuestions } from "@/lib/onboarding"
 import { Button } from "@/components/ui/button"
-import { accessEmailSubject, recipientEmails, updateAccessMessageField, accessLink } from "@/lib/access-email"
+import { accessEmailSubject, accessEmailText, recipientEmails, updateAccessMessageField, accessLink } from "@/lib/access-email"
 import {
   Loader2,
   ClipboardCheck,
@@ -453,6 +453,10 @@ Please note that Online Store services and Marketing services are not included i
 
 These are optional add-on services that can be requested separately depending on your business needs. This may include online store setup or customisation, product uploads, marketing campaigns, and other related digital services. Where required, the scope and cost will be provided separately before any additional service begins.
 
+Email sending allowance
+
+Transactional email cap: 1,000 emails per month. Promotional emails, including campaigns and newsletters, require messaging credits.
+
 When reporting an issue, please include a clear description together with a screenshot or short screen recording where possible.
 
 For security, please do not share passwords, payment information or sensitive customer information in the support group or over email.
@@ -485,7 +489,7 @@ MartPoint Team`
       tempPassword: saved?.tempPassword || "",
       onlineStoreUrl: saved?.onlineStoreUrl || "",
       supportGroupUrl: saved?.supportGroupUrl || "",
-      supportContact: saved?.supportContact || "Blessing / 08037978230",
+      supportContact: saved?.supportContact?.replace(/\+?234[\s().-]*803[\s().-]*797[\s().-]*8230|0[\s().-]*803[\s().-]*797[\s().-]*8230/g, "+2342017001229") || "Blessing / +2342017001229",
       trainingSchedule: saved?.trainingSchedule || "Please share a suitable date with us.",
       attachStoreQr: saved?.attachStoreQr ?? true,
       attachLoginQr: saved?.attachLoginQr ?? false,
@@ -495,7 +499,7 @@ MartPoint Team`
     setAccessRecord(record)
     setAccessError("")
     setAccessFiles([])
-    setAccessForm({ ...form, message: saved?.message || buildAccessMessage(record, form, []) })
+    setAccessForm({ ...form, message: accessEmailText(saved?.message || buildAccessMessage(record, form, [])) })
     setAccessDirty(!!saved?.message)
     setShowAccessModal(true)
     const lookupTimeout = window.setTimeout(() => {

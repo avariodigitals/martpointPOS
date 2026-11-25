@@ -63,5 +63,12 @@ export function updateAccessMessageField(message: string, key: string, value: st
 }
 
 export function accessEmailText(message: string, note?: string) {
-  return note?.trim() ? `${message.trim()}\n\n${note.trim()}` : message
+  const currentPhone = "+2342017001229"
+  const normalizedMessage = message
+    .replace(/\+?234[\s().-]*803[\s().-]*797[\s().-]*8230|0[\s().-]*803[\s().-]*797[\s().-]*8230/g, currentPhone)
+  const emailNotice = "Email sending allowance\nTransactional email cap: 1,000 emails per month. Promotional emails, including campaigns and newsletters, require messaging credits."
+  const withNotice = /Email sending allowance/i.test(normalizedMessage)
+    ? normalizedMessage
+    : `${normalizedMessage.trim()}\n\n${emailNotice}`
+  return note?.trim() ? `${withNotice.trim()}\n\n${note.trim()}` : withNotice
 }

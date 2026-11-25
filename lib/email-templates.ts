@@ -1316,6 +1316,10 @@ Please note that Online Store services and Marketing services are not included i
 
 These are optional add-on services that can be requested separately depending on your business needs. This may include online store setup or customisation, product uploads, marketing campaigns, and other related digital services. Where required, the scope and cost will be provided separately before any additional service begins.
 
+Email sending allowance
+
+Transactional email cap: 1,000 emails per month. Promotional emails, including campaigns and newsletters, require messaging credits.
+
 When reporting an issue, please include a clear description together with a screenshot or short screen recording where possible.
 
 For security, please do not share passwords, payment information or sensitive customer information in the support group or over email.

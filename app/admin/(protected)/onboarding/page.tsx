@@ -453,9 +453,11 @@ Please note that Online Store services and Marketing services are not included i
 
 These are optional add-on services that can be requested separately depending on your business needs. This may include online store setup or customisation, product uploads, marketing campaigns, and other related digital services. Where required, the scope and cost will be provided separately before any additional service begins.
 
-Email sending allowance
+Transactional email allowance
 
-Transactional email cap: 1,000 emails per month. Promotional emails, including campaigns and newsletters, require messaging credits.
+Up to 1,000 business transactional email recipients per store each Lagos calendar month. This includes storefront order and appointment emails, invoices, quotations, payment receipts, payment links, order progress updates and similar non-promotional messages. Owner/branch alerts and customer messages each count as a recipient.
+
+Promotional campaigns and newsletters require email credits. MartPoint account security and system emails are separate and do not use this store allowance. Transactional emails pause when the allowance is reached and resume next month.
 
 When reporting an issue, please include a clear description together with a screenshot or short screen recording where possible.
 

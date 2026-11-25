@@ -208,7 +208,7 @@ export const COMPARISON_GROUPS: ComparisonGroup[] = [
   {
     title: "Store notifications",
     rows: [
-      { label: "Storefront order emails", values: ["Up to 1,000 recipients/month", "Up to 1,000 recipients/month", "Up to 1,000 recipients/month", "Up to 1,000 recipients/month"] },
+      { label: "Transactional email allowance", values: ["Up to 1,000/month", "Up to 1,000/month", "Up to 1,000/month", "Up to 1,000/month"] },
     ],
   },
   {

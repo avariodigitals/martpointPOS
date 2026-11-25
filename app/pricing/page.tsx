@@ -278,7 +278,7 @@ export default async function PricingPage() {
                   </table>
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground text-center">
-                  Main products are active top-level catalogue items. Product variations count active sellable inventory records, including simple items. Each plan includes up to 1,000 storefront order email recipients per store per month; order emails pause when that cap is reached. Campaign email credits are separate. A custom domain is an add-on — domain purchase, connection and renewal are billed separately.
+                  Main products are active top-level catalogue items. Product variations count active sellable inventory records, including simple items. Each plan includes up to 1,000 transactional email recipients per store per month. Promotional campaign emails use separate email credits. A custom domain is an add-on — domain purchase, connection and renewal are billed separately.
                 </p>
               </div>
 

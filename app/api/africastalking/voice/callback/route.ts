@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import {
   recordingNoticeAction,
   recordedDialAction,
+  voicemailActions,
 } from "@/lib/africa-recording-actions";
 import { importAfricaCallRecording } from "@/lib/africa-call-recording";
 import { africaBrowserDestinations, browserCallerIdentity, preparedAfricaOutbound } from "@/lib/africa-browser-routing";
@@ -42,17 +43,6 @@ function sayOrPlay(text: string, audioUrl: string): string {
   return audioUrl ? `<Play url="${xmlEscape(audioUrl)}"/>` : say(text);
 }
 
-function callbackUrl(request: Request, path: string): string {
-  const url = new URL(request.url);
-  url.pathname = path;
-  url.searchParams.delete("stage");
-  url.searchParams.delete("menu-attempt");
-  url.searchParams.delete("menu-timeout");
-  url.searchParams.delete("consent-timeout");
-  if (path.endsWith("/recording")) url.searchParams.set("kind", "voicemail");
-  return url.toString();
-}
-
 function voicemailOrEnd(
   request: Request,
   config: Awaited<ReturnType<typeof getAfricaVoiceConfig>>,
@@ -62,13 +52,12 @@ function voicemailOrEnd(
   // Africa's Talking ends the call after the final Voice action. Hangup is not
   // a supported Voice action and causes the provider to abort the call.
   if (!config.voicemailEnabled) return [sayOrPlay(message, audioUrl)];
-  return [
-    sayOrPlay(message, audioUrl),
-    `<Record maxLength="${config.voicemailMaxSeconds}" playBeep="true" callbackUrl="${xmlEscape(callbackUrl(request, "/api/africastalking/voice/recording"))}"/>`,
-    say(
-      "Thank you. Your message has been recorded and our team will follow up.",
-    ),
-  ];
+  return voicemailActions(
+    request.url,
+    message,
+    audioUrl,
+    config.voicemailMaxSeconds,
+  );
 }
 
 async function recordAttempts(
@@ -186,10 +175,13 @@ export async function POST(request: Request): Promise<Response> {
   // restart IVR or Dial (even when the separate Events URL is not configured).
   const providerState = pick(payload, "callSessionState", "status").toLowerCase();
   if (["0", "false"].includes(String(payload.isActive).toLowerCase()) ||
-      ["completed", "ended", "failed", "busy", "notanswered", "rejected"].includes(providerState) ||
+      ["completed", "ended", "failed", "busy", "notanswered", "no_answer", "noanswer", "missed", "timeout", "rejected"].includes(providerState) ||
       (browserCallerIdentity(rawCaller) && !dtmfDigits && ["bridged", "answered", "active", "connected"].includes(providerState))) {
     const response = await receiveVoiceEvent(eventRequest);
-    return response.ok ? voiceXml([]) : new NextResponse("Please retry", { status: 503 });
+    if (!response.ok) return new NextResponse("Please retry", { status: 503 });
+    if (response.headers.get("content-type")?.includes("application/xml"))
+      return response;
+    return voiceXml([]);
   }
   const caller = normalizePhone(
     pick(payload, "callerNumber", "caller", "from"),
@@ -607,6 +599,27 @@ export async function POST(request: Request): Promise<Response> {
       const department = departments.find((item) => item.digit === digit);
       if (department) {
         const targets = await withBrowser(department.numbers, `${department.key} ${department.label}`);
+        if (!targets.length) {
+          await supabase
+            .from("azera_calls")
+            .update({
+              selected_department: department.key,
+              status: "missed",
+              final_outcome: config.voicemailEnabled ? "voicemail_pending" : "no_route",
+              ended_at: now,
+              updated_at: now,
+            })
+            .eq("id", callId);
+          await finishAfricaWebhookEvent(webhookEventId, "processed");
+          return voiceXml(
+            voicemailOrEnd(
+              request,
+              config,
+              config.noAnswerGreeting,
+              config.noAnswerAudioUrl,
+            ),
+          );
+        }
         if (await destinationsAreBusy(businessId, targets)) {
           await markCallBusy(callId, now);
           await finishAfricaWebhookEvent(webhookEventId, "processed");

@@ -28,6 +28,8 @@ export class AfricaIncomingPhone {
   private reconnectTimer?: ReturnType<typeof setTimeout>;
   private reconnectAttempts = 0;
   private queues: string[] = [];
+  private ringContext: AudioContext | null = null;
+  private ringTimer?: ReturnType<typeof setInterval>;
   constructor(private changed: (state: IncomingPhoneState) => void) {}
   private change(value: Partial<IncomingPhoneState>) {
     this.snapshot = { ...this.snapshot, ...value };
@@ -45,6 +47,9 @@ export class AfricaIncomingPhone {
   }
   async start(queues: string[]) {
     if (this.client || this.snapshot.state === "connecting") return;
+    // `start` is called directly from the staff member's click, which lets the
+    // browser unlock Web Audio before an incoming call arrives.
+    this.prepareRinger();
     const generation = ++this.generation;
     this.stopped = false; this.shouldReconnect = true; this.queues = queues; this.failures = 0;
     this.change({ state: "connecting", error: null });
@@ -73,6 +78,7 @@ export class AfricaIncomingPhone {
       client.on("incomingcall", () => {
         if (this.stopped || client !== this.client || this.incoming) return;
         this.incoming = true;
+        this.startRinger();
         this.change({ state: "ringing", muted: false, held: false, error: null });
         void this.loadCall().catch(error => {
           if (client === this.client && this.incoming) void this.fail(error.message);
@@ -81,6 +87,7 @@ export class AfricaIncomingPhone {
       client.on("callaccepted", () => {
         if (this.stopped || client !== this.client || !this.incoming || this.accepted) return;
         this.accepted = true;
+        this.stopRinger();
         this.change({ state: "active" });
         void this.save("active").catch(error => this.change({ error: error.message }));
         void this.resumeAudio();
@@ -155,6 +162,7 @@ export class AfricaIncomingPhone {
   private async finish(status: string) {
     if (this.finishing) return;
     this.finishing = true;
+    this.stopRinger();
     try { await this.save(status); }
     catch (error) { this.change({ error: (error as Error).message }); }
     finally {
@@ -184,6 +192,47 @@ export class AfricaIncomingPhone {
     try { await audio.play(); this.change({ audioBlocked: false }); }
     catch { this.change({ audioBlocked: true }); }
   }
+  private prepareRinger() {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) return;
+      this.ringContext ||= new AudioContextClass();
+      if (this.ringContext.state !== "running") void this.ringContext.resume().catch(() => undefined);
+    } catch {
+      // The incoming call UI still appears when Web Audio is unavailable.
+    }
+  }
+  private startRinger() {
+    this.stopRinger();
+    const ring = () => {
+      const context = this.ringContext;
+      if (!context || context.state !== "running") return;
+      try {
+        const start = context.currentTime + 0.02;
+        [0, 0.32].forEach((offset, index) => {
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          oscillator.type = "sine";
+          oscillator.frequency.value = index === 0 ? 880 : 1046;
+          gain.gain.setValueAtTime(0.0001, start + offset);
+          gain.gain.exponentialRampToValueAtTime(0.16, start + offset + 0.025);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.24);
+          oscillator.connect(gain).connect(context.destination);
+          oscillator.start(start + offset);
+          oscillator.stop(start + offset + 0.25);
+        });
+      } catch {
+        // Keep the call UI available if the browser blocks sound.
+      }
+    };
+    ring();
+    this.ringTimer = setInterval(ring, 1400);
+  }
+  private stopRinger() {
+    if (this.ringTimer) clearInterval(this.ringTimer);
+    this.ringTimer = undefined;
+  }
   private async fail(error: string, retry = true) {
     const queues = this.queues;
     const reconnect = retry && this.shouldReconnect && !this.incoming && queues.length > 0;
@@ -197,6 +246,7 @@ export class AfricaIncomingPhone {
     }
   }
   async stop(preserveReconnect = false) {
+    this.stopRinger();
     clearTimeout(this.reconnectTimer);
     if (!preserveReconnect) {
       this.shouldReconnect = false;
@@ -218,5 +268,9 @@ export class AfricaIncomingPhone {
       this.leased = false;
     }
     this.change({ state: "off", call: null, muted: false, held: false, retrying: false });
+    if (this.ringContext) {
+      void this.ringContext.close().catch(() => undefined);
+      this.ringContext = null;
+    }
   }
 }

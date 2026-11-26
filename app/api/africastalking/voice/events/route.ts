@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { importAfricaCallRecording } from "@/lib/africa-call-recording";
 import { getAfricaVoiceConfig } from "@/lib/africastalking";
+import { voicemailActions } from "@/lib/africa-recording-actions";
 import { browserCallerIdentity, preparedAfricaOutbound } from "@/lib/africa-browser-routing";
 import { campaignCallId, finishAzeraCampaignIfDone } from "@/lib/azera-campaign-worker";
 import { normalizeOutboundPhone } from "@/lib/azera-outbound";
@@ -145,7 +146,7 @@ export async function POST(request: Request): Promise<Response> {
   // through the campaign recipient before falling back to number mapping.
   const { data: campaignEventCall } = campaignRequestId && isSupabaseConfigured()
     ? await supabase.from("azera_calls")
-      .select("id,business_id,status,answered_at,last_provider_event_at,recording_choice,recording_consent_at,recording_notice_acknowledged_at,agent_user_id,campaign_recipient_id")
+      .select("id,business_id,direction,sip_provider,selected_department,status,answered_at,last_provider_event_at,recording_choice,recording_consent_at,recording_notice_acknowledged_at,agent_user_id,campaign_recipient_id")
       .eq("campaign_recipient_id", campaignRequestId).maybeSingle()
     : { data: null };
   // Some AT number configurations deliver GetDigits results to Events.
@@ -262,7 +263,7 @@ export async function POST(request: Request): Promise<Response> {
     let { data: call } = await supabase
       .from("azera_calls")
       .select(
-        "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, recording_notice_acknowledged_at, agent_user_id, campaign_recipient_id",
+        "id, business_id, direction, sip_provider, selected_department, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, recording_notice_acknowledged_at, agent_user_id, campaign_recipient_id",
       )
       .eq("business_id", businessId)
       .eq("sip_call_sid", sessionId)
@@ -273,7 +274,7 @@ export async function POST(request: Request): Promise<Response> {
         .select("call_id").eq("id", campaignRequestId).maybeSingle();
       if (recipient?.call_id) {
         const { data: campaignCall } = await supabase.from("azera_calls")
-          .select("id,business_id,status,answered_at,last_provider_event_at,recording_choice,recording_consent_at,recording_notice_acknowledged_at,agent_user_id,campaign_recipient_id")
+          .select("id,business_id,direction,sip_provider,selected_department,status,answered_at,last_provider_event_at,recording_choice,recording_consent_at,recording_notice_acknowledged_at,agent_user_id,campaign_recipient_id")
           .eq("id", recipient.call_id).maybeSingle();
         call = campaignCall;
       }
@@ -304,7 +305,7 @@ export async function POST(request: Request): Promise<Response> {
           updated_at: now,
         })
         .select(
-          "id, business_id, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, recording_notice_acknowledged_at, agent_user_id, campaign_recipient_id",
+          "id, business_id, direction, sip_provider, selected_department, status, answered_at, last_provider_event_at, recording_choice, recording_consent_at, recording_notice_acknowledged_at, agent_user_id, campaign_recipient_id",
         )
         .single();
       if (error || !created)
@@ -320,6 +321,7 @@ export async function POST(request: Request): Promise<Response> {
     const terminalToRinging =
       !mapped.terminal &&
       (["ended", "missed", "failed", "busy"].includes(call.status) || (call.status === "active" && mapped.status === "ringing"));
+    let startVoicemail = false;
     if (!stale && !terminalToRinging) {
       const { data: pendingAttempts } = await supabase
         .from("azera_call_attempts")
@@ -381,6 +383,15 @@ export async function POST(request: Request): Promise<Response> {
             : mapped.terminal && !stillPending && !hasAnswered
               ? mapped.status
               : call.status;
+      startVoicemail =
+        mapped.terminal &&
+        (!stillPending || mapped.status === "ended") &&
+        !hasAnswered &&
+        !call.answered_at &&
+        call.status === "ringing" &&
+        call.direction === "inbound" &&
+        call.sip_provider === "africas_talking" &&
+        ["missed", "busy"].includes(nextStatus);
       const updates: Record<string, unknown> = {
         status: nextStatus,
         updated_at: now,
@@ -476,6 +487,20 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
     await finishAfricaWebhookEvent(webhookEventId, "processed");
+    if (startVoicemail) {
+      const config = await getAfricaVoiceConfig(businessId);
+      if (config.voicemailEnabled) {
+        const busy = mapped.status === "busy";
+        return voiceXml(
+          voicemailActions(
+            request.url,
+            busy ? config.busyGreeting : config.noAnswerGreeting,
+            busy ? "" : config.noAnswerAudioUrl,
+            config.voicemailMaxSeconds,
+          ),
+        );
+      }
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[Africa's Talking voice events error]", error);

@@ -607,8 +607,18 @@ export async function postTransferJournal(input: {
   memo?: string
   entry_date?: string
   created_by?: string | null
+  source_id?: string | null
 }) {
   if (!isSupabaseConfigured()) throw new Error("Supabase not configured")
+  if (input.source_id) {
+    const { data: existing } = await supabase.from("journal_entries")
+      .select("*")
+      .eq("source_type", "TRANSFER")
+      .eq("source_id", input.source_id)
+      .eq("status", "POSTED")
+      .maybeSingle()
+    if (existing) return existing as JournalEntry
+  }
   const { data: accounts } = await supabase
     .from("payment_accounts")
     .select("*")
@@ -624,6 +634,7 @@ export async function postTransferJournal(input: {
     entry_date: input.entry_date,
     memo: input.memo || `Transfer ${from.name} → ${to.name}`,
     source_type: "TRANSFER",
+    source_id: input.source_id,
     created_by: input.created_by,
     metadata: { from_account_id: from.id, to_account_id: to.id },
     lines: [

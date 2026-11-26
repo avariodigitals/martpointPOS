@@ -51,6 +51,7 @@ const EXPENSE_CATEGORIES = [
   "Training & Development",
   "Office Supplies",
   "Customer Support",
+  "Fleet Online Store",
   "Miscellaneous",
 ]
 
@@ -67,6 +68,7 @@ const INCOME_CATEGORIES = [
   "Logistics & Delivery",
   "White-Label Revenue",
   "Interest Income",
+  "Fleet Online Store",
   "Other Income",
 ]
 

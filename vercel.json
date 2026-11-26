@@ -11,6 +11,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/finance-account-sweeps",
+      "schedule": "0 * * * *"
+    },
+    {
       "path": "/api/cron/azera-contact-centre",
       "schedule": "*/5 * * * *"
     },

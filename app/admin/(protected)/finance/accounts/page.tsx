@@ -11,6 +11,7 @@ import {
   X,
   ArrowLeftRight,
   ArrowDownToLine,
+  Clock3,
   DatabaseZap,
   Eye,
   EyeOff,
@@ -36,8 +37,37 @@ type PaymentAccount = {
   gl_accounts?: { code: string; name: string; type: string } | null
 }
 
+type AccountSweep = {
+  id: string
+  source_account_id: string
+  destination_account_id: string
+  interval_days: number
+  active: boolean
+  next_run_at: string
+  last_run_at?: string | null
+  last_status?: "COMPLETED" | "SKIPPED" | "FAILED" | null
+  last_amount?: number | null
+  last_error?: string | null
+}
+
 const METHODS = ["BANK_TRANSFER", "PAYSTACK", "FLUTTERWAVE", "CASH", "POS", "OTHER"]
 const CURRENCIES = ["NGN", "USD", "GBP", "EUR"]
+const DEFAULT_INCOME_CATEGORIES = [
+  "Subscription Revenue",
+  "One-Time License",
+  "Add-On Revenue",
+  "Product Sales",
+  "Implementation Services",
+  "Training Revenue",
+  "Consulting Revenue",
+  "Support Contracts",
+  "Custom Development",
+  "Logistics & Delivery",
+  "White-Label Revenue",
+  "Interest Income",
+  "Fleet Online Store",
+  "Other Income",
+]
 
 const emptyForm = {
   name: "",
@@ -58,8 +88,18 @@ function maskAccountNumber(a: PaymentAccount): { display: string; canReveal: boo
   return { display: `••••••••${last4}`, canReveal: true }
 }
 
+function formatSweepDate(value: string) {
+  return new Date(value).toLocaleString("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Africa/Lagos",
+  })
+}
+
 export default function PaymentAccountsPage() {
   const [accounts, setAccounts] = useState<PaymentAccount[]>([])
+  const [sweeps, setSweeps] = useState<AccountSweep[]>([])
+  const [incomeCategories, setIncomeCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [msgKind, setMsgKind] = useState<"success" | "error">("error")
@@ -68,6 +108,7 @@ export default function PaymentAccountsPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
   const [showDeposit, setShowDeposit] = useState(false)
+  const [showSweepForm, setShowSweepForm] = useState(false)
 
   // The add/edit modal is shared: editingId === null → create mode, otherwise update mode.
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -75,6 +116,7 @@ export default function PaymentAccountsPage() {
 
   const [transferForm, setTransferForm] = useState({ from_account_id: "", to_account_id: "", amount: "", memo: "" })
   const [depositForm, setDepositForm] = useState({ payment_account_id: "", amount: "", income_category: "", memo: "" })
+  const [sweepForm, setSweepForm] = useState({ source_account_id: "", destination_account_id: "", interval_days: "3" })
 
   // Account-number reveal state (per-row ids; the global toggle bulk-sets/clears these).
   const [revealed, setRevealed] = useState<Set<string>>(new Set())
@@ -96,6 +138,28 @@ export default function PaymentAccountsPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const loadSweeps = useCallback(() => {
+    fetch("/api/admin/finance/sweeps")
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setSweeps(d.sweeps || []) })
+      .catch(() => undefined)
+  }, [])
+
+  useEffect(() => { loadSweeps() }, [loadSweeps])
+
+  useEffect(() => {
+    fetch("/api/admin/finance/categories")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.categories)) {
+          setIncomeCategories(d.categories
+            .filter((category: { type?: string; active?: boolean; name?: string }) => category.type === "income" && category.active && category.name)
+            .map((category: { name: string }) => category.name))
+        }
+      })
+      .catch(() => undefined)
+  }, [])
 
   const flash = (msg: string) => { setMessage(msg); setMsgKind("success"); setTimeout(() => setMessage(""), 4000) }
   const warn = (msg: string) => { setMessage(msg); setMsgKind("error") }
@@ -215,6 +279,59 @@ export default function PaymentAccountsPage() {
     if (done) { setShowDeposit(false); setDepositForm({ payment_account_id: "", amount: "", income_category: "", memo: "" }) }
   }
 
+  const createSweep = async () => {
+    setWorking(true)
+    try {
+      const res = await fetch("/api/admin/finance/sweeps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          source_account_id: sweepForm.source_account_id,
+          destination_account_id: sweepForm.destination_account_id,
+          interval_days: Number(sweepForm.interval_days),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) { warn(data.error || "Failed to schedule sweep"); return }
+      setSweeps((prev) => [data.sweep, ...prev])
+      setShowSweepForm(false)
+      setSweepForm({ source_account_id: "", destination_account_id: "", interval_days: "3" })
+      flash("Scheduled sweep created")
+    } catch {
+      warn("Failed to schedule sweep")
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const toggleSweep = async (sweep: AccountSweep) => {
+    const res = await fetch("/api/admin/finance/sweeps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update", id: sweep.id, active: !sweep.active }),
+    })
+    const data = await res.json()
+    if (res.ok && data.success) {
+      setSweeps((prev) => prev.map((item) => item.id === sweep.id ? data.sweep : item))
+      flash(sweep.active ? "Scheduled sweep paused" : "Scheduled sweep resumed")
+    } else warn(data.error || "Failed to update sweep")
+  }
+
+  const deleteSweep = async (sweep: AccountSweep) => {
+    if (!confirm("Delete this scheduled sweep?")) return
+    const res = await fetch("/api/admin/finance/sweeps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", id: sweep.id }),
+    })
+    const data = await res.json()
+    if (res.ok && data.success) {
+      setSweeps((prev) => prev.filter((item) => item.id !== sweep.id))
+      flash("Scheduled sweep deleted")
+    } else warn(data.error || "Failed to delete sweep")
+  }
+
   const backfill = async () => {
     if (!confirm("Post journal entries for all existing invoices, payments, transactions and payouts?")) return
     setWorking(true)
@@ -293,6 +410,9 @@ export default function PaymentAccountsPage() {
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowTransfer(true)}>
             <ArrowLeftRight className="mr-1 h-4 w-4" /> Transfer
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowSweepForm(true)} disabled={accounts.filter((account) => account.active).length < 2}>
+            <Clock3 className="mr-1 h-4 w-4" /> Schedule Sweep
           </Button>
           <Button size="sm" onClick={openCreate}>
             <Plus className="mr-1 h-4 w-4" /> New Account
@@ -373,6 +493,50 @@ export default function PaymentAccountsPage() {
               </Card>
             )}
           </div>
+
+          <Card>
+            <CardContent className="p-0">
+              <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold">Scheduled account sweeps</h3>
+                  <p className="text-xs text-muted-foreground">Move the source account&apos;s positive balance to a settlement account on a schedule.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setShowSweepForm(true)} disabled={accounts.filter((account) => account.active).length < 2}>
+                  <Plus className="mr-1 h-4 w-4" /> New Sweep
+                </Button>
+              </div>
+              {sweeps.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-muted-foreground">No scheduled sweeps. Create one to automatically move funds between accounts.</p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {sweeps.map((sweep) => {
+                    const source = accounts.find((account) => account.id === sweep.source_account_id)
+                    const destination = accounts.find((account) => account.id === sweep.destination_account_id)
+                    return (
+                      <div key={sweep.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="font-medium">{source?.name || "Source account"} <span className="text-muted-foreground">→</span> {destination?.name || "Settlement account"}</p>
+                          <p className="text-xs text-muted-foreground">Full positive balance · every {sweep.interval_days} day{sweep.interval_days === 1 ? "" : "s"} · next run {formatSweepDate(sweep.next_run_at)}</p>
+                          {sweep.last_run_at && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Last run: {sweep.last_status || "—"}{sweep.last_status === "COMPLETED" ? ` · ${formatMoney(sweep.last_amount || 0)}` : ""}{sweep.last_error ? ` · ${sweep.last_error}` : ""}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-3">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${sweep.active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                            {sweep.active ? "Active" : "Paused"}
+                          </span>
+                          <button onClick={() => toggleSweep(sweep)} className="text-xs text-muted-foreground hover:text-foreground">{sweep.active ? "Pause" : "Resume"}</button>
+                          <button onClick={() => deleteSweep(sweep)} className="text-xs text-rose-600 hover:text-rose-700">Delete</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* All accounts — filter-driven configuration table */}
           {accounts.length > 0 && (
@@ -503,6 +667,47 @@ export default function PaymentAccountsPage() {
         </div>
       )}
 
+      {showSweepForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-background p-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Schedule account sweep</h3>
+              <button onClick={() => setShowSweepForm(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="h-5 w-5" /></button>
+            </div>
+            <p className="text-sm text-muted-foreground">The full positive ledger balance will move from the source account to the settlement account each time the schedule runs.</p>
+            <div className="space-y-3">
+              <label className="block text-xs font-medium">Move from *</label>
+              <select className={input} value={sweepForm.source_account_id} onChange={(e) => setSweepForm((prev) => {
+                const source = accounts.find((account) => account.id === e.target.value)
+                const destination = accounts.find((account) => account.id === prev.destination_account_id)
+                return {
+                  ...prev,
+                  source_account_id: e.target.value,
+                  destination_account_id: destination && source && destination.currency === source.currency ? destination.id : "",
+                }
+              })}>
+                <option value="">Select source account</option>
+                {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.currency})</option>)}
+              </select>
+              <label className="block text-xs font-medium">Move to settlement account *</label>
+              <select className={input} value={sweepForm.destination_account_id} onChange={(e) => setSweepForm((prev) => ({ ...prev, destination_account_id: e.target.value }))}>
+                <option value="">Select destination account</option>
+                {accounts.filter((account) => account.active && account.id !== sweepForm.source_account_id && (!sweepForm.source_account_id || account.currency === accounts.find((source) => source.id === sweepForm.source_account_id)?.currency)).map((account) => <option key={account.id} value={account.id}>{account.name} ({account.currency})</option>)}
+              </select>
+              <label className="block text-xs font-medium">Run every (days) *</label>
+              <input type="number" min="1" max="365" step="1" className={input} value={sweepForm.interval_days} onChange={(e) => setSweepForm((prev) => ({ ...prev, interval_days: e.target.value }))} />
+              <p className="text-xs text-muted-foreground">The first sweep runs after the selected number of days. Schedules are checked hourly.</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowSweepForm(false)}>Cancel</Button>
+              <Button size="sm" onClick={createSweep} disabled={working || !sweepForm.source_account_id || !sweepForm.destination_account_id || !sweepForm.interval_days || Number(sweepForm.interval_days) < 1 || Number(sweepForm.interval_days) > 365 || !Number.isInteger(Number(sweepForm.interval_days))}>
+                {working ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Schedule"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* New / edit account */}
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -624,7 +829,12 @@ export default function PaymentAccountsPage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium">Income Category</label>
-                <input className={input} value={depositForm.income_category} onChange={(e) => setDepositForm({ ...depositForm, income_category: e.target.value })} placeholder="Other Income" />
+                <select className={input} value={depositForm.income_category} onChange={(e) => setDepositForm({ ...depositForm, income_category: e.target.value })}>
+                  <option value="">Other Income (default)</option>
+                  {(incomeCategories.length > 0 ? incomeCategories : DEFAULT_INCOME_CATEGORIES).map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium">Memo</label>

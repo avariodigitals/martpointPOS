@@ -9,7 +9,7 @@ import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession } f
 import { uploadPartnerDocument, createSignedDocUrl } from "@/lib/partner-documents"
 import { sendEmail } from "@/lib/email"
 import { escapeHtml } from "@/lib/email-html"
-import { registerAgreementDocument } from "@/lib/partner-generated-docs"
+import { registerAgreementDocument, supersedePreviousDocuments } from "@/lib/partner-generated-docs"
 import { generatePartnerAgreementPdf, AGREEMENT_TEMPLATE_VERSION, type AgreementInput } from "@/lib/partner-agreement"
 
 export const dynamic = "force-dynamic"
@@ -87,7 +87,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (docError || !docRow) throw new Error("Failed to record issued agreement")
 
     await supabase.from("partner_agreement_drafts").update({ issued_document_id: docRow.id, updated_at: now }).eq("id", draftId)
-    await registerAgreementDocument({
+    const generatedRegistryId = await registerAgreementDocument({
       partnerId,
       applicationId,
       agreementId: String(draft.agreement_id),
@@ -97,7 +97,36 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       checksum: docHash,
       templateVersion: String(AGREEMENT_TEMPLATE_VERSION),
       generatedBy: session.userId,
-    }).catch((error) => console.error("[agreement issue] registry insert failed:", error))
+    }).catch((error) => {
+      console.error("[agreement issue] registry insert failed:", error)
+      return null
+    })
+
+    // Invalidate and archive the previously issued, still-unsigned version.
+    // Executed agreements are deliberately retained as historical contracts.
+    const { data: previousRequests } = await supabase.from("partner_agreement_signing")
+      .select("source_document_id")
+      .eq("application_id", applicationId)
+      .eq("status", "AWAITING_PARTNER")
+    const previousDocumentIds = (previousRequests || [])
+      .map((row) => row.source_document_id as string | null)
+      .filter((documentId): documentId is string => Boolean(documentId) && documentId !== String(docRow.id))
+    if (previousDocumentIds.length) {
+      await supabase.from("partner_documents")
+        .update({ verification_status: "EXPIRED", notes: `Superseded by reviewed agreement ${String(draft.agreement_id)} on ${now}.` })
+        .in("id", previousDocumentIds)
+    }
+    if (partnerId && generatedRegistryId) {
+      await supersedePreviousDocuments({
+        partnerId,
+        type: "MASTER_PARTNER_AGREEMENT",
+        sourceRecordId: applicationId,
+        supersededById: generatedRegistryId,
+        reason: `Replaced by reviewed agreement ${String(draft.agreement_id)}.`,
+        actorId: session.userId,
+        statuses: ["ISSUED"],
+      })
+    }
 
     await supabase.from("partner_agreement_signing").update({ status: "SUPERSEDED", updated_at: now }).eq("application_id", applicationId).eq("status", "AWAITING_PARTNER")
     const signingToken = crypto.randomBytes(32).toString("hex")
@@ -142,8 +171,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const signingEmailSent = await sendEmail({
       to: String(app.email),
       subject: "Please review and sign your MartPoint Partner Agreement",
-      text: `Hello ${partnerName},\n\nYour MartPoint Partner Agreement ${String(draft.agreement_id)} is ready. MartPoint has signed it electronically. Please review the agreement and sign it using this secure link within 14 days:\n\n${signingUrl}\n\nIf you have questions, reply to this email or contact partners@martpoint.com.ng.`,
-      html: `<p>Hello ${escapeHtml(partnerName)},</p><p>Your MartPoint Partner Agreement <strong>${escapeHtml(String(draft.agreement_id))}</strong> is ready. MartPoint has signed it electronically. Please review and sign it using the secure link below within 14 days.</p><p><a href="${escapeHtml(signingUrl)}" style="display:inline-block;background:#0057ff;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px">Review and sign agreement</a></p><p>If you have questions, reply to this email or contact partners@martpoint.com.ng.</p>`,
+      text: `Hello ${partnerName},\n\nYour reviewed MartPoint Partner Agreement ${String(draft.agreement_id)} is attached as a PDF. MartPoint has signed it electronically. Please review the attached agreement and sign it using this secure link within 14 days:\n\n${signingUrl}\n\nIf you have questions, reply to this email or contact partners@martpoint.com.ng.`,
+      html: `<p>Hello ${escapeHtml(partnerName)},</p><p>Your reviewed MartPoint Partner Agreement <strong>${escapeHtml(String(draft.agreement_id))}</strong> is attached as a PDF. MartPoint has signed it electronically. Please review the attached agreement and sign it using the secure link below within 14 days.</p><p><a href="${escapeHtml(signingUrl)}" style="display:inline-block;background:#0057ff;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px">Review and sign agreement</a></p><p>If you have questions, reply to this email or contact partners@martpoint.com.ng.</p>`,
+      attachments: [{ filename: generated.fileName, content: generated.bytes.toString("base64") }],
       route: "partner_application",
       useRouteRecipients: false,
       replyTo: "partners@martpoint.com.ng",

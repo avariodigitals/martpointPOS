@@ -304,8 +304,8 @@ export function AgreementForm({ applicationId, onGenerated }: {
       setAuthorizeCompanySignature(false)
       setSigningUrl(data.signingUrl || "")
       setMsg(data.emailSent
-        ? `Agreement ${data.agreementId} was signed by MartPoint and sent to the partner for review and signature.`
-        : `Agreement ${data.agreementId} was issued, but the partner email could not be sent. Use the secure signing link below.`)
+        ? `Agreement ${data.agreementId} was signed by MartPoint and emailed with the reviewed PDF attached and a secure signing link.`
+        : `Agreement ${data.agreementId} was issued, but the partner email and PDF attachment could not be sent. Use the secure signing link below.`)
       if (data.document?.previewUrl) window.open(data.document.previewUrl, "_blank")
       await load()
       onGenerated()

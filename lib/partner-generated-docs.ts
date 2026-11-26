@@ -247,6 +247,7 @@ export async function supersedePreviousDocuments(opts: {
   supersededById: string
   reason?: string | null
   actorId?: string | null
+  statuses?: Array<"ISSUED" | "SIGNED" | "ACCEPTED">
 }): Promise<string[]> {
   if (!isSupabaseConfigured()) return []
   let q = supabase
@@ -254,7 +255,7 @@ export async function supersedePreviousDocuments(opts: {
     .select("id, document_id")
     .eq("partner_id", opts.partnerId)
     .eq("document_type", opts.type)
-    .in("status", SUPERSEDEABLE_STATUSES)
+    .in("status", opts.statuses ?? SUPERSEDEABLE_STATUSES)
   if (opts.sourceRecordId) q = q.eq("source_record_id", opts.sourceRecordId)
   const { data } = await q
   const rows = (data || []) as Record<string, unknown>[]
@@ -705,8 +706,8 @@ export async function registerAgreementDocument(opts: {
   generatedBy: string
   status?: "ISSUED" | "SIGNED"
   metadata?: Record<string, unknown>
-}): Promise<void> {
-  if (!isSupabaseConfigured()) return
+}): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null
   const documentId = await generateDocumentId()
   const now = new Date().toISOString()
   const { data } = await supabase
@@ -743,6 +744,7 @@ export async function registerAgreementDocument(opts: {
       }
     )
   }
+  return data ? String(data.id) : null
 }
 
 /** Link pre-activation generated docs to the partner once the partner record exists. */

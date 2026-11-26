@@ -904,7 +904,7 @@ export async function issueWorkOrderDocument(
           approvedAccessPermissions: String(terms.approvedAccessPermissions || ""),
           acceptanceCriteria: (wo.acceptance_criteria as string | null) ?? null,
           completionEvidence: String(terms.completionEvidence || ""),
-          acceptanceReviewBusinessDays: Number(terms.acceptanceReviewBusinessDays) || null,
+          acceptanceReviewBusinessDays: Number(terms.acceptanceReviewBusinessDays) || 5,
           defectCorrectionPeriod: String(terms.defectCorrectionPeriod || ""),
           paymentConditions: String(terms.paymentConditions || ""),
           approvedExpenses: String(terms.approvedExpenses || ""),

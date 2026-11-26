@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getSession } from "@/lib/admin-auth"
-import { gradeRank, getPerformanceTrack, type GradedPartnerType, type PerformanceGrade, partnerTypesFor } from "@/lib/partner-performance-grading"
+import { GRADED_PARTNER_TYPES, gradeRank, getPerformanceTrack, type GradedPartnerType, type PerformanceGrade, partnerTypesFor } from "@/lib/partner-performance-grading"
 import { supabase } from "@/lib/supabase"
 import { issueGradeConfirmation } from "@/lib/partner-generated-docs"
 
 const Decision = z.object({
-  partnerType: z.enum(["CHANNEL", "IMPLEMENTATION"]),
+  partnerType: z.enum(GRADED_PARTNER_TYPES as [GradedPartnerType, ...GradedPartnerType[]]),
   grade: z.enum(["UNGRADED", "SILVER", "GOLD", "PLATINUM"]),
   reason: z.string().min(8),
   managementApproved: z.literal(true),
@@ -20,7 +20,7 @@ export async function GET(request: Request, { params }: Ctx) {
   if (session.role !== "Admin") return NextResponse.json({ error: "Management access required" }, { status: 403 })
   const { partnerId } = await params
   const partnerType = new URL(request.url).searchParams.get("partnerType") as GradedPartnerType | null
-  if (!partnerType || !["CHANNEL", "IMPLEMENTATION"].includes(partnerType)) return NextResponse.json({ error: "Choose a graded Partner Type" }, { status: 400 })
+  if (!partnerType || !GRADED_PARTNER_TYPES.includes(partnerType)) return NextResponse.json({ error: "Choose a graded Partner Type" }, { status: 400 })
   const [{ data: partner }, track, { data: history }] = await Promise.all([
     supabase.from("partners").select("id,partner_id,business_name,partner_type,current_grade").eq("id", partnerId).maybeSingle(),
     getPerformanceTrack(partnerId, partnerType, true),
@@ -42,10 +42,12 @@ export async function POST(request: Request, { params }: Ctx) {
   const [{ data: partner }, track, { data: policy }] = await Promise.all([
     supabase.from("partners").select("id,partner_type").eq("id", partnerId).maybeSingle(),
     getPerformanceTrack(partnerId, input.partnerType, true),
-    supabase.from("partner_grading_policies").select("id,status,silver_outcomes,gold_outcomes,platinum_outcomes,silver_min_days,gold_min_days,platinum_min_days").eq("status", "APPROVED").order("effective_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("partner_grading_policies").select("id,status,criteria,silver_outcomes,gold_outcomes,platinum_outcomes,silver_min_days,gold_min_days,platinum_min_days").eq("status", "APPROVED").order("effective_at", { ascending: false }).limit(1).maybeSingle(),
   ])
   if (!partner) return NextResponse.json({ error: "Partner not found" }, { status: 404 })
   if (!partnerTypesFor(String(partner.partner_type)).includes(input.partnerType)) return NextResponse.json({ error: "Partner Type is not approved for this partner" }, { status: 409 })
+  const policyTypes = Array.isArray(policy?.criteria?.partnerTypes) ? policy.criteria.partnerTypes.map((value: unknown) => String(value).toUpperCase()) : ["CHANNEL", "IMPLEMENTATION"]
+  if (gradeRank(input.grade) > gradeRank(track.currentGrade) && !policyTypes.includes(input.partnerType)) return NextResponse.json({ error: "The approved policy does not yet define a grade pathway for this Partner Type" }, { status: 409 })
   const previous = track.currentGrade as PerformanceGrade
   if (input.grade === previous) return NextResponse.json({ error: "The selected grade matches the current grade; choose an actual grade change." }, { status: 409 })
   const reduction = gradeRank(input.grade) < gradeRank(previous)

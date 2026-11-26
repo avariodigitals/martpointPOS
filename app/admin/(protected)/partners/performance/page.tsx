@@ -5,6 +5,7 @@ import { Award, Loader2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/admin/admin-toast"
+import { GRADED_PARTNER_TYPES, GRADED_PARTNER_TYPE_LABEL, gradeRank, partnerTypesFor, type GradedPartnerType } from "@/lib/partner-performance-grading"
 
 type Partner = { id: string; partner_id: string; business_name: string; partner_type: string; current_grade?: string }
 type Review = { partner: Partner; track: { currentGrade: string; qualifyingOutcomes: number; partnershipDays: number; activeAgreement: boolean; onboardingComplete: boolean; complianceClear: boolean; policyStatus: string; outcomeReferences: { reference: string; verifiedAt: string }[] }; history: Record<string, unknown>[] }
@@ -14,7 +15,7 @@ export default function PartnerPerformanceAdminPage() {
   const { toast } = useToast()
   const [partners, setPartners] = useState<Partner[]>([])
   const [partnerId, setPartnerId] = useState("")
-  const [partnerType, setPartnerType] = useState<"CHANNEL" | "IMPLEMENTATION">("CHANNEL")
+  const [partnerType, setPartnerType] = useState<GradedPartnerType>("CHANNEL")
   const [review, setReview] = useState<Review | null>(null)
   const [grade, setGrade] = useState("UNGRADED")
   const [reason, setReason] = useState("")
@@ -24,6 +25,7 @@ export default function PartnerPerformanceAdminPage() {
   const [policyReason, setPolicyReason] = useState("")
   const [policyBusy, setPolicyBusy] = useState(false)
   const [thresholds, setThresholds] = useState({ silverOutcomes: 1, goldOutcomes: 10, platinumOutcomes: 25, silverMinDays: 90, goldMinDays: 183, platinumMinDays: 365 })
+  const [policyTypes, setPolicyTypes] = useState<GradedPartnerType[]>(GRADED_PARTNER_TYPES)
 
   const loadReview = useCallback(async (id = partnerId, type = partnerType) => {
     if (!id) { setReview(null); return }
@@ -41,6 +43,7 @@ export default function PartnerPerformanceAdminPage() {
       const active = d.policies?.[0] || null
       setPolicy(active)
       if (active) setThresholds({ silverOutcomes: Number(active.silver_outcomes), goldOutcomes: Number(active.gold_outcomes), platinumOutcomes: Number(active.platinum_outcomes), silverMinDays: Number(active.silver_min_days), goldMinDays: Number(active.gold_min_days), platinumMinDays: Number(active.platinum_min_days) })
+      if (Array.isArray(active?.criteria?.partnerTypes)) setPolicyTypes(active.criteria.partnerTypes.filter((type: string): type is GradedPartnerType => GRADED_PARTNER_TYPES.includes(type as GradedPartnerType)))
     })
   }, [])
   useEffect(() => {
@@ -48,7 +51,7 @@ export default function PartnerPerformanceAdminPage() {
     return () => window.clearTimeout(timer)
   }, [loadReview])
 
-  const isReduction = review && ["UNGRADED", "SILVER", "GOLD", "PLATINUM"].indexOf(grade) < ["UNGRADED", "SILVER", "GOLD", "PLATINUM"].indexOf(review.track.currentGrade)
+  const isReduction = review && gradeRank(grade) < gradeRank(review.track.currentGrade)
   async function save() {
     if (!review) return
     setBusy(true)
@@ -64,6 +67,9 @@ export default function PartnerPerformanceAdminPage() {
     if (policyReason.trim().length < 8) return
     setPolicyBusy(true)
     try {
+      const draftRes = await fetch("/api/admin/partners/grading-policy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_draft", reason: policyReason, partnerTypes: policyTypes, ...thresholds }) })
+      const draftData = await draftRes.json()
+      if (!draftRes.ok) { toast({ title: "Policy draft not saved", description: draftData.error || "Request failed", variant: "error", duration: 0 }); return }
       const res = await fetch("/api/admin/partners/grading-policy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "publish", reason: policyReason }) })
       const data = await res.json()
       if (!res.ok) { toast({ title: "Policy not published", description: data.error || "Request failed", variant: "error", duration: 0 }); return }
@@ -76,7 +82,7 @@ export default function PartnerPerformanceAdminPage() {
     if (policyReason.trim().length < 8) return
     setPolicyBusy(true)
     try {
-      const res = await fetch("/api/admin/partners/grading-policy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_draft", reason: policyReason, ...thresholds }) })
+      const res = await fetch("/api/admin/partners/grading-policy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_draft", reason: policyReason, partnerTypes: policyTypes, ...thresholds }) })
       const data = await res.json()
       if (!res.ok) { toast({ title: "Draft policy not saved", description: data.error || "Request failed", variant: "error", duration: 0 }); return }
       toast({ title: "Draft policy updated", description: "The versioned change record has been saved.", variant: "success" })
@@ -84,15 +90,15 @@ export default function PartnerPerformanceAdminPage() {
       setPolicy(latest.policies?.[0] || null)
     } finally { setPolicyBusy(false) }
   }
-  const typesForSelected = partnerId ? partners.find(p => p.id === partnerId)?.partner_type || "" : ""
+  const typesForSelected = partnerId ? partnerTypesFor(partners.find(p => p.id === partnerId)?.partner_type || "") : []
   const gradeOptions = ["UNGRADED", "SILVER", "GOLD", "PLATINUM"]
 
   return <div className="mx-auto max-w-5xl space-y-6">
-    <header><h1 className="flex items-center gap-2 text-2xl font-bold"><Award className="h-5 w-5" /> Partner Performance &amp; Grade Reviews</h1><p className="mt-1 text-sm text-muted-foreground">Separate Channel and Implementation grades. Existing awards can be reduced only through a documented, evidence-based Management review. No automatic batch downgrade occurs.</p></header>
-    <Card><CardHeader><CardTitle className="text-sm">Grading policy v{String(policy?.version || "1.0")} · {String(policy?.status || "DRAFT")}</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Silver outcomes are counted over the partnership. Gold and Platinum use the rolling 12-month outcome window. Grade approval also requires minimum duration, onboarding, applicable certification, satisfactory customer outcomes and compliance.</p>{policy?.status !== "APPROVED" && <><div className="grid gap-3 sm:grid-cols-3">{([ ["silverOutcomes","Silver outcomes"], ["silverMinDays","Silver minimum days"], ["goldOutcomes","Gold outcomes"], ["goldMinDays","Gold minimum days"], ["platinumOutcomes","Platinum outcomes"], ["platinumMinDays","Platinum minimum days"] ] as const).map(([key,label]) => <label className="text-sm" key={key}>{label}<input className={`${inputClass} mt-1`} type="number" min="0" value={thresholds[key]} onChange={e => setThresholds(current => ({ ...current, [key]: Number(e.target.value) }))} /></label>)}</div><label className="block text-sm">Change or approval reason<textarea className={`${inputClass} mt-1 min-h-20`} value={policyReason} onChange={e => setPolicyReason(e.target.value)} placeholder="Record Management's reason. Draft changes are versioned and audited." /></label><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={policyBusy || policyReason.trim().length < 8} onClick={() => void savePolicyDraft()}>Save draft thresholds</Button><Button disabled={policyBusy || policyReason.trim().length < 8} onClick={() => void publishPolicy()}>{policyBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Approve and publish policy</Button></div></>}{policy?.status === "APPROVED" && <p className="text-xs text-emerald-700">Effective {policy.effective_at ? new Date(String(policy.effective_at)).toLocaleString("en-NG") : "date not recorded"}</p>}</CardContent></Card>
+    <header><h1 className="flex items-center gap-2 text-2xl font-bold"><Award className="h-5 w-5" /> Partner Performance &amp; Grade Reviews</h1><p className="mt-1 text-sm text-muted-foreground">Separate grades for each approved Referral, Channel, Implementation, Technology and Payment track. Existing awards can be reduced only through a documented, evidence-based Management review. No automatic batch downgrade occurs.</p></header>
+    <Card><CardHeader><CardTitle className="text-sm">Grading policy v{String(policy?.version || "1.0")} · {String(policy?.status || "DRAFT")}</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">The Silver, Gold and Platinum outcome and duration thresholds apply separately to each selected Partner Type. Grade approval also requires onboarding, applicable certification, satisfactory customer outcomes and compliance.</p>{policy?.status !== "APPROVED" && <><fieldset className="space-y-2"><legend className="text-sm font-medium">Partner Type tracks covered by this draft</legend><div className="grid gap-2 sm:grid-cols-2">{GRADED_PARTNER_TYPES.map(type => <label key={type} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={policyTypes.includes(type)} onChange={e => setPolicyTypes(current => e.target.checked ? [...current, type] : current.filter(item => item !== type))} />{GRADED_PARTNER_TYPE_LABEL[type]}</label>)}</div></fieldset><div className="grid gap-3 sm:grid-cols-3">{([ ["silverOutcomes","Silver outcomes"], ["silverMinDays","Silver minimum days"], ["goldOutcomes","Gold outcomes"], ["goldMinDays","Gold minimum days"], ["platinumOutcomes","Platinum outcomes"], ["platinumMinDays","Platinum minimum days"] ] as const).map(([key,label]) => <label className="text-sm" key={key}>{label}<input className={`${inputClass} mt-1`} type="number" min="0" value={thresholds[key]} onChange={e => setThresholds(current => ({ ...current, [key]: Number(e.target.value) }))} /></label>)}</div><label className="block text-sm">Change or approval reason<textarea className={`${inputClass} mt-1 min-h-20`} value={policyReason} onChange={e => setPolicyReason(e.target.value)} placeholder="Record Management's reason. Draft changes are versioned and audited." /></label><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={policyBusy || policyReason.trim().length < 8 || policyTypes.length === 0} onClick={() => void savePolicyDraft()}>Save draft policy</Button><Button disabled={policyBusy || policyReason.trim().length < 8} onClick={() => void publishPolicy()}>{policyBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Approve and publish policy</Button></div></>}{policy?.status === "APPROVED" && <p className="text-xs text-emerald-700">Effective {policy.effective_at ? new Date(String(policy.effective_at)).toLocaleString("en-NG") : "date not recorded"}</p>}</CardContent></Card>
     <Card><CardHeader><CardTitle className="text-sm">Review partner</CardTitle></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2">
-      <label className="text-sm">Partner<select className={`${inputClass} mt-1`} value={partnerId} onChange={e => setPartnerId(e.target.value)}><option value="">Select partner</option>{partners.filter(p => p.partner_type?.includes("CHANNEL") || p.partner_type?.includes("IMPLEMENTATION")).map(p => <option key={p.id} value={p.id}>{p.business_name} · {p.partner_id}</option>)}</select></label>
-      <label className="text-sm">Partner Type<select className={`${inputClass} mt-1`} value={partnerType} onChange={e => setPartnerType(e.target.value as typeof partnerType)}><option value="CHANNEL" disabled={!typesForSelected.includes("CHANNEL")}>Channel Partner</option><option value="IMPLEMENTATION" disabled={!typesForSelected.includes("IMPLEMENTATION")}>Implementation Partner</option></select></label>
+      <label className="text-sm">Partner<select className={`${inputClass} mt-1`} value={partnerId} onChange={e => { const id = e.target.value; setPartnerId(id); const types = partnerTypesFor(partners.find(p => p.id === id)?.partner_type || ""); setPartnerType(current => types.includes(current) ? current : types[0] || "CHANNEL") }}><option value="">Select partner</option>{partners.filter(p => partnerTypesFor(p.partner_type).length > 0).map(p => <option key={p.id} value={p.id}>{p.business_name} · {p.partner_id}</option>)}</select></label>
+      <label className="text-sm">Partner Type<select className={`${inputClass} mt-1`} value={partnerType} onChange={e => setPartnerType(e.target.value as GradedPartnerType)}>{GRADED_PARTNER_TYPES.map(type => <option key={type} value={type} disabled={!typesForSelected.includes(type)}>{GRADED_PARTNER_TYPE_LABEL[type]}</option>)}</select></label>
     </CardContent></Card>
     {review && <div className="grid gap-4 lg:grid-cols-2">
       <Card><CardHeader><CardTitle className="text-sm">Verified eligibility evidence</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><p><b>{review.partner.business_name}</b> · {partnerType}</p><p>Current grade: <b>{review.track.currentGrade}</b></p><p>Qualifying verified outcomes: <b>{review.track.qualifyingOutcomes}</b></p><p>Partnership duration: <b>{review.track.partnershipDays} days</b></p><p>Active agreement: {review.track.activeAgreement ? "Yes" : "No"} · Onboarding: {review.track.onboardingComplete ? "Complete" : "Incomplete"} · Compliance: {review.track.complianceClear ? "Satisfactory" : "Needs review"}</p><p>Policy status: <b>{review.track.policyStatus}</b> · Draft policy thresholds cannot be used for new grade awards.</p><div><p className="mb-1 font-medium">Evidence references</p>{review.track.outcomeReferences.length ? <ul className="list-inside list-disc text-xs text-muted-foreground">{review.track.outcomeReferences.map(o => <li key={o.reference}>{o.reference} · {new Date(o.verifiedAt).toLocaleDateString("en-NG")}</li>)}</ul> : <p className="text-xs text-muted-foreground">No qualifying outcome is recorded.</p>}</div><div className="border-t pt-3"><p className="mb-2 font-medium">Decision history</p>{review.history.length ? review.history.slice(0, 8).map((h, i) => <p className="border-t py-1 text-xs text-muted-foreground" key={String(h.id || i)}>{String(h.previous_grade)} → {String(h.new_grade)} · {String(h.decision)} · {String(h.reason)}</p>) : <p className="text-xs text-muted-foreground">No per-type decisions recorded yet.</p>}</div></CardContent></Card>

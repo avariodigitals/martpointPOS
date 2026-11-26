@@ -655,7 +655,7 @@ export function renderDataProcessingAddendum(
     ["Approved locations", orNA(input.approvedLocations)],
     ["Approved subprocessors", orNA(input.approvedSubprocessors)],
   ])
-  d.para("Blank processing details must be completed in the applicable Work Order or written processing instruction before personal data is accessed. No personal-data processing is authorised merely by appointment to the Partner Network.", { gap: 8 })
+  d.para("Processing details must be completed in the applicable Work Order, Customer Assignment or written processing instruction before personal data is accessed. This Addendum may apply to authorised Channel Partner support as well as implementation work. No personal-data processing is authorised merely by appointment to the Partner Network.", { gap: 8 })
   d.heading("2. Instructions and purpose limitation")
   d.para("A processor shall process personal data only on documented instructions from the applicable controller, including as to transfers, and only for the specified purpose and duration. If an instruction appears to violate applicable data-protection law, the processor shall notify the controller promptly and pause the affected processing unless legally prohibited from doing so. A Party acting as an independent controller determines and documents its own lawful purposes and means.")
   d.heading("3. Confidentiality, access and personnel")
@@ -675,7 +675,7 @@ export function renderDataProcessingAddendum(
   d.heading("10. Audit, records and assistance")
   d.para("A processor shall maintain records reasonably necessary to demonstrate its processing and safeguards, provide information needed for compliance and permit proportionate audits by the controller or its appointed auditor on reasonable notice. Immediate audit or preservation measures may follow a material incident, regulator request or credible evidence of non-compliance. Audits shall protect unrelated confidential information.")
   d.heading("11. Applicable law and order of precedence")
-  d.para("The Parties shall comply with the Nigeria Data Protection Act 2023, applicable Nigeria Data Protection Commission directives and other binding data-protection requirements. If this Addendum conflicts with the Partner Agreement on personal-data processing, this Addendum controls for that subject. A specific Work Order may add processing detail but may not reduce the statutory protections in this Addendum.")
+  d.para("The Parties shall comply with the Nigeria Data Protection Act 2023, applicable Nigeria Data Protection Commission directives and other binding data-protection requirements. This Addendum supplements the Partner Agreement for the engagement-specific processing scope. If a term conflicts on security or personal-data protection, the term providing greater protection or requiring earlier notice applies. Nothing in this Addendum or a Work Order may weaken or extend the Agreement's four-hour incident reporting duty, a stricter signed protection or a statutory deadline. For other processing details, this Addendum controls; a Work Order may add detail but may not reduce the protections stated here.")
   d.heading("12. Term and signatures")
   d.para("This Addendum applies only for its stated processing scope and becomes effective when signed by both Parties. It must be executed before any processing or customer-environment access to which it applies. It ends when the applicable processing ends, subject to continuing confidentiality, security, deletion and legal duties.")
   d.signatureTable([
@@ -1181,7 +1181,7 @@ export function renderReferralAgreement(
 
   d.heading("8. Term and exit")
   d.listItem("MartPoint may suspend or terminate this appointment on an authorised Management decision, effective on the date stated in the notice.")
-  d.listItem(`Approved payouts for earnings that were already eligible are due within ${schedule ? dayCount(schedule.payoutDaysAfterMonthEnd).replace(" days", " days") : "the period stated in the Commission Schedule"} after the monthly close.`)
+  d.listItem(`Approved eligible commissions are paid within ${schedule ? dayCount(schedule.payoutDaysAfterMonthEnd) : "the period stated in the Commission Schedule"} after the applicable monthly statement is issued.`)
   d.listItem("On exit, the partner must stop representing MartPoint, protect introduced data and complete any requested handover of records.")
 
   d.heading("9. Signatures")
@@ -1267,14 +1267,15 @@ export function renderReferralCommissionSchedule(
   d.heading("5. Holding period")
   d.fieldTable([
     ["Holding period", dayCount(terms.holdingDays)],
-    ["Holding starts from", "The later of the cleared eligible payment and licence activation"],
+    ["Acquisition holding starts from", "The later of the cleared eligible payment or required licence activation"],
+    ["Renewal holding starts from", "The later of the cleared renewal payment or effective subscription renewal"],
     ["Earning status during holding", "HELD — not payable, not disputable as an amount"],
   ])
 
   d.heading("6. Statements and payout")
   d.fieldTable([
     ["Statement cycle", orNA(input.statementCycle)],
-    ["Payout timing", `${dayCount(terms.payoutDaysAfterMonthEnd)} after the monthly close`],
+    ["Payout timing", `Within ${dayCount(terms.payoutDaysAfterMonthEnd)} after monthly statement issuance`],
     ["Pre-issue validation", "Bank details verified, Finance approval recorded, no blocking refund, chargeback, dispute or compliance hold"],
   ])
 

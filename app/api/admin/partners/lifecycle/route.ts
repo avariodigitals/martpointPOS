@@ -5,6 +5,7 @@ import { auditContextFromSession, recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES } f
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { notifyAllAdmins } from "@/lib/admin-notifications"
 import { sendPartnerLifecycleNotice } from "@/lib/partner-lifecycle"
+import { CHANNEL_QUALIFYING_COMMISSION_STATUSES } from "@/lib/partner-performance-grading"
 
 type LifecycleExportRow = { partner_id: string; partners?: { partner_id?: string; business_name?: string }; account_status?: string; onboarding_status?: string; performance_status?: string; listing_status?: string; compliance_status?: string; accepted_version?: string | null; last_verified_activity_at?: string | null; updated_at?: string; pipeline_count?: number }
 
@@ -13,7 +14,7 @@ const schema = z.object({
   partnerId: z.string().uuid().optional(), activityId: z.string().uuid().optional(), caseId: z.string().uuid().optional(), noticeId: z.string().uuid().optional(),
   reason: z.string().trim().min(5).max(1000).optional(), days: z.coerce.number().int().min(1).max(180).optional(),
   listingStatus: z.enum(["hidden", "eligible", "published", "suspended"]).optional(),
-  deliveryType: z.enum(["channel_sale", "implementation_acceptance", "approved_business_delivery"]).optional(),
+  deliveryType: z.enum(["channel_sale", "implementation_acceptance", "referral_conversion", "technology_acceptance", "payment_activation", "approved_business_delivery"]).optional(),
   evidenceReference: z.string().trim().min(3).max(300).optional(),
   evidenceSummary: z.string().trim().min(10).max(2000).optional(),
   caseOutcome: z.enum(["clear", "confirmed_violation", "under_review"]).optional(),
@@ -92,11 +93,17 @@ export async function POST(request: Request) {
       const allowed = type === "CHANNEL" ? ["channel_sale"]
         : type === "IMPLEMENTATION" ? ["implementation_acceptance"]
         : type === "CHANNEL_IMPLEMENTATION" ? ["channel_sale", "implementation_acceptance"]
+        : type === "REFERRAL" ? ["referral_conversion"]
+        : type === "TECHNOLOGY" ? ["technology_acceptance"]
+        : type === "PAYMENT" ? ["payment_activation"]
         : ["approved_business_delivery"]
       if (!allowed.includes(input.deliveryType)) return NextResponse.json({ error: "The delivery evidence type does not match this Partner Type" }, { status: 400 })
       const gradedPartnerType = input.deliveryType === "channel_sale" && type.includes("CHANNEL") ? "CHANNEL"
-        : input.deliveryType === "implementation_acceptance" && type.includes("IMPLEMENTATION") ? "IMPLEMENTATION" : null
-      if (input.deliveryType !== "approved_business_delivery" && !gradedPartnerType) return NextResponse.json({ error: "No approved grading rubric exists for this Partner Type and delivery measure" }, { status: 409 })
+        : input.deliveryType === "implementation_acceptance" && type.includes("IMPLEMENTATION") ? "IMPLEMENTATION"
+        : input.deliveryType === "referral_conversion" && type === "REFERRAL" ? "REFERRAL"
+        : input.deliveryType === "technology_acceptance" && type === "TECHNOLOGY" ? "TECHNOLOGY"
+        : input.deliveryType === "payment_activation" && type === "PAYMENT" ? "PAYMENT" : null
+      if (!gradedPartnerType) return NextResponse.json({ error: "Choose a qualifying outcome type defined for this Partner Type" }, { status: 409 })
       let outcomeReference = input.evidenceReference.trim()
       let evidenceReference = outcomeReference
       let evidenceSummary = input.evidenceSummary
@@ -105,7 +112,7 @@ export async function POST(request: Request) {
           .select("id,partner_id,business_id,payment_id,activation_at,status,attribution_type")
           .eq("partner_id", input.partnerId)
           .eq("attribution_type", "SALES")
-          .in("status", ["ELIGIBLE", "APPROVED", "SCHEDULED", "PAID"])
+          .in("status", [...CHANNEL_QUALIFYING_COMMISSION_STATUSES])
           .not("payment_id", "is", null)
           .not("activation_at", "is", null)
         const commissionLookup = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(outcomeReference)
@@ -135,7 +142,22 @@ export async function POST(request: Request) {
         outcomeReference = String(workOrder.assignment_id || workOrder.business_id)
         evidenceSummary = `${input.evidenceSummary} Verified against completed Work Order ${workOrder.work_order_ref}; accepted completion date ${workOrder.completed_at}.`
       }
-      const { error: evidenceError } = await supabase.from("partner_delivery_verifications").insert({ partner_id: input.partnerId, delivery_type: input.deliveryType, partner_type: gradedPartnerType, outcome_reference: gradedPartnerType ? outcomeReference : null, evidence_reference: evidenceReference, evidence_summary: evidenceSummary, verified_by: actorId, verified_at: now.toISOString(), approved: true })
+      if (input.deliveryType === "referral_conversion") {
+        const commissionQuery = supabase.from("partner_commissions")
+          .select("id,partner_id,business_id,payment_id,activation_at,status,attribution_type")
+          .eq("partner_id", input.partnerId)
+          .eq("attribution_type", "ORIGINATING")
+          .eq("business_id", outcomeReference)
+          .in("status", [...CHANNEL_QUALIFYING_COMMISSION_STATUSES])
+          .not("payment_id", "is", null)
+          .not("activation_at", "is", null)
+        const { data: commission } = await commissionQuery.order("activation_at", { ascending: false }).limit(1).maybeSingle()
+        if (!commission) return NextResponse.json({ error: "Referral grading requires an originating Partner commission with cleared payment and an active licence" }, { status: 409 })
+        outcomeReference = String(commission.business_id)
+        evidenceReference = String(commission.id)
+        evidenceSummary = `${input.evidenceSummary} Verified against originating Partner commission ${commission.id}, cleared payment ${commission.payment_id}, active licence at ${commission.activation_at}.`
+      }
+      const { error: evidenceError } = await supabase.from("partner_delivery_verifications").insert({ partner_id: input.partnerId, delivery_type: input.deliveryType, partner_type: gradedPartnerType, outcome_reference: outcomeReference, evidence_reference: evidenceReference, evidence_summary: evidenceSummary, verified_by: actorId, verified_at: now.toISOString(), approved: true })
       error = evidenceError
       if (!error) {
         const { error: eligibilityError } = await supabase.from("partner_lifecycle").update({ directory_eligible: true, directory_eligibility_verified_at: now.toISOString(), directory_eligibility_verified_by: actorId, listing_status: life.listing_status === "hidden" ? "eligible" : life.listing_status, updated_at: now.toISOString(), version_counter: Number(life.version_counter || 0) + 1 }).eq("partner_id", input.partnerId)

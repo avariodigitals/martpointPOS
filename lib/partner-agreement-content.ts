@@ -1,6 +1,6 @@
 import type { PartnerType } from "./partners"
 
-/* ───────────────────  Partner Agreement content (master template v1.3)  ───────────────────
+/* ───────────────────  Partner Agreement content (master template v1.4)  ───────────────────
  * Partner-facing wording ONLY. The master .docx is an internal "LEGAL AND AUTOMATION
  * MASTER" that also carries generation rules, internal approval logic, merge-field
  * documentation and a legal review checklist — none of which belongs in a partner's
@@ -8,7 +8,7 @@ import type { PartnerType } from "./partners"
  * schedules per approved partner type; unused schedules are omitted entirely.
  */
 
-export const AGREEMENT_TEMPLATE_VERSION = "1.3"
+export const AGREEMENT_TEMPLATE_VERSION = "1.4"
 
 export const CHANNEL_ACQUISITION_COMMISSION_RATE = "10%"
 export const CHANNEL_RENEWAL_COMMISSION_RATE = "5%"
@@ -123,18 +123,28 @@ export function defaultProhibitions(partnerType: PartnerType | string): string {
 export function commercialFieldDefaults(earningCategory: string, partnerTypeLabel = ""): Partial<Record<string, string>> {
   const cat = earningCategory.toLowerCase()
   const acquisition = cat.includes("commission")
+  const implementationFee = cat.includes("implementation")
   const channelCommission = partnerTypeLabel.toLowerCase() === "channel partner" && cat.includes("commission")
   return {
-    ...(channelCommission ? { rateOrFee: CHANNEL_ACQUISITION_COMMISSION_RATE } : {}),
+    ...(channelCommission ? { rateOrFee: CHANNEL_ACQUISITION_COMMISSION_RATE } : implementationFee ? { rateOrFee: "Agreed per approved Work Order" } : {}),
     rateUnit: acquisition ? "PERCENTAGE" : cat.includes("implementation") ? "WORK_ORDER" : "FIXED",
-    eligibleRevenueDefinition:
-      "Eligible Revenue as defined in clause 2 — net software revenue actually received and cleared by MartPoint after approved discounts, excluding taxes, refunds, chargebacks, hardware, third-party charges and excluded services.",
-    exclusions: "Taxes, refunds, chargebacks, hardware, third-party charges and any excluded services.",
+    eligibleRevenueDefinition: implementationFee
+      ? "Not applicable to implementation fees. Use fixed or milestone-based fees expressly agreed in an approved Work Order or signed Fee Schedule."
+      : "Eligible Revenue as defined in clause 2 — net software revenue actually received and cleared by MartPoint after approved discounts, excluding taxes, refunds, chargebacks, hardware, third-party charges and excluded services.",
+    exclusions: implementationFee
+      ? "Channel commission exclusions apply only to the software commission basis and do not invalidate separately approved implementation fees. Implementation fees are limited to the scope and milestones expressly stated in an approved Work Order or signed Fee Schedule."
+      : "Taxes, refunds, chargebacks, hardware, third-party charges and any excluded services.",
     attributionRule: acquisition
       ? "Opportunity must be registered by the Partner and accepted by MartPoint before the sale, and attribution must still be active at payment."
+      : implementationFee
+      ? "Fees apply only to implementation services assigned to the Partner under an approved, signed Work Order or Fee Schedule; customer acquisition attribution and licence activation are not required unless the Work Order expressly states an applicable milestone."
       : "Earning applies only to work or services expressly assigned to the Partner in writing (Work Order, Customer Assignment or Production Approval).",
     holdingDays: acquisition ? "30" : "0",
-    holdingStartEvent: acquisition ? "Required licence activation" : "Customer payment cleared",
+    holdingStartEvent: acquisition
+      ? "Acquisition: later of cleared Customer payment or required licence activation; renewal: later of cleared renewal payment or effective subscription renewal"
+      : implementationFee
+      ? "No additional holding period; approved Work Order acceptance and applicable cleared Customer payment conditions apply"
+      : "Customer payment cleared",
     renewalRule: channelCommission ? CHANNEL_RENEWAL_COMMISSION_RULE : acquisition
       ? "No automatic renewal commission entitlement. Any renewal commission requires express approval in a signed Commercial Schedule stating its rate, eligible renewal term and duration."
       : "Fees apply per engagement; renewals require a new or extended assignment.",
@@ -143,14 +153,22 @@ export function commercialFieldDefaults(earningCategory: string, partnerTypeLabe
     reversalRule:
       "Earnings on refunded, charged-back, fraudulent or reversed amounts are deducted or clawed back; MartPoint may offset against future payouts.",
     statementCycle: "Monthly",
-    payoutTiming: "",
-    minimumPayoutThreshold: acquisition ? "" : "Not applicable — fees are governed by the approved Work Order or applicable fee terms.",
-    currencyAndTaxRule: "",
-    splitRule:
-      "No stacking — a single Customer transaction generates an earning under one basis only, unless a signed Schedule expressly allows a split.",
+    payoutTiming: acquisition
+      ? "Statements are issued monthly. Eligible acquisition commissions are paid within 15 days after the applicable monthly statement is issued, subject to the 30-day holding period from the later of cleared Customer payment or required licence activation. Renewal commissions are subject to a 30-day holding period from the later of cleared renewal payment or effective subscription renewal. Payment also requires confirmed Partner attribution, an active agreement and compliance with applicable Partner terms. Any statutory deductions required by law apply."
+      : implementationFee
+      ? "Implementation fees are payable within 15 days after the applicable monthly statement is issued, subject to formal acceptance of the applicable Work Order deliverable and applicable cleared Customer payments, unless alternative payment milestones are expressly agreed in that Work Order. No additional holding period applies by default."
+      : "Payment timing and conditions are as stated in the applicable signed Commercial Schedule or Work Order.",
+    minimumPayoutThreshold: acquisition ? "No minimum payout threshold." : "Not applicable — fees are governed by the approved Work Order or applicable fee terms.",
+    currencyAndTaxRule:
+      "Unless an applicable signed Commercial Schedule or Work Order states otherwise, currency is Nigerian naira (NGN). Fees are exclusive of VAT; VAT, where chargeable, will be added against a valid tax invoice in accordance with applicable law. Any withholding or other statutory deduction required by law may be deducted and remitted to the relevant authority, with evidence of remittance provided to the Partner. Each Party is responsible for its own taxes.",
+    splitRule: implementationFee
+      ? "No duplicate earning on the same revenue component. A separately approved Channel acquisition commission may apply to qualifying software subscription revenue, and an Implementation Partner may separately earn the fixed or milestone-based implementation fee stated in an approved Work Order for distinct implementation services. These distinct earning bases do not constitute prohibited stacking."
+      : "No duplicate commission on the same revenue component. A separately approved implementation fee for distinct services under a signed Work Order may be earned in addition to qualifying software subscription commission; that is not prohibited stacking. Any split of the same revenue component requires express written approval in the signed Commercial Schedule.",
     eligibleItems: channelCommission
       ? CHANNEL_COMMISSION_ELIGIBLE_ITEMS
-      : cat.includes("implementation") || cat.includes("technology") || cat.includes("payment")
+      : implementationFee
+      ? "Approved implementation, configuration, migration, training, testing and handover services expressly listed in the applicable Work Order or Fee Schedule."
+      : cat.includes("technology") || cat.includes("payment")
       ? "As stated in the applicable Partner Type Schedule and any signed Work Order."
       : "MartPoint software licence subscriptions on approved plans, as stated in the Partner Type Schedule.",
   }
@@ -234,7 +252,7 @@ export function commonTerms(v: AgreementVars): { part: string | null; clauses: C
         {
           num: "5",
           title: "Partner obligations and performance",
-          body: "The Partner shall act honestly and professionally; follow applicable law, this Agreement and Approved Materials; keep accurate records; obtain necessary customer consent; use trained personnel; protect credentials and data; disclose material conflicts relating to MartPoint-authorised activities; report complaints and incidents promptly; cooperate with audits and handovers; and avoid conduct likely to mislead customers or damage MartPoint. Permitted independent services and relationships with other software providers under clause 3 are not, by themselves, a conflict. All newly approved Partners start Ungraded. Partner Type, Operating Level, Account Status, Partner Grade and Public Directory Status are separate. Standard is an operating level and is not a grade. Ungraded does not prevent agreement generation, signing, activation or onboarding. The 90-day activation and activity-monitoring framework is separate from successful delivery and performance grading. A Channel Partner has qualifying delivery only when an acquired customer has paid an eligible amount that cleared and the MartPoint licence has been activated. An Implementation Partner has qualifying delivery only after an authorised implementation assignment is successfully completed and formally accepted in writing under an approved Work Order. Meetings, demonstrations, proposals, registered leads, training and onboarding alone are not qualifying delivery. A verified qualifying delivery creates eligibility for a grade assessment, but does not automatically award a grade or make the Partner eligible for public listing. Channel and Implementation grades are assessed separately under the MartPoint Partner Performance, Grading & Progression Policy (MP-POL-PGP-001). Grade assignment requires assessment against the effective policy and written Management approval. Only approved and eligible Partners may be published in the public directory, and a graded badge may be issued only after the grade is formally awarded for the relevant Partner Type. After directory publication, 90 consecutive calendar days without verified qualifying activity may trigger a written directory suspension notice and a 10-business-day response period. If no qualifying activity is verified and no active review hold or approved extension applies by the end of that period, MartPoint may suspend or remove the public listing. Logins alone do not qualify as activity. A listing suspension alone does not terminate this Agreement, disable the Partner's account or forfeit commissions already properly earned under the applicable Schedule. Grades do not change commercial rights unless a signed Commercial Schedule expressly says so.",
+          body: "The Partner shall act honestly and professionally; follow applicable law, this Agreement and Approved Materials; keep accurate records; obtain necessary customer consent; use trained personnel; protect credentials and data; disclose material conflicts relating to MartPoint-authorised activities; report complaints and incidents promptly; cooperate with audits and handovers; and avoid conduct likely to mislead customers or damage MartPoint. Permitted independent services and relationships with other software providers under clause 3 are not, by themselves, a conflict. The initial 90-day activation and activity-monitoring period begins on the activation date stated in MartPoint's Activation Confirmation. During that period, the Partner shall complete agreed onboarding and remain reasonably engaged in approved partnership activity. For activity monitoring only, documented leads, meetings, demonstrations and proposals may be considered; they do not constitute qualifying business delivery for grading or public recognition. All newly approved Partners start Ungraded. Partner Type, Operating Level, Account Status, Partner Grade and Public Directory Status are separate. Standard is an operating level and is not a grade. Ungraded does not prevent agreement generation, signing, activation or onboarding. A Referral Partner qualifying outcome is a distinct referred customer with eligible payment cleared and an activated MartPoint licence. A Channel Partner qualifying outcome is a distinct acquired customer with eligible subscription payment cleared and an activated MartPoint licence. An Implementation Partner qualifying outcome is a distinct authorised implementation completed and formally accepted under an approved Work Order. A Technology Partner qualifying outcome is a distinct customer production integration completed and formally accepted by MartPoint after applicable technical and security review. A Payment Partner qualifying outcome is a distinct approved merchant/payment-service deployment live in production with a successfully settled and reconciled transaction, subject to applicable compliance approval. Leads, meetings, demonstrations, proposals, training and onboarding alone are not qualifying delivery. Fraudulent, refunded, reversed, cancelled or otherwise invalidated acquisitions or transactions do not qualify. A verified outcome creates eligibility for assessment, not automatic grade award or public listing. The Partner Performance, Grading & Progression Policy (MP-POL-PGP-001) maintains a separate grade track for each applicable Partner Type; a Channel + Implementation appointment has two independent tracks. Grade assignment requires assessment against the effective approved policy and written Management approval. Grade assignment requires assessment against the effective policy and written Management approval. Only approved and eligible Partners may be published in the public directory, and a graded badge may be issued only after the grade is formally awarded for the relevant Partner Type. MartPoint may amend the Policy, grade thresholds, assessment criteria and programme benefits to reflect evolving business requirements, ordinarily on 30 days' written notice. Such changes apply prospectively and do not invalidate properly earned financial entitlements or amend signed commercial terms. After directory publication, 90 consecutive calendar days without verified qualifying activity may trigger a written directory suspension notice and a 10-business-day response period. If no qualifying activity is verified and no active review hold or approved extension applies by the end of that period, MartPoint may suspend or remove the public listing. Logins alone do not qualify as activity. A listing suspension alone does not terminate this Agreement, disable the Partner's account or forfeit commissions or fees already properly earned under the applicable Schedule. Grades do not change commercial rights unless a signed Commercial Schedule expressly says so.",
         },
         {
           num: "6",
@@ -274,7 +292,7 @@ export function commonTerms(v: AgreementVars): { part: string | null; clauses: C
         {
           num: "12",
           title: "Data protection",
-          body: "Each Party shall comply with the Nigeria Data Protection Act 2023, applicable directives and other binding privacy requirements. The Partner shall process Personal Data only for the approved purpose, on documented instructions where MartPoint is controller, using appropriate safeguards and authorised personnel. It shall support data-subject requests, breach response, deletion, return and audit. Where processing scope requires it, the Parties must execute the Data Processing Addendum before access begins.",
+          body: "Each Party shall comply with applicable data-protection requirements. The Partner shall process Personal Data only for an approved purpose, under documented instructions where it acts as processor, and with appropriate safeguards and authorised personnel. This applies to all approved Partner Type activities that involve Personal Data, including referral handling, Channel support, Implementation, Technology integrations and Payment services. The applicable processing particulars must be recorded in a Work Order, Customer Assignment or written processing instruction, and the Data Processing Addendum must be executed before the relevant access or processing begins.",
         },
       ],
     },
@@ -334,7 +352,7 @@ export function commonTerms(v: AgreementVars): { part: string | null; clauses: C
         {
           num: "22",
           title: "Term review and renewal",
-          body: `This Agreement begins on the Effective Date and continues for ${v.initialTermMonths} months, then ${v.renewalRule}, unless ended earlier. Appointment type, grade, certification and access may be reviewed separately. Renewal does not preserve an expired commercial rate unless the applicable Schedule says so.`,
+          body: `This Agreement begins on the Effective Date and continues for an initial term of ${v.initialTermMonths === "3" ? "three (3)" : v.initialTermMonths} months, then ${v.renewalRule}, unless terminated earlier in accordance with this Agreement. Appointment type, grade, certification and access may be reviewed separately. Renewal does not preserve an expired commercial rate unless the applicable Commercial Schedule expressly provides otherwise.`,
         },
       ],
     },

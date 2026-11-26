@@ -20,9 +20,12 @@ interface ResourceCard {
 }
 
 function builtInDownloadFor(title: string): string | null {
-  return title.trim().toLowerCase() === "partner guide"
-    ? "/partner-resources/martpoint-partner-portal-guide.pdf"
-    : null
+  const downloads: Record<string, string> = {
+    "partner guide": "/partner-resources/martpoint-partner-portal-guide.pdf",
+    "sample implementation work order": "/partner-resources/MartPoint-Illustrative-Implementation-Work-Order.pdf",
+    "data processing addendum template": "/partner-resources/MartPoint-Partner-Data-Processing-Addendum-Template.pdf",
+  }
+  return downloads[title.trim().toLowerCase()] || null
 }
 
 function ResourceGrid({ items }: { items: ResourceCard[] }) {
@@ -75,7 +78,11 @@ export default async function PartnerResourcesPage() {
   const partner = await getPartnerById(session.partnerId)
   if (!partner) redirect("/partner")
 
-  const { data: gradingPolicy } = await supabase.from("partner_grading_policies").select("id,version,status").order("created_at", { ascending: false }).limit(1).maybeSingle()
+  const [{ data: publishedPolicy }, { data: draftPolicy }] = await Promise.all([
+    supabase.from("partner_grading_policies").select("id,version,status,created_at").eq("status", "APPROVED").order("effective_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("partner_grading_policies").select("id,version,status,created_at").eq("status", "DRAFT").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ])
+  const gradingPolicy = draftPolicy && (!publishedPolicy || new Date(String(draftPolicy.created_at)).getTime() > new Date(String(publishedPolicy.created_at)).getTime()) ? draftPolicy : publishedPolicy
   const { data: policyAck } = gradingPolicy?.status === "APPROVED"
     ? await supabase.from("partner_grading_policy_acknowledgements").select("acknowledged_at").eq("partner_id", partner.id).eq("policy_id", gradingPolicy.id).maybeSingle()
     : { data: null }
@@ -98,6 +105,39 @@ export default async function PartnerResourcesPage() {
 
   const guides = resourcesWithUrls.filter((r) => !r.partner_id)
   const personalDocs = resourcesWithUrls.filter((r) => r.partner_id === partner.id)
+  const partnerType = String(partner.partnerType || "").toUpperCase()
+  const referenceGuides: ResourceCard[] = [
+    {
+      id: "builtin-partner-portal-guide-v2",
+      title: "Partner Portal Guide",
+      description: "How to use the portal, understand your appointment, manage delivery and follow performance progression.",
+      category: "GUIDE",
+      signedUrl: null,
+      external_url: null,
+      storagePath: null,
+      builtInDownload: "/partner-resources/martpoint-partner-portal-guide.pdf",
+    },
+    ...(partnerType.includes("IMPLEMENTATION") ? [{
+      id: "builtin-sample-work-order",
+      title: "Sample Implementation Work Order",
+      description: "Illustrative scope, milestones, acceptance, payment and change controls. Not a project or fee commitment.",
+      category: "TEMPLATE",
+      signedUrl: null,
+      external_url: null,
+      storagePath: null,
+      builtInDownload: "/partner-resources/MartPoint-Illustrative-Implementation-Work-Order.pdf",
+    }] : []),
+    ...(partnerType ? [{
+      id: "builtin-dpa-template",
+      title: "Data Processing Addendum Template",
+      description: "Complete and execute the engagement-specific processing details before personal-data access.",
+      category: "TEMPLATE",
+      signedUrl: null,
+      external_url: null,
+      storagePath: null,
+      builtInDownload: "/partner-resources/MartPoint-Partner-Data-Processing-Addendum-Template.pdf",
+    }] : []),
+  ]
 
   return (
     <div className="space-y-6">
@@ -109,9 +149,9 @@ export default async function PartnerResourcesPage() {
       <Card>
         <CardHeader><CardTitle className="text-sm font-medium">Guides & Shared Materials</CardTitle></CardHeader>
         <CardContent>
-          <div className="mb-4"><GradingPolicyCard status={String(gradingPolicy?.status || "DRAFT")} version={String(gradingPolicy?.version || "1.0")} acknowledgedAt={policyAck?.acknowledged_at || null} /></div>
-          {guides.length === 0 ? <p className="text-sm text-muted-foreground">No guides available yet.</p> : (
-            <ResourceGrid items={guides} />
+          {!!partnerType && <div className="mb-4"><GradingPolicyCard status={String(gradingPolicy?.status || "DRAFT")} version={String(gradingPolicy?.version || "1.0")} acknowledgedAt={policyAck?.acknowledged_at || null} /></div>}
+          {guides.length === 0 && referenceGuides.length === 0 ? <p className="text-sm text-muted-foreground">No guides available yet.</p> : (
+            <ResourceGrid items={[...guides.filter((r) => r.title.trim().toLowerCase() !== "partner portal guide" && r.title.trim().toLowerCase() !== "partner guide"), ...referenceGuides]} />
           )}
         </CardContent>
       </Card>

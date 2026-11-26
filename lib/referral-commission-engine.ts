@@ -158,7 +158,7 @@ export const STANDARD_SCHEDULE_TERMS: ScheduleTerms = {
   firstRenewalRatePercent: 5,
   holdingDays: 30,
   protectionDays: 90,
-  payoutDaysAfterMonthEnd: 14,
+  payoutDaysAfterMonthEnd: 15,
   approvedSplit: "",
 }
 
@@ -245,6 +245,7 @@ export type EligibilityGate =
   | "SCHEDULE"
   | "PAYMENT"
   | "ACTIVATION"
+  | "RENEWAL_DATE"
   | "HOLDING"
   | "COMPLIANCE"
 
@@ -259,6 +260,9 @@ export interface EligibilityInput {
   clearedGrossNaira: number
   paymentClearedAt: string | null
   licenceActivatedAt: string | null
+  /** Effective date of this specific subscription renewal; required for renewal commission. */
+  renewalEffectiveAt?: string | null
+  earningKind?: EarningKind
   holdingDays: number
   now: string
   /** Refund, chargeback, dispute or compliance hold in force. */
@@ -275,6 +279,7 @@ export interface EligibilityResult {
 
 export function evaluateReferralEligibility(input: EligibilityInput): EligibilityResult {
   const failed: EligibilityGate[] = []
+  const renewal = input.earningKind === "RENEWAL"
 
   if (!input.attributionAccepted) failed.push("ATTRIBUTION")
   if (!input.scheduleExecuted) failed.push("SCHEDULE")
@@ -283,14 +288,16 @@ export function evaluateReferralEligibility(input: EligibilityInput): Eligibilit
   const hasMoney = (Number(input.clearedGrossNaira) || 0) > 0
   if (!hasMoney) failed.push("PAYMENT")
 
-  if (hasMoney && !input.licenceActivatedAt) failed.push("ACTIVATION")
+  if (hasMoney && !renewal && !input.licenceActivatedAt) failed.push("ACTIVATION")
+  if (hasMoney && renewal && !input.renewalEffectiveAt) failed.push("RENEWAL_DATE")
 
   let holdingStartsAt: string | null = null
   let holdingCompletesAt: string | null = null
-  if (input.licenceActivatedAt && input.paymentClearedAt) {
+  const holdingEventAt = renewal ? input.renewalEffectiveAt : input.licenceActivatedAt
+  if (holdingEventAt && input.paymentClearedAt) {
     const start = Math.max(
       new Date(input.paymentClearedAt).getTime(),
-      new Date(input.licenceActivatedAt).getTime()
+      new Date(holdingEventAt).getTime()
     )
     holdingStartsAt = new Date(start).toISOString()
     holdingCompletesAt = new Date(start + Math.max(0, input.holdingDays) * 86_400_000).toISOString()
@@ -394,12 +401,12 @@ export function evaluateStacking(input: StackingCheckInput): { blocked: boolean;
       c.beneficiaryPartnerId !== input.partnerId &&
       c.status !== "REVERSED" &&
       c.status !== "CANCELLED" &&
-      (c.attributionType === "SALES" || c.attributionType === "IMPLEMENTATION")
+      c.attributionType === "SALES"
   )
   if (conflict) {
     return {
       blocked: true,
-      reason: "Referral and Channel acquisition rewards do not stack unless an approved split is written into the Commission Schedule",
+      reason: "Referral and Channel acquisition commission on the same software revenue component requires an approved split in the Commission Schedule; separately approved implementation fees for distinct services are not included in this restriction",
     }
   }
   return { blocked: false, reason: "" }
@@ -410,10 +417,16 @@ export function evaluateStacking(input: StackingCheckInput): { blocked: boolean;
 export function renewalEarningAllowed(input: {
   earningKind: EarningKind
   existingRenewalEarnings: number
+  maximumSubsequentRenewals?: number
+  billingInterval?: string | null
 }): { allowed: boolean; reason: string } {
   if (input.earningKind !== "RENEWAL") return { allowed: true, reason: "" }
-  if (input.existingRenewalEarnings > 0) {
-    return { allowed: false, reason: "Only the first collected renewal earns commission under the standard schedule" }
+  if (input.billingInterval && input.billingInterval.toUpperCase() !== "ANNUAL") {
+    return { allowed: false, reason: "Renewal commission applies only to annual subscription renewals under the standard schedule" }
+  }
+  const maximum = Math.max(0, Math.floor(input.maximumSubsequentRenewals ?? 2))
+  if (input.existingRenewalEarnings >= maximum) {
+    return { allowed: false, reason: `Renewal commission is limited to ${maximum} subsequent annual subscription renewals under the standard schedule` }
   }
   return { allowed: true, reason: "" }
 }
@@ -425,11 +438,10 @@ export function holdingCompletionAt(paymentClearedAt: string, licenceActivatedAt
   return new Date(start + Math.max(0, holdingDays) * 86_400_000).toISOString()
 }
 
-/** Approved payouts are due within N days after the month-end of approval. */
-export function payoutDueAt(approvedAt: string, payoutDaysAfterMonthEnd: number): string {
-  const d = new Date(approvedAt)
-  const monthEnd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))
-  return new Date(monthEnd.getTime() + Math.max(0, payoutDaysAfterMonthEnd) * 86_400_000).toISOString()
+/** Approved payouts are due within N days after the monthly statement is issued. */
+export function payoutDueAt(statementIssuedAt: string, payoutDaysAfterStatement: number): string {
+  const issuedAt = new Date(statementIssuedAt)
+  return new Date(issuedAt.getTime() + Math.max(0, payoutDaysAfterStatement) * 86_400_000).toISOString()
 }
 
 /* ─── Attribution protection window ─── */

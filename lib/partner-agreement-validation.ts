@@ -49,6 +49,9 @@ export function validateAgreementInput(input: AgreementInput): string[] {
   if (!input.effectiveDate || !/^\d{4}-\d{2}-\d{2}$/.test(input.effectiveDate)) add("A valid effective date is required.")
   if (!/^\d+$/.test(input.initialTermMonths || "") || Number(input.initialTermMonths) < 1) add("The initial term must be a positive number of months.")
   check("Agreement renewal or expiry rule", input.renewalRule)
+  if (/\bcommission\b|\b\d+(?:\.\d+)?\s*%/i.test(input.renewalRule || "")) {
+    add("The Partner Agreement term clause must contain term-renewal wording only; subscription renewal commissions belong in the relevant Commercial Terms schedule.")
+  }
   for (const [label, key] of REQUIRED_PARTY_FIELDS) {
     const value = key.split(".").reduce<unknown>((obj, segment) => (obj as Record<string, unknown> | undefined)?.[segment], input)
     check(label, value)
@@ -102,6 +105,13 @@ export function validateAgreementInput(input: AgreementInput): string[] {
     }
     if (String(section.earningCategory || "").toLowerCase().includes("commission") && !section.minimumPayoutThreshold?.trim()) {
       add(`${prefix} must state a minimum payout threshold or expressly say there is no minimum.`)
+    }
+    if (String(section.earningCategory || "").toLowerCase().includes("implementation")) {
+      if (Number(section.holdingDays) !== 0) add(`${prefix} implementation fees must have zero additional holding days unless expressly agreed in the Work Order.`)
+      if (/software licence|software subscription revenue/i.test(section.eligibleRevenueDefinition || "")) {
+        add(`${prefix} implementation fees must not use a software licence Eligible Revenue definition.`)
+      }
+      if (!/work order/i.test(section.attributionRule || "")) add(`${prefix} implementation fee eligibility must be tied to an approved Work Order.`)
     }
   })
 

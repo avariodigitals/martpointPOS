@@ -232,7 +232,7 @@ describe("case 8 — the standard commercial terms are the documented fallback",
     expect(STANDARD_SCHEDULE_TERMS.firstRenewalRatePercent).toBe(5)
     expect(STANDARD_SCHEDULE_TERMS.protectionDays).toBe(90)
     expect(STANDARD_SCHEDULE_TERMS.holdingDays).toBe(30)
-    expect(STANDARD_SCHEDULE_TERMS.payoutDaysAfterMonthEnd).toBe(14)
+    expect(STANDARD_SCHEDULE_TERMS.payoutDaysAfterMonthEnd).toBe(15)
   })
 
   it("the signed schedule, not the constant, decides the rate when one is in force", () => {
@@ -335,6 +335,26 @@ describe("case 10 — every eligibility gate must clear before a commission is e
     expect(noLicence.eligible).toBe(false)
   })
 
+  it("uses the effective renewal date instead of initial licence activation for renewal holding", () => {
+    const renewal = evaluateReferralEligibility({
+      ...paying,
+      earningKind: "RENEWAL",
+      licenceActivatedAt: null,
+      renewalEffectiveAt: "2026-02-01T00:00:00.000Z",
+      paymentClearedAt: "2026-01-25T00:00:00.000Z",
+      now: "2026-03-10T00:00:00.000Z",
+    })
+    expect(renewal.eligible).toBe(true)
+    expect(renewal.holdingStartsAt).toBe("2026-02-01T00:00:00.000Z")
+    expect(renewal.failedGates).not.toContain("ACTIVATION")
+  })
+
+  it("holds renewal commission if no effective subscription renewal date is recorded", () => {
+    const renewal = evaluateReferralEligibility({ ...paying, earningKind: "RENEWAL", renewalEffectiveAt: null })
+    expect(renewal.failedGates).toContain("RENEWAL_DATE")
+    expect(renewal.eligible).toBe(false)
+  })
+
   it("is held while an agreement, schedule or compliance hold blocks it", () => {
     expect(evaluateReferralEligibility({ ...paying, agreementActive: false }).status).toBe("HELD")
     expect(evaluateReferralEligibility({ ...paying, scheduleExecuted: false }).status).toBe("HELD")
@@ -359,10 +379,10 @@ describe("case 11 — holding runs from the later of cleared payment and activat
     expect(flipped).toBe(new Date(new Date("2026-02-01T00:00:00.000Z").getTime() + 30 * DAY).toISOString())
   })
 
-  it("approved payouts fall due within 14 days of the month-end after approval", () => {
-    const due = payoutDueAt("2026-01-20T09:00:00.000Z", 14)
-    expect(due.startsWith("2026-02-")).toBe(true)
-    expect(due).toBe(new Date(Date.UTC(2026, 1, 0) + 14 * DAY).toISOString())
+  it("approved payouts fall due within 15 days of statement issuance", () => {
+    const issuedAt = "2026-01-20T09:00:00.000Z"
+    const due = payoutDueAt(issuedAt, 15)
+    expect(due).toBe(new Date(new Date(issuedAt).getTime() + 15 * DAY).toISOString())
   })
 })
 
@@ -440,13 +460,18 @@ describe("case 13 — a refund or chargeback links an adjustment and never overw
   })
 })
 
-describe("case 14 — only the first collected renewal earns", () => {
-  it("blocks a second renewal earning", () => {
+describe("case 14 — up to two subsequent annual renewals earn", () => {
+  it("allows the first two annual renewals and blocks the third", () => {
     expect(renewalEarningAllowed({ earningKind: "FIRST_YEAR", existingRenewalEarnings: 3 }).allowed).toBe(true)
-    expect(renewalEarningAllowed({ earningKind: "RENEWAL", existingRenewalEarnings: 0 }).allowed).toBe(true)
-    const blocked = renewalEarningAllowed({ earningKind: "RENEWAL", existingRenewalEarnings: 1 })
+    expect(renewalEarningAllowed({ earningKind: "RENEWAL", existingRenewalEarnings: 0, billingInterval: "ANNUAL" }).allowed).toBe(true)
+    expect(renewalEarningAllowed({ earningKind: "RENEWAL", existingRenewalEarnings: 1, billingInterval: "ANNUAL" }).allowed).toBe(true)
+    const blocked = renewalEarningAllowed({ earningKind: "RENEWAL", existingRenewalEarnings: 2, billingInterval: "ANNUAL" })
     expect(blocked.allowed).toBe(false)
-    expect(blocked.reason).toMatch(/first collected renewal/)
+    expect(blocked.reason).toMatch(/limited to 2/)
+  })
+
+  it("does not grant annual renewal commission to non-annual subscriptions", () => {
+    expect(renewalEarningAllowed({ earningKind: "RENEWAL", existingRenewalEarnings: 0, billingInterval: "MONTHLY" }).allowed).toBe(false)
   })
 })
 
@@ -474,6 +499,16 @@ describe("case 15 — referral and channel rewards do not stack without an appro
       evaluateStacking({
         approvedSplit: "",
         existingCommissions: [{ beneficiaryPartnerId: "partner-a", attributionType: "SALES", status: "APPROVED" }],
+        partnerId: "partner-a",
+      }).blocked
+    ).toBe(false)
+  })
+
+  it("does not treat a separate implementation fee as a duplicate software commission", () => {
+    expect(
+      evaluateStacking({
+        approvedSplit: "",
+        existingCommissions: [{ beneficiaryPartnerId: "partner-b", attributionType: "IMPLEMENTATION", status: "APPROVED" }],
         partnerId: "partner-a",
       }).blocked
     ).toBe(false)

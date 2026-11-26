@@ -160,7 +160,9 @@ export function AgreementForm({ applicationId, onGenerated }: {
   const [authorizeCompanySignature, setAuthorizeCompanySignature] = useState(false)
 
   const [form, setForm] = useState<Record<string, string>>({
-    effectiveDate: "", initialTermMonths: "3", renewalRule: "", noticeDays: "30",
+    effectiveDate: "", initialTermMonths: "3",
+    renewalRule: "renews automatically for successive twelve (12) month periods unless either Party gives written notice of non-renewal at least thirty (30) days before expiry",
+    noticeDays: "30",
     disputeDays: "30", securityNoticeHours: "4", referralProtectionDays: "90", liabilityFloor: "",
   })
   const [mp, setMp] = useState<Record<string, string>>({})
@@ -246,7 +248,12 @@ export function AgreementForm({ applicationId, onGenerated }: {
       setCommercials(earningBases.map(emptyCommercial))
       if (data.pendingDraft?.payload) {
         const saved = data.pendingDraft.payload
-        setForm((current) => ({ ...current, ...saved }))
+        const defaultAgreementRenewal = "renews automatically for successive twelve (12) month periods unless either Party gives written notice of non-renewal at least thirty (30) days before expiry"
+        const savedAgreementRenewal = String(saved.renewalRule || "")
+        const agreementRenewal = /commission|\b\d+(?:\.\d+)?\s*%/i.test(savedAgreementRenewal)
+          ? defaultAgreementRenewal
+          : savedAgreementRenewal || defaultAgreementRenewal
+        setForm((current) => ({ ...current, ...saved, renewalRule: agreementRenewal }))
         setMp(saved.martpoint || d.martpoint || {})
         setPt(saved.partner || d.partner || {})
         setAppt({ ...(saved.appointment || d.appointment || {}), gradeByType: "Ungraded — subject to verified business delivery and performance assessment", publicDirectoryStatus: "Not yet eligible — subject to successful business delivery and MartPoint approval" })
@@ -479,7 +486,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
                   ]} />
                 )}
                 <div className="sm:col-span-2">
-                  <Field label="Renewal rule" textarea value={form.renewalRule} onChange={set("renewalRule")} placeholder="State the approved renewal rule. Do not leave blank or assume automatic 12-month renewal." />
+                  <Field label="Partner Agreement renewal clause" textarea value={form.renewalRule} onChange={set("renewalRule")} placeholder="Agreement term and notice rule; customer subscription renewal commissions are set separately in Commercial Terms." />
                 </div>
               </div>
             </div>

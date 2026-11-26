@@ -76,6 +76,7 @@ const GATE_REASONS: Record<EligibilityGate, string> = {
   SCHEDULE: "no executed Commission Schedule in force",
   PAYMENT: "no cleared eligible customer payment",
   ACTIVATION: "customer licence not yet activated",
+  RENEWAL_DATE: "effective subscription renewal date is not recorded",
   HOLDING: "holding period not yet completed",
   COMPLIANCE: "refund, dispute or compliance hold in force",
 }
@@ -125,6 +126,8 @@ interface EarningContext {
   paymentClearedAt: string | null
   paymentIds: string[]
   kind: EarningKind
+  renewalEffectiveAt: string | null
+  billingInterval: string | null
 }
 
 function toEngineItemType(itemType: string): InvoiceLineInput["itemType"] {
@@ -146,7 +149,7 @@ async function loadEarningContext(input: {
   if (!invoice) return null
   const inv = invoice as Row
 
-  const [itemsRes, allocRes, licenceRes, referralRes, partnerRes, agreementRes, scheduleRes] = await Promise.all([
+  const [itemsRes, allocRes, licenceRes, referralRes, partnerRes, agreementRes, scheduleRes, renewalRes] = await Promise.all([
     supabase.from("invoice_items").select("*").eq("invoice_id", input.invoiceId),
     supabase
       .from("payment_allocations")
@@ -157,6 +160,8 @@ async function loadEarningContext(input: {
     supabase.from("partners").select("id, status, partner_type, public_email").eq("id", input.partnerId).maybeSingle(),
     getAgreementForPartner(input.partnerId, "REFERRAL_PARTNER_AGREEMENT"),
     getActiveSchedule(input.partnerId, input.at || undefined),
+    supabase.from("subscription_renewals").select("renewal_due_date, renewed_at, status")
+      .eq("renewal_invoice_id", input.invoiceId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ])
 
   const lines: InvoiceLineInput[] = (((itemsRes.data || []) as Row[]) || []).map((item) => ({
@@ -187,7 +192,13 @@ async function loadEarningContext(input: {
   }
 
   const licence = (licenceRes.data as Row | null) ?? null
-  const kind = determineEarningKind(str(inv.issue_date), licence)
+  const subscriptionRes = licence?.subscription_id
+    ? await supabase.from("subscriptions").select("billing_interval, renewal_date").eq("id", licence.subscription_id).maybeSingle()
+    : { data: null }
+  const subscription = (subscriptionRes.data as Row | null) ?? null
+  const billingInterval = str(subscription?.billing_interval) || "ANNUAL"
+  const kind = determineEarningKind(str(inv.issue_date), licence, billingInterval)
+  const renewalRow = (renewalRes.data as Row | null) ?? null
 
   return {
     partnerId: input.partnerId,
@@ -210,6 +221,10 @@ async function loadEarningContext(input: {
     paymentClearedAt: input.at ? iso(input.at) : earliestCleared,
     paymentIds,
     kind,
+    renewalEffectiveAt: renewalRow
+      ? iso(renewalRow.renewed_at || renewalRow.renewal_due_date)
+      : iso(subscription?.renewal_date),
+    billingInterval,
   }
 }
 
@@ -242,12 +257,12 @@ async function loadReferralForBusiness(businessId: string, partnerId: string): P
  * the paid period covered by the active licence is a renewal; anything before
  * that (including mid-year top-ups) is still first-year revenue.
  */
-function determineEarningKind(invoiceIssueDate: string, licence: Row | null): EarningKind {
+function determineEarningKind(invoiceIssueDate: string, licence: Row | null, billingInterval = "ANNUAL"): EarningKind {
   if (!licence) return "FIRST_YEAR"
   const effectiveFrom = iso(licence.effective_from || licence.issued_at)
   const issued = iso(invoiceIssueDate)
   if (!effectiveFrom || !issued) return "FIRST_YEAR"
-  const intervalDays = billingIntervalDays(str(licence.billing_interval))
+  const intervalDays = billingIntervalDays(billingInterval)
   return new Date(issued).getTime() >= new Date(effectiveFrom).getTime() + intervalDays * 86_400_000
     ? "RENEWAL"
     : "FIRST_YEAR"
@@ -282,7 +297,7 @@ interface EarningState {
 
 async function computeEarningState(
   ctx: EarningContext,
-  opts: { excludeCommissionId?: string; at?: string } = {}
+  opts: { excludeCommissionId?: string; at?: string; preserveEarned?: boolean } = {}
 ): Promise<EarningState> {
   const base = computeEligibleBase({
     lines: ctx.lines,
@@ -298,7 +313,7 @@ async function computeEarningState(
     POST_ACCEPT_STATUSES.includes(referralStatus) &&
     attributionValidAt(iso(referral.acceptance_at), iso(referral.protection_expires_at), opts.at || ctx.paymentClearedAt || nowIso())
 
-  const agreementActive = agreementInForce(str(ctx.agreement?.status))
+  const agreementActive = agreementInForce(str(ctx.agreement?.status)) || Boolean(opts.preserveEarned)
   const scheduleExecuted = !!ctx.terms
   const terms = ctx.terms
   const clearedAt = ctx.paymentClearedAt
@@ -334,13 +349,17 @@ async function computeEarningState(
     const { count } = await query
     existingRenewals = count ?? 0
   }
-  const renewalRule = renewalEarningAllowed({ earningKind: ctx.kind, existingRenewalEarnings: existingRenewals })
+  const renewalRule = renewalEarningAllowed({
+    earningKind: ctx.kind,
+    existingRenewalEarnings: existingRenewals,
+    billingInterval: ctx.billingInterval,
+  })
 
   // No schedule → no rate to apply. The earning is held, never invented.
   const ratePercent = terms ? rateForEarning(terms, ctx.kind) : 0
   const calc = calculateReferralCommission({ clearedEligibleNaira: base.clearedEligibleNaira, ratePercent })
 
-  const blockingHold = ["SUSPENDED", "TERMINATED", "INACTIVE"].includes(ctx.partnerStatus)
+  const blockingHold = ["SUSPENDED", "TERMINATED", "INACTIVE"].includes(ctx.partnerStatus) && !opts.preserveEarned
   const eligibility = evaluateReferralEligibility({
     attributionAccepted,
     agreementActive,
@@ -349,6 +368,8 @@ async function computeEarningState(
     paymentClearedAt: clearedAt,
     licenceActivatedAt: activationAt,
     holdingDays: terms?.holdingDays ?? 0,
+    earningKind: ctx.kind,
+    renewalEffectiveAt: ctx.renewalEffectiveAt,
     now: opts.at || nowIso(),
     blockingHold,
   })
@@ -390,6 +411,8 @@ async function computeEarningState(
     holdingStartsAt: eligibility.holdingStartsAt,
     holdingCompletesAt: eligibility.holdingCompletesAt,
     activationAt,
+    renewalEffectiveAt: ctx.renewalEffectiveAt,
+    billingInterval: ctx.billingInterval,
     agreementReference: ctx.agreement ? str(ctx.agreement.reference_number) : null,
     attribution: referral
       ? {
@@ -473,10 +496,11 @@ export async function bookReferralEarning(input: {
   })
   if (!ctx) return { ok: false, error: "Invoice or partner not found" }
 
-  const state = await computeEarningState(ctx, { at: input.at ?? undefined })
   const existing = (await engineRowsForInvoice(input.invoiceId, input.partnerId)).find(
     (r) => str(r.earning_kind) === ctx.kind
   )
+  const preserveEarned = str(existing?.status) === "ELIGIBLE" && ctx.partnerStatus === "TERMINATED"
+  const state = await computeEarningState(ctx, { at: input.at ?? undefined, preserveEarned })
 
   if (existing && LOCKED_STATUSES.includes(str(existing.status))) {
     return { ok: true, skipped: "earning already approved, paid or reversed", commissionId: str(existing.id), status: str(existing.status) }
@@ -726,7 +750,10 @@ export async function recomputeReferralCommission(commissionId: string): Promise
     invoiceId: str(row.invoice_id),
   })
   if (!ctx) return { ok: false, error: "Source records not found" }
-  const state = await computeEarningState(ctx, { excludeCommissionId: commissionId })
+  const state = await computeEarningState(ctx, {
+    excludeCommissionId: commissionId,
+    preserveEarned: str(row.status) === "ELIGIBLE" && ctx.partnerStatus === "TERMINATED",
+  })
   return await applyRecompute(row, ctx, state)
 }
 

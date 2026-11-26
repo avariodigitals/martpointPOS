@@ -26,7 +26,7 @@ export async function GET(
 
   const partnerCode = (new URL(request.url).searchParams.get("p") || "").trim()
   const partnerType = (new URL(request.url).searchParams.get("type") || "").toUpperCase()
-  if (partnerCode && !["CHANNEL", "IMPLEMENTATION"].includes(partnerType)) return NextResponse.json({ error: "Partner Type is required to verify this badge" }, { status: 404 })
+  if (partnerCode && !["REFERRAL", "CHANNEL", "IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"].includes(partnerType)) return NextResponse.json({ error: "Partner Type is required to verify this badge" }, { status: 404 })
   if (partnerCode) {
     const partner = await getPublicPartnerByPartnerId(partnerCode)
     if (!partner?.publicProfileEnabled || !partner.gradesByPartnerType.some((g) => g.partnerType === partnerType && g.grade === tier)) {

@@ -6,6 +6,7 @@ import { BadgeCheck, Download } from "lucide-react"
 import { PARTNER_BADGE_ORIENTATIONS, PARTNER_BADGE_TIER_LABELS, PARTNER_BADGE_WIDTHS, partnerBadgeAssetPath, partnerBadgeImageUrl, partnerBadgeSnippet, partnerBadgeVerifyUrl, partnerSiteBaseUrl, isPartnerBadgeTier } from "@/lib/partner-badges"
 import { BadgeCopyButton } from "./badge-kit-client"
 import { supabase } from "@/lib/supabase"
+import { GRADED_PARTNER_TYPE_LABEL, type GradedPartnerType } from "@/lib/partner-performance-grading"
 
 export default async function PartnerBadgeKitPage() {
   const session = await requirePartnerSession()
@@ -22,7 +23,7 @@ export default async function PartnerBadgeKitPage() {
     {badges.length === 0 ? <Card><CardContent className="py-10 text-center"><BadgeCheck className="mx-auto mb-3 h-10 w-10 text-muted-foreground" /><p className="text-sm font-medium">No graded Partner Type badge is available yet.</p><p className="mt-1 text-sm text-muted-foreground">A badge is available after MartPoint verifies delivery and Management awards the grade for that Partner Type.</p></CardContent></Card> : badges.map(({ partner_type: partnerType, current_grade: rawTier }) => {
       if (!isPartnerBadgeTier(rawTier) || rawTier === "DIAMOND") return null
       const tier = rawTier
-      const typeLabel = partnerType === "CHANNEL" ? "Channel" : "Implementation"
+      const typeLabel = (GRADED_PARTNER_TYPE_LABEL[partnerType as GradedPartnerType] || partnerType).replace(/ Partner$/, "")
       const verifyUrl = partnerBadgeVerifyUrl(baseUrl, partner.partnerId, partnerType)
       return <section className="space-y-3" key={partnerType}>
         <h3 className="font-semibold">{PARTNER_BADGE_TIER_LABELS[tier]} {typeLabel} Partner</h3>

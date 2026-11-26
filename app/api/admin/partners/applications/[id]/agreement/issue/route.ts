@@ -11,6 +11,8 @@ import { sendEmail } from "@/lib/email"
 import { escapeHtml } from "@/lib/email-html"
 import { registerAgreementDocument, supersedePreviousDocuments } from "@/lib/partner-generated-docs"
 import { generatePartnerAgreementPdf, AGREEMENT_TEMPLATE_VERSION, type AgreementInput } from "@/lib/partner-agreement"
+import { agreementTypeKeys } from "@/lib/partner-agreement-content"
+import { renderPartnerGradingPolicyPdf } from "@/lib/partner-grading-policy-pdf.mjs"
 import { validateAgreementInput } from "@/lib/partner-agreement-validation"
 
 export const dynamic = "force-dynamic"
@@ -53,6 +55,46 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "The draft integrity check failed. Generate and review a fresh copy before issue." }, { status: 409 })
     }
 
+    const typeKeys = agreementTypeKeys(input.partnerType)
+    const hasGradedPartnerType = typeKeys.some((key) => ["referral", "channel", "implementation", "technology", "payment_provider"].includes(key))
+    let activeGradingPolicy: Record<string, unknown> | null = null
+    let gradingPolicyPdf: Buffer | null = null
+    if (hasGradedPartnerType) {
+      const { data: approvedPolicy } = await supabase.from("partner_grading_policies")
+        .select("*").eq("status", "APPROVED").order("effective_at", { ascending: false }).limit(1).maybeSingle()
+      activeGradingPolicy = approvedPolicy
+      if (!activeGradingPolicy) {
+        return NextResponse.json({ error: "Publish a Management-approved Partner Performance, Grading & Progression Policy before issuing this agreement." }, { status: 409 })
+      }
+      const typeCode: Record<string, string> = { referral: "REFERRAL", channel: "CHANNEL", implementation: "IMPLEMENTATION", technology: "TECHNOLOGY", payment_provider: "PAYMENT" }
+      let criteriaValue: unknown = activeGradingPolicy.criteria || {}
+      if (typeof criteriaValue === "string") { try { criteriaValue = JSON.parse(criteriaValue) } catch { criteriaValue = {} } }
+      const criteria = criteriaValue && typeof criteriaValue === "object" && !Array.isArray(criteriaValue) ? criteriaValue as Record<string, unknown> : {}
+      const approvedTracks = Array.isArray(criteria.partnerTypes) ? criteria.partnerTypes.map((value: unknown) => String(value).toUpperCase()) : ["CHANNEL", "IMPLEMENTATION"]
+      const uncoveredTypes = typeKeys.map((key) => typeCode[key]).filter((type): type is string => !!type && !approvedTracks.includes(type))
+      if (uncoveredTypes.length) return NextResponse.json({ error: `The currently approved grading policy does not cover this appointment's ${uncoveredTypes.join(", ")} grade track. Publish the reviewed policy update before issuing this agreement.` }, { status: 409 })
+      let approvedByName = String(activeGradingPolicy.approved_by_name || "").trim()
+      if (!approvedByName && activeGradingPolicy.approved_by) {
+        const { data: approver } = await supabase.from("users").select("name,username").eq("id", activeGradingPolicy.approved_by).maybeSingle()
+        approvedByName = String(approver?.name || approver?.username || "").trim()
+      }
+      if (!approvedByName || !activeGradingPolicy.approved_at || !activeGradingPolicy.effective_at) {
+        return NextResponse.json({ error: "The approved grading policy is missing its approving officer or approval/effective date record." }, { status: 409 })
+      }
+      gradingPolicyPdf = Buffer.from(renderPartnerGradingPolicyPdf({ ...activeGradingPolicy, approved_by_name: approvedByName }))
+    }
+    const referenceAttachments: { filename: string; content: string }[] = []
+    const portalGuide = await fs.readFile(path.join(process.cwd(), "public", "partner-resources", "martpoint-partner-portal-guide.pdf"))
+    referenceAttachments.push({ filename: "MartPoint-Partner-Portal-Guide-v2.0.pdf", content: portalGuide.toString("base64") })
+    if (hasGradedPartnerType) {
+      const dpa = await fs.readFile(path.join(process.cwd(), "public", "partner-resources", "MartPoint-Partner-Data-Processing-Addendum-Template.pdf"))
+      referenceAttachments.push({ filename: "MartPoint-Partner-Data-Processing-Addendum-Template.pdf", content: dpa.toString("base64") })
+    }
+    if (typeKeys.includes("implementation")) {
+      const workOrder = await fs.readFile(path.join(process.cwd(), "public", "partner-resources", "MartPoint-Illustrative-Implementation-Work-Order.pdf"))
+      referenceAttachments.push({ filename: "MartPoint-Illustrative-Implementation-Work-Order.pdf", content: workOrder.toString("base64") })
+    }
+
     const now = new Date().toISOString()
     const { data: claimed, error: claimError } = await supabase.from("partner_agreement_drafts")
       .update({ status: "ISSUED", issued_at: now, issued_by: session.userId, updated_at: now })
@@ -79,12 +121,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const docHash = crypto.createHash("sha256").update(generated.bytes).digest("hex")
     const upload = await uploadPartnerDocument(applicationId, generated.fileName, "application/pdf", generated.bytes)
     if (!upload.ok || !upload.doc) throw new Error(upload.error || "Failed to store the issued agreement")
-
-    const { data: activeGradingPolicy } = await supabase.from("partner_grading_policies")
-      .select("version,status").eq("status", "APPROVED").order("effective_at", { ascending: false }).limit(1).maybeSingle()
-    const gradingPolicyPdf = activeGradingPolicy
-      ? await fs.readFile(path.join(process.cwd(), "public", "partner-resources", "MartPoint-Partner-Performance-Grading-Progression-Policy.pdf"))
-      : null
 
     const { data: docRow, error: docError } = await supabase.from("partner_documents").insert({
       application_id: applicationId,
@@ -183,15 +219,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const signingUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"}/partners/sign-agreement?token=${encodeURIComponent(signingToken)}`
     const partnerName = String(app.full_name || app.business_name || "Partner")
+    const policyAttachmentText = gradingPolicyPdf && activeGradingPolicy
+      ? `The approved Partner Performance, Grading & Progression Policy (v${activeGradingPolicy.version}) is attached. `
+      : ""
+    const policyAttachmentHtml = gradingPolicyPdf && activeGradingPolicy
+      ? `The approved Partner Performance, Grading &amp; Progression Policy (v${escapeHtml(String(activeGradingPolicy.version))}) is attached. `
+      : ""
     emailAttempted = true
     const signingEmailSent = await sendEmail({
       to: String(app.email),
       subject: "Please review and sign your MartPoint Partner Agreement",
-      text: `Hello ${partnerName},\n\nYour reviewed MartPoint Partner Agreement ${String(draft.agreement_id)} is attached as a PDF. MartPoint has signed it electronically.${gradingPolicyPdf ? ` The current Partner Performance, Grading & Progression Policy (v${activeGradingPolicy?.version}) is also attached.` : ""} Please review the attached documents and sign the agreement using this secure link within 14 days:\n\n${signingUrl}\n\nIf you have questions, reply to this email or contact partners@martpoint.com.ng.`,
-      html: `<p>Hello ${escapeHtml(partnerName)},</p><p>Your reviewed MartPoint Partner Agreement <strong>${escapeHtml(String(draft.agreement_id))}</strong> is attached as a PDF. MartPoint has signed it electronically.${gradingPolicyPdf ? ` The current Partner Performance, Grading &amp; Progression Policy (v${escapeHtml(String(activeGradingPolicy?.version))}) is also attached.` : ""} Please review the attached documents and sign the agreement using the secure link below within 14 days.</p><p><a href="${escapeHtml(signingUrl)}" style="display:inline-block;background:#0057ff;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px">Review and sign agreement</a></p><p>If you have questions, reply to this email or contact partners@martpoint.com.ng.</p>`,
+      text: `Hello ${partnerName},\n\nYour reviewed MartPoint Partner Agreement ${String(draft.agreement_id)} is attached as a PDF. MartPoint has signed it electronically. The MartPoint Partner Portal Guide is also attached. ${policyAttachmentText}${referenceAttachments.some((a) => a.filename.includes("Addendum")) ? "The Data Processing Addendum template is attached; engagement-specific processing details and signatures are required before any personal-data access. " : ""}${referenceAttachments.some((a) => a.filename.includes("Work-Order")) ? "The illustrative Implementation Work Order is attached for reference only and creates no project or fee commitment. " : ""}Please review the attached documents and sign the agreement using this secure link within 14 days:\n\n${signingUrl}\n\nIf you have questions, reply to this email or contact partners@martpoint.com.ng.`,
+      html: `<p>Hello ${escapeHtml(partnerName)},</p><p>Your reviewed MartPoint Partner Agreement <strong>${escapeHtml(String(draft.agreement_id))}</strong> is attached as a PDF. MartPoint has signed it electronically. The MartPoint Partner Portal Guide is also attached. ${policyAttachmentHtml}${referenceAttachments.some((a) => a.filename.includes("Addendum")) ? "The Data Processing Addendum template is attached; engagement-specific processing details and signatures are required before any personal-data access. " : ""}${referenceAttachments.some((a) => a.filename.includes("Work-Order")) ? "The illustrative Implementation Work Order is attached for reference only and creates no project or fee commitment. " : ""}Please review the attached documents and sign the agreement using the secure link below within 14 days.</p><p><a href="${escapeHtml(signingUrl)}" style="display:inline-block;background:#0057ff;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px">Review and sign agreement</a></p><p>If you have questions, reply to this email or contact partners@martpoint.com.ng.</p>`,
       attachments: [
         { filename: generated.fileName, content: generated.bytes.toString("base64") },
-        ...(gradingPolicyPdf ? [{ filename: "MartPoint-Partner-Performance-Grading-Progression-Policy.pdf", content: gradingPolicyPdf.toString("base64") }] : []),
+        ...(gradingPolicyPdf ? [{ filename: `MartPoint-Partner-Performance-Grading-Progression-Policy-v${String(activeGradingPolicy?.version || "1").replace(/[^a-zA-Z0-9._-]/g, "-")}.pdf`, content: gradingPolicyPdf.toString("base64") }] : []),
+        ...referenceAttachments,
       ],
       route: "partner_application",
       useRouteRecipients: false,

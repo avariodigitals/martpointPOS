@@ -342,7 +342,7 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
                   <Fact label="First renewal" value={`${s.firstRenewalRate}%`} />
                   <Fact label="Protection" value={`${s.protectionDays} days`} />
                   <Fact label="Holding" value={`${s.holdingDays} days`} />
-                  <Fact label="Payout due" value={`${s.payoutDaysAfterMonthEnd} days after month-end`} />
+                  <Fact label="Payout due" value={`${s.payoutDaysAfterMonthEnd} days after statement issuance`} />
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Basis: {s.revenueBasis} · Renewal rule: {s.renewalRule}
@@ -388,7 +388,7 @@ export function InstrumentsPanel({ applicationId }: { applicationId: string }) {
                 <Input label="First renewal %" value={terms.renewal} onChange={(v) => setTerms({ ...terms, renewal: v })} type="number" />
                 <Input label="Protection days" value={terms.protection} onChange={(v) => setTerms({ ...terms, protection: v })} type="number" />
                 <Input label="Holding days" value={terms.holding} onChange={(v) => setTerms({ ...terms, holding: v })} type="number" />
-                <Input label="Payout days after month-end" value={terms.payout} onChange={(v) => setTerms({ ...terms, payout: v })} type="number" />
+                <Input label="Payout days after statement issuance" value={terms.payout} onChange={(v) => setTerms({ ...terms, payout: v })} type="number" />
               </div>
               <Input label="Approved split (leave empty for a single partner)" value={terms.split} onChange={(v) => setTerms({ ...terms, split: v })} />
               {nonStandard && (

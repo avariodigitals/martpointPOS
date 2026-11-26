@@ -77,7 +77,7 @@ export async function POST(
             approvedAccessPermissions: String(body?.terms?.approvedAccessPermissions || ""),
             completionEvidence: String(body?.terms?.completionEvidence || ""),
             acceptanceReviewBusinessDays: body?.terms?.acceptanceReviewBusinessDays != null && body.terms.acceptanceReviewBusinessDays !== ""
-              ? Number(body.terms.acceptanceReviewBusinessDays) : null,
+              ? Number(body.terms.acceptanceReviewBusinessDays) : 5,
             defectCorrectionPeriod: String(body?.terms?.defectCorrectionPeriod || ""),
             paymentConditions: String(body?.terms?.paymentConditions || ""),
             approvedExpenses: String(body?.terms?.approvedExpenses || ""),

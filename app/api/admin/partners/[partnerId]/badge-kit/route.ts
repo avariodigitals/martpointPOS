@@ -5,6 +5,7 @@ import { createPartnerResource, updatePartnerResource, deletePartnerResource } f
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditContext } from "@/lib/audit"
 import { isPartnerBadgeTier, PARTNER_BADGE_TIER_LABELS } from "@/lib/partner-badges"
 import { issueGradeConfirmation } from "@/lib/partner-generated-docs"
+import { GRADED_PARTNER_TYPE_LABEL, type GradedPartnerType } from "@/lib/partner-performance-grading"
 
 /* Admin endpoint for issuing a partner's badge kit.
  * "Generate" sets partners.badge_tier and upserts a private partner_resources
@@ -80,7 +81,7 @@ export async function POST(
   const { partnerId } = await params
   const body = await request.json().catch(() => null)
   const tier = typeof body?.tier === "string" ? body.tier.toUpperCase() : ""
-  const partnerType = body?.partnerType === "CHANNEL" || body?.partnerType === "IMPLEMENTATION" ? body.partnerType : null
+  const partnerType = typeof body?.partnerType === "string" && ["REFERRAL", "CHANNEL", "IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"].includes(body.partnerType) ? body.partnerType as GradedPartnerType : null
   if (!isPartnerBadgeTier(tier) || tier === "DIAMOND" || !partnerType) {
     return NextResponse.json({ error: "Choose a Silver, Gold or Platinum grade and the approved Partner Type" }, { status: 400 })
   }
@@ -105,9 +106,10 @@ export async function POST(
   if (error) return NextResponse.json({ error: "Failed to update partner" }, { status: 500 })
 
   const label = PARTNER_BADGE_TIER_LABELS[tier]
+  const typeLabel = GRADED_PARTNER_TYPE_LABEL[partnerType]
   const kit = {
-    title: `Official MartPoint ${label} ${partnerType === "CHANNEL" ? "Channel" : "Implementation"} Partner Badge Kit`,
-    description: `Embeddable ${label} ${partnerType === "CHANNEL" ? "Channel" : "Implementation"} verification badge (horizontal & vertical) with copy-ready HTML snippets and PNG downloads.`,
+    title: `Official MartPoint ${label} ${typeLabel} Badge Kit`,
+    description: `Embeddable ${label} ${typeLabel} verification badge (horizontal & vertical) with copy-ready HTML snippets and PNG downloads.`,
     category: "Badge",
     externalUrl: KIT_URL,
     visibility: "PARTNER" as const,

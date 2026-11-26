@@ -8,6 +8,8 @@ import {
   CHANNEL_RENEWAL_COMMISSION_DURATION,
   CHANNEL_RENEWAL_COMMISSION_RATE,
   CHANNEL_RENEWAL_COMMISSION_RULE,
+  commercialFieldDefaults,
+  defaultTrigger,
 } from "@/lib/partner-agreement-content"
 
 function baseInput(partnerType: string): AgreementInput {
@@ -57,27 +59,32 @@ function baseInput(partnerType: string): AgreementInput {
     technology: partnerType === "TECHNOLOGY" ? { solutionName: "AcmePOS Bridge", solutionVersion: "v2", approvedUseCase: "Fiscalisation" } : undefined,
     commercials: earningBasesFor(partnerType).map((basis) => {
       const channelCommission = basis.partnerTypeLabel === "Channel Partner" && basis.earningCategory.toLowerCase().includes("commission")
+      const implementationFee = basis.earningCategory.toLowerCase().includes("implementation")
+      const defaults = commercialFieldDefaults(basis.earningCategory, basis.partnerTypeLabel)
       return ({
+        ...defaults,
         earningCategory: basis.earningCategory,
         partnerTypeLabel: basis.partnerTypeLabel,
-        eligibleItems: "Software licences",
-        rateOrFee: channelCommission ? CHANNEL_ACQUISITION_COMMISSION_RATE : "10% of Eligible Revenue",
-        rateUnit: "PERCENTAGE",
-        eligibleRevenueDefinition: "As defined in clause 2",
-        exclusions: "Hardware, taxes",
-        attributionRule: "Registered and accepted lead",
-        trigger: "Cleared payment + activation",
-        holdingDays: "30",
-        holdingStartEvent: "licence activation",
-        renewalRule: channelCommission ? CHANNEL_RENEWAL_COMMISSION_RULE : "First renewal only",
-        renewalRate: channelCommission ? CHANNEL_RENEWAL_COMMISSION_RATE : "10% of Eligible Revenue",
-        renewalDuration: channelCommission ? CHANNEL_RENEWAL_COMMISSION_DURATION : "One renewal term",
-        reversalRule: "Clawed back on refund",
-        statementCycle: "Monthly",
-        payoutTiming: "15 days after statement",
-        minimumPayoutThreshold: "No minimum payout threshold",
-        currencyAndTaxRule: "NGN, exclusive of VAT",
-        splitRule: "No stacking",
+        trigger: defaultTrigger(basis.earningCategory),
+        rateOrFee: channelCommission ? CHANNEL_ACQUISITION_COMMISSION_RATE : implementationFee ? "Agreed per approved Work Order" : "10% of Eligible Revenue",
+        rateUnit: channelCommission || !implementationFee ? "PERCENTAGE" : "WORK_ORDER",
+        eligibleItems: defaults.eligibleItems || "Software licences",
+        eligibleRevenueDefinition: defaults.eligibleRevenueDefinition || "Eligible Revenue as defined in the Agreement.",
+        exclusions: defaults.exclusions || "Taxes, refunds and excluded services.",
+        attributionRule: defaults.attributionRule || "Written assignment under the applicable Schedule.",
+        holdingDays: defaults.holdingDays || "0",
+        holdingStartEvent: defaults.holdingStartEvent || "Applicable earning event.",
+        renewalRule: defaults.renewalRule || (channelCommission ? CHANNEL_RENEWAL_COMMISSION_RULE : "No automatic renewal commission."),
+        renewalRate: channelCommission ? CHANNEL_RENEWAL_COMMISSION_RATE : defaults.renewalRate || "Not applicable",
+        renewalDuration: channelCommission ? CHANNEL_RENEWAL_COMMISSION_DURATION : defaults.renewalDuration || "Not applicable",
+        reversalRule: defaults.reversalRule || "Refunded or reversed amounts are excluded or clawed back.",
+        statementCycle: defaults.statementCycle || "Monthly",
+        payoutTiming: defaults.payoutTiming || "Within 15 days of applicable statement issuance, subject to approved conditions.",
+        minimumPayoutThreshold: basis.earningCategory.toLowerCase().includes("commission")
+          ? "No minimum payout threshold."
+          : defaults.minimumPayoutThreshold || "Not applicable",
+        currencyAndTaxRule: defaults.currencyAndTaxRule || "NGN unless otherwise agreed in writing; taxes apply as required by law.",
+        splitRule: defaults.splitRule || "No duplicate earnings on the same revenue component.",
         financeApprover: "Finance Lead",
         managementApprover: "MD",
       })
@@ -172,6 +179,28 @@ describe("generatePartnerAgreementPdf", () => {
     expect(text).toContain("Schedule Four")
     expect(text).not.toContain("Schedule Seven")
     expect(text).not.toContain("Referral Partner Terms")
+  })
+
+  it("keeps Agreement term renewal separate from customer subscription renewal commission", () => {
+    const input = baseInput("CHANNEL")
+    input.renewalRule = "renews automatically for successive twelve (12) month periods unless either Party gives written notice of non-renewal at least 30 days before expiry"
+    const text = pdfText(generatePartnerAgreementPdf(input).bytes)
+    expect(text).toContain("successive twelve")
+    expect(text).toContain("maximum of two subsequent annual subscription renewals")
+    expect(validateAgreementInput({ ...input, renewalRule: "5% commission on renewal subscriptions" })).toContain(
+      "The Partner Agreement term clause must contain term-renewal wording only; subscription renewal commissions belong in the relevant Commercial Terms schedule."
+    )
+  })
+
+  it("uses Work Order fee terms and no software licence revenue basis for Implementation", () => {
+    const input = baseInput("CHANNEL_IMPLEMENTATION")
+    const implementation = input.commercials.find((c) => c.partnerTypeLabel === "Implementation Partner")!
+    expect(implementation.holdingDays).toBe("0")
+    expect(implementation.rateUnit).toBe("WORK_ORDER")
+    expect(implementation.eligibleRevenueDefinition).toMatch(/Not applicable to implementation fees/)
+    expect(implementation.payoutTiming).toMatch(/formal acceptance/)
+    expect(implementation.splitRule).toMatch(/distinct implementation services/)
+    expect(validateAgreementInput(input)).toEqual([])
   })
 
   it("includes the technology schedule and embeds solution details", () => {

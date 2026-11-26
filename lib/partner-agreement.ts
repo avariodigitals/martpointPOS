@@ -141,7 +141,7 @@ const COMMERCIAL_FIELD_ROWS: { label: string; key: keyof CommercialSection }[] =
   { label: "Eligible revenue definition", key: "eligibleRevenueDefinition" },
   { label: "Excluded amounts", key: "exclusions" },
   { label: "Attribution requirement", key: "attributionRule" },
-  { label: "Payment and activation trigger", key: "trigger" },
+  { label: "Earning trigger and conditions", key: "trigger" },
   { label: "Renewal eligibility", key: "renewalRule" },
   { label: "Renewal rate, if approved", key: "renewalRate" },
   { label: "Renewal duration, if approved", key: "renewalDuration" },
@@ -370,6 +370,12 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
     ["MartPoint entity", `${vars.mpLegal} / ${vars.mpReg}`],
     ["Partner", `${vars.pLegal} / ${vars.pReg}`],
     ["Approved partner type or types", typesLabel],
+    ["Technology Schedule", typeKeys.includes("technology")
+      ? "Applicable only to the expressly approved technical engagement stated in this Agreement."
+      : "Not applicable to the current appointment. Required only where a separate technical development, integration or technology engagement is expressly approved."],
+    ["Data Processing Addendum", typeKeys.some((key) => key === "channel" || key === "implementation")
+      ? "Applies to approved processing under a Work Order, Customer Assignment or written instruction, including Channel Partner support where relevant. Processing particulars must be documented before access."
+      : "Not applicable unless an approved engagement requires personal-data processing."],
     ["Operating level by type", levelByType],
     ["Starting grade by type", gradeByType],
     ["Public Directory status", orBlank(input.appointment.publicDirectoryStatus)],
@@ -400,7 +406,9 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
       clauseHeading(`${String.fromCharCode(65 + i)}. ${orBlank(c.earningCategory)}`)
     }
     const holding = c.holdingDays.trim()
-      ? `${c.holdingDays.trim()} days from ${orBlank(c.holdingStartEvent)}`
+      ? Number(c.holdingDays.trim()) === 0 && c.earningCategory.toLowerCase().includes("implementation")
+        ? "Zero additional days by default; Work Order acceptance and applicable cleared Customer payment conditions apply."
+        : `${c.holdingDays.trim()} days from ${orBlank(c.holdingStartEvent)}`
       : BLANK
     fieldTable([
       ["Schedule ID and version", `${input.agreementId}-C${i + 1} / v${AGREEMENT_TEMPLATE_VERSION}`],

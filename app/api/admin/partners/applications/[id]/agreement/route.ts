@@ -88,6 +88,10 @@ export async function GET(
     .select("source_document_id, status, created_at")
     .eq("application_id", id)
     .order("created_at", { ascending: false })
+  const { count: issuedRevisionCount } = await supabase
+    .from("partner_agreement_signing")
+    .select("id", { count: "exact", head: true })
+    .eq("application_id", id)
   const signingStatusByDocument = new Map<string, string>()
   for (const signing of signingRequests || []) {
     const sourceDocumentId = signing.source_document_id as string | null
@@ -135,7 +139,9 @@ export async function GET(
     agreements,
     pendingDraft,
     defaults: {
-      agreementId: `AGR-${app.reference_number}`,
+      agreementId: issuedRevisionCount
+        ? `AGR-${app.reference_number}-R${issuedRevisionCount + 1}`
+        : `AGR-${app.reference_number}`,
       effectiveDate: new Date().toISOString().slice(0, 10),
       liabilityFloor: mp.liabilityFloor,
       coverage: (app.geographic_coverage as string[]) || [],

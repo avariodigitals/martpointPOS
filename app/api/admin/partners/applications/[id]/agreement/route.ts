@@ -81,12 +81,27 @@ export async function GET(
     .eq("document_type", GENERATED_DOC_TYPE)
     .order("uploaded_at", { ascending: false })
 
+  const { data: signingRequests } = await supabase
+    .from("partner_agreement_signing")
+    .select("source_document_id, status, created_at")
+    .eq("application_id", id)
+    .order("created_at", { ascending: false })
+  const signingStatusByDocument = new Map<string, string>()
+  for (const signing of signingRequests || []) {
+    const sourceDocumentId = signing.source_document_id as string | null
+    if (sourceDocumentId && !signingStatusByDocument.has(sourceDocumentId)) {
+      signingStatusByDocument.set(sourceDocumentId, String(signing.status))
+    }
+  }
+
   const agreements = await Promise.all(
     (generated || []).map(async (d) => ({
       id: d.id as string,
       fileName: d.original_filename as string,
       fileSize: d.file_size as number,
-      status: d.verification_status as string,
+      status: signingStatusByDocument.has(String(d.id))
+        ? signingStatusByDocument.get(String(d.id)) as string
+        : d.verification_status as string,
       uploadedAt: d.uploaded_at as string,
       signedUrl: d.storage_path ? await createSignedDocUrl(d.storage_path as string, 300) : null,
     }))

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 import { FileCheck2, Loader2, PenLine } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
@@ -18,7 +18,7 @@ type SigningDetails = {
 }
 
 export default function SignPartnerAgreementPage() {
-  const [token] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("token") || "")
+  const tokenRef = useRef("")
   const [details, setDetails] = useState<SigningDetails | null>(null)
   const [signerName, setSignerName] = useState("")
   const [signerTitle, setSignerTitle] = useState("")
@@ -29,8 +29,12 @@ export default function SignPartnerAgreementPage() {
   const [completeUrl, setCompleteUrl] = useState("")
 
   useEffect(() => {
-    if (!token) { setError("This signing link is invalid or expired."); setLoading(false); return }
-    fetch(`/api/partners/sign-agreement?token=${encodeURIComponent(token)}`)
+    const signingToken = new URLSearchParams(window.location.search).get("token") || ""
+    tokenRef.current = signingToken
+    if (!signingToken) { setError("This signing link is invalid or expired."); setLoading(false); return }
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 15000)
+    fetch(`/api/partners/sign-agreement?token=${encodeURIComponent(signingToken)}`, { cache: "no-store", signal: controller.signal })
       .then(async (res) => {
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || "This signing link is unavailable.")
@@ -38,9 +42,12 @@ export default function SignPartnerAgreementPage() {
         if (data.status === "EXECUTED") setCompleteUrl(data.documentUrl || "")
         setSignerName(data.partnerSignerName || "")
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Could not load the agreement."))
-      .finally(() => setLoading(false))
-  }, [token])
+      .catch((e) => setError(e instanceof Error && e.name === "AbortError"
+        ? "Loading took too long. Refresh the page or contact MartPoint for a new signing link."
+        : e instanceof Error ? e.message : "Could not load the agreement."))
+      .finally(() => { window.clearTimeout(timeout); setLoading(false) })
+    return () => { window.clearTimeout(timeout); controller.abort() }
+  }, [])
 
   async function signAgreement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -50,7 +57,7 @@ export default function SignPartnerAgreementPage() {
       const response = await fetch("/api/partners/sign-agreement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, signerName, signerTitle, confirmAuthority }),
+        body: JSON.stringify({ token: tokenRef.current, signerName, signerTitle, confirmAuthority }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Could not sign the agreement.")

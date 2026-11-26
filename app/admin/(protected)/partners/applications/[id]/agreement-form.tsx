@@ -10,6 +10,17 @@ import { enumLabel } from "@/lib/utils"
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-xs font-medium mb-1"
 
+function agreementStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    AWAITING_PARTNER: "Awaiting partner signature",
+    EXECUTED: "Signed by both parties",
+    SUPERSEDED: "Superseded by newer agreement",
+    EXPIRED: "Expired",
+    UNDER_REVIEW: "Awaiting internal review",
+  }
+  return labels[status] || enumLabel(status)
+}
+
 interface EarningBasis {
   earningCategory: string
   partnerTypeLabel: string
@@ -126,6 +137,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
 }) {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [resendingAgreementId, setResendingAgreementId] = useState("")
   const [generatable, setGeneratable] = useState(false)
   const [partnerTypeLabel, setPartnerTypeLabel] = useState("")
   const [partnerType, setPartnerType] = useState("")
@@ -316,6 +328,29 @@ export function AgreementForm({ applicationId, onGenerated }: {
     }
   }
 
+  async function resendIssuedAgreement(documentId: string) {
+    setResendingAgreementId(documentId)
+    setMsg("")
+    setSigningUrl("")
+    try {
+      const res = await fetch(`/api/admin/partners/applications/${applicationId}/agreement/resend`, { method: "POST" })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setMsg(data.error || "Agreement email could not be resent")
+        return
+      }
+      setSigningUrl(data.emailSent ? "" : data.signingUrl || "")
+      setMsg(data.emailSent
+        ? `Agreement ${data.agreementId || ""} was resent with the PDF attached and a refreshed signing link. The previous link has been replaced.`
+        : "The agreement email could not be sent. The refreshed link is available below to copy and share securely.")
+      await load()
+    } catch {
+      setMsg("Network error. Please try again.")
+    } finally {
+      setResendingAgreementId("")
+    }
+  }
+
   if (loading) {
     return <Card><CardContent className="py-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></CardContent></Card>
   }
@@ -340,11 +375,16 @@ export function AgreementForm({ applicationId, onGenerated }: {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Generated agreements</p>
             {agreements.map((d) => (
               <div key={d.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
-                <span className="truncate">{d.fileName} <span className="text-xs text-muted-foreground">· {new Date(d.uploadedAt).toLocaleDateString("en-NG")} · {enumLabel(d.status)}</span></span>
+                <span className="truncate">{d.fileName} <span className="text-xs text-muted-foreground">· {new Date(d.uploadedAt).toLocaleDateString("en-NG")} · {agreementStatusLabel(d.status)}</span></span>
                 {d.signedUrl && (
                   <a href={d.signedUrl} target="_blank" rel="noreferrer" className="text-retail inline-flex items-center gap-1 text-xs shrink-0 ml-2">
                     <Download className="w-3.5 h-3.5" /> View
                   </a>
+                )}
+                {d.status === "AWAITING_PARTNER" && (
+                  <Button type="button" variant="outline" size="sm" className="ml-2 shrink-0" disabled={Boolean(resendingAgreementId)} onClick={() => void resendIssuedAgreement(d.id)}>
+                    {resendingAgreementId === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Resend PDF + link"}
+                  </Button>
                 )}
               </div>
             ))}

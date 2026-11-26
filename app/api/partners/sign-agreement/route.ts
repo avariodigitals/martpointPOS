@@ -173,6 +173,7 @@ export async function POST(request: Request) {
       })
       .eq("id", signing.id)
       .eq("status", "AWAITING_PARTNER")
+      .eq("token_hash", tokenHash(token))
       .select("id")
       .maybeSingle()
     if (completeError || !completed) return NextResponse.json({ error: "This agreement was signed concurrently or its request is no longer active" }, { status: 409 })

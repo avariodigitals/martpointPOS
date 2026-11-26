@@ -16,6 +16,7 @@ export interface CalculatedMetrics {
   consentFailure: boolean
   strategicContribution: boolean
   managementApproved: boolean
+  verifiedQualifyingDelivery: boolean
 }
 
 export async function calculatePartnerMetrics(partnerId: string): Promise<CalculatedMetrics> {
@@ -78,6 +79,13 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
     .from("partners")
     .select("partner_since, current_grade, status, application_id")
     .eq("id", partnerId)
+    .maybeSingle()
+
+  const { data: verifiedDelivery } = await supabase.from("partner_delivery_verifications")
+    .select("id")
+    .eq("partner_id", partnerId)
+    .eq("approved", true)
+    .limit(1)
     .maybeSingle()
 
   const { data: history } = await supabase
@@ -147,5 +155,6 @@ export async function calculatePartnerMetrics(partnerId: string): Promise<Calcul
     consentFailure: Boolean((complianceCases || []).length),
     strategicContribution: false, // Manual flag
     managementApproved: false,
+    verifiedQualifyingDelivery: Boolean(verifiedDelivery),
   }
 }

@@ -10,6 +10,7 @@ type LifecycleDbRow = {
   onboarding_status: string
   compliance_status: string
   listing_status: string
+  directory_eligible: boolean
   performance_status: string
   probation_start_at: string | null
   probation_end_at: string | null
@@ -109,10 +110,10 @@ export async function runPartnerLifecycleSweep(opts: { forceDryRun?: boolean } =
     const { data: openLead } = await supabase.from("partner_leads").select("id").eq("partner_id", row.partner_id).in("status", ["REGISTERED", "UNDER_REVIEW", "QUALIFIED", "DEMO", "PROPOSAL", "NEGOTIATION"]).limit(1).maybeSingle()
     const appeal = (openCases || []).some((c) => c.case_type === "compliance_review" || Boolean(c.partner_response))
     const activityDuringResponse = Boolean(activity?.occurred_at && suspensionNotice?.sent_at && new Date(activity.occurred_at).getTime() > new Date(suspensionNotice.sent_at).getTime())
-    const input: LifecycleInput = { acceptedAt: row.accepted_at, effectiveAt: row.effective_at, onboardingStatus: row.onboarding_status, complianceStatus: row.compliance_status, listingStatus: row.listing_status, performanceStatus: row.performance_status, probationStartAt: row.probation_start_at, probationEndAt: row.probation_end_at, transitionStartAt: row.transition_start_at, lastVerifiedActivityAt: activity?.occurred_at || null, responseDeadlineAt: row.response_deadline_at, reviewHoldUntil: row.review_hold_until, extensionUntil: row.extension_until, verifiedActivityCount: count || 0, activeAppeal: appeal, activityDuringResponse, hasOpportunityInProgress: Boolean(openLead), now: new Date() }
+    const input: LifecycleInput = { acceptedAt: row.accepted_at, effectiveAt: row.effective_at, onboardingStatus: row.onboarding_status, complianceStatus: row.compliance_status, listingStatus: row.listing_status, directoryEligible: row.directory_eligible === true, performanceStatus: row.performance_status, probationStartAt: row.probation_start_at, probationEndAt: row.probation_end_at, transitionStartAt: row.transition_start_at, lastVerifiedActivityAt: activity?.occurred_at || null, responseDeadlineAt: row.response_deadline_at, reviewHoldUntil: row.review_hold_until, extensionUntil: row.extension_until, verifiedActivityCount: count || 0, activeAppeal: appeal, activityDuringResponse, hasOpportunityInProgress: Boolean(openLead), now: new Date() }
     const cfg = (version?.config_json || {}) as PolicyConfig
     let decision = decidePartnerLifecycle(input, { probationDays: cfg.probation_days, activityThreshold: cfg.activity_threshold, reminderDays: cfg.inactivity_reminder_days, warningDays: cfg.inactivity_warning_days, suspensionDays: cfg.pending_suspension_days, responseBusinessDays: cfg.notice_response_business_days })
-    if (row.listing_status === "suspended" && settings.auto_reinstate_enabled) {
+    if (row.listing_status === "suspended" && row.directory_eligible === true && settings.auto_reinstate_enabled) {
       const [{ data: lastSuspension }, { data: completedReview }, { data: restrictions }] = await Promise.all([
         supabase.from("partner_status_history").select("created_at").eq("partner_id", row.partner_id).eq("new_status", "suspended").order("created_at", { ascending: false }).limit(1).maybeSingle(),
         supabase.from("partner_cases").select("id,resolved_at").eq("partner_id", row.partner_id).eq("case_type", "directory_suspension_notice").eq("status", "resolved").order("resolved_at", { ascending: false }).limit(1).maybeSingle(),

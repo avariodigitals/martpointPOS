@@ -19,6 +19,7 @@ import {
   renderImplementationWorkOrder,
   renderChangeOrder,
   renderDataProcessingAddendum,
+  renderTechnologySchedule,
   renderTrainingRecord,
   renderUatRecord,
   renderCompletionHandover,
@@ -28,6 +29,7 @@ import {
   type DocControl,
   type CommissionStatementLine,
   type ImplementationFeeLine,
+  type TechnologyScheduleInput,
 } from "./partner-doc-templates"
 import type { GeneratedPdf } from "./partner-pdf"
 
@@ -44,6 +46,7 @@ export const GENERATED_DOC_TYPES = [
   "IMPLEMENTATION_WORK_ORDER",
   "CHANGE_ORDER",
   "DATA_PROCESSING_ADDENDUM",
+  "TECHNOLOGY_SCHEDULE",
   "TRAINING_RECORD",
   "UAT_RECORD",
   "COMPLETION_HANDOVER_RECORD",
@@ -74,6 +77,7 @@ export const GENERATED_DOC_TYPE_LABELS: Record<GeneratedDocType, string> = {
   IMPLEMENTATION_WORK_ORDER: "Implementation Work Order",
   CHANGE_ORDER: "Change Order",
   DATA_PROCESSING_ADDENDUM: "Data Processing Addendum",
+  TECHNOLOGY_SCHEDULE: "Technology Schedule Template",
   TRAINING_RECORD: "Training Attendance Record",
   UAT_RECORD: "UAT and Acceptance Record",
   COMPLETION_HANDOVER_RECORD: "Completion and Handover Record",
@@ -314,6 +318,7 @@ export async function loadPartnerIdentity(partnerId: string): Promise<PartnerIde
     legalName: (p.business_name as string) || (p.display_name as string),
     displayName: (p.display_name as string) || (p.business_name as string),
     partnerTypeLabel: typeLabel,
+    partnerType: p.partner_type as PartnerType,
     status: p.status as string,
     country: (p.country as string) || "",
     state: (p.state as string) || "",
@@ -870,6 +875,7 @@ export async function issueWorkOrderDocument(
   if (!partner) return { ok: false, error: "Partner not found" }
 
   const business = (wo.businesses as Record<string, unknown> | null) || {}
+  const terms = (wo.terms as Record<string, unknown> | null) || {}
   const currency = (wo.currency as string) || "NGN"
 
   return issueGeneratedDocument({
@@ -887,11 +893,25 @@ export async function issueWorkOrderDocument(
           workOrderRef: wo.work_order_ref as string,
           title: wo.title as string,
           customer: (business.business_name as string) || "",
+          customerLocation: [business.city, business.state, business.country].filter(Boolean).join(", "),
           scope: wo.scope as string,
           exclusions: (wo.exclusions as string | null) ?? null,
           customerDuties: (wo.customer_duties as string | null) ?? null,
+          martpointResponsibilities: String(terms.martpointResponsibilities || ""),
+          partnerResponsibilities: String(terms.partnerResponsibilities || ""),
           accessNotes: (wo.access_notes as string | null) ?? null,
+          approvedAccessPermissions: String(terms.approvedAccessPermissions || ""),
           acceptanceCriteria: (wo.acceptance_criteria as string | null) ?? null,
+          completionEvidence: String(terms.completionEvidence || ""),
+          acceptanceReviewBusinessDays: Number(terms.acceptanceReviewBusinessDays) || null,
+          defectCorrectionPeriod: String(terms.defectCorrectionPeriod || ""),
+          paymentConditions: String(terms.paymentConditions || ""),
+          approvedExpenses: String(terms.approvedExpenses || ""),
+          taxTreatment: String(terms.taxTreatment || ""),
+          dataProtectionRequirements: String(terms.dataProtectionRequirements || ""),
+          insuranceRequirement: String(terms.insuranceRequirement || ""),
+          changeRequestProcedure: String(terms.changeRequestProcedure || ""),
+          acceptanceAuthority: String(terms.acceptanceAuthority || mp.ownerName || mp.signatoryName || ""),
           milestones: ((milestones || []) as Record<string, unknown>[]).map((m) => ({
             title: m.title as string,
             dueDate: (m.due_date as string | null) ?? null,
@@ -993,6 +1013,54 @@ export async function issueDpaDocument(
         { logoDataUrl }
       ),
     }),
+  })
+}
+
+/** Issue a controlled Technology Schedule working template. It grants no access;
+ * partner-specific technical scope must be completed, approved and signed. */
+export async function issueTechnologyScheduleTemplate(
+  partnerId: string,
+  generatedBy: string
+): Promise<{ ok: boolean; error?: string; document?: GeneratedDocRecord }> {
+  const [partner, mp, logoDataUrl] = await Promise.all([
+    loadPartnerIdentity(partnerId),
+    getMartPointEntity(),
+    loadLogoDataUrl(),
+  ])
+  if (!partner) return { ok: false, error: "Partner not found" }
+  const technologyPartner = partner.partnerType === "TECHNOLOGY"
+  if (!technologyPartner) {
+    return { ok: false, error: "A Technology Schedule is only applicable to an approved Technology Partner" }
+  }
+  return issueGeneratedDocument({
+    partnerId,
+    type: "TECHNOLOGY_SCHEDULE",
+    sourceRecordType: "partner",
+    sourceRecordId: partnerId,
+    generatedBy,
+    metadata: { status: "DRAFT", accessGranted: false },
+    render: (control) => {
+      const input: TechnologyScheduleInput = {
+        control: { ...control, status: "DRAFT — NOT APPROVED" },
+        partner,
+        martpointEntity: mp.legalName,
+        effectiveDate: control.generatedAt,
+        scope: "",
+        approvedSolution: "",
+        useCase: "",
+        workOrderRef: null,
+        preExistingIp: null,
+        deliverableIp: null,
+        apiAccess: null,
+        securityResponsibilities: null,
+        testingAndProductionApproval: null,
+        acceptanceCriteria: null,
+        maintenanceResponsibilities: null,
+        revocationAndHandover: null,
+        status: "DRAFT",
+      }
+      return { pdf: renderTechnologySchedule(input, { logoDataUrl }) }
+    },
   })
 }
 

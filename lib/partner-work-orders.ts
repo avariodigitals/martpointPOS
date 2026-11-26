@@ -69,6 +69,22 @@ export interface WorkOrderInput {
   startsAt?: string | null
   dueAt?: string | null
   milestones?: WorkOrderMilestoneInput[]
+  terms?: {
+    customerLocation?: string
+    martpointResponsibilities?: string
+    partnerResponsibilities?: string
+    approvedAccessPermissions?: string
+    completionEvidence?: string
+    acceptanceReviewBusinessDays?: number | null
+    defectCorrectionPeriod?: string
+    paymentConditions?: string
+    approvedExpenses?: string
+    taxTreatment?: string
+    dataProtectionRequirements?: string
+    insuranceRequirement?: string
+    changeRequestProcedure?: string
+    acceptanceAuthority?: string
+  }
 }
 
 export async function createWorkOrder(
@@ -98,6 +114,7 @@ export async function createWorkOrder(
       status: "DRAFT" as WorkOrderStatus,
       starts_at: input.startsAt ?? null,
       due_at: input.dueAt ?? null,
+      terms: input.terms ?? {},
       created_by: createdBy,
       created_at: now(),
       updated_at: now(),
@@ -145,6 +162,14 @@ export async function issueWorkOrder(
   const { data: wo } = await supabase.from("partner_work_orders").select("*").eq("id", workOrderId).single()
   if (!wo) return { ok: false, error: "Work order not found" }
   if (wo.status !== "DRAFT") return { ok: false, error: "Only draft work orders can be issued" }
+
+  const terms = (wo.terms || {}) as Record<string, unknown>
+  if (!wo.acceptance_criteria || !String(terms.acceptanceReviewBusinessDays || "").trim()) {
+    return { ok: false, error: "Add acceptance criteria and an approved acceptance review period before issuing this Work Order" }
+  }
+  if (!terms.paymentConditions || !terms.completionEvidence || !terms.approvedAccessPermissions || !terms.taxTreatment) {
+    return { ok: false, error: "Complete payment conditions, agreed tax treatment, completion evidence and approved access permissions before issuing this Work Order" }
+  }
 
   // Hard gate: implementation work requires a partner-accepted Customer
   // Assignment when the work order is linked to one.

@@ -9,10 +9,13 @@ import { sendPartnerLifecycleNotice } from "@/lib/partner-lifecycle"
 type LifecycleExportRow = { partner_id: string; partners?: { partner_id?: string; business_name?: string }; account_status?: string; onboarding_status?: string; performance_status?: string; listing_status?: string; compliance_status?: string; accepted_version?: string | null; last_verified_activity_at?: string | null; updated_at?: string; pipeline_count?: number }
 
 const schema = z.object({
-  action: z.enum(["settings", "approve_onboarding", "verify_activity", "reject_activity", "extend", "hold", "listing", "case_response", "open_case", "resolve_case", "retry_notice"]),
+  action: z.enum(["settings", "approve_onboarding", "verify_activity", "reject_activity", "verify_delivery", "extend", "hold", "listing", "case_response", "open_case", "resolve_case", "retry_notice"]),
   partnerId: z.string().uuid().optional(), activityId: z.string().uuid().optional(), caseId: z.string().uuid().optional(), noticeId: z.string().uuid().optional(),
   reason: z.string().trim().min(5).max(1000).optional(), days: z.coerce.number().int().min(1).max(180).optional(),
   listingStatus: z.enum(["hidden", "eligible", "published", "suspended"]).optional(),
+  deliveryType: z.enum(["channel_sale", "implementation_acceptance", "approved_business_delivery"]).optional(),
+  evidenceReference: z.string().trim().min(3).max(300).optional(),
+  evidenceSummary: z.string().trim().min(10).max(2000).optional(),
   caseOutcome: z.enum(["clear", "confirmed_violation", "under_review"]).optional(),
   featureEnabled: z.boolean().optional(), dryRun: z.boolean().optional(), autoSuspensionEnabled: z.boolean().optional(), autoReinstateEnabled: z.boolean().optional(),
 })
@@ -22,7 +25,7 @@ export async function GET(request: Request) {
   if (auth.denied) return auth.denied
   if (!isSupabaseConfigured()) return NextResponse.json({ rows: [], settings: null })
   const [lifecycle, settings, activities, cases, notices, evaluations, pipeline, history] = await Promise.all([
-    supabase.from("partner_lifecycle").select("*,partners(id,partner_id,business_name,status,public_profile_enabled)").order("updated_at", { ascending: false }).limit(500),
+    supabase.from("partner_lifecycle").select("*,partners(id,partner_id,business_name,status,public_profile_enabled,partner_type,current_grade)").order("updated_at", { ascending: false }).limit(500),
     supabase.from("partner_lifecycle_settings").select("*").eq("id", true).maybeSingle(),
     supabase.from("partner_activities").select("*,partners(partner_id,business_name)").eq("verification_status", "pending").order("created_at", { ascending: false }).limit(100),
     supabase.from("partner_cases").select("*,partners(partner_id,business_name)").in("status", ["open", "under_review"]).order("opened_at", { ascending: false }).limit(100),
@@ -81,9 +84,23 @@ export async function POST(request: Request) {
     input.partnerId = activity.partner_id
   } else {
     if (!input.partnerId) return NextResponse.json({ error: "Partner is required" }, { status: 400 })
-    const { data: life } = await supabase.from("partner_lifecycle").select("*,partners(status)").eq("partner_id", input.partnerId).maybeSingle()
+    const { data: life } = await supabase.from("partner_lifecycle").select("*,partners(status,partner_type)").eq("partner_id", input.partnerId).maybeSingle()
     if (!life) return NextResponse.json({ error: "Partner lifecycle not found" }, { status: 404 })
-    if (input.action === "approve_onboarding") {
+    if (input.action === "verify_delivery") {
+      if (!input.deliveryType || !input.evidenceReference || !input.evidenceSummary) return NextResponse.json({ error: "Delivery type, evidence reference, and evidence summary are required" }, { status: 400 })
+      const type = String(life.partners?.partner_type || "")
+      const allowed = type === "CHANNEL" || type === "REFERRAL" ? ["channel_sale"]
+        : type === "IMPLEMENTATION" ? ["implementation_acceptance"]
+        : type === "CHANNEL_IMPLEMENTATION" ? ["channel_sale", "implementation_acceptance"]
+        : ["approved_business_delivery"]
+      if (!allowed.includes(input.deliveryType)) return NextResponse.json({ error: "The delivery evidence type does not match this Partner Type" }, { status: 400 })
+      const { error: evidenceError } = await supabase.from("partner_delivery_verifications").insert({ partner_id: input.partnerId, delivery_type: input.deliveryType, evidence_reference: input.evidenceReference, evidence_summary: input.evidenceSummary, verified_by: actorId, verified_at: now.toISOString(), approved: true })
+      error = evidenceError
+      if (!error) {
+        const { error: eligibilityError } = await supabase.from("partner_lifecycle").update({ directory_eligible: true, directory_eligibility_verified_at: now.toISOString(), directory_eligibility_verified_by: actorId, listing_status: life.listing_status === "hidden" ? "eligible" : life.listing_status, updated_at: now.toISOString(), version_counter: Number(life.version_counter || 0) + 1 }).eq("partner_id", input.partnerId)
+        error = eligibilityError
+      }
+    } else if (input.action === "approve_onboarding") {
       if (life.account_status !== "enabled" || life.compliance_status !== "clear" || life.partners?.status !== "ACTIVE") return NextResponse.json({ error: "Partner must have an enabled account, active partner approval, and clear compliance before onboarding approval" }, { status: 409 })
       const [{ data: requiredDocs }, { data: partnerType }, { data: agreements }] = await Promise.all([
         supabase.from("partner_documents").select("id,verification_status").eq("partner_id", input.partnerId).eq("required", true),
@@ -123,7 +140,8 @@ export async function POST(request: Request) {
       await supabase.from("partner_admin_overrides").insert({ partner_id: input.partnerId, override_type: input.action, reason, expires_at: expires, approved_by: actorId })
     } else if (input.action === "listing") {
       if (!input.listingStatus) return NextResponse.json({ error: "Listing status is required" }, { status: 400 })
-      if (input.listingStatus === "published" && (life.account_status !== "enabled" || life.compliance_status !== "clear" || life.onboarding_status !== "approved" || life.partners?.status !== "ACTIVE" || !["eligible", "published", "pending_suspension", "suspended"].includes(life.listing_status))) return NextResponse.json({ error: "Partner must be approved, enabled, active, and clear of compliance restrictions before publication" }, { status: 409 })
+      if (["eligible", "published"].includes(input.listingStatus) && !life.directory_eligible) return NextResponse.json({ error: "Verify at least one qualifying business delivery before marking a partner eligible or publishing the listing" }, { status: 409 })
+      if (input.listingStatus === "published" && (life.account_status !== "enabled" || life.compliance_status !== "clear" || life.onboarding_status !== "approved" || life.partners?.status !== "ACTIVE" || !["eligible", "published", "pending_suspension", "suspended"].includes(life.listing_status))) return NextResponse.json({ error: "Partner must have verified delivery, approved onboarding, an enabled active account, and clear compliance before publication" }, { status: 409 })
       if (input.listingStatus === "published" && ["pending_suspension", "suspended"].includes(life.listing_status)) {
         const [activity, completedReview] = await Promise.all([
           supabase.from("partner_activities").select("id").eq("partner_id", input.partnerId).eq("verification_status", "verified").limit(1).maybeSingle(),
@@ -146,7 +164,7 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (input.partnerId) {
     await supabase.from("partner_status_history").insert({ partner_id: input.partnerId, previous_status: input.action === "listing" ? undefined : null, new_status: input.action === "listing" ? input.listingStatus : input.action, reason, changed_by: actorId, changed_by_name: auth.session.name || auth.session.username, event_type: "STATUS_CHANGE" })
-    await recordAudit(auditContextFromSession(auth.session, request), { action: AUDIT_ACTIONS.PARTNER_UPDATED, entityType: AUDIT_ENTITIES.PARTNER, entityId: input.partnerId, metadata: { lifecycleAction: input.action, reason, activityId: input.activityId || null, listingStatus: input.listingStatus || null } })
+    await recordAudit(auditContextFromSession(auth.session, request), { action: AUDIT_ACTIONS.PARTNER_UPDATED, entityType: AUDIT_ENTITIES.PARTNER, entityId: input.partnerId, metadata: { lifecycleAction: input.action, reason, activityId: input.activityId || null, deliveryType: input.deliveryType || null, evidenceReference: input.evidenceReference || null, listingStatus: input.listingStatus || null } })
   }
   return NextResponse.json({ ok: true })
 }

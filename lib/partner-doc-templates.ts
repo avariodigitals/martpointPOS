@@ -8,7 +8,7 @@ import { PartnerDocBuilder, orNA, NOT_APPLICABLE, type GeneratedPdf } from "./pa
  * "Not applicable" — never invented text.
  */
 
-export const GENERATED_DOC_TEMPLATE_VERSION = "1.0"
+export const GENERATED_DOC_TEMPLATE_VERSION = "1.1"
 
 export interface DocControl {
   documentId: string
@@ -23,6 +23,7 @@ export interface PartnerIdentity {
   legalName: string
   displayName: string
   partnerTypeLabel: string
+  partnerType?: string
   status: string
   country: string
   state: string
@@ -443,11 +444,25 @@ export interface WorkOrderInput {
   workOrderRef: string
   title: string
   customer: string
+  customerLocation?: string | null
   scope: string
   exclusions: string | null
   customerDuties: string | null
+  martpointResponsibilities?: string | null
+  partnerResponsibilities?: string | null
   accessNotes: string | null
+  approvedAccessPermissions?: string | null
   acceptanceCriteria: string | null
+  completionEvidence?: string | null
+  acceptanceReviewBusinessDays?: number | null
+  defectCorrectionPeriod?: string | null
+  paymentConditions?: string | null
+  approvedExpenses?: string | null
+  taxTreatment?: string | null
+  dataProtectionRequirements?: string | null
+  insuranceRequirement?: string | null
+  changeRequestProcedure?: string | null
+  acceptanceAuthority?: string | null
   milestones: WorkOrderMilestoneLine[]
   feeTotal: string | null
   currency: string
@@ -475,20 +490,36 @@ export function renderImplementationWorkOrder(
     ["Work order", input.workOrderRef],
     ["Partner", `${partner.legalName} (${partner.partnerId})`],
     ["Customer", orNA(input.customer)],
+    ["Customer location", orNA(input.customerLocation)],
     ["MartPoint owner", orNA(input.martpointOwner.name || input.martpointOwner.email)],
     ["Start date", fmtDate(input.startDate)],
     ["Target completion", fmtDate(input.dueDate)],
   ])
 
-  d.heading("Scope")
+  d.heading(input.title || "Scope")
   d.para(input.scope, { gap: 8 })
   d.fieldTable([
     ["Exclusions", orNA(input.exclusions)],
     ["Customer duties", orNA(input.customerDuties)],
+    ["MartPoint responsibilities", orNA(input.martpointResponsibilities)],
+    ["Partner responsibilities", orNA(input.partnerResponsibilities)],
     ["Acceptance criteria", orNA(input.acceptanceCriteria)],
-    ["Access and security notes", orNA(input.accessNotes)],
+    ["Completion evidence", orNA(input.completionEvidence)],
+    ["Approved access permissions", orNA(input.approvedAccessPermissions || input.accessNotes)],
+    ["Data protection requirements", orNA(input.dataProtectionRequirements)],
+    ["Project-specific insurance", orNA(input.insuranceRequirement)],
+    ["Change request procedure", orNA(input.changeRequestProcedure)],
   ])
-  d.para("Out-of-scope work requires an approved Change Order before it begins. Access is least-privilege with approved tools only; incidents must be reported immediately.", { gap: 10 })
+  d.heading("Review, defects and payment")
+  d.fieldTable([
+    ["Acceptance review period", input.acceptanceReviewBusinessDays ? `${input.acceptanceReviewBusinessDays} business days` : NOT_APPLICABLE],
+    ["Acceptance authority", orNA(input.acceptanceAuthority || input.martpointOwner.name)],
+    ["Defect correction period", orNA(input.defectCorrectionPeriod)],
+    ["Payment conditions", orNA(input.paymentConditions)],
+    ["Approved expenses", orNA(input.approvedExpenses)],
+    ["Tax treatment", orNA(input.taxTreatment || "Must be completed and agreed in this Work Order; no tax treatment assumed")],
+  ])
+  d.para("MartPoint shall, within the stated review period, issue written acceptance or identify outstanding deliverables against the agreed acceptance criteria. Silence, elapsed time or evidence submission does not constitute acceptance. Out-of-scope work requires an approved Change Order before it begins. Access is least-privilege and time-limited. Suspected security or privacy incidents must be reported within four hours of discovery.", { gap: 10 })
 
   d.heading("Milestones and fees")
   if (input.milestones.length === 0) {
@@ -500,6 +531,7 @@ export function renderImplementationWorkOrder(
     )
   }
   d.fieldTable([["Work order fee total", orNA(input.feeTotal ? `${input.feeTotal} ${input.currency}` : null)]])
+  d.para("No fee, expense or other financial commitment exists unless expressly completed in this Work Order and accepted by both Parties before work starts. The Parties must complete and agree the tax treatment above; no tax treatment is assumed by this template.", { gap: 6 })
   d.para("Fees are earned only on named milestone acceptance. Time spent or evidence uploaded does not by itself create an amount payable.", { gap: 10 })
 
   d.heading("Signatures")
@@ -576,6 +608,16 @@ export interface DpaInput {
   partnerAddress: string | null
   martpoint: { legalName: string; registrationNo: string; registeredAddress: string }
   effectiveDate: string
+  processingRelationship?: string
+  responsibleController?: string
+  purpose?: string
+  duration?: string
+  dataSubjects?: string
+  personalDataCategories?: string
+  processingOperations?: string
+  documentedInstructions?: string
+  approvedLocations?: string
+  approvedSubprocessors?: string
 }
 
 export function renderDataProcessingAddendum(
@@ -590,29 +632,124 @@ export function renderDataProcessingAddendum(
   d.heading("Document control")
   controlTable(d, input.control)
 
-  d.heading("Parties")
+  d.heading("Parties and processing roles")
   d.fieldTable([
-    ["Controller", `${orNA(input.martpoint.legalName)} (${orNA(input.martpoint.registrationNo)}), ${orNA(input.martpoint.registeredAddress)}`],
-    ["Processor", `${partner.legalName} (${partner.partnerId}), ${orNA(input.partnerAddress)}`],
+    ["MartPoint", `${orNA(input.martpoint.legalName)} (${orNA(input.martpoint.registrationNo)}), ${orNA(input.martpoint.registeredAddress)}`],
+    ["Partner", `${partner.legalName} (${partner.partnerId}), ${orNA(input.partnerAddress)}`],
+    ["Processing relationship", orNA(input.processingRelationship)],
+    ["Party determining purpose and means (controller)", orNA(input.responsibleController)],
     ["Effective date", fmtDate(input.effectiveDate)],
   ])
+  d.para("The Parties shall determine and record their actual roles for each processing activity before access begins. This Addendum does not presume that MartPoint is controller in every engagement. Where a Party acts as an independent controller, it is responsible for its own lawful basis, transparency, data-subject rights and statutory duties. Processor obligations below apply only to the Party that processes personal data on documented instructions for a controller.", { gap: 10 })
 
-  d.heading("1. Roles and purpose")
-  d.para("The partner processes personal data only on documented instructions from MartPoint or the assigned customer, solely to perform the approved partner activities under the Partner Agreement. The partner acts as processor; MartPoint or the customer remains controller as applicable.")
-  d.heading("2. Data details")
-  d.para("Processing covers customer business and user records needed for the approved scope, for the duration of the assignment or agreement, on approved MartPoint systems.")
-  d.heading("3. Security")
-  d.para("The partner maintains appropriate technical and organisational measures: least-privilege access, confidentiality commitments, approved tools, logging where applicable, and awareness training for its personnel.")
-  d.heading("4. Subprocessors")
-  d.para("The partner must not engage subprocessors for personal data without prior written approval and equivalent obligations flowing down.")
-  d.heading("5. Incidents")
-  d.para("Actual or suspected security or privacy incidents must be reported immediately through the designated MartPoint contact, with reasonable cooperation in investigation and notification.")
-  d.heading("6. Rights, deletion and audit")
-  d.para("The partner assists with data-subject requests, returns or deletes personal data on instruction or at termination within the retention rules, and permits reasonable audit of compliance.")
-  d.heading("7. Transfers")
-  d.para("Personal data may only be transferred to approved locations under the applicable transfer mechanism stated in the Partner Agreement.")
+  d.heading("1. Processing details")
+  d.fieldTable([
+    ["Purpose", orNA(input.purpose)],
+    ["Duration", orNA(input.duration)],
+    ["Data subjects", orNA(input.dataSubjects)],
+    ["Personal data categories", orNA(input.personalDataCategories)],
+    ["Processing operations", orNA(input.processingOperations)],
+    ["Documented instructions", orNA(input.documentedInstructions)],
+    ["Approved locations", orNA(input.approvedLocations)],
+    ["Approved subprocessors", orNA(input.approvedSubprocessors)],
+  ])
+  d.para("Blank processing details must be completed in the applicable Work Order or written processing instruction before personal data is accessed. No personal-data processing is authorised merely by appointment to the Partner Network.", { gap: 8 })
+  d.heading("2. Instructions and purpose limitation")
+  d.para("A processor shall process personal data only on documented instructions from the applicable controller, including as to transfers, and only for the specified purpose and duration. If an instruction appears to violate applicable data-protection law, the processor shall notify the controller promptly and pause the affected processing unless legally prohibited from doing so. A Party acting as an independent controller determines and documents its own lawful purposes and means.")
+  d.heading("3. Confidentiality, access and personnel")
+  d.para("Each Party shall ensure that personnel authorised to process personal data are bound by confidentiality, receive appropriate training and have access only on a least-privilege, individual-account basis. Credentials shall not be shared. Access must be limited to approved systems, locations and duration and revoked promptly when no longer required.")
+  d.heading("4. Security safeguards")
+  d.para("Each Party shall implement and maintain technical and organisational safeguards proportionate to the nature, scope, context and purposes of processing and the risks to data subjects. Safeguards include access controls, authentication, secure configuration, encryption where appropriate, secure transmission, logging and monitoring, backup and recovery, vulnerability and incident management, personnel controls and periodic review. The processor shall provide reasonable information needed to demonstrate compliance and cooperate with proportionate security assessments.")
+  d.heading("5. Suspected incidents")
+  d.para("A Party discovering a suspected or actual personal-data or security incident affecting processing under this Addendum shall notify the other affected Party without undue delay and in any event within four hours of discovery, using the designated incident contact. Notice shall include known facts, affected data and individuals, likely consequences, containment measures and a contact for updates. The notifying Party shall preserve evidence, contain the incident, provide updates and cooperate with investigation and legally required notifications. The four-hour contractual notice supports, and does not replace or extend, any shorter or statutory notification duty.")
+  d.heading("6. Subprocessors")
+  d.para("A processor shall not appoint a subprocessor or permit another person to access personal data without the controller's prior written approval. The processor shall impose equivalent written data-protection and security duties on an approved subprocessor, remain responsible for its performance and promptly notify the controller of proposed changes so an objection can be raised before access is given.")
+  d.heading("7. Data-subject requests and regulatory cooperation")
+  d.para("A processor shall promptly forward data-subject requests, complaints and regulatory inquiries to the applicable controller and provide reasonable assistance, without responding except on documented instructions or as required by law. Each Party shall reasonably assist the other with compliance, impact assessments, consultations, investigations and records relevant to the processing relationship.")
+  d.heading("8. Retention, return and deletion")
+  d.para("At the end of the approved purpose or on written instruction, the processor shall stop processing and, at the controller's choice, return or securely delete personal data and copies, unless applicable law requires retention. Any retained data remains protected and is deleted when the legal retention period ends. The processor shall confirm completion on request.")
+  d.heading("9. International and onward transfers")
+  d.para("Personal data shall not be transferred or made accessible outside an approved location, or onward to another recipient, without prior documented approval and a lawful transfer mechanism and safeguards required by applicable law. The Parties shall record the destination and mechanism before transfer.")
+  d.heading("10. Audit, records and assistance")
+  d.para("A processor shall maintain records reasonably necessary to demonstrate its processing and safeguards, provide information needed for compliance and permit proportionate audits by the controller or its appointed auditor on reasonable notice. Immediate audit or preservation measures may follow a material incident, regulator request or credible evidence of non-compliance. Audits shall protect unrelated confidential information.")
+  d.heading("11. Applicable law and order of precedence")
+  d.para("The Parties shall comply with the Nigeria Data Protection Act 2023, applicable Nigeria Data Protection Commission directives and other binding data-protection requirements. If this Addendum conflicts with the Partner Agreement on personal-data processing, this Addendum controls for that subject. A specific Work Order may add processing detail but may not reduce the statutory protections in this Addendum.")
+  d.heading("12. Term and signatures")
+  d.para("This Addendum applies only for its stated processing scope and becomes effective when signed by both Parties. It must be executed before any processing or customer-environment access to which it applies. It ends when the applicable processing ends, subject to continuing confidentiality, security, deletion and legal duties.")
+  d.signatureTable([
+    { side: "MartPoint", name: "", title: "", email: "" },
+    { side: "Partner", name: "", title: "", email: "" },
+  ])
 
   return d.finish(`MartPoint-DPA-${safeFileStem(input.control.documentId)}.pdf`)
+}
+
+/* ─── 9A. Technology Schedule ────────────────────────────────────────────── */
+
+export interface TechnologyScheduleInput {
+  control: DocControl
+  partner: PartnerIdentity
+  martpointEntity: string
+  effectiveDate: string
+  scope: string
+  approvedSolution: string
+  useCase: string
+  workOrderRef: string | null
+  preExistingIp: string | null
+  deliverableIp: string | null
+  apiAccess: string | null
+  securityResponsibilities: string | null
+  testingAndProductionApproval: string | null
+  acceptanceCriteria: string | null
+  maintenanceResponsibilities: string | null
+  revocationAndHandover: string | null
+  status: "APPLICABLE" | "NOT_APPLICABLE" | "DRAFT"
+}
+
+export function renderTechnologySchedule(input: TechnologyScheduleInput, opts?: { logoDataUrl?: string }): GeneratedPdf {
+  const d = new PartnerDocBuilder({ logoDataUrl: opts?.logoDataUrl, footerRef: `${input.control.documentId} — ${input.partner.legalName}` })
+  d.title("TECHNOLOGY SCHEDULE", input.control.documentId)
+  d.heading("Document control")
+  controlTable(d, input.control)
+  if (input.status === "NOT_APPLICABLE") {
+    d.heading("Applicability")
+    d.para("NOT APPLICABLE. The Partner is not approved for Technology Partner activities under the current appointment. This Schedule grants no API, integration, development, production or customer-environment access.")
+    return d.finish(`MartPoint-Technology-Schedule-${safeFileStem(input.control.documentId)}.pdf`)
+  }
+  d.para("This Schedule applies only to the approved technology activities stated below and only after the Parties sign it and any required Work Order or Production Approval. It grants no broader access or authority.", { gap: 10 })
+  d.fieldTable([
+    ["Partner", `${input.partner.legalName} (${input.partner.partnerId})`],
+    ["MartPoint entity", input.martpointEntity],
+    ["Effective date", fmtDate(input.effectiveDate)],
+    ["Approved technical scope", input.scope],
+    ["Approved solution and version", input.approvedSolution],
+    ["Approved use case", input.useCase],
+    ["Related Work Order", orNA(input.workOrderRef)],
+  ])
+  d.heading("1. Scope and change control")
+  d.para("Only the specific integrations, APIs, connectors, custom development, technical deliverables, environments and production activities stated above are approved. Changes require written approval and, where fees, dates or deliverables change, an approved Change Order before work proceeds.")
+  d.heading("2. Intellectual property")
+  d.fieldTable([["Partner pre-existing intellectual property", orNA(input.preExistingIp)], ["Project deliverables and ownership/licence", orNA(input.deliverableIp)]])
+  d.para("Each Party retains its pre-existing intellectual property. Ownership, licence scope, source-code delivery, third-party and open-source components, restrictions and post-termination rights for new deliverables must be expressly completed above or in the related Work Order. No assignment or licence is implied where left blank.")
+  d.heading("3. API, integration and production access")
+  d.para(orNA(input.apiAccess))
+  d.para("Access is personal, least-privilege, purpose-limited and time-limited. Production access, customer tenant access, data export and credential issuance require separate written approval. Credentials may not be shared, and access may be revoked at any time to protect a customer, system or data.")
+  d.heading("4. Security and testing")
+  d.para(orNA(input.securityResponsibilities))
+  d.para(orNA(input.testingAndProductionApproval))
+  d.para("No change may be deployed to production until testing evidence is reviewed and the authorised MartPoint approver issues written Production Approval. Suspected security or privacy incidents must be reported within four hours of discovery.")
+  d.heading("5. Deliverable acceptance and maintenance")
+  d.para(orNA(input.acceptanceCriteria))
+  d.para(orNA(input.maintenanceResponsibilities))
+  d.heading("6. Revocation and handover")
+  d.para(orNA(input.revocationAndHandover))
+  d.para("At completion, expiry or request, the Partner shall return documentation and data, transfer agreed deliverables, support transition and certify deletion where instructed. MartPoint may revoke credentials and access immediately when the approved purpose ends or risk requires it.")
+  d.heading("Signatures")
+  d.signatureTable([
+    { side: "MartPoint", name: "", title: "", email: "" },
+    { side: "Partner", name: "", title: "", email: "" },
+  ])
+  return d.finish(`MartPoint-Technology-Schedule-${safeFileStem(input.control.documentId)}.pdf`)
 }
 
 /* ─── 10. Training Attendance and Completion Record ──────────────────────── */

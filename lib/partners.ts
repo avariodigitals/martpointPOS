@@ -407,6 +407,7 @@ export interface PublicPartner {
   /** Human-readable authorised services (Sales, Training, Implementation…). */
   services: string[]
   partnerSince: string | null
+  currentGrade: string | null
 }
 
 function mapPublicPartner(row: Record<string, unknown>): PublicPartner {
@@ -427,6 +428,7 @@ function mapPublicPartner(row: Record<string, unknown>): PublicPartner {
     serviceAreas: (row.service_areas as string) || "",
     services: [],
     partnerSince: (row.partner_since as string) ?? null,
+    currentGrade: ["SILVER", "GOLD", "PLATINUM", "DIAMOND"].includes(String(row.current_grade)) ? String(row.current_grade) : null,
   }
 }
 
@@ -474,11 +476,12 @@ export async function listPublicPartners(filters?: {
   if (!isSupabaseConfigured()) return []
   let q = supabase
     .from("partners")
-    .select("id, partner_id, business_name, display_name, partner_type, country, state, city, website, logo_url, public_email, public_phone, public_address, service_areas, partner_since, partner_lifecycle!inner(listing_status,account_status,compliance_status)")
+    .select("id, partner_id, business_name, display_name, partner_type, current_grade, country, state, city, website, logo_url, public_email, public_phone, public_address, service_areas, partner_since, partner_lifecycle!inner(listing_status,account_status,compliance_status,directory_eligible)")
     .eq("status", "ACTIVE")
     .eq("public_profile_enabled", true)
     .in("partner_lifecycle.listing_status", ["published", "pending_suspension"])
     .eq("partner_lifecycle.account_status", "enabled")
+    .eq("partner_lifecycle.directory_eligible", true)
     .in("partner_lifecycle.compliance_status", ["clear", "open_case", "under_review"])
 
   if (filters?.country) q = q.eq("country", filters.country)
@@ -515,19 +518,20 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
   services: string[]
   partnerSince: string | null
   publicProfileEnabled: boolean
+  currentGrade: string | null
 } | null> {
   if (!isSupabaseConfigured()) return null
   // RLS only exposes ACTIVE+public. For verify we need to see any status to show
   // the "not currently listed" message, so we rely on service role (server-side).
   const { data } = await supabase
     .from("partners")
-    .select("id, partner_id, business_name, display_name, partner_type, status, country, state, city, website, logo_url, public_email, public_phone, public_address, service_areas, partner_since, public_profile_enabled")
+    .select("id, partner_id, business_name, display_name, partner_type, current_grade, status, country, state, city, website, logo_url, public_email, public_phone, public_address, service_areas, partner_since, public_profile_enabled")
     .eq("partner_id", partnerId)
     .maybeSingle()
   if (!data) return null
-  const { data: lifecycle } = await supabase.from("partner_lifecycle").select("listing_status,account_status,compliance_status").eq("partner_id", data.id).maybeSingle()
-  if (!lifecycle || !["published", "pending_suspension"].includes(lifecycle.listing_status) || lifecycle.account_status !== "enabled" || !["clear", "open_case", "under_review"].includes(lifecycle.compliance_status)) {
-    return { id: data.id, partnerId: data.partner_id, businessName: "Partner not currently listed", displayName: "Partner not currently listed", partnerType: data.partner_type, status: data.status, country: "", state: "", city: "", website: null, logoUrl: null, publicEmail: null, publicPhone: null, publicAddress: null, serviceAreas: "", services: [], partnerSince: null, publicProfileEnabled: false }
+  const { data: lifecycle } = await supabase.from("partner_lifecycle").select("listing_status,account_status,compliance_status,directory_eligible").eq("partner_id", data.id).maybeSingle()
+  if (!lifecycle || lifecycle.directory_eligible !== true || !["published", "pending_suspension"].includes(lifecycle.listing_status) || lifecycle.account_status !== "enabled" || !["clear", "open_case", "under_review"].includes(lifecycle.compliance_status)) {
+    return { id: data.id, partnerId: data.partner_id, businessName: "Partner not currently listed", displayName: "Partner not currently listed", partnerType: data.partner_type, status: data.status, country: "", state: "", city: "", website: null, logoUrl: null, publicEmail: null, publicPhone: null, publicAddress: null, serviceAreas: "", services: [], partnerSince: null, publicProfileEnabled: false, currentGrade: null }
   }
   const services = await loadPublicServices([data.id as string])
   return {
@@ -549,6 +553,7 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
     services: services.get(data.id as string) ?? [],
     partnerSince: data.partner_since ?? null,
     publicProfileEnabled: data.public_profile_enabled ?? false,
+    currentGrade: ["SILVER", "GOLD", "PLATINUM", "DIAMOND"].includes(String(data.current_grade)) ? String(data.current_grade) : null,
   }
 }
 

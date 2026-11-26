@@ -7,6 +7,7 @@ import {
   issueCommissionStatement,
   issueActivationConfirmation,
   issueDpaDocument,
+  issueTechnologyScheduleTemplate,
   issueImplementationFeeStatement,
   issueWorkOrderDocument,
   issueTrainingRecordDocument,
@@ -84,6 +85,9 @@ export async function POST(
         break
       case "DATA_PROCESSING_ADDENDUM":
         result = await issueDpaDocument(partnerId, session!.userId)
+        break
+      case "TECHNOLOGY_SCHEDULE":
+        result = await issueTechnologyScheduleTemplate(partnerId, session!.userId)
         break
       case "IMPLEMENTATION_FEE_STATEMENT":
         result = await issueImplementationFeeStatement(

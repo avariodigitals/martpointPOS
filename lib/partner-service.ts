@@ -70,6 +70,7 @@ function mapPartner(row: Record<string, unknown>): PartnerRecord {
     logoUrl: (row.logo_url as string | null) ?? null,
     publicProfileEnabled: (row.public_profile_enabled as boolean) ?? false,
     partnerSince: (row.partner_since as string | null) ?? null,
+    currentGrade: (row.current_grade as PartnerRecord["currentGrade"]) ?? null,
     badgeTier: (row.badge_tier as PartnerRecord["badgeTier"]) ?? null,
     badgeKitIssuedAt: (row.badge_kit_issued_at as string | null) ?? null,
     createdAt: row.created_at as string,

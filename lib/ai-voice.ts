@@ -78,7 +78,7 @@ export async function getAiVoiceProvider(providerId: string): Promise<AiVoicePro
       label: "Gemini",
       apiKey: usable(process.env.GEMINI_API_KEY),
       baseUrl: baseUrl(process.env.GEMINI_BASE_URL, "https://generativelanguage.googleapis.com/v1beta/openai"),
-      chatModel: usable(process.env.GEMINI_MODEL) || "gemini-2.0-flash",
+      chatModel: usable(process.env.GEMINI_MODEL) || "gemini-3.8-flash",
       sttModel: usable(process.env.GEMINI_STT_MODEL) || "whisper-1",
       ttsModel: usable(process.env.GEMINI_TTS_MODEL) || "tts-1",
     },

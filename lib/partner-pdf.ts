@@ -284,7 +284,9 @@ export class PartnerDocBuilder {
     const head = [signatories.map((s) => `For ${s.side}`)]
     const rowFor = (key: "name" | "title" | "email", label: string) =>
       signatories.map((s) => `${label}: ${orNA(s[key])}`)
-    this.ensureSpace(70)
+    // Keep the full signature block together; a split signature table can put
+    // dates or email lines on an otherwise blank trailing page.
+    this.ensureSpace(190)
     autoTable(this.doc, {
       startY: this.y,
       margin: { left: this.margin, right: this.margin, bottom: 76 },

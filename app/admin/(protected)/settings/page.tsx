@@ -51,7 +51,7 @@ const AI_PROVIDER_DEFAULTS: Record<AiProviderId, Omit<AiProviderSettings, "apiKe
   groq: { label: "Groq", baseUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" },
   openrouter: { label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini" },
   mistral: { label: "Mistral", baseUrl: "https://api.mistral.ai/v1", model: "mistral-small-latest" },
-  gemini: { label: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash" },
+  gemini: { label: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-3.8-flash" },
   custom: { label: "Custom OpenAI-compatible", baseUrl: "", model: "" },
 }
 
@@ -324,7 +324,11 @@ export default function AdminSettingsPage() {
         const providers = Object.fromEntries(Object.entries(aiDefaults.providers).map(([id, provider]) => {
           const configured = storedAi.providers?.[id as AiProviderId]
           const legacy = id === "openai" ? data.openai : id === "xai" ? data.xai : undefined
-          return [id, { ...provider, ...(legacy || {}), ...(configured || {}) }]
+          const merged = { ...provider, ...(legacy || {}), ...(configured || {}) }
+          // Keep the editor aligned with the runtime migration for the retired
+          // Gemini 2.0 Flash model so saving settings won't restore it.
+          if (id === "gemini" && merged.model === "gemini-2.0-flash") merged.model = provider.model
+          return [id, merged]
         })) as AiSettings["providers"]
         setAi({
           ...aiDefaults,

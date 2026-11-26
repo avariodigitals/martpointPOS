@@ -4,6 +4,7 @@ export type LifecycleInput = {
   onboardingStatus: string
   complianceStatus: string
   listingStatus: string
+  directoryEligible?: boolean
   performanceStatus: string
   probationStartAt: string | null
   probationEndAt: string | null
@@ -50,7 +51,8 @@ export function decidePartnerLifecycle(input: LifecycleInput, config: { probatio
       if (elapsed >= 30 && input.verifiedActivityCount < threshold) return { decision: "PROBATION_DAY_30", explanation: "Progress reminder: no qualifying verified activity recorded.", noticeType: "probation_day_30", nextReviewAt: end }
       return { decision: "PROBATION", explanation: "Probation remains open; activity and onboarding criteria are being tracked.", performanceStatus: "probation", nextReviewAt: end }
     }
-    if (input.verifiedActivityCount >= threshold) return { decision: "ELIGIBLE_FOR_LISTING_REVIEW", explanation: "Activity threshold met; an authorized admin must approve directory publication.", listingStatus: input.listingStatus === "published" ? "published" : "eligible", performanceStatus: "compliant" }
+    if (input.verifiedActivityCount >= threshold && !input.directoryEligible) return { decision: "ACTIVITY_REVIEW_MET_DELIVERY_REQUIRED", explanation: "The 90-day activity threshold is met. Qualifying business delivery must be separately verified before directory eligibility; activity alone does not qualify.", performanceStatus: "compliant" }
+    if (input.verifiedActivityCount >= threshold) return { decision: "ELIGIBLE_FOR_LISTING_REVIEW", explanation: "Activity monitoring threshold and verified delivery eligibility are met; an authorized admin must separately approve directory publication.", listingStatus: input.listingStatus === "published" ? "published" : "eligible", performanceStatus: "compliant" }
     if (input.hasOpportunityInProgress && input.extensionUntil && new Date(input.extensionUntil) > now) return { decision: "PROBATION_EXTENDED", explanation: "An admin-approved extension is active because an opportunity remains in progress.", performanceStatus: "probation", nextReviewAt: new Date(input.extensionUntil) }
     return { decision: "REVIEW_REQUIRED", explanation: "The 90-day probation ended below the configurable verified-activity threshold; response and human review are required.", noticeType: "probation_day_90", performanceStatus: "review_required", nextReviewAt: addBusinessDays(now, config.responseBusinessDays ?? 10, config.holidays) }
   }

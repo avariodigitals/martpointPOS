@@ -14,6 +14,12 @@ export const REFERRAL_GRADE_LABELS: Record<ReferralGrade, string> = {
   DIAMOND: "Diamond",
 }
 
+export function isGradeReduction(previous: string | null, next: ReferralGrade): boolean {
+  const order = REFERRAL_GRADES as readonly string[]
+  const previousIndex = order.indexOf(String(previous || ""))
+  return previousIndex >= 0 && order.indexOf(next) < previousIndex
+}
+
 export interface GradeMetrics {
   /** Trailing-window counters (evaluated over the stated review period). */
   acceptedReferrals6m: number
@@ -33,6 +39,8 @@ export interface GradeMetrics {
   activeAgreement: boolean
   orientationCompleted: boolean
   daysSinceActivation: number
+  /** At least one independently verified qualifying customer delivery. */
+  verifiedQualifyingDelivery: boolean
   /** Diamond only. */
   strategicContribution: boolean
   managementApproved: boolean
@@ -51,6 +59,7 @@ export const BASE_METRICS: GradeMetrics = {
   activeAgreement: true,
   orientationCompleted: true,
   daysSinceActivation: 0,
+  verifiedQualifyingDelivery: false,
   strategicContribution: false,
   managementApproved: false,
 }
@@ -66,6 +75,9 @@ export function evaluateReferralGrade(m: GradeMetrics): GradeDecision {
 
   if (m.daysSinceActivation < 90) {
     return { grade: null, reasons: ["Provisional period: no grade is awarded before completion of the first 90 calendar days."] }
+  }
+  if (!m.verifiedQualifyingDelivery) {
+    return { grade: null, reasons: ["At least one verified qualifying business delivery is required; leads, meetings, demonstrations, proposals, training and onboarding do not qualify."] }
   }
 
   // DIAMOND — 30 accepted + 12 paid in 12 months, ≥90% valid, refunds ≤5%,

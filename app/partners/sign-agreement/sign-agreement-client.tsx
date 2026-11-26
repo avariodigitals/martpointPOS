@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { FileCheck2, Loader2, PenLine } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
@@ -31,8 +31,30 @@ export default function SignPartnerAgreementClient({
   const [signerTitle, setSignerTitle] = useState("")
   const [confirmAuthority, setConfirmAuthority] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [loading, setLoading] = useState(Boolean(token) && !initialDetails)
   const [error, setError] = useState(initialError)
   const [completeUrl, setCompleteUrl] = useState("")
+
+  useEffect(() => {
+    if (!token || initialDetails) return
+    const controller = new AbortController()
+    fetch(`/api/partners/sign-agreement?token=${encodeURIComponent(token)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    }).then(async (response) => {
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "This signing link is unavailable.")
+      setDetails(data as SigningDetails)
+      setSignerName(data.partnerSignerName || "")
+      setError("")
+    }).catch((cause) => {
+      if (controller.signal.aborted) return
+      setError(cause instanceof Error ? cause.message : "Could not load the agreement. Refresh the page or contact MartPoint.")
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false)
+    })
+    return () => controller.abort()
+  }, [initialDetails, token])
 
   async function signAgreement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -104,7 +126,7 @@ export default function SignPartnerAgreementClient({
                   </form>
                 )}
               </>
-            ) : <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /></div>}
+            ) : loading ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /></div> : <div><h1 className="text-2xl font-bold">Signing link unavailable</h1><p className="mt-3 text-muted-foreground">This signing link is invalid or expired.</p></div>}
           </section>
         </div>
       </main>

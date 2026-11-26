@@ -70,6 +70,23 @@ export async function POST(
           startsAt: body?.startsAt ? String(body.startsAt) : null,
           dueAt: body?.dueAt ? String(body.dueAt) : null,
           milestones,
+          terms: {
+            customerLocation: String(body?.terms?.customerLocation || ""),
+            martpointResponsibilities: String(body?.terms?.martpointResponsibilities || ""),
+            partnerResponsibilities: String(body?.terms?.partnerResponsibilities || ""),
+            approvedAccessPermissions: String(body?.terms?.approvedAccessPermissions || ""),
+            completionEvidence: String(body?.terms?.completionEvidence || ""),
+            acceptanceReviewBusinessDays: body?.terms?.acceptanceReviewBusinessDays != null && body.terms.acceptanceReviewBusinessDays !== ""
+              ? Number(body.terms.acceptanceReviewBusinessDays) : null,
+            defectCorrectionPeriod: String(body?.terms?.defectCorrectionPeriod || ""),
+            paymentConditions: String(body?.terms?.paymentConditions || ""),
+            approvedExpenses: String(body?.terms?.approvedExpenses || ""),
+            taxTreatment: String(body?.terms?.taxTreatment || ""),
+            dataProtectionRequirements: String(body?.terms?.dataProtectionRequirements || ""),
+            insuranceRequirement: String(body?.terms?.insuranceRequirement || ""),
+            changeRequestProcedure: String(body?.terms?.changeRequestProcedure || ""),
+            acceptanceAuthority: String(body?.terms?.acceptanceAuthority || ""),
+          },
         },
         session.userId
       )

@@ -34,6 +34,7 @@ export interface CommercialSection {
   partnerTypeLabel: string
   eligibleItems: string
   rateOrFee: string
+  rateUnit?: "PERCENTAGE" | "FIXED" | "WORK_ORDER" | "OTHER" | string
   eligibleRevenueDefinition: string
   exclusions: string
   attributionRule: string
@@ -41,9 +42,12 @@ export interface CommercialSection {
   holdingDays: string
   holdingStartEvent: string
   renewalRule: string
+  renewalRate?: string
+  renewalDuration?: string
   reversalRule: string
   statementCycle: string
   payoutTiming: string
+  minimumPayoutThreshold?: string
   currencyAndTaxRule: string
   splitRule: string
   financeApprover: string
@@ -90,6 +94,7 @@ export interface AgreementInput {
   appointment: {
     levelByType: string
     gradeByType: string
+    publicDirectoryStatus: string
     territory: string
     permittedActivities: string
     additionalProhibitions: string
@@ -131,20 +136,44 @@ const COMMERCIAL_FIELD_ROWS: { label: string; key: keyof CommercialSection }[] =
   { label: "Applicable partner type", key: "partnerTypeLabel" },
   { label: "Earning category", key: "earningCategory" },
   { label: "Eligible product or service", key: "eligibleItems" },
+  { label: "Rate unit", key: "rateUnit" },
   { label: "Rate or fixed fee", key: "rateOrFee" },
   { label: "Eligible revenue definition", key: "eligibleRevenueDefinition" },
   { label: "Excluded amounts", key: "exclusions" },
   { label: "Attribution requirement", key: "attributionRule" },
   { label: "Payment and activation trigger", key: "trigger" },
   { label: "Renewal eligibility", key: "renewalRule" },
+  { label: "Renewal rate, if approved", key: "renewalRate" },
+  { label: "Renewal duration, if approved", key: "renewalDuration" },
   { label: "Refund and chargeback treatment", key: "reversalRule" },
   { label: "Statement cycle", key: "statementCycle" },
   { label: "Payout timing", key: "payoutTiming" },
+  { label: "Minimum payout threshold", key: "minimumPayoutThreshold" },
   { label: "Currency and taxes", key: "currencyAndTaxRule" },
   { label: "Approved split or non-stacking rule", key: "splitRule" },
   { label: "Finance approver", key: "financeApprover" },
   { label: "Management approver", key: "managementApprover" },
 ]
+
+function displayRateOrFee(section: CommercialSection): string {
+  const raw = section.rateOrFee?.trim() || ""
+  const unit = String(section.rateUnit || "").toUpperCase()
+  if (unit === "WORK_ORDER") return "Agreed per approved Work Order"
+  if (unit === "PERCENTAGE" && /^\d+(?:\.\d+)?%?$/.test(raw)) {
+    return `${raw.replace(/%$/, "")}% of Eligible Revenue`
+  }
+  return raw
+}
+
+function displayRateUnit(value: unknown): string {
+  switch (String(value || "").toUpperCase()) {
+    case "PERCENTAGE": return "Percentage of Eligible Revenue"
+    case "FIXED": return "Fixed amount"
+    case "WORK_ORDER": return "Per approved Work Order"
+    case "OTHER": return "Other approved basis"
+    default: return String(value || "")
+  }
+}
 
 export function generatePartnerAgreementPdf(input: AgreementInput, opts?: AgreementRenderOptions): GeneratedAgreement {
   const typeKeys = agreementTypeKeys(input.partnerType)
@@ -241,10 +270,8 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
     disputeDays: input.disputeDays.trim() || "30",
     securityNoticeHours: input.securityNoticeHours.trim() || "4",
     liabilityFloor: orBlank(input.liabilityFloor),
-    initialTermMonths: input.initialTermMonths.trim() || "3",
-    renewalRule:
-      input.renewalRule.trim() ||
-      "renews automatically for successive twelve (12) month periods unless either Party gives written notice of non-renewal at least thirty (30) days before expiry",
+    initialTermMonths: input.initialTermMonths.trim(),
+    renewalRule: input.renewalRule.trim(),
     noticeDays: input.noticeDays.trim() || "30",
     referralProtectionDays: input.referralProtectionDays.trim() || "90",
     commercialRef,
@@ -345,6 +372,7 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
     ["Approved partner type or types", typesLabel],
     ["Operating level by type", levelByType],
     ["Starting grade by type", gradeByType],
+    ["Public Directory status", orBlank(input.appointment.publicDirectoryStatus)],
     ["Territory or service area", orBlank(input.appointment.territory)],
     ["Permitted activities", orBlank(input.appointment.permittedActivities)],
     ["Express prohibitions", orBlank(input.appointment.additionalProhibitions)],
@@ -376,9 +404,13 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
       : BLANK
     fieldTable([
       ["Schedule ID and version", `${input.agreementId}-C${i + 1} / v${AGREEMENT_TEMPLATE_VERSION}`],
-      ...COMMERCIAL_FIELD_ROWS.slice(0, 8).map((r): [string, string] => [r.label, orBlank(c[r.key] as string)]),
+      ...COMMERCIAL_FIELD_ROWS.map((r): [string, string] => [
+        r.label,
+        r.key === "rateOrFee" ? orBlank(displayRateOrFee(c))
+          : r.key === "rateUnit" ? orBlank(displayRateUnit(c.rateUnit))
+          : orBlank(c[r.key] as string),
+      ]),
       ["Holding period", holding],
-      ...COMMERCIAL_FIELD_ROWS.slice(8).map((r): [string, string] => [r.label, orBlank(c[r.key] as string)]),
     ])
   })
 

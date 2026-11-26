@@ -32,6 +32,7 @@ interface CommercialForm {
   partnerTypeLabel: string
   eligibleItems: string
   rateOrFee: string
+  rateUnit: string
   eligibleRevenueDefinition: string
   exclusions: string
   attributionRule: string
@@ -39,9 +40,12 @@ interface CommercialForm {
   holdingDays: string
   holdingStartEvent: string
   renewalRule: string
+  renewalRate: string
+  renewalDuration: string
   reversalRule: string
   statementCycle: string
   payoutTiming: string
+  minimumPayoutThreshold: string
   currencyAndTaxRule: string
   splitRule: string
   financeApprover: string
@@ -53,6 +57,7 @@ const emptyCommercial = (basis: EarningBasis): CommercialForm => ({
   partnerTypeLabel: basis.partnerTypeLabel,
   eligibleItems: "",
   rateOrFee: "",
+  rateUnit: "",
   eligibleRevenueDefinition: "",
   exclusions: "",
   attributionRule: "",
@@ -60,9 +65,12 @@ const emptyCommercial = (basis: EarningBasis): CommercialForm => ({
   holdingDays: "",
   holdingStartEvent: "",
   renewalRule: "",
+  renewalRate: "",
+  renewalDuration: "",
   reversalRule: "",
   statementCycle: "",
   payoutTiming: "",
+  minimumPayoutThreshold: "",
   currencyAndTaxRule: "",
   splitRule: "",
   financeApprover: "",
@@ -227,9 +235,8 @@ export function AgreementForm({ applicationId, onGenerated }: {
         martpointOwnerName: "",
         martpointOwnerEmail: "",
         ...(d.appointment || {}),
-        gradeByType: data.partnerType === "REFERRAL"
-          ? "Provisional / ungraded during the first 90 days; Silver requires a performance review"
-          : (d.appointment?.gradeByType || ""),
+        gradeByType: d.appointment?.gradeByType || "Ungraded — subject to verified business delivery and performance assessment",
+        publicDirectoryStatus: d.appointment?.publicDirectoryStatus || "Not yet eligible — subject to successful business delivery and MartPoint approval",
       })
       setCustomOperatingLevel(Boolean(d.appointment?.levelByType && d.appointment.levelByType !== "Standard"))
       setMartpointOwnerUserId((data.assignedUsers || []).find((u: AssignedUser) => u.email && u.email === d.appointment?.martpointOwnerEmail)?.id || "")
@@ -239,7 +246,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
         setForm((current) => ({ ...current, ...saved }))
         setMp(saved.martpoint || d.martpoint || {})
         setPt(saved.partner || d.partner || {})
-        setAppt(saved.appointment || d.appointment || {})
+        setAppt({ ...(saved.appointment || d.appointment || {}), gradeByType: "Ungraded — subject to verified business delivery and performance assessment", publicDirectoryStatus: "Not yet eligible — subject to successful business delivery and MartPoint approval" })
         setTech(saved.technology || { solutionName: "", solutionVersion: "", approvedUseCase: "" })
         setCommercials(saved.commercials || [])
         setExtraSchedules(saved.additionalSchedules || [])
@@ -457,7 +464,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
                   ]} />
                 )}
                 <div className="sm:col-span-2">
-                  <Field label="Renewal rule" textarea value={form.renewalRule} onChange={set("renewalRule")} placeholder="Blank = renews automatically for successive 12-month periods unless either Party gives 30 days' notice of non-renewal" />
+                  <Field label="Renewal rule" textarea value={form.renewalRule} onChange={set("renewalRule")} placeholder="State the approved renewal rule. Do not leave blank or assume automatic 12-month renewal." />
                 </div>
               </div>
             </div>
@@ -558,11 +565,16 @@ export function AgreementForm({ applicationId, onGenerated }: {
                 {customOperatingLevel && (
                   <Field label="Custom operating level" value={appt.levelByType || ""} onChange={apptField("levelByType")} placeholder="Enter operating level" />
                 )}
-                {partnerType === "REFERRAL" && <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
-                  <p className={labelCls}>Initial referral grade</p>
-                  <p className="text-muted-foreground">Provisional and ungraded for the first 90 days. Silver or a higher grade requires a performance review after day 90.</p>
-                </div>}
-                <Field label="Required insurance" value={appt.insurance || ""} onChange={apptField("insurance")} />
+                <div className="sm:col-span-2 rounded-md border border-border bg-muted/30 p-3 text-sm">
+                  <p className={labelCls}>Starting grade and directory status</p>
+                  <p className="text-muted-foreground">Ungraded. A grade and directory listing require verified qualifying delivery, published criteria, and separate MartPoint management approval. Standard is an operating level, not a grade. The 90-day activation/activity framework is monitored separately.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div><p className={labelCls}>Starting grade</p><p>Ungraded — subject to verified business delivery and performance assessment</p></div>
+                    <div><p className={labelCls}>Public Directory status</p><p>Not yet eligible — subject to successful business delivery and MartPoint approval</p></div>
+                  </div>
+                </div>
+                <Field label="Insurance requirement" value={appt.insurance || ""} onChange={apptField("insurance")} />
+                <p className="sm:col-span-2 -mt-2 text-xs text-muted-foreground">No policy is required for standard partner appointment. Any project-specific requirement must be stated and accepted in the applicable Work Order.</p>
                 <SelectField label="MartPoint owner" value={martpointOwnerUserId} onChange={(id) => {
                   const user = assignedUsers.find((u) => u.id === id)
                   setMartpointOwnerUserId(id)
@@ -593,21 +605,30 @@ export function AgreementForm({ applicationId, onGenerated }: {
                   <p className="text-sm font-medium">{c.earningCategory} <span className="text-xs text-muted-foreground">· {c.partnerTypeLabel}</span></p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Eligible products / services" value={c.eligibleItems} onChange={setComm(i, "eligibleItems")} />
-                    <Field label="Rate or fixed fee" value={c.rateOrFee} onChange={setComm(i, "rateOrFee")} placeholder="e.g. 10% of Eligible Revenue" />
+                    <SelectField label="Rate unit" value={c.rateUnit} onChange={setComm(i, "rateUnit")} options={[
+                      { value: "PERCENTAGE", label: "Percentage of Eligible Revenue" },
+                      { value: "FIXED", label: "Fixed amount" },
+                      { value: "WORK_ORDER", label: "Agreed per Work Order" },
+                      { value: "OTHER", label: "Other (describe below)" },
+                    ]} />
+                    <Field label="Rate or fixed fee" value={c.rateOrFee} onChange={setComm(i, "rateOrFee")} placeholder={c.rateUnit === "PERCENTAGE" ? "e.g. 10" : c.rateUnit === "WORK_ORDER" ? "Agreed per approved Work Order" : "Enter approved amount and basis"} />
                     <Field label="Eligible revenue definition" value={c.eligibleRevenueDefinition} onChange={setComm(i, "eligibleRevenueDefinition")} placeholder="Blank = Eligible Revenue per clause 2" />
                     <Field label="Excluded amounts" value={c.exclusions} onChange={setComm(i, "exclusions")} />
                     <Field label="Attribution requirement" value={c.attributionRule} onChange={setComm(i, "attributionRule")} />
                     <SelectField label="Statement cycle" value={c.statementCycle} onChange={setComm(i, "statementCycle")} options={[
                       { value: "Monthly", label: "Monthly" }, { value: "Quarterly", label: "Quarterly" },
                     ]} />
-                    <Field label="Payout timing" value={c.payoutTiming} onChange={setComm(i, "payoutTiming")} placeholder="e.g. Within 15 days of statement" />
-                    <Field label="Currency and taxes" value={c.currencyAndTaxRule} onChange={setComm(i, "currencyAndTaxRule")} placeholder="e.g. NGN, exclusive of VAT and WHT" />
+                    <Field label="Payout timing (approved term)" value={c.payoutTiming} onChange={setComm(i, "payoutTiming")} placeholder="Enter the approved payment deadline and conditions" />
+                    <Field label="Minimum payout threshold (approved term)" value={c.minimumPayoutThreshold} onChange={setComm(i, "minimumPayoutThreshold")} placeholder="Enter amount or 'No minimum payout threshold'" />
+                    <Field label="Currency and taxes (approved term)" value={c.currencyAndTaxRule} onChange={setComm(i, "currencyAndTaxRule")} placeholder="State currency and the approved VAT, withholding and other tax treatment" />
                     <SelectField label="Holding period (days)" value={c.holdingDays} onChange={setComm(i, "holdingDays")} options={[
                       { value: "0", label: "No holding period" }, { value: "7", label: "7 days" }, { value: "14", label: "14 days" },
                       { value: "30", label: "30 days" }, { value: "60", label: "60 days" }, { value: "90", label: "90 days" }, { value: "180", label: "180 days" },
                     ]} />
                     <Field label="Holding starts from" value={c.holdingStartEvent} onChange={setComm(i, "holdingStartEvent")} placeholder="e.g. licence activation" />
                     <Field label="Renewal eligibility" value={c.renewalRule} onChange={setComm(i, "renewalRule")} />
+                    <Field label="Renewal rate (if approved)" value={c.renewalRate} onChange={setComm(i, "renewalRate")} placeholder="Not approved / none, or approved percentage" />
+                    <Field label="Renewal duration (if approved)" value={c.renewalDuration} onChange={setComm(i, "renewalDuration")} placeholder="None, or approved duration" />
                     <Field label="Refund / chargeback treatment" value={c.reversalRule} onChange={setComm(i, "reversalRule")} />
                     <Field label="Split / non-stacking rule" value={c.splitRule} onChange={setComm(i, "splitRule")} />
                     <SelectField label="Finance approver" value={assignedUsers.find((u) => u.name === c.financeApprover && ["Admin", "Finance"].includes(u.role))?.id || ""} onChange={(id) => setComm(i, "financeApprover")(assignedUsers.find((u) => u.id === id)?.name || "")} options={assignedUsers.filter((u) => ["Admin", "Finance"].includes(u.role)).map((u) => ({ value: u.id, label: `${u.name || u.username} · ${u.role}` }))} placeholder="Select Finance or Admin user" />

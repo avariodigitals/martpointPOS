@@ -32,7 +32,7 @@ function gradeChip(grade: string | null) {
   const known = (REFERRAL_GRADES as readonly string[]).includes(key)
   return (
     <span className={`text-[10px] uppercase px-2 py-0.5 rounded font-medium ${known ? GRADE_TONE[key] : "bg-muted text-muted-foreground"}`}>
-      {known ? REFERRAL_GRADE_LABELS[key] : "Not graded"}
+      {known ? REFERRAL_GRADE_LABELS[key] : "Ungraded"}
     </span>
   )
 }
@@ -65,6 +65,7 @@ export default function PartnerGradesPage() {
     reviewPeriod: "",
     strategicContribution: false,
     managementApproved: false,
+    authorizedReview: false,
     complianceBreach: false,
     consecutiveMissedQuarters: 0,
     approvedException: false,
@@ -86,7 +87,8 @@ export default function PartnerGradesPage() {
   }, [])
 
   useEffect(() => {
-    void load()
+    const timer = window.setTimeout(() => { void load() }, 0)
+    return () => window.clearTimeout(timer)
   }, [load])
 
   async function open(id: string) {
@@ -106,6 +108,9 @@ export default function PartnerGradesPage() {
         grade: (json.proposal.grade as ReferralGrade | null) ?? "SILVER",
         reason: "",
         reviewPeriod: `${new Date().getFullYear()}-Q${Math.floor(new Date().getMonth() / 3) + 1}`,
+        strategicContribution: false,
+        managementApproved: false,
+        authorizedReview: false,
       }))
     } finally {
       setLoadingSheet(false)
@@ -115,7 +120,18 @@ export default function PartnerGradesPage() {
   async function decide() {
     if (!sheet || !selectedId) return
     if (!sheet.proposal.grade) {
-      toast({ title: "No grade is eligible yet", description: "The 90-day minimum and Silver performance criteria must be met first.", variant: "warning" })
+      toast({ title: "No grade is eligible yet", description: "Complete the 90-day minimum, verify qualifying business delivery, and meet the applicable performance criteria first.", variant: "warning" })
+      return
+    }
+    if (!form.managementApproved) {
+      toast({ title: "Management approval is required", description: "Record explicit Management approval before saving any grade award.", variant: "warning" })
+      return
+    }
+    const currentKey = sheet.partner.currentGrade.toUpperCase() as ReferralGrade
+    const currentIndex = (REFERRAL_GRADES as readonly string[]).indexOf(currentKey)
+    const selectedIndex = (REFERRAL_GRADES as readonly string[]).indexOf(form.grade)
+    if (currentIndex >= 0 && selectedIndex < currentIndex && !form.authorizedReview) {
+      toast({ title: "Grade reduction needs review", description: "Mark the separate authorized review after documenting why the prior grade should change.", variant: "warning" })
       return
     }
     if (form.reason.trim().length < 5) {
@@ -164,8 +180,7 @@ export default function PartnerGradesPage() {
           <Award className="w-5 h-5" /> Partner Grades
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Quarterly grade review for Referral Partners. A grade recognises performance only — it never changes commission,
-          access or exclusivity unless a signed Commission Schedule says so.
+          Newly approved partners start Ungraded. Referral grading is reviewed after 90 days and requires verified qualifying delivery, published criteria and explicit Management approval. A grade recognises performance only — it never changes commission, access or exclusivity unless a signed Commission Schedule says so.
         </p>
       </div>
 
@@ -247,14 +262,14 @@ export default function PartnerGradesPage() {
                   <ul className="text-[11px] text-muted-foreground list-disc pl-4 space-y-1">
                     {sheet.proposal.reasons.map((r) => <li key={r}>{r}</li>)}
                   </ul>
-                  {!sheet.proposal.grade && <p className="text-xs font-medium text-amber-800">No grade can be awarded until the partner completes 90 days and meets Silver criteria.</p>}
+                  {!sheet.proposal.grade && <p className="text-xs font-medium text-amber-800">No grade can be awarded until the partner completes the 90-day minimum, has verified qualifying delivery, and meets the applicable criteria.</p>}
                 </div>
 
                 {sheet.can.decide ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <label className="block">
-                        <span className="text-xs text-muted-foreground">Recorded grade</span>
+                        <span className="text-xs text-muted-foreground">Candidate grade (not awarded until saved with approval)</span>
                         <select className={inputCls} value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value as ReferralGrade })}>
                           {REFERRAL_GRADES.map((g) => <option key={g} value={g}>{REFERRAL_GRADE_LABELS[g]}</option>)}
                         </select>
@@ -277,7 +292,8 @@ export default function PartnerGradesPage() {
 
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <Check label="Documented strategic contribution" checked={form.strategicContribution} onChange={(v) => setForm({ ...form, strategicContribution: v })} />
-                      <Check label="Management approved (for Diamond)" checked={form.managementApproved} onChange={(v) => setForm({ ...form, managementApproved: v })} />
+                      <Check label="Management approved this grade award" checked={form.managementApproved} onChange={(v) => setForm({ ...form, managementApproved: v })} />
+                      <Check label="Authorized review completed for any grade reduction" checked={form.authorizedReview} onChange={(v) => setForm({ ...form, authorizedReview: v })} />
                       <Check label="Compliance breach this period" checked={form.complianceBreach} onChange={(v) => setForm({ ...form, complianceBreach: v })} />
                       <Check label="Approved inactivity exception" checked={form.approvedException} onChange={(v) => setForm({ ...form, approvedException: v })} />
                     </div>

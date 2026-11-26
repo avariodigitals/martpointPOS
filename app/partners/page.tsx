@@ -40,7 +40,6 @@ export const metadata: Metadata = {
 
 const WHATSAPP_PARTNER =
   "https://wa.me/+2348037978230?text=Hi%2C%20I%27m%20interested%20in%20becoming%20a%20MartPoint%20partner.%20Can%20we%20talk%3F"
-const EMAIL_PARTNER = "mailto:partners@martpoint.com.ng"
 
 const partnerTypes = [
   {
@@ -58,6 +57,14 @@ const partnerTypes = [
     description:
       "Help businesses choose MartPoint, coordinate onboarding and provide agreed first-line usage guidance to assigned customers. MartPoint manages software invoicing, licensing and deployment.",
     earn: "Commission on qualifying software sales. Renewal commissions, where offered, follow the agreed terms and servicing responsibilities.",
+  },
+  {
+    icon: Wrench,
+    title: "Channel + Implementation Partners",
+    subtitle: null,
+    description:
+      "Combine approved MartPoint sales and first-line guidance with certified implementation work assigned under a separate Work Order.",
+    earn: "Agreed commission on qualifying software sales and separate fees for authorised implementation Work Orders.",
   },
   {
     icon: Wrench,

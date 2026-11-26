@@ -27,12 +27,14 @@ describe("partner lifecycle policy rules", () => {
   it("marks day 90 review below threshold, and eligibility above it", () => {
     const day90 = new Date("2026-04-01T00:00:00Z")
     expect(at({ now: day90 }).decision).toBe("REVIEW_REQUIRED")
-    expect(at({ now: day90, verifiedActivityCount: 1 }).decision).toBe("ELIGIBLE_FOR_LISTING_REVIEW")
+    expect(at({ now: day90, verifiedActivityCount: 1 }).decision).toBe("ACTIVITY_REVIEW_MET_DELIVERY_REQUIRED")
+    expect(at({ now: day90, verifiedActivityCount: 1, directoryEligible: true }).decision).toBe("ELIGIBLE_FOR_LISTING_REVIEW")
   })
   it("honours an operator-configured qualifying activity threshold", () => {
     const day90 = new Date("2026-04-01T00:00:00Z")
     expect(decidePartnerLifecycle({ ...base, now: day90, verifiedActivityCount: 1 }, { activityThreshold: 2 }).decision).toBe("REVIEW_REQUIRED")
-    expect(decidePartnerLifecycle({ ...base, now: day90, verifiedActivityCount: 2 }, { activityThreshold: 2 }).decision).toBe("ELIGIBLE_FOR_LISTING_REVIEW")
+    expect(decidePartnerLifecycle({ ...base, now: day90, verifiedActivityCount: 2 }, { activityThreshold: 2 }).decision).toBe("ACTIVITY_REVIEW_MET_DELIVERY_REQUIRED")
+    expect(decidePartnerLifecycle({ ...base, now: day90, verifiedActivityCount: 2, directoryEligible: true }, { activityThreshold: 2 }).decision).toBe("ELIGIBLE_FOR_LISTING_REVIEW")
   })
   it("does not qualify a probation extension without an in-progress opportunity and admin extension", () => {
     expect(at({ now: new Date("2026-04-02T00:00:00Z"), hasOpportunityInProgress: true }).decision).toBe("REVIEW_REQUIRED")

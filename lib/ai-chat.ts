@@ -59,7 +59,7 @@ const PROVIDER_DEFAULTS: Record<AiProviderId, { name: string; baseUrl?: string; 
   groq: { name: "Groq", baseUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile", envKey: "GROQ_API_KEY", envBase: "GROQ_BASE_URL", envModel: "GROQ_MODEL" },
   openrouter: { name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini", envKey: "OPENROUTER_API_KEY", envBase: "OPENROUTER_BASE_URL", envModel: "OPENROUTER_MODEL" },
   mistral: { name: "Mistral", baseUrl: "https://api.mistral.ai/v1", model: "mistral-small-latest", envKey: "MISTRAL_API_KEY", envBase: "MISTRAL_BASE_URL", envModel: "MISTRAL_MODEL" },
-  gemini: { name: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash", envKey: "GEMINI_API_KEY", envBase: "GEMINI_BASE_URL", envModel: "GEMINI_MODEL" },
+  gemini: { name: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-3.8-flash", envKey: "GEMINI_API_KEY", envBase: "GEMINI_BASE_URL", envModel: "GEMINI_MODEL" },
   custom: { name: "Custom OpenAI-compatible", model: "gpt-4o-mini", envKey: "AI_API_KEY", envBase: "AI_BASE_URL", envModel: "AI_MODEL" },
 }
 
@@ -68,6 +68,14 @@ function usableApiKey(value: unknown): string | undefined {
   const key = value.trim()
   if (!key || /your[-_ ]|example|placeholder|replace[-_ ]?me/i.test(key)) return undefined
   return key
+}
+
+function currentModel(id: AiProviderId, value: string | undefined, fallback: string): string {
+  const model = (value || fallback).trim()
+  // Gemini 2.0 Flash was shut down; stored settings from before the upgrade
+  // should move to Google's current stable Flash model automatically.
+  if (id === "gemini" && model === "gemini-2.0-flash") return "gemini-3.8-flash"
+  return model
 }
 
 async function getStoredAiSettings(): Promise<{ ai?: AiSettings; openai?: Record<string, string>; xai?: Record<string, string> }> {
@@ -108,7 +116,7 @@ async function getProviderCandidates(): Promise<ProviderConfig[]> {
     const envBase = defaults.envBase ? process.env[defaults.envBase]?.trim() : ""
     const baseUrl = (saved.baseUrl || (id === "xai" ? legacy?.baseUrl : "") || envBase || defaults.baseUrl || "").trim() || undefined
     const envModel = defaults.envModel ? process.env[defaults.envModel]?.trim() : ""
-    const model = (saved.model || (id === "xai" ? legacy?.model : "") || envModel || defaults.model).trim()
+    const model = currentModel(id, saved.model || (id === "xai" ? legacy?.model : "") || envModel, defaults.model)
     configured[id] = apiKey ? { id, name: defaults.name, apiKey, baseUrl, model } : null
   }
 
@@ -151,7 +159,7 @@ export async function getAiProviderCredentials(id: AiProviderId): Promise<Provid
   const envBase = defaults.envBase ? process.env[defaults.envBase]?.trim() : ""
   const baseUrl = (saved.baseUrl || (id === "xai" ? legacy?.baseUrl : "") || envBase || defaults.baseUrl || "").trim() || undefined
   const envModel = defaults.envModel ? process.env[defaults.envModel]?.trim() : ""
-  const model = (saved.model || (id === "xai" ? legacy?.model : "") || envModel || defaults.model).trim()
+  const model = currentModel(id, saved.model || (id === "xai" ? legacy?.model : "") || envModel, defaults.model)
   return { id, name: defaults.name, apiKey, baseUrl, model }
 }
 

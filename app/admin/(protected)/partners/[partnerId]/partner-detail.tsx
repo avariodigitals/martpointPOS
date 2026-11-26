@@ -78,7 +78,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
   const [docUploading, setDocUploading] = useState(false)
   const [docSaving, setDocSaving] = useState(false)
   const [badgeKit, setBadgeKit] = useState<{ tier: string | null; issuedAt: string | null; stats: { impressions: number; clicks: number } } | null>(null)
-  const [badgeTierSel, setBadgeTierSel] = useState<PartnerBadgeTier>("SILVER")
+  const [badgeTierSel, setBadgeTierSel] = useState<PartnerBadgeTier | "">("")
   const [badgeSaving, setBadgeSaving] = useState(false)
   const [badgeLoadError, setBadgeLoadError] = useState("")
   const [genDocs, setGenDocs] = useState<Record<string, unknown>[]>([])
@@ -86,7 +86,13 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
   const [stmtPeriod, setStmtPeriod] = useState({ from: "", to: "" })
   const [workOrders, setWorkOrders] = useState<Record<string, unknown>[]>([])
   const [woBusy, setWoBusy] = useState(false)
-  const [woForm, setWoForm] = useState({ title: "", scope: "", assignmentId: "", feeTotal: "", dueAt: "", milestones: "" })
+  const [woForm, setWoForm] = useState({
+    title: "", scope: "", assignmentId: "", feeTotal: "", dueAt: "", milestones: "",
+    acceptanceCriteria: "", acceptanceReviewBusinessDays: "", paymentConditions: "",
+    completionEvidence: "", approvedAccessPermissions: "", martpointResponsibilities: "",
+    partnerResponsibilities: "", defectCorrectionPeriod: "", approvedExpenses: "", taxTreatment: "",
+    dataProtectionRequirements: "", insuranceRequirement: "", changeRequestProcedure: "",
+  })
   const [certifications, setCertifications] = useState<Record<string, unknown>[]>([])
   const [certForm, setCertForm] = useState({ status: "CERTIFIED", score: "", assessor: "", restrictions: "", expiresAt: "" })
   const [quoteRequests, setQuoteRequests] = useState<Record<string, unknown>[]>([])
@@ -255,9 +261,31 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
       businessId: (assignment?.business_id as string) || null,
       feeTotal: woForm.feeTotal === "" ? null : Number(woForm.feeTotal),
       dueAt: woForm.dueAt || null,
+      acceptanceCriteria: woForm.acceptanceCriteria,
+      terms: {
+        acceptanceReviewBusinessDays: woForm.acceptanceReviewBusinessDays,
+        paymentConditions: woForm.paymentConditions,
+        completionEvidence: woForm.completionEvidence,
+        approvedAccessPermissions: woForm.approvedAccessPermissions,
+        martpointResponsibilities: woForm.martpointResponsibilities,
+        partnerResponsibilities: woForm.partnerResponsibilities,
+        defectCorrectionPeriod: woForm.defectCorrectionPeriod,
+        approvedExpenses: woForm.approvedExpenses,
+        taxTreatment: woForm.taxTreatment,
+        dataProtectionRequirements: woForm.dataProtectionRequirements,
+        insuranceRequirement: woForm.insuranceRequirement,
+        changeRequestProcedure: woForm.changeRequestProcedure,
+        acceptanceAuthority: "MartPoint Partner Operations",
+      },
       milestones,
     })
-    setWoForm({ title: "", scope: "", assignmentId: "", feeTotal: "", dueAt: "", milestones: "" })
+    setWoForm({
+      title: "", scope: "", assignmentId: "", feeTotal: "", dueAt: "", milestones: "",
+      acceptanceCriteria: "", acceptanceReviewBusinessDays: "", paymentConditions: "",
+      completionEvidence: "", approvedAccessPermissions: "", martpointResponsibilities: "",
+      partnerResponsibilities: "", defectCorrectionPeriod: "", approvedExpenses: "",
+      dataProtectionRequirements: "", insuranceRequirement: "", changeRequestProcedure: "", taxTreatment: "",
+    })
   }
 
   async function decideQuoteRequest(id: string, decision: string) {
@@ -1095,10 +1123,11 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                   <p className="text-sm text-muted-foreground">No badge issued yet.</p>
                 )}
                 <div className="flex flex-wrap items-center gap-2">
-                  <select value={badgeTierSel} onChange={(e) => setBadgeTierSel(e.target.value as PartnerBadgeTier)} className="rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <select value={badgeTierSel} onChange={(e) => setBadgeTierSel(e.target.value as PartnerBadgeTier | "")} className="rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="">Select formally awarded grade</option>
                     {PARTNER_BADGE_TIERS.map((t) => <option key={t} value={t}>{PARTNER_BADGE_TIER_LABELS[t]}</option>)}
                   </select>
-                  <Button size="sm" onClick={saveBadgeKit} disabled={badgeSaving}>
+                  <Button size="sm" onClick={saveBadgeKit} disabled={badgeSaving || !badgeTierSel}>
                     {badgeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : badgeKit.tier ? "Update Badge Kit" : "Generate Badge Kit"}
                   </Button>
                   {badgeKit.tier && <Button size="sm" variant="outline" onClick={revokeBadgeKit} disabled={badgeSaving}>Revoke</Button>}
@@ -1175,9 +1204,10 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-muted-foreground">
-              Controlled documents issued from portal records — activation confirmations, customer assignments,
-              statements and notices. Each carries a document ID, template version and checksum. Partners see
-              these in their portal under Documents.
+              The signed Partner Agreement is issued as one PDF containing only the approved Partner Type schedules.
+              Implementation data-processing terms and approved Technology scope stay inside that agreement. Work
+              Orders are issued for approved customer projects; statements and operational records are generated
+              when those activities occur. Partners see issued records in their portal under Documents.
             </p>
             <div className="flex flex-wrap items-end gap-2">
               <div>
@@ -1193,9 +1223,6 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
               </Button>
               <Button size="sm" variant="outline" disabled={genDocBusy} onClick={() => generateDoc("IMPLEMENTATION_FEE_STATEMENT")}>
                 Fee Statement
-              </Button>
-              <Button size="sm" variant="outline" disabled={genDocBusy} onClick={() => generateDoc("DATA_PROCESSING_ADDENDUM")}>
-                DPA
               </Button>
               <Button size="sm" variant="outline" disabled={genDocBusy} onClick={() => generateDoc("ACTIVATION_CONFIRMATION")}>
                 Reissue Activation Confirmation
@@ -1381,6 +1408,21 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                   </select>
                 </div>
                 <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={3} placeholder="Scope of work (required)" required value={woForm.scope} onChange={(e) => setWoForm({ ...woForm, scope: e.target.value })} />
+                <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Acceptance criteria (required)" required value={woForm.acceptanceCriteria} onChange={(e) => setWoForm({ ...woForm, acceptanceCriteria: e.target.value })} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" type="number" min="1" step="1" placeholder="Acceptance review period (business days; management-approved)" required value={woForm.acceptanceReviewBusinessDays} onChange={(e) => setWoForm({ ...woForm, acceptanceReviewBusinessDays: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Payment conditions (required)" required value={woForm.paymentConditions} onChange={(e) => setWoForm({ ...woForm, paymentConditions: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Completion evidence (required)" required value={woForm.completionEvidence} onChange={(e) => setWoForm({ ...woForm, completionEvidence: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Approved access permissions (required)" required value={woForm.approvedAccessPermissions} onChange={(e) => setWoForm({ ...woForm, approvedAccessPermissions: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="MartPoint responsibilities" value={woForm.martpointResponsibilities} onChange={(e) => setWoForm({ ...woForm, martpointResponsibilities: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Partner responsibilities" value={woForm.partnerResponsibilities} onChange={(e) => setWoForm({ ...woForm, partnerResponsibilities: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Defect correction period" value={woForm.defectCorrectionPeriod} onChange={(e) => setWoForm({ ...woForm, defectCorrectionPeriod: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Approved expenses (or 'None')" value={woForm.approvedExpenses} onChange={(e) => setWoForm({ ...woForm, approvedExpenses: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Tax treatment, agreed by both parties (do not assume tax-exclusive/inclusive)" value={woForm.taxTreatment} onChange={(e) => setWoForm({ ...woForm, taxTreatment: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Data protection requirements / applicable DPA" value={woForm.dataProtectionRequirements} onChange={(e) => setWoForm({ ...woForm, dataProtectionRequirements: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Project-specific insurance (or 'None')" value={woForm.insuranceRequirement} onChange={(e) => setWoForm({ ...woForm, insuranceRequirement: e.target.value })} />
+                  <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" rows={2} placeholder="Change request procedure" value={woForm.changeRequestProcedure} onChange={(e) => setWoForm({ ...woForm, changeRequestProcedure: e.target.value })} />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Fee total (optional)" value={woForm.feeTotal} onChange={(e) => setWoForm({ ...woForm, feeTotal: e.target.value })} />
                   <input className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" type="date" placeholder="Due date" value={woForm.dueAt} onChange={(e) => setWoForm({ ...woForm, dueAt: e.target.value })} />

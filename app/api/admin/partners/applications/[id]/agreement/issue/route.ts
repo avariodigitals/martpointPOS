@@ -11,6 +11,7 @@ import { sendEmail } from "@/lib/email"
 import { escapeHtml } from "@/lib/email-html"
 import { registerAgreementDocument, supersedePreviousDocuments } from "@/lib/partner-generated-docs"
 import { generatePartnerAgreementPdf, AGREEMENT_TEMPLATE_VERSION, type AgreementInput } from "@/lib/partner-agreement"
+import { validateAgreementInput } from "@/lib/partner-agreement-validation"
 
 export const dynamic = "force-dynamic"
 
@@ -42,6 +43,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { data: draft, error: draftError } = await supabase.from("partner_agreement_drafts").select("*").eq("id", draftId).eq("application_id", applicationId).eq("status", "AWAITING_REVIEW").maybeSingle()
     if (draftError || !draft) return NextResponse.json({ error: "This draft is no longer awaiting review. Generate a fresh draft and review it before issuing." }, { status: 409 })
 
+    const input = draft.agreement_payload as AgreementInput
+    const validationErrors = validateAgreementInput(input)
+    if (validationErrors.length) {
+      return NextResponse.json({ error: "This saved draft does not meet the current agreement requirements. Regenerate and review it before issue.", validationErrors }, { status: 409 })
+    }
+    const currentTermsHash = crypto.createHash("sha256").update(JSON.stringify(input)).digest("hex")
+    if (currentTermsHash !== String(draft.terms_sha256)) {
+      return NextResponse.json({ error: "The draft integrity check failed. Generate and review a fresh copy before issue." }, { status: 409 })
+    }
+
     const now = new Date().toISOString()
     const { data: claimed, error: claimError } = await supabase.from("partner_agreement_drafts")
       .update({ status: "ISSUED", issued_at: now, issued_by: session.userId, updated_at: now })
@@ -50,7 +61,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     claimedDraftId = draftId
 
     const partnerId = draft.partner_id ? String(draft.partner_id) : null
-    const input = draft.agreement_payload as AgreementInput
     const martpointSignedAt = new Date().toISOString()
     const martpointSignatureEventId = `MPES-${crypto.randomUUID()}`
     const termsSha256 = String(draft.terms_sha256)

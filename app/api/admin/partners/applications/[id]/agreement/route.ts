@@ -20,6 +20,8 @@ import {
   type AgreementInput,
   type CommercialSection,
 } from "@/lib/partner-agreement"
+import { agreementTypeKeys } from "@/lib/partner-agreement-content"
+import { validateAgreementInput } from "@/lib/partner-agreement-validation"
 
 /* ─── Partner agreement generation ───
  * Generates the clean partner signing copy from the master template (v1.1): Common
@@ -226,7 +228,8 @@ export async function POST(
     const pt = { ...partnerDefaults, ...(body.partner || {}) }
     const appointment = {
       levelByType: "",
-      gradeByType: "",
+      gradeByType: "Ungraded — subject to verified business delivery and performance assessment",
+      publicDirectoryStatus: "Not yet eligible — subject to successful business delivery and MartPoint approval",
       territory: ((app.geographic_coverage as string[]) || []).join(", ") || (app.country as string) || "",
       permittedActivities: defaultPermittedActivities(partnerType),
       additionalProhibitions: defaultProhibitions(partnerType),
@@ -280,16 +283,24 @@ export async function POST(
       .map((s) => ({ title: (s.title || "").trim(), body: (s.body || "").trim() }))
       .filter((s) => s.title && s.body)
 
+    if (agreementTypeKeys(partnerType).includes("implementation") &&
+      !additionalSchedules.some((schedule) => /data processing addendum/i.test(schedule.title))) {
+      additionalSchedules.push({
+        title: "Data Processing Addendum",
+        body: "This Schedule applies only to a processing activity expressly approved in a signed Work Order. The Parties shall record the actual controller, processor or independent-controller roles; purpose; duration; data subjects; personal-data categories; operations; documented instructions; approved systems, locations and subprocessors before access. No role is presumed solely by appointment. Each Party shall comply with the Nigeria Data Protection Act 2023 and applicable Nigeria Data Protection Commission directives. A processor acts only on documented instructions, maintains appropriate technical and organisational safeguards, binds authorised personnel to confidentiality, obtains prior written approval for subprocessors, assists with data-subject requests and audits, and returns or securely deletes data when instructed or when the approved purpose ends, except where law requires retention. A Party discovering a suspected or actual incident affecting the processing shall notify the other affected Party within four hours of discovery, preserve evidence, contain the incident and cooperate with legally required notifications. Processing and customer-environment access are prohibited until this Addendum is signed and the applicable Work Order identifies the processing details and access permissions. This contractual four-hour notice does not replace or extend any statutory deadline."
+      })
+    }
+
     const input: AgreementInput = {
       agreementId: `AGR-${app.reference_number}`,
-      effectiveDate: body.effectiveDate || new Date().toISOString().slice(0, 10),
-      initialTermMonths: body.initialTermMonths || "3",
+      effectiveDate: body.effectiveDate || "",
+      initialTermMonths: body.initialTermMonths || "",
       renewalRule: body.renewalRule || "",
-      noticeDays: body.noticeDays || "30",
-      disputeDays: body.disputeDays || "30",
-      securityNoticeHours: body.securityNoticeHours || "4",
-      referralProtectionDays: body.referralProtectionDays || "90",
-      liabilityFloor: body.liabilityFloor || mpEntity.liabilityFloor || "",
+      noticeDays: body.noticeDays || "",
+      disputeDays: body.disputeDays || "",
+      securityNoticeHours: body.securityNoticeHours || "",
+      referralProtectionDays: body.referralProtectionDays || "",
+      liabilityFloor: body.liabilityFloor || "",
       partnerType,
       martpoint: mp,
       partner: pt,
@@ -297,6 +308,11 @@ export async function POST(
       technology: body.technology || undefined,
       commercials,
       additionalSchedules,
+    }
+
+    const validationErrors = validateAgreementInput(input)
+    if (validationErrors.length) {
+      return NextResponse.json({ error: "Agreement cannot be generated until its mandatory terms are complete.", validationErrors }, { status: 400 })
     }
 
     const termsSha256 = crypto.createHash("sha256").update(JSON.stringify(input)).digest("hex")

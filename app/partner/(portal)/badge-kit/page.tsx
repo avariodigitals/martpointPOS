@@ -24,7 +24,7 @@ export default async function PartnerBadgeKitPage() {
   const partner = await getPartnerById(session.partnerId)
   if (!partner) redirect("/partner")
 
-  const tier = partner.badgeTier
+  const tier = partner.badgeTier && partner.badgeTier === partner.currentGrade ? partner.badgeTier : null
   const baseUrl = partnerSiteBaseUrl()
   const verifyUrl = partnerBadgeVerifyUrl(baseUrl, partner.partnerId)
 
@@ -39,8 +39,8 @@ export default async function PartnerBadgeKitPage() {
         <Card>
           <CardContent className="py-10 text-center">
             <BadgeCheck className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm font-medium">No badge issued yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Your badge kit has not been generated. Contact your MartPoint partner manager.</p>
+            <p className="text-sm font-medium">{partner.currentGrade && partner.currentGrade !== "UNGRADED" ? "Your grade has not been issued as a badge" : "Ungraded — no graded badge has been awarded"}</p>
+            <p className="text-sm text-muted-foreground mt-1">A graded badge is available only after verified business delivery and formal MartPoint Management grade approval.</p>
           </CardContent>
         </Card>
       ) : (

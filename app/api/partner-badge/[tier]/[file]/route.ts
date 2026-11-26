@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { recordPartnerEvent } from "@/lib/partners"
+import { getPublicPartnerByPartnerId, recordPartnerEvent } from "@/lib/partners"
 import { isPartnerBadgeTier, partnerBadgeAssetPath } from "@/lib/partner-badges"
 
 /* Public badge image endpoint used in partner embed snippets:
@@ -25,6 +25,12 @@ export async function GET(
   }
 
   const partnerCode = (new URL(request.url).searchParams.get("p") || "").trim()
+  if (partnerCode) {
+    const partner = await getPublicPartnerByPartnerId(partnerCode)
+    if (!partner?.publicProfileEnabled || partner.currentGrade !== tier) {
+      return NextResponse.json({ error: "This grade badge is not currently issued for this partner" }, { status: 404 })
+    }
+  }
   if (partnerCode) {
     try {
       const referer = request.headers.get("referer") || ""

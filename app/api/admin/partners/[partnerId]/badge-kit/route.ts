@@ -86,10 +86,13 @@ export async function POST(
 
   const { data: partner } = await supabase
     .from("partners")
-    .select("id, badge_tier")
+    .select("id, badge_tier, current_grade")
     .eq("id", partnerId)
     .single()
   if (!partner) return NextResponse.json({ error: "Partner not found" }, { status: 404 })
+  if (partner.current_grade !== tier) return NextResponse.json({ error: "A badge can be issued only after Management formally records the same grade on the partner record" }, { status: 409 })
+  const { data: delivery } = await supabase.from("partner_delivery_verifications").select("id").eq("partner_id", partnerId).eq("approved", true).limit(1).maybeSingle()
+  if (!delivery) return NextResponse.json({ error: "A verified qualifying business delivery is required before issuing a graded badge" }, { status: 409 })
 
   const { error } = await supabase
     .from("partners")

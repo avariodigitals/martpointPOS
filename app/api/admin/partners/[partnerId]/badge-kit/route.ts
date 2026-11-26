@@ -80,30 +80,34 @@ export async function POST(
   const { partnerId } = await params
   const body = await request.json().catch(() => null)
   const tier = typeof body?.tier === "string" ? body.tier.toUpperCase() : ""
-  if (!isPartnerBadgeTier(tier)) {
-    return NextResponse.json({ error: "Tier must be SILVER, GOLD, PLATINUM or DIAMOND" }, { status: 400 })
+  const partnerType = body?.partnerType === "CHANNEL" || body?.partnerType === "IMPLEMENTATION" ? body.partnerType : null
+  if (!isPartnerBadgeTier(tier) || tier === "DIAMOND" || !partnerType) {
+    return NextResponse.json({ error: "Choose a Silver, Gold or Platinum grade and the approved Partner Type" }, { status: 400 })
   }
 
   const { data: partner } = await supabase
     .from("partners")
-    .select("id, badge_tier, current_grade")
+    .select("id, partner_type, badge_tier")
     .eq("id", partnerId)
     .single()
   if (!partner) return NextResponse.json({ error: "Partner not found" }, { status: 404 })
-  if (partner.current_grade !== tier) return NextResponse.json({ error: "A badge can be issued only after Management formally records the same grade on the partner record" }, { status: 409 })
-  const { data: delivery } = await supabase.from("partner_delivery_verifications").select("id").eq("partner_id", partnerId).eq("approved", true).limit(1).maybeSingle()
+  const allowedType = String(partner.partner_type || "").includes(partnerType)
+  if (!allowedType) return NextResponse.json({ error: "This partner is not approved for that Partner Type" }, { status: 409 })
+  const { data: gradeRecord } = await supabase.from("partner_type_grades").select("current_grade").eq("partner_id", partnerId).eq("partner_type", partnerType).maybeSingle()
+  if (gradeRecord?.current_grade !== tier) return NextResponse.json({ error: "A badge can be issued only after Management formally records the same grade for this Partner Type" }, { status: 409 })
+  const { data: delivery } = await supabase.from("partner_delivery_verifications").select("id").eq("partner_id", partnerId).eq("partner_type", partnerType).eq("approved", true).limit(1).maybeSingle()
   if (!delivery) return NextResponse.json({ error: "A verified qualifying business delivery is required before issuing a graded badge" }, { status: 409 })
 
   const { error } = await supabase
     .from("partners")
-    .update({ badge_tier: tier, badge_kit_issued_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({ badge_kit_issued_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq("id", partnerId)
   if (error) return NextResponse.json({ error: "Failed to update partner" }, { status: 500 })
 
   const label = PARTNER_BADGE_TIER_LABELS[tier]
   const kit = {
-    title: `Official MartPoint ${label} Partner Badge Kit`,
-    description: `Embeddable ${label} verification badge (horizontal & vertical) with copy-ready HTML snippets and PNG downloads.`,
+    title: `Official MartPoint ${label} ${partnerType === "CHANNEL" ? "Channel" : "Implementation"} Partner Badge Kit`,
+    description: `Embeddable ${label} ${partnerType === "CHANNEL" ? "Channel" : "Implementation"} verification badge (horizontal & vertical) with copy-ready HTML snippets and PNG downloads.`,
     category: "Badge",
     externalUrl: KIT_URL,
     visibility: "PARTNER" as const,
@@ -122,14 +126,14 @@ export async function POST(
     action: AUDIT_ACTIONS.PARTNER_UPDATED,
     entityType: AUDIT_ENTITIES.PARTNER,
     entityId: partnerId,
-    metadata: { badgeTier: tier, previousBadgeTier: partner.badge_tier ?? null },
+    metadata: { badgeTier: tier, partnerType, previousBadgeTier: gradeRecord.current_grade ?? null },
   })
 
   // Grade & Certification Confirmation document (best-effort).
   try {
     await issueGradeConfirmation(
       partnerId,
-      { newGrade: tier, previousGrade: (partner.badge_tier as string | null) ?? null },
+      { newGrade: tier, previousGrade: (gradeRecord.current_grade as string | null) ?? null, partnerType },
       { id: session!.userId, name: session!.name || session!.username }
     )
   } catch (e) {

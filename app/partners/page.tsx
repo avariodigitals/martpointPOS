@@ -63,7 +63,7 @@ const partnerTypes = [
     title: "Channel + Implementation Partners",
     subtitle: null,
     description:
-      "Combine approved MartPoint sales and first-line guidance with certified implementation work assigned under a separate Work Order.",
+      "One combined appointment for approved MartPoint sales and certified implementation work, tracked as separate performance types. A Work Order is created only when a customer project is approved.",
     earn: "Agreed commission on qualifying software sales and separate fees for authorised implementation Work Orders.",
   },
   {
@@ -71,7 +71,7 @@ const partnerTypes = [
     title: "Implementation Partners",
     subtitle: null,
     description:
-      "Help assigned customers configure business information, prepare approved data imports, onboard users and complete training after MartPoint provisions the system.",
+      "Help assigned customers configure business information, prepare approved data imports, onboard users and complete training after MartPoint provisions the system. Each approved customer project has its own Work Order.",
     earn: "Fees for approved implementation work. A separately approved customer referral may also qualify for a sales commission.",
   },
   {
@@ -296,9 +296,9 @@ export default function PartnersPage() {
               headline="Choose How You Partner with MartPoint"
               description="Your approved partnership type determines your responsibilities and earning model. You may discuss more than one type with us, with each assessed separately."
             />
-            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-5 max-w-5xl mx-auto">
-              {partnerTypes.map((type, i) => (
-                <div key={type.title} className={`rounded-xl border border-border bg-background p-6 transition-all duration-200 hover:border-retail/30 hover:shadow-sm flex flex-col lg:col-span-2 ${i === 3 ? "lg:col-start-2" : ""}`}>
+            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-stretch gap-5 max-w-6xl mx-auto">
+              {partnerTypes.map((type) => (
+                <div key={type.title} className="h-full min-w-0 rounded-xl border border-border bg-background p-6 transition-all duration-200 hover:border-retail/30 hover:shadow-sm flex flex-col">
                   <div className="w-10 h-10 rounded-lg bg-retail-soft flex items-center justify-center mb-4">
                     <type.icon className="w-5 h-5 text-retail" />
                   </div>

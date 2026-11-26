@@ -19,8 +19,9 @@ export default async function VerifyPartnerPage({
    * straight to the public profile so one click verifies the partner. */
   const sp = await searchParams
   const code = (typeof sp.partner === "string" ? sp.partner : "").trim().toUpperCase()
+  const partnerType = typeof sp.type === "string" ? sp.type.toUpperCase() : ""
   if (/^MP-[A-Z]{2,3}-\d{1,6}$/.test(code)) {
-    redirect(`/partners/${code}?src=badge`)
+    redirect(`/partners/${code}?src=badge${partnerType ? `&type=${encodeURIComponent(partnerType)}` : ""}`)
   }
 
   return (

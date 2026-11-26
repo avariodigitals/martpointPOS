@@ -14,7 +14,7 @@ const PARTNER_OPTIONS: { value: PartnerType; label: string; desc: string }[] = [
   { value: "REFERRAL", label: "Referral Partner", desc: "Introduce businesses to MartPoint." },
   { value: "CHANNEL", label: "Channel Partner", desc: "Sales & first-line usage guidance." },
   { value: "IMPLEMENTATION", label: "Implementation Partner", desc: "Configure, onboard and train customers." },
-  { value: "CHANNEL_IMPLEMENTATION", label: "Channel + Implementation", desc: "Both sales and implementation." },
+  { value: "CHANNEL_IMPLEMENTATION", label: "Channel + Implementation", desc: "One combined appointment with separate Channel and Implementation performance tracks. Each approved implementation project gets its own Work Order." },
   { value: "TECHNOLOGY", label: "Technology Partner", desc: "Integrate compatible hardware/software." },
   { value: "PAYMENT", label: "Payment Partner", desc: "Enable approved payment services." },
 ]

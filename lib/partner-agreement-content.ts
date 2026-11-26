@@ -1,6 +1,6 @@
 import type { PartnerType } from "./partners"
 
-/* ───────────────────  Partner Agreement content (master template v1.1)  ───────────────────
+/* ───────────────────  Partner Agreement content (master template v1.3)  ───────────────────
  * Partner-facing wording ONLY. The master .docx is an internal "LEGAL AND AUTOMATION
  * MASTER" that also carries generation rules, internal approval logic, merge-field
  * documentation and a legal review checklist — none of which belongs in a partner's
@@ -8,7 +8,18 @@ import type { PartnerType } from "./partners"
  * schedules per approved partner type; unused schedules are omitted entirely.
  */
 
-export const AGREEMENT_TEMPLATE_VERSION = "1.2"
+export const AGREEMENT_TEMPLATE_VERSION = "1.3"
+
+export const CHANNEL_ACQUISITION_COMMISSION_RATE = "10%"
+export const CHANNEL_RENEWAL_COMMISSION_RATE = "5%"
+export const CHANNEL_RENEWAL_COMMISSION_DURATION = "Maximum two subsequent annual subscription renewals"
+export const CHANNEL_COMMISSION_ELIGIBLE_ITEMS =
+  "Initial qualifying MartPoint software licence subscription and up to two subsequent annual subscription renewals"
+export const CHANNEL_RENEWAL_COMMISSION_RULE =
+  "5% of Eligible Revenue for a maximum of two subsequent annual subscription renewals, provided the Partner maintains an active MartPoint agreement, remains officially assigned to the Customer, fulfils applicable customer support and renewal responsibilities, and remains compliant with MartPoint partnership policies. Renewal commission is not perpetual. Any extension beyond these two renewals requires MartPoint's express written approval. All commissions remain subject to applicable payment, attribution and commercial conditions."
+
+export const CHANNEL_COMMISSION_CLAUSE =
+  "The Channel Partner shall be eligible for an acquisition commission of 10% of Eligible Revenue from the initial qualifying software licence subscription. For a maximum of two subsequent annual subscription renewals, the Channel Partner shall be eligible for 5% of Eligible Revenue, provided it maintains an active MartPoint agreement, remains officially assigned to the Customer, fulfils applicable customer support and renewal responsibilities, and remains compliant with MartPoint partnership policies. Renewal commission is not a perpetual entitlement. Any extension beyond the approved two-renewal period requires MartPoint's express written approval. All commissions remain subject to applicable payment, attribution and commercial conditions."
 
 export type AgreementTypeKey = "referral" | "channel" | "implementation" | "technology" | "payment_provider"
 
@@ -109,10 +120,12 @@ export function defaultProhibitions(partnerType: PartnerType | string): string {
 
 /** Per-field template defaults for a Commercial Terms section, keyed by earning basis.
  * Keeps generated wording consistent with the master template's commercial schedule. */
-export function commercialFieldDefaults(earningCategory: string): Partial<Record<string, string>> {
+export function commercialFieldDefaults(earningCategory: string, partnerTypeLabel = ""): Partial<Record<string, string>> {
   const cat = earningCategory.toLowerCase()
   const acquisition = cat.includes("commission")
+  const channelCommission = partnerTypeLabel.toLowerCase() === "channel partner" && cat.includes("commission")
   return {
+    ...(channelCommission ? { rateOrFee: CHANNEL_ACQUISITION_COMMISSION_RATE } : {}),
     rateUnit: acquisition ? "PERCENTAGE" : cat.includes("implementation") ? "WORK_ORDER" : "FIXED",
     eligibleRevenueDefinition:
       "Eligible Revenue as defined in clause 2 — net software revenue actually received and cleared by MartPoint after approved discounts, excluding taxes, refunds, chargebacks, hardware, third-party charges and excluded services.",
@@ -122,11 +135,11 @@ export function commercialFieldDefaults(earningCategory: string): Partial<Record
       : "Earning applies only to work or services expressly assigned to the Partner in writing (Work Order, Customer Assignment or Production Approval).",
     holdingDays: acquisition ? "30" : "0",
     holdingStartEvent: acquisition ? "Required licence activation" : "Customer payment cleared",
-    renewalRule: acquisition
+    renewalRule: channelCommission ? CHANNEL_RENEWAL_COMMISSION_RULE : acquisition
       ? "No automatic renewal commission entitlement. Any renewal commission requires express approval in a signed Commercial Schedule stating its rate, eligible renewal term and duration."
       : "Fees apply per engagement; renewals require a new or extended assignment.",
-    renewalRate: acquisition ? "Not approved; no automatic renewal commission" : "Not applicable",
-    renewalDuration: acquisition ? "None unless expressly approved in a signed Commercial Schedule" : "Not applicable",
+    renewalRate: channelCommission ? CHANNEL_RENEWAL_COMMISSION_RATE : acquisition ? "Not approved; no automatic renewal commission" : "Not applicable",
+    renewalDuration: channelCommission ? CHANNEL_RENEWAL_COMMISSION_DURATION : acquisition ? "None unless expressly approved in a signed Commercial Schedule" : "Not applicable",
     reversalRule:
       "Earnings on refunded, charged-back, fraudulent or reversed amounts are deducted or clawed back; MartPoint may offset against future payouts.",
     statementCycle: "Monthly",
@@ -135,9 +148,11 @@ export function commercialFieldDefaults(earningCategory: string): Partial<Record
     currencyAndTaxRule: "",
     splitRule:
       "No stacking — a single Customer transaction generates an earning under one basis only, unless a signed Schedule expressly allows a split.",
-    ...(cat.includes("implementation") || cat.includes("technology") || cat.includes("payment")
-      ? { eligibleItems: "As stated in the applicable Partner Type Schedule and any signed Work Order." }
-      : { eligibleItems: "MartPoint software licence subscriptions on approved plans, as stated in the Partner Type Schedule." }),
+    eligibleItems: channelCommission
+      ? CHANNEL_COMMISSION_ELIGIBLE_ITEMS
+      : cat.includes("implementation") || cat.includes("technology") || cat.includes("payment")
+      ? "As stated in the applicable Partner Type Schedule and any signed Work Order."
+      : "MartPoint software licence subscriptions on approved plans, as stated in the Partner Type Schedule.",
   }
 }
 
@@ -219,7 +234,7 @@ export function commonTerms(v: AgreementVars): { part: string | null; clauses: C
         {
           num: "5",
           title: "Partner obligations and performance",
-          body: "The Partner shall act honestly and professionally; follow applicable law, this Agreement and Approved Materials; keep accurate records; obtain necessary customer consent; use trained personnel; protect credentials and data; disclose material conflicts relating to MartPoint-authorised activities; report complaints and incidents promptly; cooperate with audits and handovers; and avoid conduct likely to mislead customers or damage MartPoint. Permitted independent services and relationships with other software providers under clause 3 are not, by themselves, a conflict. All newly approved Partners start Ungraded. Partner Type, Operating Level, Account Status, Partner Grade and Public Directory Status are separate. Standard is an operating level and is not a grade. Ungraded does not prevent agreement generation, signing, activation or onboarding. The existing 90-day activation and activity-monitoring framework is separate from grading and directory eligibility. A Channel Partner has qualifying delivery only when an acquired customer has paid an eligible amount that cleared and the MartPoint licence has been activated. An Implementation Partner has qualifying delivery only after an authorised implementation assignment is successfully completed and formally accepted in writing. Meetings, demonstrations, proposals, registered leads, training and onboarding alone are not qualifying delivery. At least one verified qualifying delivery creates eligibility for grading review and directory eligibility; it does not guarantee a grade or listing. Grade assignment requires assessment against MartPoint's approved criteria and written Management approval. Referral grade thresholds in Schedule Two apply only to Referral Partners. No grade may be assessed for another Partner Type until MartPoint has approved and published criteria for that Partner Type. Only approved, eligible Partners may be published in the public directory, and a Silver, Gold, Platinum or other graded badge may be issued only after the grade is formally awarded. After directory publication, 90 consecutive calendar days without verified qualifying activity may trigger a written directory suspension notice and a 10-business-day response period. If no qualifying activity is verified and no active review hold or approved extension applies by the end of that period, MartPoint may suspend or remove the public listing. Logins alone do not qualify as activity. A listing suspension alone does not terminate this Agreement, disable the Partner's account or forfeit commissions already properly earned under the applicable Schedule. Grades do not change commercial rights unless a signed Commercial Schedule expressly says so.",
+          body: "The Partner shall act honestly and professionally; follow applicable law, this Agreement and Approved Materials; keep accurate records; obtain necessary customer consent; use trained personnel; protect credentials and data; disclose material conflicts relating to MartPoint-authorised activities; report complaints and incidents promptly; cooperate with audits and handovers; and avoid conduct likely to mislead customers or damage MartPoint. Permitted independent services and relationships with other software providers under clause 3 are not, by themselves, a conflict. All newly approved Partners start Ungraded. Partner Type, Operating Level, Account Status, Partner Grade and Public Directory Status are separate. Standard is an operating level and is not a grade. Ungraded does not prevent agreement generation, signing, activation or onboarding. The 90-day activation and activity-monitoring framework is separate from successful delivery and performance grading. A Channel Partner has qualifying delivery only when an acquired customer has paid an eligible amount that cleared and the MartPoint licence has been activated. An Implementation Partner has qualifying delivery only after an authorised implementation assignment is successfully completed and formally accepted in writing under an approved Work Order. Meetings, demonstrations, proposals, registered leads, training and onboarding alone are not qualifying delivery. A verified qualifying delivery creates eligibility for a grade assessment, but does not automatically award a grade or make the Partner eligible for public listing. Channel and Implementation grades are assessed separately under the MartPoint Partner Performance, Grading & Progression Policy (MP-POL-PGP-001). Grade assignment requires assessment against the effective policy and written Management approval. Only approved and eligible Partners may be published in the public directory, and a graded badge may be issued only after the grade is formally awarded for the relevant Partner Type. After directory publication, 90 consecutive calendar days without verified qualifying activity may trigger a written directory suspension notice and a 10-business-day response period. If no qualifying activity is verified and no active review hold or approved extension applies by the end of that period, MartPoint may suspend or remove the public listing. Logins alone do not qualify as activity. A listing suspension alone does not terminate this Agreement, disable the Partner's account or forfeit commissions already properly earned under the applicable Schedule. Grades do not change commercial rights unless a signed Commercial Schedule expressly says so.",
         },
         {
           num: "6",
@@ -381,15 +396,16 @@ export function typeScheduleClauses(key: AgreementTypeKey, v: AgreementVars): Ty
         { id: "R3", title: "Commission trigger", body: "No amount is payable for a name, contact, lead, meeting, demonstration, quotation, invoice or promise to pay. Commission becomes eligible only after the Customer pays MartPoint, the payment clears, the licence is activated, the holding period expires and all Commission Schedule conditions are met." },
         { id: "R4", title: "Boundaries", body: "The Partner receives no customer-account access from referral status, shall not collect licence payments, negotiate unapproved prices, promise features or implementation, or represent itself as authorised to contract for MartPoint." },
         { id: "R5", title: "Commercial reference", body: `Commission rates, eligible products, exclusions, renewals, reversals, holding period, statement cycle and payout timing are stated only in ${v.commercialRef}.` },
-        { id: "R6", title: "Performance grades and review", body: "All newly approved Referral Partners start Ungraded. The 90-day activation and activity-monitoring period is separate from grade eligibility and does not itself award Silver or any other grade. Qualifying Channel delivery requires an acquired customer, cleared eligible payment and activated MartPoint licence. Accepted referrals, meetings, demonstrations, proposals, training and onboarding alone do not qualify. At least one verified qualifying delivery is required before Management may assess a grade. Silver requires an active agreement, completed orientation, at least one accepted referral in the preceding 6 months, at least one verified qualifying delivery, clean conduct and written Management approval. Gold requires at least 6 accepted referrals and 2 paid conversions in the preceding 6 months, a valid submission rate of at least 80%, clean conduct, 2 consecutive passing quarterly reviews, verified qualifying delivery and written Management approval. Platinum requires at least 15 accepted referrals and 6 paid conversions in the preceding 12 months, a valid submission rate of at least 85%, refunds or credits no greater than 10%, verified qualifying delivery, clean conduct and written Management approval. Diamond requires at least 30 accepted referrals and 12 paid conversions in the preceding 12 months, a valid submission rate of at least 90%, refunds or credits no greater than 5%, verified qualifying delivery, clean conduct, documented strategic contribution and written Management approval. Meeting a threshold creates eligibility for review only; it does not create entitlement to a grade. No graded badge may be issued before the grade is formally recorded. A grade recognises performance only; it does not change commission, access, territory or exclusivity unless a signed Commercial Schedule expressly says so." },
+        { id: "R6", title: "Performance grades and review", body: "Partner grades are awarded separately for each applicable Partner Type under the MartPoint Partner Performance, Grading & Progression Policy (MP-POL-PGP-001), which is issued as a separate partner resource. A Partner starts Ungraded. The 90-day activity-monitoring period is separate from successful business delivery and does not itself award a grade. Referral registration, meetings, demonstrations, proposals, training and onboarding alone do not qualify. Grade eligibility requires verified qualifying delivery, applicable duration and onboarding, satisfactory customer outcomes and compliance, and Management approval. Eligibility is not an automatic award. Badges and public directory recognition require formal approval and applicable publication eligibility. MartPoint may update the Policy prospectively with notice, ordinarily 30 days; changes do not alter accrued contractual financial entitlements. Any change to signed commercial terms follows the Agreement's written amendment procedure. A grade does not change commission, access, territory or exclusivity unless a signed Commercial Schedule expressly says so." },
       ]
     case "channel":
       return [
         { id: "C1", title: "Scope", body: "The Partner may promote and demonstrate MartPoint, register opportunities, coordinate approved sales activity and provide agreed first-line guidance to Customers assigned in writing. MartPoint remains the contracting, pricing, billing, licensing, deployment and platform owner." },
         { id: "C2", title: "Sales controls", body: "The Partner shall use current Approved Materials and pricing, capture customer requirements accurately, route all quotations and exceptions through MartPoint and ensure payment follows MartPoint's approved collection route." },
         { id: "C3", title: "Customer support", body: "Support access exists only under a Customer Assignment. The Partner shall provide agreed first-line usage guidance, keep service records, complete renewal-support tasks and escalate platform defects. It shall not promise unapproved service levels." },
-        { id: "C4", title: "Commission trigger", body: `Acquisition commission requires cleared eligible Customer payment and completed activation. Renewal commission applies only for the periods in ${v.commercialRef} while the Partner remains assigned and fulfils the stated service obligations. Referral and Channel acquisition rewards do not stack unless an approved split is written into the Schedule.` },
+        { id: "C4", title: "Channel commission", body: `${CHANNEL_COMMISSION_CLAUSE} Acquisition commission requires cleared eligible Customer payment and completed activation. Referral and Channel acquisition rewards do not stack unless an approved split is written into the Schedule.` },
         { id: "C5", title: "Reassignment", body: "A Customer may request reassignment or direct MartPoint support. Earned acquisition commission remains subject to its Schedule; future service-based renewal entitlement depends on active assignment and completed obligations." },
+        { id: "C6", title: "Performance grades", body: "Channel grade progression is governed by the separate MartPoint Partner Performance, Grading & Progression Policy (MP-POL-PGP-001). Channel outcomes are distinct acquired Customers with cleared subscription payment and activated licence. The 90-day activity-monitoring period does not by itself award a grade. Grades require the applicable verified outcomes and duration, onboarding, satisfactory customer outcomes and compliance, and formal Management approval. Policy changes apply prospectively with notice, ordinarily 30 days, and do not change accrued contractual financial entitlements or signed commission terms." },
       ]
     case "implementation":
       return [
@@ -398,6 +414,7 @@ export function typeScheduleClauses(key: AgreementTypeKey, v: AgreementVars): Ty
         { id: "I3", title: "Restrictions and independent services", body: "The Partner shall not deploy MartPoint, create licences, expand scope without a change order, retain access after completion or mark the Customer live. The Partner shall not impose unauthorised charges for services performed on behalf of MartPoint or covered by an approved Work Order. This restriction does not apply to independently contracted services supplied by the Partner under its own terms and fees, provided those services are not misrepresented as MartPoint services or used to circumvent MartPoint's licensing, payment or implementation controls. The Partner remains free to set the prices for its independent services. Separate independent customer contracts do not amend a MartPoint contract." },
         { id: "I4", title: "Acceptance and payment", body: "The Partner submits completion evidence. MartPoint decides acceptance and go-live. The fee is the fixed or milestone amount in the Work Order or Fee Schedule and becomes payable only when the stated Customer funds and acceptance conditions are met." },
         { id: "I5", title: "Data and handover", body: "Where Personal Data is processed, the Data Processing Addendum must be active. At completion or termination, the Partner shall deliver all records, return or delete data, support transition and permit access revocation." },
+        { id: "I6", title: "Performance grades", body: "Implementation grade progression is governed by the separate MartPoint Partner Performance, Grading & Progression Policy (MP-POL-PGP-001). Implementation outcomes are distinct customer implementations completed and formally accepted under authorised Work Orders. The 90-day activity-monitoring period does not by itself award a grade. Grades require the applicable verified outcomes and duration, onboarding, applicable certification, satisfactory customer outcomes and compliance, and formal Management approval. Policy changes apply prospectively with notice, ordinarily 30 days, and do not change accrued contractual financial entitlements or signed fees." },
       ]
     case "technology":
       return [

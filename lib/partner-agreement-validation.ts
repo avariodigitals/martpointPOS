@@ -1,4 +1,11 @@
-import { agreementTypeKeys, earningBasesFor } from "./partner-agreement-content"
+import {
+  agreementTypeKeys,
+  earningBasesFor,
+  CHANNEL_ACQUISITION_COMMISSION_RATE,
+  CHANNEL_RENEWAL_COMMISSION_DURATION,
+  CHANNEL_RENEWAL_COMMISSION_RATE,
+  CHANNEL_RENEWAL_COMMISSION_RULE,
+} from "./partner-agreement-content"
 import type { AgreementInput, CommercialSection } from "./partner-agreement"
 
 const REQUIRED_PARTY_FIELDS: [string, string][] = [
@@ -97,6 +104,34 @@ export function validateAgreementInput(input: AgreementInput): string[] {
       add(`${prefix} must state a minimum payout threshold or expressly say there is no minimum.`)
     }
   })
+
+  if (typeKeys.includes("channel")) {
+    const channelCommission = (input.commercials || []).find((section) =>
+      section.partnerTypeLabel.trim().toLowerCase() === "channel partner" &&
+      section.earningCategory.toLowerCase().includes("commission")
+    )
+    if (!channelCommission) {
+      add("Channel appointments require the approved 10% acquisition and 5% renewal commission schedule.")
+    } else {
+      const percentage = (value: string | undefined) => {
+        const match = value?.trim().match(/^(\d+(?:\.\d+)?)\s*%?$/)
+        return match ? Number(match[1]) : NaN
+      }
+      const normalize = (value: string | undefined) => (value || "").trim().replace(/\s+/g, " ").toLowerCase()
+      if (channelCommission.rateUnit !== "PERCENTAGE" || percentage(channelCommission.rateOrFee) !== Number(CHANNEL_ACQUISITION_COMMISSION_RATE.replace("%", ""))) {
+        add("Channel acquisition commission must be 10% of Eligible Revenue from the initial qualifying software licence subscription.")
+      }
+      if (percentage(channelCommission.renewalRate) !== Number(CHANNEL_RENEWAL_COMMISSION_RATE.replace("%", ""))) {
+        add("Channel renewal commission must be 5% of Eligible Revenue.")
+      }
+      if (normalize(channelCommission.renewalDuration) !== normalize(CHANNEL_RENEWAL_COMMISSION_DURATION)) {
+        add("Channel renewal commission must be limited to two subsequent annual subscription renewals.")
+      }
+      if (normalize(channelCommission.renewalRule) !== normalize(CHANNEL_RENEWAL_COMMISSION_RULE)) {
+        add("Channel renewal eligibility must include all approved assignment, support, compliance and non-perpetual entitlement conditions.")
+      }
+    }
+  }
 
   if (input.partnerType === "TECHNOLOGY") {
     check("Approved technology solution name", input.technology?.solutionName)

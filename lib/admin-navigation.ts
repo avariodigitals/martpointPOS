@@ -243,8 +243,8 @@ export const adminNavItems: AdminNavItem[] = [
     section: "Partner Network"
   },
   {
-    href: "/admin/partners/grades",
-    label: "Partner Grades",
+    href: "/admin/partners/performance",
+    label: "Partner Performance & Grades",
     icon: Award,
     page: "partners",
     section: "Partner Network"

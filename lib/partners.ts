@@ -408,9 +408,14 @@ export interface PublicPartner {
   services: string[]
   partnerSince: string | null
   currentGrade: string | null
+  gradesByPartnerType: { partnerType: string; grade: string }[]
 }
 
 function mapPublicPartner(row: Record<string, unknown>): PublicPartner {
+  const grades = Array.isArray(row.partner_type_grades) ? row.partner_type_grades as Record<string, unknown>[] : []
+  const validGrades = grades.filter((g) => ["SILVER", "GOLD", "PLATINUM"].includes(String(g.current_grade)))
+  const rank: Record<string, number> = { SILVER: 1, GOLD: 2, PLATINUM: 3 }
+  const highest = [...validGrades].sort((a, b) => (rank[String(b.current_grade)] || 0) - (rank[String(a.current_grade)] || 0))[0]
   return {
     id: row.id as string,
     partnerId: row.partner_id as string,
@@ -428,7 +433,8 @@ function mapPublicPartner(row: Record<string, unknown>): PublicPartner {
     serviceAreas: (row.service_areas as string) || "",
     services: [],
     partnerSince: (row.partner_since as string) ?? null,
-    currentGrade: ["SILVER", "GOLD", "PLATINUM", "DIAMOND"].includes(String(row.current_grade)) ? String(row.current_grade) : null,
+    currentGrade: highest ? String(highest.current_grade) : null,
+    gradesByPartnerType: validGrades.map((g) => ({ partnerType: String(g.partner_type), grade: String(g.current_grade) })),
   }
 }
 
@@ -476,7 +482,7 @@ export async function listPublicPartners(filters?: {
   if (!isSupabaseConfigured()) return []
   let q = supabase
     .from("partners")
-    .select("id, partner_id, business_name, display_name, partner_type, current_grade, country, state, city, website, logo_url, public_email, public_phone, public_address, service_areas, partner_since, partner_lifecycle!inner(listing_status,account_status,compliance_status,directory_eligible)")
+    .select("id, partner_id, business_name, display_name, partner_type, current_grade, country, state, city, website, logo_url, public_email, public_phone, public_address, service_areas, partner_since, partner_lifecycle!inner(listing_status,account_status,compliance_status,directory_eligible),partner_type_grades!inner(partner_type,current_grade)")
     .eq("status", "ACTIVE")
     .eq("public_profile_enabled", true)
     .in("partner_lifecycle.listing_status", ["published", "pending_suspension"])
@@ -519,6 +525,7 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
   partnerSince: string | null
   publicProfileEnabled: boolean
   currentGrade: string | null
+  gradesByPartnerType: { partnerType: string; grade: string }[]
 } | null> {
   if (!isSupabaseConfigured()) return null
   // RLS only exposes ACTIVE+public. For verify we need to see any status to show
@@ -531,9 +538,13 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
   if (!data) return null
   const { data: lifecycle } = await supabase.from("partner_lifecycle").select("listing_status,account_status,compliance_status,directory_eligible").eq("partner_id", data.id).maybeSingle()
   if (!lifecycle || lifecycle.directory_eligible !== true || !["published", "pending_suspension"].includes(lifecycle.listing_status) || lifecycle.account_status !== "enabled" || !["clear", "open_case", "under_review"].includes(lifecycle.compliance_status)) {
-    return { id: data.id, partnerId: data.partner_id, businessName: "Partner not currently listed", displayName: "Partner not currently listed", partnerType: data.partner_type, status: data.status, country: "", state: "", city: "", website: null, logoUrl: null, publicEmail: null, publicPhone: null, publicAddress: null, serviceAreas: "", services: [], partnerSince: null, publicProfileEnabled: false, currentGrade: null }
+    return { id: data.id, partnerId: data.partner_id, businessName: "Partner not currently listed", displayName: "Partner not currently listed", partnerType: data.partner_type, status: data.status, country: "", state: "", city: "", website: null, logoUrl: null, publicEmail: null, publicPhone: null, publicAddress: null, serviceAreas: "", services: [], partnerSince: null, publicProfileEnabled: false, currentGrade: null, gradesByPartnerType: [] }
   }
+  const { data: gradeRows } = await supabase.from("partner_type_grades").select("partner_type,current_grade").eq("partner_id", data.id).in("current_grade", ["SILVER", "GOLD", "PLATINUM"])
+  if (!gradeRows?.length) return { id: data.id, partnerId: data.partner_id, businessName: "Partner not currently listed", displayName: "Partner not currently listed", partnerType: data.partner_type, status: data.status, country: "", state: "", city: "", website: null, logoUrl: null, publicEmail: null, publicPhone: null, publicAddress: null, serviceAreas: "", services: [], partnerSince: null, publicProfileEnabled: false, currentGrade: null, gradesByPartnerType: [] }
   const services = await loadPublicServices([data.id as string])
+  const rank: Record<string, number> = { SILVER: 1, GOLD: 2, PLATINUM: 3 }
+  const highestGrade = [...gradeRows].sort((a, b) => (rank[String(b.current_grade)] || 0) - (rank[String(a.current_grade)] || 0))[0]?.current_grade || null
   return {
     id: data.id,
     partnerId: data.partner_id,
@@ -553,7 +564,8 @@ export async function getPublicPartnerByPartnerId(partnerId: string): Promise<{
     services: services.get(data.id as string) ?? [],
     partnerSince: data.partner_since ?? null,
     publicProfileEnabled: data.public_profile_enabled ?? false,
-    currentGrade: ["SILVER", "GOLD", "PLATINUM", "DIAMOND"].includes(String(data.current_grade)) ? String(data.current_grade) : null,
+    currentGrade: highestGrade ? String(highestGrade) : null,
+    gradesByPartnerType: gradeRows.map((g) => ({ partnerType: g.partner_type, grade: g.current_grade })),
   }
 }
 

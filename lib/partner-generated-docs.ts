@@ -612,7 +612,7 @@ export async function issuePayoutStatement(
 
 export async function issueGradeConfirmation(
   partnerId: string,
-  input: { newGrade: string; previousGrade: string | null; basis?: string | null },
+  input: { newGrade: string; previousGrade: string | null; partnerType: string; basis?: string | null },
   generatedBy: { id: string; name?: string | null }
 ): Promise<{ ok: boolean; error?: string; document?: GeneratedDocRecord }> {
   const [partner, mp, logoDataUrl] = await Promise.all([
@@ -628,7 +628,7 @@ export async function issueGradeConfirmation(
     sourceRecordType: "partner",
     sourceRecordId: partnerId,
     generatedBy: generatedBy.id,
-    metadata: { previousGrade: input.previousGrade, newGrade: input.newGrade },
+    metadata: { previousGrade: input.previousGrade, newGrade: input.newGrade, partnerType: input.partnerType },
     render: (control) => ({
       pdf: renderGradeConfirmation(
         {
@@ -636,6 +636,7 @@ export async function issueGradeConfirmation(
           partner,
           previousGrade: input.previousGrade,
           newGrade: input.newGrade,
+          partnerType: input.partnerType,
           effectiveDate: control.generatedAt,
           reviewPeriod: null,
           basis: input.basis ?? null,

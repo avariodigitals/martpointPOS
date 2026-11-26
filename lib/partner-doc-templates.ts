@@ -321,6 +321,7 @@ export interface GradeConfirmationInput {
   partner: PartnerIdentity
   previousGrade: string | null
   newGrade: string
+  partnerType?: string
   effectiveDate: string
   reviewPeriod: string | null
   basis: string | null
@@ -344,12 +345,13 @@ export function renderGradeConfirmation(
   d.fieldTable([
     ["Partner", `${partner.legalName} (${partner.partnerId})`],
     ["Approved partner type(s)", partner.partnerTypeLabel],
+    ["Graded partner type", input.partnerType || partner.partnerTypeLabel],
     ["Previous grade", orNA(input.previousGrade)],
     ["Confirmed grade", input.newGrade],
     ["Effective date", fmtDate(input.effectiveDate)],
     ["Review period", orNA(input.reviewPeriod)],
     ["Basis", orNA(input.basis)],
-    ["Badge permission", `Partner may display the official ${input.newGrade} verification badge while this grade remains in force`],
+    ["Badge permission", input.newGrade === "UNGRADED" ? "No graded Partner Type badge is authorised" : `Partner may display the official ${input.newGrade} ${input.partnerType || partner.partnerTypeLabel} verification badge while this grade remains in force`],
   ])
   d.para("Grade is separate from partner type and operating level. It does not alter commercial rates unless a signed schedule expressly says so. A grade may be reviewed or changed when performance, certification or compliance changes.", { gap: 10 })
 

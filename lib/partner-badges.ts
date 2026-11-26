@@ -49,14 +49,15 @@ export function partnerBadgeImageUrl(
   baseUrl: string,
   tier: PartnerBadgeTier,
   orientation: PartnerBadgeOrientation,
-  partnerCode: string
+  partnerCode: string,
+  partnerType: string
 ): string {
-  return `${baseUrl}/api/partner-badge/${tier.toLowerCase()}/${orientation}?p=${encodeURIComponent(partnerCode)}`
+  return `${baseUrl}/api/partner-badge/${tier.toLowerCase()}/${orientation}?p=${encodeURIComponent(partnerCode)}&type=${encodeURIComponent(partnerType)}`
 }
 
 /** Public verification link baked into badge snippets. */
-export function partnerBadgeVerifyUrl(baseUrl: string, partnerCode: string): string {
-  return `${baseUrl}/partners/verify?partner=${encodeURIComponent(partnerCode)}`
+export function partnerBadgeVerifyUrl(baseUrl: string, partnerCode: string, partnerType: string): string {
+  return `${baseUrl}/partners/verify?partner=${encodeURIComponent(partnerCode)}&type=${encodeURIComponent(partnerType)}`
 }
 
 /** Full HTML embed snippet for a partner to paste on their site. */
@@ -65,12 +66,13 @@ export function partnerBadgeSnippet(options: {
   tier: PartnerBadgeTier
   orientation: PartnerBadgeOrientation
   partnerCode: string
+  partnerType: string
 }): string {
-  const { baseUrl, tier, orientation, partnerCode } = options
+  const { baseUrl, tier, orientation, partnerCode, partnerType } = options
   const label = PARTNER_BADGE_TIER_LABELS[tier]
   const width = PARTNER_BADGE_WIDTHS[orientation]
-  const href = partnerBadgeVerifyUrl(baseUrl, partnerCode)
-  const src = partnerBadgeImageUrl(baseUrl, tier, orientation, partnerCode)
+  const href = partnerBadgeVerifyUrl(baseUrl, partnerCode, partnerType)
+  const src = partnerBadgeImageUrl(baseUrl, tier, orientation, partnerCode, partnerType)
   return `<a href="${href}" target="_blank" rel="noopener noreferrer" aria-label="Verify this MartPoint ${label} Partner">
   <img src="${src}" alt="Official MartPoint ${label} Partner" width="${width}" style="display:block;max-width:100%;height:auto;border:0" loading="lazy">
 </a>`

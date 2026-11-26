@@ -1,265 +1,102 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
+import { useCallback, useEffect, useState } from "react"
+import { Award, Loader2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, ArrowLeft, BarChart3 } from "lucide-react"
-import { enumLabel } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/admin/admin-toast"
 
-interface PerfRow {
-  partnerId: string
-  partnerCode: string
-  businessName: string
-  partnerType: string
-  status: string
-  location: string
-  country: string
-  state: string
-  hasLeadCapability: boolean
-  hasCustomerCapability: boolean
-  hasImplementationCapability: boolean
-  hasSupportCapability: boolean
-  hasCommercialCapability: boolean
-  leadsRegistered: number
-  protectedLeads: number
-  wonBusinesses: number
-  assignedCustomers: number
-  attributedRevenue: number
-  currency: string
-  commissionEarned: number
-  commissionPaid: number
-  complianceStatus: string
-  onboardingCompleted: number
-  onboardingTotal: number
-  supportTicketsHandled: number
-  escalations: number
-}
+type Partner = { id: string; partner_id: string; business_name: string; partner_type: string; current_grade?: string }
+type Review = { partner: Partner; track: { currentGrade: string; qualifyingOutcomes: number; partnershipDays: number; activeAgreement: boolean; onboardingComplete: boolean; complianceClear: boolean; policyStatus: string; outcomeReferences: { reference: string; verifiedAt: string }[] }; history: Record<string, unknown>[] }
+const inputClass = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 
-const TYPE_FILTERS = ["", "REFERRAL", "CHANNEL", "IMPLEMENTATION", "CHANNEL_IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"]
-const STATUS_FILTERS = ["", "PENDING_ACTIVATION", "ACTIVE", "SUSPENDED", "INACTIVE", "TERMINATED"]
-const PERIOD_FILTERS = ["ALL", "30D", "90D", "12M"]
+export default function PartnerPerformanceAdminPage() {
+  const { toast } = useToast()
+  const [partners, setPartners] = useState<Partner[]>([])
+  const [partnerId, setPartnerId] = useState("")
+  const [partnerType, setPartnerType] = useState<"CHANNEL" | "IMPLEMENTATION">("CHANNEL")
+  const [review, setReview] = useState<Review | null>(null)
+  const [grade, setGrade] = useState("UNGRADED")
+  const [reason, setReason] = useState("")
+  const [authorizedReview, setAuthorizedReview] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [policy, setPolicy] = useState<Record<string, unknown> | null>(null)
+  const [policyReason, setPolicyReason] = useState("")
+  const [policyBusy, setPolicyBusy] = useState(false)
+  const [thresholds, setThresholds] = useState({ silverOutcomes: 1, goldOutcomes: 10, platinumOutcomes: 25, silverMinDays: 90, goldMinDays: 183, platinumMinDays: 365 })
 
-const TYPE_LABELS: Record<string, string> = {
-  REFERRAL: "Referral",
-  CHANNEL: "Channel",
-  IMPLEMENTATION: "Implementation",
-  CHANNEL_IMPLEMENTATION: "Channel + Impl",
-  TECHNOLOGY: "Technology",
-  PAYMENT: "Payment",
-}
-
-const COMPLIANCE_COLORS: Record<string, string> = {
-  COMPLIANT: "bg-green-100 text-green-800",
-  PENDING: "bg-amber-50 text-amber-700",
-  ATTENTION: "bg-red-50 text-red-700",
-  NOT_REQUIRED: "bg-gray-50 text-gray-500",
-}
-
-function formatMoney(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: currency || "NGN",
-      maximumFractionDigits: 0,
-    }).format(amount)
-  } catch {
-    return `${currency} ${amount.toLocaleString()}`
-  }
-}
-
-function NA({ show, children }: { show: boolean; children: React.ReactNode }) {
-  return <td className="px-3 py-2 text-right">{show ? children : <span className="text-muted-foreground">—</span>}</td>
-}
-
-export default function PartnerPerformancePage() {
-  const [loading, setLoading] = useState(true)
-  const [rows, setRows] = useState<PerfRow[]>([])
-  const [partnerType, setPartnerType] = useState("")
-  const [status, setStatus] = useState("")
-  const [country, setCountry] = useState("")
-  const [state, setState] = useState("")
-  const [period, setPeriod] = useState("ALL")
-  const [countryOptions, setCountryOptions] = useState<string[]>([])
-  const [stateOptions, setStateOptions] = useState<string[]>([])
-
-  async function fetchRows(withFilters: boolean) {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (withFilters) {
-        if (partnerType) params.set("partnerType", partnerType)
-        if (status) params.set("status", status)
-        if (country) params.set("country", country)
-        if (state) params.set("state", state)
-        params.set("period", period)
-      }
-      const res = await fetch(`/api/admin/partners/performance?${params.toString()}`)
-      const data = await res.json()
-      const r: PerfRow[] = data.rows || []
-      setRows(r)
-      // Accumulate filter options so they don't disappear while filtering
-      setCountryOptions((prev) => Array.from(new Set([...prev, ...r.map((x) => x.country).filter(Boolean)])).sort())
-      setStateOptions((prev) => Array.from(new Set([...prev, ...r.map((x) => x.state).filter(Boolean)])).sort())
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  const loadReview = useCallback(async (id = partnerId, type = partnerType) => {
+    if (!id) { setReview(null); return }
+    const res = await fetch(`/api/admin/partners/${id}/performance-grade?partnerType=${type}`)
+    const data = await res.json()
+    if (!res.ok) { setReview(null); return }
+    setReview(data)
+    setGrade(data.track.currentGrade)
+    setAuthorizedReview(false)
+    setReason("")
+  }, [partnerId, partnerType])
   useEffect(() => {
-    fetchRows(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partnerType, status, country, state, period])
+    fetch("/api/admin/partners").then(r => r.json()).then(d => setPartners(d.partners || []))
+    fetch("/api/admin/partners/grading-policy").then(r => r.json()).then(d => {
+      const active = d.policies?.[0] || null
+      setPolicy(active)
+      if (active) setThresholds({ silverOutcomes: Number(active.silver_outcomes), goldOutcomes: Number(active.gold_outcomes), platinumOutcomes: Number(active.platinum_outcomes), silverMinDays: Number(active.silver_min_days), goldMinDays: Number(active.gold_min_days), platinumMinDays: Number(active.platinum_min_days) })
+    })
+  }, [])
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadReview() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadReview])
 
-  // Column groups only render when at least one visible partner has the relevant capability
-  const showLeadCols = rows.some((r) => r.hasLeadCapability)
-  const showCustomerCol = rows.some((r) => r.hasCustomerCapability)
-  const showCommercialCols = rows.some((r) => r.hasCommercialCapability)
-  const showOnboardingCol = rows.some((r) => r.hasImplementationCapability)
-  const showSupportCols = rows.some((r) => r.hasSupportCapability)
+  const isReduction = review && ["UNGRADED", "SILVER", "GOLD", "PLATINUM"].indexOf(grade) < ["UNGRADED", "SILVER", "GOLD", "PLATINUM"].indexOf(review.track.currentGrade)
+  async function save() {
+    if (!review) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/admin/partners/${partnerId}/performance-grade`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ partnerType, grade, reason, managementApproved: true, authorizedReview }) })
+      const data = await res.json()
+      if (!res.ok) { toast({ title: "Grade review not saved", description: data.error || "Request failed", variant: "error", duration: 0 }); return }
+      toast({ title: "Grade decision recorded", description: `${review.partner.business_name}: ${partnerType} ${data.previous} → ${data.grade}`, variant: "success" })
+      await loadReview()
+    } finally { setBusy(false) }
+  }
+  async function publishPolicy() {
+    if (policyReason.trim().length < 8) return
+    setPolicyBusy(true)
+    try {
+      const res = await fetch("/api/admin/partners/grading-policy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "publish", reason: policyReason }) })
+      const data = await res.json()
+      if (!res.ok) { toast({ title: "Policy not published", description: data.error || "Request failed", variant: "error", duration: 0 }); return }
+      toast({ title: "Grading policy published", description: `Effective ${new Date(data.effectiveAt).toLocaleDateString("en-NG")}. Partners were notified.`, variant: "success" })
+      const latest = await fetch("/api/admin/partners/grading-policy").then(r => r.json())
+      setPolicy(latest.policies?.[0] || null)
+    } finally { setPolicyBusy(false) }
+  }
+  async function savePolicyDraft() {
+    if (policyReason.trim().length < 8) return
+    setPolicyBusy(true)
+    try {
+      const res = await fetch("/api/admin/partners/grading-policy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_draft", reason: policyReason, ...thresholds }) })
+      const data = await res.json()
+      if (!res.ok) { toast({ title: "Draft policy not saved", description: data.error || "Request failed", variant: "error", duration: 0 }); return }
+      toast({ title: "Draft policy updated", description: "The versioned change record has been saved.", variant: "success" })
+      const latest = await fetch("/api/admin/partners/grading-policy").then(r => r.json())
+      setPolicy(latest.policies?.[0] || null)
+    } finally { setPolicyBusy(false) }
+  }
+  const typesForSelected = partnerId ? partners.find(p => p.id === partnerId)?.partner_type || "" : ""
+  const gradeOptions = ["UNGRADED", "SILVER", "GOLD", "PLATINUM"]
 
-  const selectCls = "rounded-md border border-input bg-background px-3 py-2 text-sm"
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/admin/partners" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="w-4 h-4 mr-1" /> Back to Partners
-        </Link>
-        <h2 className="text-2xl font-bold tracking-tight mt-2 flex items-center gap-2">
-          <BarChart3 className="w-6 h-6" /> Partner Performance
-        </h2>
-        <p className="text-muted-foreground text-sm">
-          Per-dimension performance metrics. Columns are only shown where relevant to a partner&apos;s type and capabilities.
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader><CardTitle className="text-sm font-medium">Filters</CardTitle></CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <select value={partnerType} onChange={(e) => setPartnerType(e.target.value)} className={selectCls}>
-              {TYPE_FILTERS.map((t) => <option key={t} value={t}>{t ? (TYPE_LABELS[t] || t) : "All types"}</option>)}
-            </select>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className={selectCls}>
-              {STATUS_FILTERS.map((s) => <option key={s} value={s}>{s ? enumLabel(s) : "All statuses"}</option>)}
-            </select>
-            <select value={country} onChange={(e) => setCountry(e.target.value)} className={selectCls}>
-              <option value="">All countries</option>
-              {countryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select value={state} onChange={(e) => setState(e.target.value)} className={selectCls}>
-              <option value="">All states</option>
-              {stateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select value={period} onChange={(e) => setPeriod(e.target.value)} className={selectCls}>
-              {PERIOD_FILTERS.map((p) => (
-                <option key={p} value={p}>
-                  {p === "ALL" ? "All time" : p === "30D" ? "Last 30 days" : p === "90D" ? "Last 90 days" : "Last 12 months"}
-                </option>
-              ))}
-            </select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="pt-6">
-          {loading ? (
-            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No partners match the selected filters.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    <th className="px-3 py-2 font-medium">Partner</th>
-                    <th className="px-3 py-2 font-medium">Partner ID</th>
-                    <th className="px-3 py-2 font-medium">Type</th>
-                    <th className="px-3 py-2 font-medium">Status</th>
-                    <th className="px-3 py-2 font-medium">Location</th>
-                    {showLeadCols && (
-                      <>
-                        <th className="px-3 py-2 font-medium text-right">Leads</th>
-                        <th className="px-3 py-2 font-medium text-right">Protected</th>
-                        <th className="px-3 py-2 font-medium text-right">Won</th>
-                      </>
-                    )}
-                    {showCustomerCol && <th className="px-3 py-2 font-medium text-right">Customers</th>}
-                    {showCommercialCols && (
-                      <>
-                        <th className="px-3 py-2 font-medium text-right">Attr. Revenue</th>
-                        <th className="px-3 py-2 font-medium text-right">Comm. Earned</th>
-                        <th className="px-3 py-2 font-medium text-right">Comm. Paid</th>
-                      </>
-                    )}
-                    <th className="px-3 py-2 font-medium">Compliance</th>
-                    {showOnboardingCol && <th className="px-3 py-2 font-medium text-right">Onboarding</th>}
-                    {showSupportCols && (
-                      <>
-                        <th className="px-3 py-2 font-medium text-right">Tickets</th>
-                        <th className="px-3 py-2 font-medium text-right">Escalations</th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.partnerId} className="border-b border-border last:border-0 hover:bg-muted/40">
-                      <td className="px-3 py-2">
-                        <Link href={`/admin/partners/${r.partnerId}`} className="font-medium text-retail hover:underline">
-                          {r.businessName}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs">{r.partnerCode}</td>
-                      <td className="px-3 py-2">{TYPE_LABELS[r.partnerType] || r.partnerType}</td>
-                      <td className="px-3 py-2">
-                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${r.status === "ACTIVE" ? "bg-green-100 text-green-800" : r.status === "SUSPENDED" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-600"}`}>
-                          {r.status}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">{r.location || "—"}</td>
-                      {showLeadCols && (
-                        <>
-                          <NA show={r.hasLeadCapability}>{r.leadsRegistered}</NA>
-                          <NA show={r.hasLeadCapability}>{r.protectedLeads}</NA>
-                          <NA show={r.hasLeadCapability}>{r.wonBusinesses}</NA>
-                        </>
-                      )}
-                      {showCustomerCol && <NA show={r.hasCustomerCapability}>{r.assignedCustomers}</NA>}
-                      {showCommercialCols && (
-                        <>
-                          <NA show={r.hasCommercialCapability}>{formatMoney(r.attributedRevenue, r.currency)}</NA>
-                          <NA show={r.hasCommercialCapability}>{formatMoney(r.commissionEarned, r.currency)}</NA>
-                          <NA show={r.hasCommercialCapability}>{formatMoney(r.commissionPaid, r.currency)}</NA>
-                        </>
-                      )}
-                      <td className="px-3 py-2">
-                        <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full ${COMPLIANCE_COLORS[r.complianceStatus] || "bg-gray-50 text-gray-500"}`}>
-                          {enumLabel(r.complianceStatus)}
-                        </span>
-                      </td>
-                      {showOnboardingCol && (
-                        <NA show={r.hasImplementationCapability}>
-                          {r.onboardingCompleted}/{r.onboardingTotal}
-                        </NA>
-                      )}
-                      {showSupportCols && (
-                        <>
-                          <NA show={r.hasSupportCapability}>{r.supportTicketsHandled}</NA>
-                          <NA show={r.hasSupportCapability}>
-                            {r.escalations > 0 ? <span className="text-red-600 font-medium">{r.escalations}</span> : 0}
-                          </NA>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  )
+  return <div className="mx-auto max-w-5xl space-y-6">
+    <header><h1 className="flex items-center gap-2 text-2xl font-bold"><Award className="h-5 w-5" /> Partner Performance &amp; Grade Reviews</h1><p className="mt-1 text-sm text-muted-foreground">Separate Channel and Implementation grades. Existing awards can be reduced only through a documented, evidence-based Management review. No automatic batch downgrade occurs.</p></header>
+    <Card><CardHeader><CardTitle className="text-sm">Grading policy v{String(policy?.version || "1.0")} · {String(policy?.status || "DRAFT")}</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Silver outcomes are counted over the partnership. Gold and Platinum use the rolling 12-month outcome window. Grade approval also requires minimum duration, onboarding, applicable certification, satisfactory customer outcomes and compliance.</p>{policy?.status !== "APPROVED" && <><div className="grid gap-3 sm:grid-cols-3">{([ ["silverOutcomes","Silver outcomes"], ["silverMinDays","Silver minimum days"], ["goldOutcomes","Gold outcomes"], ["goldMinDays","Gold minimum days"], ["platinumOutcomes","Platinum outcomes"], ["platinumMinDays","Platinum minimum days"] ] as const).map(([key,label]) => <label className="text-sm" key={key}>{label}<input className={`${inputClass} mt-1`} type="number" min="0" value={thresholds[key]} onChange={e => setThresholds(current => ({ ...current, [key]: Number(e.target.value) }))} /></label>)}</div><label className="block text-sm">Change or approval reason<textarea className={`${inputClass} mt-1 min-h-20`} value={policyReason} onChange={e => setPolicyReason(e.target.value)} placeholder="Record Management's reason. Draft changes are versioned and audited." /></label><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={policyBusy || policyReason.trim().length < 8} onClick={() => void savePolicyDraft()}>Save draft thresholds</Button><Button disabled={policyBusy || policyReason.trim().length < 8} onClick={() => void publishPolicy()}>{policyBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Approve and publish policy</Button></div></>}{policy?.status === "APPROVED" && <p className="text-xs text-emerald-700">Effective {policy.effective_at ? new Date(String(policy.effective_at)).toLocaleString("en-NG") : "date not recorded"}</p>}</CardContent></Card>
+    <Card><CardHeader><CardTitle className="text-sm">Review partner</CardTitle></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2">
+      <label className="text-sm">Partner<select className={`${inputClass} mt-1`} value={partnerId} onChange={e => setPartnerId(e.target.value)}><option value="">Select partner</option>{partners.filter(p => p.partner_type?.includes("CHANNEL") || p.partner_type?.includes("IMPLEMENTATION")).map(p => <option key={p.id} value={p.id}>{p.business_name} · {p.partner_id}</option>)}</select></label>
+      <label className="text-sm">Partner Type<select className={`${inputClass} mt-1`} value={partnerType} onChange={e => setPartnerType(e.target.value as typeof partnerType)}><option value="CHANNEL" disabled={!typesForSelected.includes("CHANNEL")}>Channel Partner</option><option value="IMPLEMENTATION" disabled={!typesForSelected.includes("IMPLEMENTATION")}>Implementation Partner</option></select></label>
+    </CardContent></Card>
+    {review && <div className="grid gap-4 lg:grid-cols-2">
+      <Card><CardHeader><CardTitle className="text-sm">Verified eligibility evidence</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><p><b>{review.partner.business_name}</b> · {partnerType}</p><p>Current grade: <b>{review.track.currentGrade}</b></p><p>Qualifying verified outcomes: <b>{review.track.qualifyingOutcomes}</b></p><p>Partnership duration: <b>{review.track.partnershipDays} days</b></p><p>Active agreement: {review.track.activeAgreement ? "Yes" : "No"} · Onboarding: {review.track.onboardingComplete ? "Complete" : "Incomplete"} · Compliance: {review.track.complianceClear ? "Satisfactory" : "Needs review"}</p><p>Policy status: <b>{review.track.policyStatus}</b> · Draft policy thresholds cannot be used for new grade awards.</p><div><p className="mb-1 font-medium">Evidence references</p>{review.track.outcomeReferences.length ? <ul className="list-inside list-disc text-xs text-muted-foreground">{review.track.outcomeReferences.map(o => <li key={o.reference}>{o.reference} · {new Date(o.verifiedAt).toLocaleDateString("en-NG")}</li>)}</ul> : <p className="text-xs text-muted-foreground">No qualifying outcome is recorded.</p>}</div><div className="border-t pt-3"><p className="mb-2 font-medium">Decision history</p>{review.history.length ? review.history.slice(0, 8).map((h, i) => <p className="border-t py-1 text-xs text-muted-foreground" key={String(h.id || i)}>{String(h.previous_grade)} → {String(h.new_grade)} · {String(h.decision)} · {String(h.reason)}</p>) : <p className="text-xs text-muted-foreground">No per-type decisions recorded yet.</p>}</div></CardContent></Card>
+      <Card><CardHeader><CardTitle className="text-sm">Record a review decision</CardTitle></CardHeader><CardContent className="space-y-3"><label className="block text-sm">New grade<select className={`${inputClass} mt-1`} value={grade} onChange={e => setGrade(e.target.value)}>{gradeOptions.map(g => <option key={g}>{g}</option>)}</select></label><label className="block text-sm">Review reason<textarea className={`${inputClass} mt-1 min-h-24`} value={reason} onChange={e => setReason(e.target.value)} placeholder="Explain the performance gap, evidence reviewed and decision rationale." /></label>{isReduction && <label className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"><input type="checkbox" checked={authorizedReview} onChange={e => setAuthorizedReview(e.target.checked)} className="mt-1" /><span>I confirm this reduction follows a separate review, the partner has been assessed against the approved policy, and the reason and supporting evidence are recorded.</span></label>}<p className="text-xs text-muted-foreground">A downgrade affects grade recognition only; it does not cancel commission or implementation fees already earned under signed terms.</p><Button disabled={busy || reason.trim().length < 8 || (Boolean(isReduction) && !authorizedReview)} onClick={() => void save()}>{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Management decision</Button></CardContent></Card>
+    </div>}
+  </div>
 }

@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest"
 import { generatePartnerAgreementPdf, type AgreementInput } from "@/lib/partner-agreement"
 import { validateAgreementInput } from "@/lib/partner-agreement-validation"
-import { agreementTypeKeys, earningBasesFor } from "@/lib/partner-agreement-content"
+import {
+  agreementTypeKeys,
+  earningBasesFor,
+  CHANNEL_ACQUISITION_COMMISSION_RATE,
+  CHANNEL_RENEWAL_COMMISSION_DURATION,
+  CHANNEL_RENEWAL_COMMISSION_RATE,
+  CHANNEL_RENEWAL_COMMISSION_RULE,
+} from "@/lib/partner-agreement-content"
 
 function baseInput(partnerType: string): AgreementInput {
   return {
@@ -48,11 +55,13 @@ function baseInput(partnerType: string): AgreementInput {
       martpointOwnerEmail: "pm@martpoint.com.ng",
     },
     technology: partnerType === "TECHNOLOGY" ? { solutionName: "AcmePOS Bridge", solutionVersion: "v2", approvedUseCase: "Fiscalisation" } : undefined,
-    commercials: earningBasesFor(partnerType).map((basis) => ({
+    commercials: earningBasesFor(partnerType).map((basis) => {
+      const channelCommission = basis.partnerTypeLabel === "Channel Partner" && basis.earningCategory.toLowerCase().includes("commission")
+      return ({
         earningCategory: basis.earningCategory,
         partnerTypeLabel: basis.partnerTypeLabel,
         eligibleItems: "Software licences",
-        rateOrFee: "10% of Eligible Revenue",
+        rateOrFee: channelCommission ? CHANNEL_ACQUISITION_COMMISSION_RATE : "10% of Eligible Revenue",
         rateUnit: "PERCENTAGE",
         eligibleRevenueDefinition: "As defined in clause 2",
         exclusions: "Hardware, taxes",
@@ -60,9 +69,9 @@ function baseInput(partnerType: string): AgreementInput {
         trigger: "Cleared payment + activation",
         holdingDays: "30",
         holdingStartEvent: "licence activation",
-        renewalRule: "First renewal only",
-        renewalRate: "10% of Eligible Revenue",
-        renewalDuration: "One renewal term",
+        renewalRule: channelCommission ? CHANNEL_RENEWAL_COMMISSION_RULE : "First renewal only",
+        renewalRate: channelCommission ? CHANNEL_RENEWAL_COMMISSION_RATE : "10% of Eligible Revenue",
+        renewalDuration: channelCommission ? CHANNEL_RENEWAL_COMMISSION_DURATION : "One renewal term",
         reversalRule: "Clawed back on refund",
         statementCycle: "Monthly",
         payoutTiming: "15 days after statement",
@@ -71,7 +80,8 @@ function baseInput(partnerType: string): AgreementInput {
         splitRule: "No stacking",
         financeApprover: "Finance Lead",
         managementApprover: "MD",
-      })),
+      })
+    }),
   }
 }
 

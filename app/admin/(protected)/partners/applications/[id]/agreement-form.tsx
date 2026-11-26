@@ -101,17 +101,18 @@ interface AssignedUser {
   role: string
 }
 
-function SelectField({ label, value, onChange, options, placeholder = "Select…" }: {
+function SelectField({ label, value, onChange, options, placeholder = "Select…", disabled = false }: {
   label: string
   value: string
   onChange: (v: string) => void
   options: { value: string; label: string }[]
   placeholder?: string
+  disabled?: boolean
 }) {
   return (
     <div>
       <label className={labelCls}>{label}</label>
-      <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value)}>
+      <select className={inputCls} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
         <option value="">{placeholder}</option>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
@@ -119,21 +120,22 @@ function SelectField({ label, value, onChange, options, placeholder = "Select…
   )
 }
 
-function Field({ label, value, onChange, textarea, placeholder, type }: {
+function Field({ label, value, onChange, textarea, placeholder, type, readOnly = false }: {
   label: string
   value: string
   onChange: (v: string) => void
   textarea?: boolean
   placeholder?: string
   type?: string
+  readOnly?: boolean
 }) {
   return (
     <div>
       <label className={labelCls}>{label}</label>
       {textarea ? (
-        <textarea className={inputCls} rows={2} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+        <textarea className={inputCls} rows={2} value={value} readOnly={readOnly} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
       ) : (
-        <input className={inputCls} type={type || "text"} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+        <input className={inputCls} type={type || "text"} value={value} readOnly={readOnly} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
       )}
     </div>
   )
@@ -240,7 +242,8 @@ export function AgreementForm({ applicationId, onGenerated }: {
       })
       setCustomOperatingLevel(Boolean(d.appointment?.levelByType && d.appointment.levelByType !== "Standard"))
       setMartpointOwnerUserId((data.assignedUsers || []).find((u: AssignedUser) => u.email && u.email === d.appointment?.martpointOwnerEmail)?.id || "")
-      setCommercials((data.earningBases || []).map(emptyCommercial))
+      const earningBases = (data.earningBases || []) as EarningBasis[]
+      setCommercials(earningBases.map(emptyCommercial))
       if (data.pendingDraft?.payload) {
         const saved = data.pendingDraft.payload
         setForm((current) => ({ ...current, ...saved }))
@@ -248,7 +251,19 @@ export function AgreementForm({ applicationId, onGenerated }: {
         setPt(saved.partner || d.partner || {})
         setAppt({ ...(saved.appointment || d.appointment || {}), gradeByType: "Ungraded — subject to verified business delivery and performance assessment", publicDirectoryStatus: "Not yet eligible — subject to successful business delivery and MartPoint approval" })
         setTech(saved.technology || { solutionName: "", solutionVersion: "", approvedUseCase: "" })
-        setCommercials(saved.commercials || [])
+        setCommercials((saved.commercials || []).map((section: CommercialForm) => {
+          if (section.partnerTypeLabel !== "Channel Partner" || !section.earningCategory.toLowerCase().includes("commission")) return section
+          const policy = earningBases.find((basis) => basis.partnerTypeLabel === section.partnerTypeLabel)?.defaults || {}
+          return {
+            ...section,
+            rateUnit: policy.rateUnit || section.rateUnit,
+            rateOrFee: policy.rateOrFee || section.rateOrFee,
+            eligibleItems: policy.eligibleItems || section.eligibleItems,
+            renewalRule: policy.renewalRule || section.renewalRule,
+            renewalRate: policy.renewalRate || section.renewalRate,
+            renewalDuration: policy.renewalDuration || section.renewalDuration,
+          }
+        }))
         setExtraSchedules(saved.additionalSchedules || [])
         setCustomOperatingLevel(Boolean(saved.appointment?.levelByType && saved.appointment.levelByType !== "Standard"))
       }
@@ -600,18 +615,21 @@ export function AgreementForm({ applicationId, onGenerated }: {
             {/* Commercial Terms — one section per earning basis */}
             <div className="space-y-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Commercial Terms (one section per earning basis)</p>
-              {commercials.map((c, i) => (
+              {commercials.map((c, i) => {
+                const fixedChannelTerms = c.partnerTypeLabel === "Channel Partner" && c.earningCategory.toLowerCase().includes("commission")
+                return (
                 <div key={i} className="rounded-md border border-border p-4 space-y-3">
                   <p className="text-sm font-medium">{c.earningCategory} <span className="text-xs text-muted-foreground">· {c.partnerTypeLabel}</span></p>
+                  {fixedChannelTerms && <p className="text-xs text-muted-foreground">Approved Channel commission policy: 10% on the initial qualifying subscription, then 5% on no more than two subsequent annual renewals, subject to the listed eligibility conditions.</p>}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Field label="Eligible products / services" value={c.eligibleItems} onChange={setComm(i, "eligibleItems")} />
-                    <SelectField label="Rate unit" value={c.rateUnit} onChange={setComm(i, "rateUnit")} options={[
+                    <Field label="Eligible products / services" value={c.eligibleItems} onChange={setComm(i, "eligibleItems")} readOnly={fixedChannelTerms} />
+                    <SelectField label="Rate unit" value={c.rateUnit} onChange={setComm(i, "rateUnit")} disabled={fixedChannelTerms} options={[
                       { value: "PERCENTAGE", label: "Percentage of Eligible Revenue" },
                       { value: "FIXED", label: "Fixed amount" },
                       { value: "WORK_ORDER", label: "Agreed per Work Order" },
                       { value: "OTHER", label: "Other (describe below)" },
                     ]} />
-                    <Field label="Rate or fixed fee" value={c.rateOrFee} onChange={setComm(i, "rateOrFee")} placeholder={c.rateUnit === "PERCENTAGE" ? "e.g. 10" : c.rateUnit === "WORK_ORDER" ? "Agreed per approved Work Order" : "Enter approved amount and basis"} />
+                    <Field label={fixedChannelTerms ? "Initial acquisition rate" : "Rate or fixed fee"} value={c.rateOrFee} onChange={setComm(i, "rateOrFee")} readOnly={fixedChannelTerms} placeholder={c.rateUnit === "PERCENTAGE" ? "e.g. 10" : c.rateUnit === "WORK_ORDER" ? "Agreed per approved Work Order" : "Enter approved amount and basis"} />
                     <Field label="Eligible revenue definition" value={c.eligibleRevenueDefinition} onChange={setComm(i, "eligibleRevenueDefinition")} placeholder="Blank = Eligible Revenue per clause 2" />
                     <Field label="Excluded amounts" value={c.exclusions} onChange={setComm(i, "exclusions")} />
                     <Field label="Attribution requirement" value={c.attributionRule} onChange={setComm(i, "attributionRule")} />
@@ -626,9 +644,9 @@ export function AgreementForm({ applicationId, onGenerated }: {
                       { value: "30", label: "30 days" }, { value: "60", label: "60 days" }, { value: "90", label: "90 days" }, { value: "180", label: "180 days" },
                     ]} />
                     <Field label="Holding starts from" value={c.holdingStartEvent} onChange={setComm(i, "holdingStartEvent")} placeholder="e.g. licence activation" />
-                    <Field label="Renewal eligibility" value={c.renewalRule} onChange={setComm(i, "renewalRule")} />
-                    <Field label="Renewal rate (if approved)" value={c.renewalRate} onChange={setComm(i, "renewalRate")} placeholder="Not approved / none, or approved percentage" />
-                    <Field label="Renewal duration (if approved)" value={c.renewalDuration} onChange={setComm(i, "renewalDuration")} placeholder="None, or approved duration" />
+                    <Field label="Renewal eligibility" value={c.renewalRule} onChange={setComm(i, "renewalRule")} readOnly={fixedChannelTerms} />
+                    <Field label={fixedChannelTerms ? "Annual renewal rate" : "Renewal rate (if approved)"} value={c.renewalRate} onChange={setComm(i, "renewalRate")} readOnly={fixedChannelTerms} placeholder="Not approved / none, or approved percentage" />
+                    <Field label={fixedChannelTerms ? "Maximum renewal period" : "Renewal duration (if approved)"} value={c.renewalDuration} onChange={setComm(i, "renewalDuration")} readOnly={fixedChannelTerms} placeholder="None, or approved duration" />
                     <Field label="Refund / chargeback treatment" value={c.reversalRule} onChange={setComm(i, "reversalRule")} />
                     <Field label="Split / non-stacking rule" value={c.splitRule} onChange={setComm(i, "splitRule")} />
                     <SelectField label="Finance approver" value={assignedUsers.find((u) => u.name === c.financeApprover && ["Admin", "Finance"].includes(u.role))?.id || ""} onChange={(id) => setComm(i, "financeApprover")(assignedUsers.find((u) => u.id === id)?.name || "")} options={assignedUsers.filter((u) => ["Admin", "Finance"].includes(u.role)).map((u) => ({ value: u.id, label: `${u.name || u.username} · ${u.role}` }))} placeholder="Select Finance or Admin user" />
@@ -636,7 +654,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
                   </div>
                   <Field label="Payment and activation trigger" textarea value={c.trigger} onChange={setComm(i, "trigger")} />
                 </div>
-              ))}
+              )})}
             </div>
 
             {/* Additional conditional schedules */}

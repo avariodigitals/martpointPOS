@@ -25,6 +25,7 @@ interface PublicPartner {
   services: string[]
   partnerSince: string | null
   currentGrade: string | null
+  gradesByPartnerType: { partnerType: string; grade: string }[]
 }
 
 interface Props {
@@ -119,7 +120,7 @@ export function PartnerDirectoryClient({ partners, countries, states, types, typ
               </h3>
               <p className="text-xs text-muted-foreground font-mono mt-0.5">{p.partnerId}</p>
               <p className="text-xs text-retail font-medium mt-1">{typeLabels[p.partnerType as keyof typeof typeLabels] || p.partnerType}</p>
-              {p.currentGrade && <span className="mt-2 inline-flex w-fit rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">{p.currentGrade.charAt(0) + p.currentGrade.slice(1).toLowerCase()} Partner · Management awarded</span>}
+              {p.gradesByPartnerType.map(g => <span key={g.partnerType} className="mt-2 inline-flex w-fit rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">{g.grade.charAt(0) + g.grade.slice(1).toLowerCase()} {g.partnerType === "CHANNEL" ? "Channel" : "Implementation"} Partner</span>)}
 
               {p.services.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-1.5">

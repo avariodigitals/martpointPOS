@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BadgeCheck, ShieldAlert, Calendar, MapPin, Building2, User } from "lucide-react"
 import { enumLabel, roleLabel } from "@/lib/utils"
 import { LifecyclePanel } from "./lifecycle-panel"
+import { PerformancePanel } from "./performance-panel"
 
 function Metric({ value, label }: { value: number; label: string }) {
   return (
@@ -60,6 +61,8 @@ export default async function PartnerDashboardPage() {
       </div>
 
       <LifecyclePanel />
+
+      <PerformancePanel />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>

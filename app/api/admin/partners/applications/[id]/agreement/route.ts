@@ -73,7 +73,7 @@ export async function GET(
     .order("name")
   const earningBases = earningBasesFor(partnerType).map((b) => ({
     ...b,
-    defaults: { ...commercialFieldDefaults(b.earningCategory), trigger: defaultTrigger(b.earningCategory) },
+    defaults: { ...commercialFieldDefaults(b.earningCategory, b.partnerTypeLabel), trigger: defaultTrigger(b.earningCategory) },
   }))
 
   const { data: generated } = await supabase

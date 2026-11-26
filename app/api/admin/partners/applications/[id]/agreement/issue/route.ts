@@ -80,6 +80,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const upload = await uploadPartnerDocument(applicationId, generated.fileName, "application/pdf", generated.bytes)
     if (!upload.ok || !upload.doc) throw new Error(upload.error || "Failed to store the issued agreement")
 
+    const { data: activeGradingPolicy } = await supabase.from("partner_grading_policies")
+      .select("version,status").eq("status", "APPROVED").order("effective_at", { ascending: false }).limit(1).maybeSingle()
+    const gradingPolicyPdf = activeGradingPolicy
+      ? await fs.readFile(path.join(process.cwd(), "public", "partner-resources", "MartPoint-Partner-Performance-Grading-Progression-Policy.pdf"))
+      : null
+
     const { data: docRow, error: docError } = await supabase.from("partner_documents").insert({
       application_id: applicationId,
       partner_id: partnerId,
@@ -181,9 +187,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const signingEmailSent = await sendEmail({
       to: String(app.email),
       subject: "Please review and sign your MartPoint Partner Agreement",
-      text: `Hello ${partnerName},\n\nYour reviewed MartPoint Partner Agreement ${String(draft.agreement_id)} is attached as a PDF. MartPoint has signed it electronically. Please review the attached agreement and sign it using this secure link within 14 days:\n\n${signingUrl}\n\nIf you have questions, reply to this email or contact partners@martpoint.com.ng.`,
-      html: `<p>Hello ${escapeHtml(partnerName)},</p><p>Your reviewed MartPoint Partner Agreement <strong>${escapeHtml(String(draft.agreement_id))}</strong> is attached as a PDF. MartPoint has signed it electronically. Please review the attached agreement and sign it using the secure link below within 14 days.</p><p><a href="${escapeHtml(signingUrl)}" style="display:inline-block;background:#0057ff;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px">Review and sign agreement</a></p><p>If you have questions, reply to this email or contact partners@martpoint.com.ng.</p>`,
-      attachments: [{ filename: generated.fileName, content: generated.bytes.toString("base64") }],
+      text: `Hello ${partnerName},\n\nYour reviewed MartPoint Partner Agreement ${String(draft.agreement_id)} is attached as a PDF. MartPoint has signed it electronically.${gradingPolicyPdf ? ` The current Partner Performance, Grading & Progression Policy (v${activeGradingPolicy?.version}) is also attached.` : ""} Please review the attached documents and sign the agreement using this secure link within 14 days:\n\n${signingUrl}\n\nIf you have questions, reply to this email or contact partners@martpoint.com.ng.`,
+      html: `<p>Hello ${escapeHtml(partnerName)},</p><p>Your reviewed MartPoint Partner Agreement <strong>${escapeHtml(String(draft.agreement_id))}</strong> is attached as a PDF. MartPoint has signed it electronically.${gradingPolicyPdf ? ` The current Partner Performance, Grading &amp; Progression Policy (v${escapeHtml(String(activeGradingPolicy?.version))}) is also attached.` : ""} Please review the attached documents and sign the agreement using the secure link below within 14 days.</p><p><a href="${escapeHtml(signingUrl)}" style="display:inline-block;background:#0057ff;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px">Review and sign agreement</a></p><p>If you have questions, reply to this email or contact partners@martpoint.com.ng.</p>`,
+      attachments: [
+        { filename: generated.fileName, content: generated.bytes.toString("base64") },
+        ...(gradingPolicyPdf ? [{ filename: "MartPoint-Partner-Performance-Grading-Progression-Policy.pdf", content: gradingPolicyPdf.toString("base64") }] : []),
+      ],
       route: "partner_application",
       useRouteRecipients: false,
       replyTo: "partners@martpoint.com.ng",

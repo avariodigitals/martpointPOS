@@ -105,7 +105,7 @@ export default async function PartnerProfilePage({
                       <Copy className="w-3.5 h-3.5" /> {partner.partnerId}
                     </p>
                     <p className="text-sm text-retail font-medium mt-1">{PARTNER_TYPE_LABELS[partner.partnerType] || partner.partnerType}</p>
-                    {partner.currentGrade && <p className="mt-2 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">{partner.currentGrade.charAt(0) + partner.currentGrade.slice(1).toLowerCase()} Partner · formally awarded by MartPoint Management</p>}
+                    {partner.gradesByPartnerType.map((g) => <p key={g.partnerType} className="mt-2 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">{g.grade.charAt(0) + g.grade.slice(1).toLowerCase()} {g.partnerType === "CHANNEL" ? "Channel" : "Implementation"} Partner · formally awarded by MartPoint Management</p>)}
                   </div>
                 </div>
 

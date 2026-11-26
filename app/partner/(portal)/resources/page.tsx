@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FolderOpen, ExternalLink, FileText, Download } from "lucide-react"
 import { enumLabel } from "@/lib/utils"
+import { supabase } from "@/lib/supabase"
+import { GradingPolicyCard } from "../grading-policy-card"
 
 interface ResourceCard {
   id: string
@@ -73,6 +75,11 @@ export default async function PartnerResourcesPage() {
   const partner = await getPartnerById(session.partnerId)
   if (!partner) redirect("/partner")
 
+  const { data: gradingPolicy } = await supabase.from("partner_grading_policies").select("id,version,status").order("created_at", { ascending: false }).limit(1).maybeSingle()
+  const { data: policyAck } = gradingPolicy?.status === "APPROVED"
+    ? await supabase.from("partner_grading_policy_acknowledgements").select("acknowledged_at").eq("partner_id", partner.id).eq("policy_id", gradingPolicy.id).maybeSingle()
+    : { data: null }
+
   const capabilities = await getPartnerCapabilities(session.partnerId)
   const resources = await listPartnerResourcesForPartner(partner.id, partner.partnerType, capabilities)
   const resourcesWithUrls = await Promise.all(
@@ -102,6 +109,7 @@ export default async function PartnerResourcesPage() {
       <Card>
         <CardHeader><CardTitle className="text-sm font-medium">Guides & Shared Materials</CardTitle></CardHeader>
         <CardContent>
+          <div className="mb-4"><GradingPolicyCard status={String(gradingPolicy?.status || "DRAFT")} version={String(gradingPolicy?.version || "1.0")} acknowledgedAt={policyAck?.acknowledged_at || null} /></div>
           {guides.length === 0 ? <p className="text-sm text-muted-foreground">No guides available yet.</p> : (
             <ResourceGrid items={guides} />
           )}

@@ -89,12 +89,53 @@ export async function POST(request: Request) {
     if (input.action === "verify_delivery") {
       if (!input.deliveryType || !input.evidenceReference || !input.evidenceSummary) return NextResponse.json({ error: "Delivery type, evidence reference, and evidence summary are required" }, { status: 400 })
       const type = String(life.partners?.partner_type || "")
-      const allowed = type === "CHANNEL" || type === "REFERRAL" ? ["channel_sale"]
+      const allowed = type === "CHANNEL" ? ["channel_sale"]
         : type === "IMPLEMENTATION" ? ["implementation_acceptance"]
         : type === "CHANNEL_IMPLEMENTATION" ? ["channel_sale", "implementation_acceptance"]
         : ["approved_business_delivery"]
       if (!allowed.includes(input.deliveryType)) return NextResponse.json({ error: "The delivery evidence type does not match this Partner Type" }, { status: 400 })
-      const { error: evidenceError } = await supabase.from("partner_delivery_verifications").insert({ partner_id: input.partnerId, delivery_type: input.deliveryType, evidence_reference: input.evidenceReference, evidence_summary: input.evidenceSummary, verified_by: actorId, verified_at: now.toISOString(), approved: true })
+      const gradedPartnerType = input.deliveryType === "channel_sale" && type.includes("CHANNEL") ? "CHANNEL"
+        : input.deliveryType === "implementation_acceptance" && type.includes("IMPLEMENTATION") ? "IMPLEMENTATION" : null
+      if (input.deliveryType !== "approved_business_delivery" && !gradedPartnerType) return NextResponse.json({ error: "No approved grading rubric exists for this Partner Type and delivery measure" }, { status: 409 })
+      let outcomeReference = input.evidenceReference.trim()
+      let evidenceReference = outcomeReference
+      let evidenceSummary = input.evidenceSummary
+      if (input.deliveryType === "channel_sale") {
+        const commissionQuery = supabase.from("partner_commissions")
+          .select("id,partner_id,business_id,payment_id,activation_at,status,attribution_type")
+          .eq("partner_id", input.partnerId)
+          .eq("attribution_type", "SALES")
+          .in("status", ["ELIGIBLE", "APPROVED", "SCHEDULED", "PAID"])
+          .not("payment_id", "is", null)
+          .not("activation_at", "is", null)
+        const commissionLookup = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(outcomeReference)
+          ? commissionQuery.eq("id", outcomeReference)
+          : commissionQuery.eq("business_id", outcomeReference)
+        const commissionResult = await commissionLookup.order("activation_at", { ascending: false }).limit(1).maybeSingle()
+        const commission = commissionResult.data
+        if (!commission) return NextResponse.json({ error: "Channel grading requires a MartPoint Sales commission record with a cleared payment, active licence and an eligible, approved or paid earning" }, { status: 409 })
+        outcomeReference = String(commission.business_id)
+        evidenceReference = String(commission.id)
+        evidenceSummary = `${input.evidenceSummary} Verified against eligible Sales commission ${commission.id}, payment ${commission.payment_id}, active licence at ${commission.activation_at}.`
+      }
+      if (input.deliveryType === "implementation_acceptance") {
+        const workOrderQuery = supabase.from("partner_work_orders")
+          .select("id,work_order_ref,partner_id,assignment_id,business_id,status,issued_at,completed_at,closed_at")
+          .eq("partner_id", input.partnerId)
+          .in("status", ["COMPLETED", "CLOSED"])
+          .not("business_id", "is", null)
+        const workOrderResult = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(outcomeReference)
+          ? await workOrderQuery.eq("id", outcomeReference).maybeSingle()
+          : await workOrderQuery.eq("work_order_ref", outcomeReference).maybeSingle()
+        const workOrder = workOrderResult.data
+        if (!workOrder || !workOrder.issued_at || !workOrder.completed_at) return NextResponse.json({ error: "Implementation grading requires this Partner's issued Work Order to be completed with its deliverables formally accepted by MartPoint" }, { status: 409 })
+        evidenceReference = String(workOrder.work_order_ref)
+        // One assignment represents the same implementation even if multiple
+        // Work Orders or change orders were recorded against it.
+        outcomeReference = String(workOrder.assignment_id || workOrder.business_id)
+        evidenceSummary = `${input.evidenceSummary} Verified against completed Work Order ${workOrder.work_order_ref}; accepted completion date ${workOrder.completed_at}.`
+      }
+      const { error: evidenceError } = await supabase.from("partner_delivery_verifications").insert({ partner_id: input.partnerId, delivery_type: input.deliveryType, partner_type: gradedPartnerType, outcome_reference: gradedPartnerType ? outcomeReference : null, evidence_reference: evidenceReference, evidence_summary: evidenceSummary, verified_by: actorId, verified_at: now.toISOString(), approved: true })
       error = evidenceError
       if (!error) {
         const { error: eligibilityError } = await supabase.from("partner_lifecycle").update({ directory_eligible: true, directory_eligibility_verified_at: now.toISOString(), directory_eligibility_verified_by: actorId, listing_status: life.listing_status === "hidden" ? "eligible" : life.listing_status, updated_at: now.toISOString(), version_counter: Number(life.version_counter || 0) + 1 }).eq("partner_id", input.partnerId)
@@ -109,6 +150,11 @@ export async function POST(request: Request) {
       ])
       if ((requiredDocs || []).some((d) => d.verification_status !== "VERIFIED")) return NextResponse.json({ error: "All required partner compliance documents must be verified" }, { status: 409 })
       if (partnerType?.partner_type === "REFERRAL" && !(agreements || []).length) return NextResponse.json({ error: "An executed referral partner agreement is required" }, { status: 409 })
+      const { data: currentGradePolicy } = await supabase.from("partner_grading_policies").select("id").eq("status", "APPROVED").order("effective_at", { ascending: false }).limit(1).maybeSingle()
+      if (currentGradePolicy) {
+        const { data: acknowledgment } = await supabase.from("partner_grading_policy_acknowledgements").select("id").eq("partner_id", input.partnerId).eq("policy_id", currentGradePolicy.id).maybeSingle()
+        if (!acknowledgment) return NextResponse.json({ error: "The Partner must acknowledge the current Grading Policy in Partner Portal Resources before onboarding is completed" }, { status: 409 })
+      }
       const { data: version } = await supabase.from("partner_policy_versions").select("id,version,effective_at,config_json").order("created_at", { ascending: false }).limit(1).maybeSingle()
       const eligibleStart = life.accepted_at ? new Date(Math.max(now.getTime(), new Date(life.effective_at || version?.effective_at || now).getTime())) : null
       const { error: updateError } = await supabase.from("partner_lifecycle").update({ onboarding_status: "approved", ...(!life.probation_start_at && eligibleStart ? { probation_start_at: eligibleStart.toISOString(), probation_end_at: new Date(eligibleStart.getTime() + Number(version?.config_json?.probation_days || 90) * 86400000).toISOString(), performance_status: "probation" } : {}), updated_at: now.toISOString() }).eq("partner_id", input.partnerId)
@@ -141,6 +187,10 @@ export async function POST(request: Request) {
     } else if (input.action === "listing") {
       if (!input.listingStatus) return NextResponse.json({ error: "Listing status is required" }, { status: 400 })
       if (["eligible", "published"].includes(input.listingStatus) && !life.directory_eligible) return NextResponse.json({ error: "Verify at least one qualifying business delivery before marking a partner eligible or publishing the listing" }, { status: 409 })
+      if (input.listingStatus === "published") {
+        const { data: awardedGrades } = await supabase.from("partner_type_grades").select("current_grade").eq("partner_id", input.partnerId).in("current_grade", ["SILVER", "GOLD", "PLATINUM"])
+        if (!awardedGrades?.length) return NextResponse.json({ error: "Public directory publication requires a formally awarded Silver, Gold or Platinum grade for an approved Partner Type" }, { status: 409 })
+      }
       if (input.listingStatus === "published" && (life.account_status !== "enabled" || life.compliance_status !== "clear" || life.onboarding_status !== "approved" || life.partners?.status !== "ACTIVE" || !["eligible", "published", "pending_suspension", "suspended"].includes(life.listing_status))) return NextResponse.json({ error: "Partner must have verified delivery, approved onboarding, an enabled active account, and clear compliance before publication" }, { status: 409 })
       if (input.listingStatus === "published" && ["pending_suspension", "suspended"].includes(life.listing_status)) {
         const [activity, completedReview] = await Promise.all([

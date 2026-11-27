@@ -48,7 +48,7 @@ export function generateReceiptPdf(rc: ReceiptPdfData): Buffer {
   doc.setFont("helvetica", "normal")
   doc.setFontSize(9)
   doc.setTextColor(107, 114, 128)
-  const companyLines = ["hello@martpoint.com.ng", "+234 803 797 8230", "www.martpoint.com.ng"]
+  const companyLines = ["hello@martpoint.com.ng", "+2342017001229", "www.martpoint.com.ng"]
   companyLines.forEach((line, i) => doc.text(line, rightCol, y + 6 + i * 13, { align: "right" }))
   y += 60
 

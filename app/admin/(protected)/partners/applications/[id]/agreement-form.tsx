@@ -91,6 +91,7 @@ interface PendingDraft {
   agreementId: string
   createdAt: string
   previewUrl: string | null
+  templateVersion?: string
 }
 
 interface AssignedUser {
@@ -424,20 +425,20 @@ export function AgreementForm({ applicationId, onGenerated }: {
           <div className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4">
             <div>
               <p className="font-medium text-amber-950">Draft awaiting your review · {pendingDraft.agreementId}</p>
-              <p className="mt-1 text-xs text-amber-900">The partner has not been emailed. Open and review the PDF before approving it for signature.</p>
+              <p className="mt-1 text-xs text-amber-900">The partner has not been emailed. This draft uses master template v{pendingDraft.templateVersion || "legacy"}; the current master is v1.5. Regenerate and review a current draft before approving it for signature.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {pendingDraft.previewUrl && <a className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-white px-3 py-2 text-sm text-amber-950" href={pendingDraft.previewUrl} target="_blank" rel="noreferrer"><Download className="h-4 w-4" />Review draft PDF</a>}
               <Button variant="outline" onClick={() => { setOpen(true); setMsg("") }}>Edit and generate a new draft</Button>
             </div>
-            <label className="flex items-start gap-2 rounded-md border border-amber-300 bg-white p-3 text-sm">
+            {pendingDraft.templateVersion === "1.5" && <label className="flex items-start gap-2 rounded-md border border-amber-300 bg-white p-3 text-sm">
               <input type="checkbox" checked={authorizeCompanySignature} onChange={(e) => setAuthorizeCompanySignature(e.target.checked)} />
               <span>I reviewed this agreement, confirm it is approved for issue, and authorize the configured MartPoint signatory to sign it electronically.</span>
-            </label>
-            <Button onClick={issueDraft} disabled={generating || !authorizeCompanySignature}>
+            </label>}
+            {pendingDraft.templateVersion === "1.5" && <Button onClick={issueDraft} disabled={generating || !authorizeCompanySignature}>
               {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
               Approve, sign and send to partner
-            </Button>
+            </Button>}
           </div>
         )}
 

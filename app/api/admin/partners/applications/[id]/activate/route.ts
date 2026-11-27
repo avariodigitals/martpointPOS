@@ -7,6 +7,16 @@ import { issueActivationConfirmation, linkApplicationGeneratedDocs } from "@/lib
 import { recordAudit, AUDIT_ACTIONS, AUDIT_ENTITIES, auditContextFromSession, type AuditContext } from "@/lib/audit"
 import { evaluateReferralActivationGates } from "@/lib/referral-agreements"
 
+function activationDatesByType(partnerType: string, activationDate: string, existing: unknown): Record<string, string> {
+  const types = partnerType === "CHANNEL_IMPLEMENTATION" ? ["CHANNEL", "IMPLEMENTATION"]
+    : ["REFERRAL", "CHANNEL", "IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"].includes(partnerType) ? [partnerType] : []
+  const dates = existing && typeof existing === "object" && !Array.isArray(existing)
+    ? { ...(existing as Record<string, string>) }
+    : {}
+  for (const type of types) dates[type] ||= activationDate
+  return dates
+}
+
 /* ─── POST: activate a partner from an approved application ───
  * Validates required conditions (application must be APPROVED or AGREEMENT_PENDING/TRAINING/CERTIFICATION_PENDING).
  * Creates/confirms Partner record, generates immutable Partner ID, sets ACTIVE + partner_since.
@@ -95,6 +105,7 @@ export async function POST(
         .update({
           status: "ACTIVE",
           partner_since: existing.partner_since || now,
+          partner_type_activation_dates: activationDatesByType(String(existing.partner_type || app.requested_partner_type), String(existing.partner_since || now), existing.partner_type_activation_dates),
           updated_at: now,
           public_profile_enabled: publicProfileEnabled ?? existing.public_profile_enabled,
           public_email: publicEmail ?? existing.public_email,
@@ -163,6 +174,7 @@ export async function POST(
         logo_url: logoUrl || null,
         public_profile_enabled: publicProfileEnabled ?? false,
         partner_since: now,
+        partner_type_activation_dates: activationDatesByType(String(app.requested_partner_type), now, null),
         created_at: now,
         updated_at: now,
       })

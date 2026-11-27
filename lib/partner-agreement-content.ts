@@ -8,7 +8,7 @@ import type { PartnerType } from "./partners"
  * schedules per approved partner type; unused schedules are omitted entirely.
  */
 
-export const AGREEMENT_TEMPLATE_VERSION = "1.4"
+export const AGREEMENT_TEMPLATE_VERSION = "1.5"
 
 export const CHANNEL_ACQUISITION_COMMISSION_RATE = "10%"
 export const CHANNEL_RENEWAL_COMMISSION_RATE = "5%"
@@ -352,7 +352,7 @@ export function commonTerms(v: AgreementVars): { part: string | null; clauses: C
         {
           num: "22",
           title: "Term review and renewal",
-          body: `This Agreement begins on the Effective Date and continues for an initial term of ${v.initialTermMonths === "3" ? "three (3)" : v.initialTermMonths} months, then ${v.renewalRule}, unless terminated earlier in accordance with this Agreement. Appointment type, grade, certification and access may be reviewed separately. Renewal does not preserve an expired commercial rate unless the applicable Commercial Schedule expressly provides otherwise.`,
+          body: "This Agreement begins on the Effective Date and continues for an initial term of three (3) months. It then automatically renews for successive twelve (12) month periods unless either Party gives written notice of non-renewal at least thirty (30) days before expiry. Either Party may terminate earlier in accordance with this Agreement. Appointment type, grade, certification and access may be reviewed separately. Renewal does not preserve an expired commercial rate unless the applicable Commercial Schedule expressly provides otherwise.",
         },
       ],
     },

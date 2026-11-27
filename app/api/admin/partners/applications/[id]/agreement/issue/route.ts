@@ -46,6 +46,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (draftError || !draft) return NextResponse.json({ error: "This draft is no longer awaiting review. Generate a fresh draft and review it before issuing." }, { status: 409 })
 
     const input = draft.agreement_payload as AgreementInput
+    if (String(input.templateVersion || "") !== AGREEMENT_TEMPLATE_VERSION) {
+      return NextResponse.json({
+        error: `This saved PDF was created from template v${String(input.templateVersion || "legacy")}. Regenerate and review a fresh draft from the current master template v${AGREEMENT_TEMPLATE_VERSION} before approval and issue. The old document has not been signed and remains unissued.`,
+      }, { status: 409 })
+    }
     const validationErrors = validateAgreementInput(input)
     if (validationErrors.length) {
       return NextResponse.json({ error: "This saved draft does not meet the current agreement requirements. Regenerate and review it before issue.", validationErrors }, { status: 409 })

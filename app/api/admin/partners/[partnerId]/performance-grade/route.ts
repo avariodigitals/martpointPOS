@@ -54,9 +54,11 @@ export async function POST(request: Request, { params }: Ctx) {
   if (reduction && !input.authorizedReview) return NextResponse.json({ error: "Grade reduction requires an explicitly authorized review. Confirm the review and record its evidence and reason." }, { status: 409 })
   if (gradeRank(input.grade) > gradeRank(previous)) {
     if (!policy) return NextResponse.json({ error: "The grading policy is still a draft. Management must publish the policy before awarding a new performance grade." }, { status: 409 })
-    const required = input.grade === "SILVER" ? { outcomes: Number(policy?.silver_outcomes), days: Number(policy?.silver_min_days) }
-      : input.grade === "GOLD" ? { outcomes: Number(policy?.gold_outcomes), days: Number(policy?.gold_min_days) }
-      : input.grade === "PLATINUM" ? { outcomes: Number(policy?.platinum_outcomes), days: Number(policy?.platinum_min_days) }
+    const criteria = policy?.criteria && typeof policy.criteria === "object" ? policy.criteria as Record<string, unknown> : {}
+    const perType = criteria.trackCriteria && typeof criteria.trackCriteria === "object" ? (criteria.trackCriteria as Record<string, Record<string, unknown>>)[input.partnerType] : undefined
+    const required = input.grade === "SILVER" ? { outcomes: Number(perType?.silverOutcomes ?? policy?.silver_outcomes), days: Number(perType?.silverMinDays ?? policy?.silver_min_days) }
+      : input.grade === "GOLD" ? { outcomes: Number(perType?.goldOutcomes ?? policy?.gold_outcomes), days: Number(perType?.goldMinDays ?? policy?.gold_min_days) }
+      : input.grade === "PLATINUM" ? { outcomes: Number(perType?.platinumOutcomes ?? policy?.platinum_outcomes), days: Number(perType?.platinumMinDays ?? policy?.platinum_min_days) }
       : null
     const outcomeCount = input.grade === "SILVER" ? track.lifetimeOutcomes : track.rollingOutcomes
     if (!required || !track.activeAgreement || !track.onboardingComplete || !track.complianceClear || outcomeCount < required.outcomes || track.partnershipDays < required.days) {

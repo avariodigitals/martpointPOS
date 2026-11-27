@@ -15,6 +15,11 @@ const bytes = renderPartnerGradingPolicyPdf({
   platinum_min_days: 365,
   criteria: {
     partnerTypes: ["REFERRAL", "CHANNEL", "IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"],
+    trackCriteria: Object.fromEntries(["REFERRAL", "CHANNEL", "IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"].map((type) => [type, {
+      silverOutcomes: 1, goldOutcomes: 10, platinumOutcomes: 25,
+      silverMinDays: 90, goldMinDays: 183, platinumMinDays: 365,
+      assessmentWindowDays: 365,
+    }])),
     requirements: ["completed onboarding", "applicable certification", "satisfactory customer outcomes", "satisfactory compliance", "management approval", "performance review"],
   },
 })

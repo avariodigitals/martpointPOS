@@ -132,7 +132,7 @@ export default function PrivacyPolicyPage() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground mb-3">11. Contact Us</h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  If you have any questions about this Privacy Policy, please contact us at <a href="mailto:hello@martpoint.com.ng" className="text-retail underline hover:text-retail/80 transition-colors">hello@martpoint.com.ng</a> or via WhatsApp at <a href="tel:+2348037978230" className="text-retail underline hover:text-retail/80 transition-colors">+234 803 797 8230</a>.
+                  If you have any questions about this Privacy Policy, please contact us at <a href="mailto:hello@martpoint.com.ng" className="text-retail underline hover:text-retail/80 transition-colors">hello@martpoint.com.ng</a> or by phone at <a href="tel:+2342017001229" className="text-retail underline hover:text-retail/80 transition-colors">+2342017001229</a>.
                 </p>
               </div>
             </div>

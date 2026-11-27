@@ -3,12 +3,12 @@ import { renderPartnerGradingPolicyPdf } from "@/lib/partner-grading-policy-pdf.
 
 describe("partner grading policy PDF", () => {
   it("renders the proposed criteria and type-specific tracks in a two-page review PDF", () => {
-    const bytes = renderPartnerGradingPolicyPdf({ status: "DRAFT", version: "2.0", criteria: { partnerTypes: ["REFERRAL", "CHANNEL", "IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"] } })
+    const bytes = renderPartnerGradingPolicyPdf({ status: "DRAFT", version: "2.0", criteria: { partnerTypes: ["REFERRAL", "CHANNEL", "IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"], trackCriteria: { CHANNEL: { silverOutcomes: 7, goldOutcomes: 10, platinumOutcomes: 25, silverMinDays: 90, goldMinDays: 183, platinumMinDays: 365, assessmentWindowDays: 240 } } } })
     const pdf = new TextDecoder().decode(bytes)
     expect(pdf).toContain("PROPOSED")
-    expect(pdf).toContain("1 in the relevant Partner Type")
-    expect(pdf).toContain("10 in the relevant Partner Type")
-    expect(pdf).toContain("25 in the relevant Partner Type")
+    expect(pdf).toContain("1 / 90 days")
+    expect(pdf).toContain("7 / 90 days")
+    expect(pdf).toContain("240 days")
     expect(pdf).toContain("Referral Partner")
     expect(pdf).toContain("Technology Partner")
     expect(pdf).toContain("Payment Partner")

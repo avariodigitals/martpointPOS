@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase"
 
 const PolicyAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("publish"), reason: z.string().min(8).max(500) }),
-  z.object({ action: z.literal("update_draft"), reason: z.string().min(8).max(500), partnerTypes: z.array(z.enum(["REFERRAL", "CHANNEL", "IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"])).min(1), silverOutcomes: z.number().int().min(1).max(1000), goldOutcomes: z.number().int().min(2).max(1000), platinumOutcomes: z.number().int().min(3).max(1000), silverMinDays: z.number().int().min(0).max(3650), goldMinDays: z.number().int().min(0).max(3650), platinumMinDays: z.number().int().min(0).max(3650) }),
+  z.object({ action: z.literal("update_draft"), reason: z.string().min(8).max(500), partnerTypes: z.array(z.enum(["REFERRAL", "CHANNEL", "IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"])).min(1), trackCriteria: z.record(z.enum(["REFERRAL", "CHANNEL", "IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"]), z.object({ silverOutcomes: z.number().int().min(1).max(1000), goldOutcomes: z.number().int().min(2).max(1000), platinumOutcomes: z.number().int().min(3).max(1000), silverMinDays: z.number().int().min(0).max(3650), goldMinDays: z.number().int().min(0).max(3650), platinumMinDays: z.number().int().min(0).max(3650), assessmentWindowDays: z.number().int().min(1).max(3650) })).refine((criteria) => Object.keys(criteria).length === 5, "Configure all five Partner Type tracks") }),
 ])
 export async function GET() {
   const session = await getSession()
@@ -24,10 +24,13 @@ export async function POST(request: Request) {
   const { data: policy } = await supabase.from("partner_grading_policies").select("id,status,version").eq("status", "DRAFT").order("created_at", { ascending: false }).limit(1).maybeSingle()
   if (!policy) return NextResponse.json({ error: "No draft grading policy is available" }, { status: 404 })
   if (parsed.data.action === "update_draft") {
-    const values = { silver_outcomes: parsed.data.silverOutcomes, gold_outcomes: parsed.data.goldOutcomes, platinum_outcomes: parsed.data.platinumOutcomes, silver_min_days: parsed.data.silverMinDays, gold_min_days: parsed.data.goldMinDays, platinum_min_days: parsed.data.platinumMinDays }
-    if (values.gold_outcomes <= values.silver_outcomes || values.platinum_outcomes <= values.gold_outcomes || values.gold_min_days < values.silver_min_days || values.platinum_min_days < values.gold_min_days) return NextResponse.json({ error: "Higher grades must require more outcomes and no shorter duration than lower grades" }, { status: 400 })
+    for (const [type, values] of Object.entries(parsed.data.trackCriteria)) {
+      if (values.goldOutcomes <= values.silverOutcomes || values.platinumOutcomes <= values.goldOutcomes || values.goldMinDays < values.silverMinDays || values.platinumMinDays < values.goldMinDays) return NextResponse.json({ error: `Higher grades must require more outcomes and no shorter duration in the ${type} track` }, { status: 400 })
+    }
+    const channel = parsed.data.trackCriteria.CHANNEL
+    const values = { silver_outcomes: channel.silverOutcomes, gold_outcomes: channel.goldOutcomes, platinum_outcomes: channel.platinumOutcomes, silver_min_days: channel.silverMinDays, gold_min_days: channel.goldMinDays, platinum_min_days: channel.platinumMinDays }
     const { data: previous } = await supabase.from("partner_grading_policies").select("criteria,silver_outcomes,gold_outcomes,platinum_outcomes,silver_min_days,gold_min_days,platinum_min_days").eq("id", policy.id).maybeSingle()
-    const criteria = { partnerTypes: parsed.data.partnerTypes, requirements: ["completed onboarding", "applicable certification", "satisfactory customer outcomes", "satisfactory compliance", "management approval", "performance review"] }
+    const criteria = { partnerTypes: parsed.data.partnerTypes, trackCriteria: parsed.data.trackCriteria, requirements: ["completed onboarding", "applicable certification", "satisfactory customer outcomes", "satisfactory compliance", "management approval", "performance review"] }
     const { error } = await supabase.from("partner_grading_policies").update({ ...values, criteria, updated_at: new Date().toISOString() }).eq("id", policy.id).eq("status", "DRAFT")
     if (error) return NextResponse.json({ error: "Could not update the draft policy" }, { status: 500 })
     await supabase.from("partner_grading_policy_changes").insert({ policy_id: policy.id, previous_values: previous || {}, new_values: { ...values, criteria }, change_reason: parsed.data.reason, changed_by: session.userId })

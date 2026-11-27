@@ -628,7 +628,7 @@ export default function AdminSettingsPage() {
                   value={settings.phone || ""}
                   onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="+2348037978230"
+                  placeholder="+2342017001229"
                 />
               </div>
               <div>

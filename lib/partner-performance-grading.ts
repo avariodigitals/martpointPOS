@@ -48,16 +48,22 @@ export function gradeRank(grade: string | null | undefined): number {
 
 export async function getPerformanceTrack(partnerId: string, partnerType: GradedPartnerType, includeLegacyGrade = false) {
   const [{ data: partner }, { data: policy }, { data: existingGrade }, { data: outcomes }, { data: lifecycle }, { data: agreements }] = await Promise.all([
-    supabase.from("partners").select("partner_since,status,application_id,partner_type,current_grade").eq("id", partnerId).maybeSingle(),
+    supabase.from("partners").select("partner_since,partner_type_activation_dates,status,application_id,partner_type,current_grade").eq("id", partnerId).maybeSingle(),
     supabase.from("partner_grading_policies").select("*").eq("status", "APPROVED").order("effective_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("partner_type_grades").select("current_grade,last_reviewed_at").eq("partner_id", partnerId).eq("partner_type", partnerType).maybeSingle(),
     supabase.from("partner_delivery_verifications").select("delivery_type,outcome_reference,evidence_reference,verified_at").eq("partner_id", partnerId).eq("partner_type", partnerType).eq("approved", true),
     supabase.from("partner_lifecycle").select("onboarding_status,compliance_status").eq("partner_id", partnerId).maybeSingle(),
     supabase.from("partner_agreements").select("id").eq("partner_id", partnerId).in("status", ["EXECUTED", "ACTIVE"]).limit(1),
   ])
-  const since = partner?.partner_since ? new Date(partner.partner_since) : null
+  const activationDates = partner?.partner_type_activation_dates && typeof partner.partner_type_activation_dates === "object"
+    ? partner.partner_type_activation_dates as Record<string, string>
+    : {}
+  const sinceValue = activationDates[partnerType] || partner?.partner_since
+  const since = sinceValue ? new Date(sinceValue) : null
   const days = since ? Math.max(0, Math.floor((Date.now() - since.getTime()) / 86400000)) : 0
-  const windowDays = Number(policy?.rolling_window_days || 365)
+  const rawCriteria = policy?.criteria && typeof policy.criteria === "object" ? policy.criteria as Record<string, unknown> : {}
+  const perType = rawCriteria.trackCriteria && typeof rawCriteria.trackCriteria === "object" ? (rawCriteria.trackCriteria as Record<string, Record<string, unknown>>)[partnerType] : undefined
+  const windowDays = Number(perType?.assessmentWindowDays || policy?.rolling_window_days || 365)
   const windowStart = Date.now() - windowDays * 86400000
   const unique = new Map<string, { reference: string; verifiedAt: string }>()
   const rolling = new Map<string, { reference: string; verifiedAt: string }>()
@@ -96,12 +102,12 @@ export async function getPerformanceTrack(partnerId: string, partnerType: Graded
   const onboardingComplete = lifecycle?.onboarding_status === "complete" || lifecycle?.onboarding_status === "completed" || lifecycle?.onboarding_status === "approved"
   const complianceClear = ["clear", "satisfactory", "compliant"].includes(String(lifecycle?.compliance_status || "").toLowerCase())
   const activeAgreement = Array.isArray(agreements) ? agreements.length > 0 : Boolean(agreements)
-  const enabledTypes = Array.isArray(policy?.criteria?.partnerTypes) ? policy.criteria.partnerTypes.map((value: unknown) => String(value).toUpperCase()) : ["CHANNEL", "IMPLEMENTATION"]
+  const enabledTypes = Array.isArray(rawCriteria.partnerTypes) ? rawCriteria.partnerTypes.map((value: unknown) => String(value).toUpperCase()) : ["CHANNEL", "IMPLEMENTATION"]
   const policyEnablesTrack = Boolean(policy && enabledTypes.includes(partnerType))
   const gradeNeeds: Record<Exclude<PerformanceGrade, "UNGRADED">, { outcomes: number; days: number }> = {
-    SILVER: { outcomes: Number(policy?.silver_outcomes || 1), days: Number(policy?.silver_min_days || 90) },
-    GOLD: { outcomes: Number(policy?.gold_outcomes || 10), days: Number(policy?.gold_min_days || 183) },
-    PLATINUM: { outcomes: Number(policy?.platinum_outcomes || 25), days: Number(policy?.platinum_min_days || 365) },
+    SILVER: { outcomes: Number(perType?.silverOutcomes ?? policy?.silver_outcomes ?? 1), days: Number(perType?.silverMinDays ?? policy?.silver_min_days ?? 90) },
+    GOLD: { outcomes: Number(perType?.goldOutcomes ?? policy?.gold_outcomes ?? 10), days: Number(perType?.goldMinDays ?? policy?.gold_min_days ?? 183) },
+    PLATINUM: { outcomes: Number(perType?.platinumOutcomes ?? policy?.platinum_outcomes ?? 25), days: Number(perType?.platinumMinDays ?? policy?.platinum_min_days ?? 365) },
   }
   const next = current === "UNGRADED" ? "SILVER" : current === "SILVER" ? "GOLD" : current === "GOLD" ? "PLATINUM" : null
   const count = next === "SILVER" ? unique.size : rolling.size

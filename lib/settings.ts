@@ -2,6 +2,7 @@ import { cache } from "react"
 import { unstable_cache } from "next/cache"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { getIntegrationDefaults, type IntegrationSettings } from "./integrations"
+import { normalizeMartPointPhone } from "./contact-info"
 
 const fetchSettings = unstable_cache(
   async function fetchSettings(): Promise<Record<string, unknown> | null> {
@@ -68,7 +69,7 @@ export async function getEmailFooterSettings(): Promise<EmailFooterSettings> {
       tiktok: "https://www.tiktok.com/@usemartpoint",
     },
     contactEmail: "sales@martpoint.com.ng",
-    phone: "+234 701 042 6993",
+    phone: "+2342017001229",
     whatsappNumber: "+2348037978230",
     companyName: "MartPoint Solutions",
     website: "https://martpoint.com.ng",
@@ -86,7 +87,7 @@ export async function getEmailFooterSettings(): Promise<EmailFooterSettings> {
     return {
       social: { ...defaults.social, ...usable },
       contactEmail: String(general.contactEmail || defaults.contactEmail),
-      phone: String(general.phone || defaults.phone),
+      phone: normalizeMartPointPhone(general.phone || defaults.phone),
       whatsappNumber: String(general.whatsappNumber || defaults.whatsappNumber),
       companyName: String(general.companyName || defaults.companyName),
       website: defaults.website,
@@ -102,7 +103,7 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
     companyName: "MartPoint",
     contactEmail: "hello@martpoint.com.ng",
     whatsappNumber: "+2348037978230",
-    phone: "+2348037978230",
+    phone: "+2342017001229",
     accountNumber: "",
     logo: "/logo.webp",
     googleReviewUrl: "https://g.page/r/Cb5Gukc0lQW8EBM/review",
@@ -117,7 +118,7 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
       companyName: String(general.companyName || defaults.companyName),
       contactEmail: String(general.contactEmail || defaults.contactEmail),
       whatsappNumber: String(general.whatsappNumber || defaults.whatsappNumber),
-      phone: String(general.phone || defaults.phone),
+      phone: normalizeMartPointPhone(general.phone || defaults.phone),
       accountNumber: String(general.accountNumber || ""),
       logo: String(header.logo || defaults.logo),
       googleReviewUrl: String(general.googleReviewUrl ?? defaults.googleReviewUrl),

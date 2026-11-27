@@ -1,4 +1,5 @@
 import { readSettings } from "@/lib/settings"
+import { normalizeMartPointPhone } from "@/lib/contact-info"
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://martpoint.com.ng"
 
@@ -8,7 +9,7 @@ export async function OrganizationSchema() {
   const social = (settings?.social as Record<string, string>) || {}
   const companyName = general?.companyName || "MartPoint"
   const email = general?.contactEmail || "hello@martpoint.com.ng"
-  const whatsapp = general?.whatsappNumber || "+2348037978230"
+  const phone = normalizeMartPointPhone(general?.phone)
   const sameAs = [social.facebook, social.instagram, social.twitter, social.linkedin, social.youtube, social.tiktok].filter(
     Boolean,
   )
@@ -24,14 +25,14 @@ export async function OrganizationSchema() {
     contactPoint: [
       {
         "@type": "ContactPoint",
-        telephone: whatsapp,
+        telephone: phone,
         contactType: "sales",
         availableLanguage: ["English"],
         areaServed: "NG",
       },
       {
         "@type": "ContactPoint",
-        telephone: whatsapp,
+        telephone: phone,
         contactType: "customer support",
         availableLanguage: ["English"],
         areaServed: "NG",
@@ -232,7 +233,7 @@ export function LocalBusinessSchema() {
     name: "MartPoint",
     alternateName: "MartPoint Africa",
     url: BASE_URL,
-    telephone: "+2348037978230",
+    telephone: "+2342017001229",
     email: "hello@martpoint.ng",
     priceRange: "₦₦",
     areaServed: {

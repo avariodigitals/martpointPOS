@@ -110,6 +110,12 @@ function pdfText(bytes: Buffer): string {
 }
 
 describe("generatePartnerAgreementPdf", () => {
+  it("uses the updated direct MartPoint phone in the agreement header", () => {
+    const text = pdfText(generatePartnerAgreementPdf(baseInput("CHANNEL")).bytes)
+    expect(text).toContain("+2342017001229")
+    expect(text).not.toContain("+234 803 797 8230")
+  })
+
   it.each(["REFERRAL", "CHANNEL", "IMPLEMENTATION", "CHANNEL_IMPLEMENTATION", "TECHNOLOGY", "PAYMENT"])(
     "validates complete appointment and commercial sections for %s",
     (partnerType) => {
@@ -172,6 +178,7 @@ describe("generatePartnerAgreementPdf", () => {
       "Schedule Two — Channel Sales and Support Terms",
       "Schedule Three — Implementation Partner Terms",
       "Schedule Four — Commercial Terms",
+      "Schedule Five — Data Processing Addendum",
       "Signature Page",
     ])
     const text = pdfText(out.bytes)
@@ -179,6 +186,27 @@ describe("generatePartnerAgreementPdf", () => {
     expect(text).toContain("Schedule Four")
     expect(text).not.toContain("Schedule Seven")
     expect(text).not.toContain("Referral Partner Terms")
+    expect(text).toContain("Customer Assignment")
+    expect(text).toContain("four hours of discovery")
+  })
+
+  it("repairs stale agreement snapshots from the current master before rendering", () => {
+    const input = baseInput("CHANNEL_IMPLEMENTATION")
+    input.renewalRule = "The Partner is eligible for a 5% commission on subscription renewals"
+    const implementation = input.commercials.find((c) => c.partnerTypeLabel === "Implementation Partner")!
+    implementation.eligibleRevenueDefinition = "Eligible Revenue from software licence subscriptions"
+    implementation.payoutTiming = "Pay after a 30-day commission holding period"
+    implementation.splitRule = "No stacking: a single customer transaction generates one earning only"
+    const text = pdfText(generatePartnerAgreementPdf(input).bytes)
+    const termClause = (text.split("22 Term review and renewal")[1]?.split("Common Terms Part Five")[0] || "")
+      .replace(/\\([()])/g, "$1")
+      .replace(/\s+/g, " ")
+    expect(termClause).toContain("initial term of three (3) months")
+    expect(termClause).toContain("successive twelve (12) month periods")
+    expect(termClause).not.toMatch(/commission|\d+%/i)
+    expect(text).toContain("No duplicate earning on the same revenue component")
+    expect(text).toContain("Holding period")
+    expect(text).not.toContain("Eligible Revenue from software licence subscriptions")
   })
 
   it("keeps Agreement term renewal separate from customer subscription renewal commission", () => {

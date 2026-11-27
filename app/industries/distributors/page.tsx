@@ -384,7 +384,7 @@ export default function DistributorsPage() {
                   <Link href="/request-quote?product=erp">Request Enterprise Quote</Link>
                 </Button>
               </div>
-              <p className="mt-6 text-sm text-muted-foreground">Or call us directly on <a href="tel:+2348037978230" className="text-erp font-medium">+234 803 797 8230</a></p>
+              <p className="mt-6 text-sm text-muted-foreground">Or call us directly on <a href="tel:+2342017001229" className="text-erp font-medium">+2342017001229</a></p>
             </div>
           </div>
         </section>

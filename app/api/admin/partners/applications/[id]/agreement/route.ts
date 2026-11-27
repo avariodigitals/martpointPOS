@@ -16,6 +16,7 @@ import {
   defaultProhibitions,
   commercialFieldDefaults,
   defaultTrigger,
+  normalizeAgreementInputForMaster,
   AGREEMENT_TEMPLATE_VERSION,
   type AgreementInput,
   type CommercialSection,
@@ -24,7 +25,7 @@ import { agreementTypeKeys } from "@/lib/partner-agreement-content"
 import { validateAgreementInput } from "@/lib/partner-agreement-validation"
 
 /* ─── Partner agreement generation ───
- * Generates the clean partner signing copy from the master template (v1.1): Common
+ * Generates the clean partner signing copy from the current master template: Common
  * Terms + Appointment Summary + only the Partner Type Schedules matching the approved
  * type + Commercial Terms (admin-entered, one section per earning basis) + Signature
  * Page. The internal automation/approval sections and unused schedules are never
@@ -127,6 +128,7 @@ export async function GET(
     createdAt: String(draft.created_at),
     previewUrl: await createSignedDocUrl(String(draft.draft_document_path), 300),
     payload: draft.agreement_payload,
+    templateVersion: String((draft.agreement_payload as Record<string, unknown> | null)?.templateVersion || "legacy"),
   } : null
 
   return NextResponse.json({
@@ -297,7 +299,7 @@ export async function POST(
       })
     }
 
-    const input: AgreementInput = {
+    const input = normalizeAgreementInputForMaster({
       agreementId: `AGR-${app.reference_number}`,
       effectiveDate: body.effectiveDate || "",
       initialTermMonths: body.initialTermMonths || "",
@@ -314,7 +316,7 @@ export async function POST(
       technology: body.technology || undefined,
       commercials,
       additionalSchedules,
-    }
+    } as AgreementInput)
 
     const validationErrors = validateAgreementInput(input)
     if (validationErrors.length) {

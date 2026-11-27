@@ -11,6 +11,8 @@ import {
   TYPE_LABELS,
   TYPE_SCHEDULE_TITLES,
   BLANK,
+  CHANNEL_ACQUISITION_COMMISSION_RATE,
+  commercialFieldDefaults,
   type AgreementTypeKey,
 } from "./partner-agreement-content"
 
@@ -60,6 +62,8 @@ export interface AdditionalSchedule {
 }
 
 export interface AgreementInput {
+  /** Version of the master used to build this saved draft. Missing means legacy snapshot. */
+  templateVersion?: string
   agreementId: string
   effectiveDate: string
   initialTermMonths: string
@@ -117,6 +121,46 @@ export interface AgreementInput {
   }
 }
 
+/** Refresh legacy draft snapshots from the approved master while retaining
+ * appointment-specific fields, approver selections and project fee values. */
+export function normalizeAgreementInputForMaster(input: AgreementInput): AgreementInput {
+  const typeKeys = agreementTypeKeys(input.partnerType)
+  const hasChannel = typeKeys.includes("channel")
+  const hasImplementation = typeKeys.includes("implementation")
+  const commercials = (input.commercials || []).map((section) => {
+    const label = section.partnerTypeLabel.trim().toLowerCase()
+    const isChannel = hasChannel && label === "channel partner" && section.earningCategory.toLowerCase().includes("commission")
+    const isImplementation = hasImplementation && label === "implementation partner" && section.earningCategory.toLowerCase().includes("implementation")
+    if (!isChannel && !isImplementation) return section
+    const defaults = commercialFieldDefaults(section.earningCategory, section.partnerTypeLabel)
+    return {
+      ...section,
+      ...defaults,
+      ...(isChannel ? { rateOrFee: CHANNEL_ACQUISITION_COMMISSION_RATE, rateUnit: "PERCENTAGE" as const } : {}),
+      ...(isImplementation ? { rateOrFee: "Agreed per approved Work Order", rateUnit: "WORK_ORDER" as const } : {}),
+      financeApprover: section.financeApprover,
+      managementApprover: section.managementApprover,
+      currencyAndTaxRule: section.currencyAndTaxRule,
+    }
+  })
+  const dpaBody = "This Addendum applies to each processing activity expressly approved under a signed Work Order, Customer Assignment or written processing instruction. Before access, the Parties shall record the actual controller, processor or independent-controller roles; purpose; duration; data subjects; personal-data categories; operations; documented instructions; approved systems, locations and subprocessors. No role is presumed solely by appointment. Each Party shall comply with the Nigeria Data Protection Act 2023 and applicable Nigeria Data Protection Commission directives. A processor acts only on documented instructions, maintains appropriate technical and organisational safeguards, binds authorised personnel to confidentiality, obtains prior written approval for subprocessors, assists with data-subject requests and audits, and returns or securely deletes data when instructed or when the approved purpose ends, except where law requires retention. A Party discovering a suspected or actual incident affecting the processing shall notify the other affected Party within four hours of discovery, preserve evidence, contain the incident and cooperate with legally required notifications. Processing and customer-environment access are prohibited until this Addendum is signed and the applicable Work Order or Customer Assignment identifies the processing details and access permissions. This contractual four-hour notice does not replace or extend any statutory deadline."
+  const additionalSchedules = (input.additionalSchedules || []).map((schedule) =>
+    hasImplementation && /data processing addendum/i.test(schedule.title) ? { ...schedule, body: dpaBody } : schedule
+  )
+  if (hasImplementation && !additionalSchedules.some((schedule) => /data processing addendum/i.test(schedule.title))) {
+    additionalSchedules.push({ title: "Data Processing Addendum", body: dpaBody })
+  }
+  return {
+    ...input,
+    templateVersion: AGREEMENT_TEMPLATE_VERSION,
+    initialTermMonths: "3",
+    renewalRule: "automatically renews for successive twelve (12) month periods unless either Party gives written notice of non-renewal at least thirty (30) days before expiry",
+    noticeDays: "30",
+    commercials,
+    additionalSchedules,
+  }
+}
+
 export interface GeneratedAgreement {
   bytes: Buffer
   fileName: string
@@ -130,7 +174,7 @@ export interface AgreementRenderOptions {
 }
 
 const BRAND_BLUE: [number, number, number] = [0, 87, 255]
-const BRAND_COMPANY_LINES = ["MartPoint", "hello@martpoint.com.ng", "+234 803 797 8230", "www.martpoint.com.ng"]
+const BRAND_COMPANY_LINES = ["MartPoint", "hello@martpoint.com.ng", "+2342017001229", "www.martpoint.com.ng"]
 
 const COMMERCIAL_FIELD_ROWS: { label: string; key: keyof CommercialSection }[] = [
   { label: "Applicable partner type", key: "partnerTypeLabel" },
@@ -176,6 +220,7 @@ function displayRateUnit(value: unknown): string {
 }
 
 export function generatePartnerAgreementPdf(input: AgreementInput, opts?: AgreementRenderOptions): GeneratedAgreement {
+  input = normalizeAgreementInputForMaster(input)
   const typeKeys = agreementTypeKeys(input.partnerType)
   if (typeKeys.length === 0) throw new Error(`Unsupported partner type: ${input.partnerType}`)
 

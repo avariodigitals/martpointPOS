@@ -40,9 +40,9 @@ export async function Footer() {
   return (
     <footer className="w-full border-t border-white/15 bg-[#0047CC] text-white relative overflow-hidden">
       <div className="container-martpoint py-12 md:py-16 relative">
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-10 md:gap-10 xl:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))] gap-10 md:gap-10 xl:gap-8">
           {/* Column 1: Brand */}
-          <div>
+          <div className="space-y-3">
             <Link href="/" className="inline-block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -51,18 +51,18 @@ export async function Footer() {
                 className="h-14 w-auto object-contain block"
               />
             </Link>
-            <p className="mt-4 text-sm text-white/90 leading-relaxed max-w-xs">
+            <p className="text-sm leading-relaxed text-white/90 max-w-xs">
               The operating system for African retail and growing businesses.
             </p>
-            <ul className="mt-6 space-y-2.5">
+            <ul className="space-y-2">
               {site.contactEmail && (
                 <li>
                   <a
                     href={`mailto:${site.contactEmail}`}
-                    className="inline-flex items-center gap-2.5 text-sm text-white/90 hover:text-white transition-colors"
+                    className="inline-flex max-w-full min-w-0 items-center gap-2.5 text-sm text-white/90 hover:text-white transition-colors"
                   >
                     <Mail className="h-4 w-4 shrink-0" />
-                    {site.contactEmail}
+                    <span className="break-all">{site.contactEmail}</span>
                   </a>
                 </li>
               )}

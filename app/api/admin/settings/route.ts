@@ -8,6 +8,7 @@ import { DEFAULT_MEETING_NOTES } from "@/lib/meeting-notes"
 import { DEFAULT_DRIVE_SETTINGS } from "@/lib/drive-storage"
 import { validateEmailSettings } from "@/lib/email-settings-guard"
 import { DEFAULT_PROFILE_SIGNATURE_HTML, DEFAULT_PROFILE_SIGNATURE_SCALE } from "@/lib/email-signature"
+import { normalizeMartPointPhone } from "@/lib/contact-info"
 
 async function readSettings(): Promise<Record<string, unknown>> {
   if (!isSupabaseConfigured()) {
@@ -26,7 +27,9 @@ async function readSettings(): Promise<Record<string, unknown>> {
       return getDefaultSettings()
     }
 
-    return (data.data as Record<string, unknown>) || getDefaultSettings()
+    const settings = (data.data as Record<string, unknown>) || getDefaultSettings()
+    const general = (settings.general as Record<string, unknown> | undefined) || {}
+    return { ...settings, general: { ...general, phone: normalizeMartPointPhone(general.phone) } }
   } catch {
     return getDefaultSettings()
   }
@@ -53,7 +56,7 @@ function getDefaultSettings() {
       supportPhone: "",
       contactEmail: "hello@martpoint.com.ng",
       whatsappNumber: "+2348037978230",
-      phone: "+2348037978230",
+      phone: "+2342017001229",
       companyName: "MartPoint",
       accountNumber: "",
       googleReviewUrl: "https://g.page/r/Cb5Gukc0lQW8EBM/review",

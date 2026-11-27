@@ -63,6 +63,15 @@ describe("process-oriented admin navigation", () => {
       "/admin/support"
     )
   })
+  it("combines permissions and navigation for staff assigned to multiple roles", () => {
+    expect(hasPermission(["Finance", "Editor"], "finance")).toBe(true)
+    expect(hasPermission(["Finance", "Editor"], "blog")).toBe(true)
+    expect(hasPermission(["Finance", "Editor"], "users")).toBe(false)
+    const nav = getAdminNavigation(["Finance", "Editor"])
+    expect(nav.visibleItems.some((item) => item.href === "/admin/finance")).toBe(true)
+    expect(nav.visibleItems.some((item) => item.href === "/admin/blog")).toBe(true)
+    expect(nav.visibleItems.some((item) => item.href === "/admin/users")).toBe(false)
+  })
   it("orders conversion steps and partner/creator workflows rather than alphabetical modules", () => {
     const sections = getAdminNavigation("Admin").sections
     expect(sections.find((section) => section.label === "Sales")!.items.map((item) => item.href)).toEqual([

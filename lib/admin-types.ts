@@ -1,5 +1,6 @@
 export type UserRole =
   | "Admin"
+  | "Super Admin"
   | "Finance"
   | "Digital Marketer"
   | "Sales"
@@ -10,6 +11,18 @@ export type UserRole =
   | "Hiring Manager"
   | "Reviewer"
   | "Deployment Supervisor"
+  | "Deployment Manager"
+  | "Partner Manager"
+
+export type BusinessUnit =
+  | "Sales & Marketing"
+  | "Partners"
+  | "Customer Engagement"
+  | "Admin"
+  | "HR"
+  | "Digital"
+  | "Finance"
+  | "Tech & IT"
 
 export interface User {
   id: string
@@ -22,6 +35,8 @@ export interface User {
   signatureTemplate?: import("./email-signature").SignatureTemplate | null
   passwordHash: string
   role: UserRole
+  roles?: UserRole[]
+  businessUnit?: BusinessUnit | ""
   status: "ACTIVE" | "DISABLED"
   createdAt: string
 }
@@ -30,6 +45,8 @@ export interface SessionPayload {
   userId: string
   username: string
   role: UserRole
+  roles?: UserRole[]
+  businessUnit?: BusinessUnit | ""
   name: string
   /** Issued-at timestamp (ms epoch). Added at login. */
   iat: number
@@ -45,6 +62,7 @@ export interface SessionPayload {
 
 export const ALL_ROLES: UserRole[] = [
   "Admin",
+  "Super Admin",
   "Finance",
   "Digital Marketer",
   "Sales",
@@ -55,6 +73,12 @@ export const ALL_ROLES: UserRole[] = [
   "Hiring Manager",
   "Reviewer",
   "Deployment Supervisor",
+  "Deployment Manager",
+  "Partner Manager",
+]
+
+export const BUSINESS_UNITS: BusinessUnit[] = [
+  "Sales & Marketing", "Partners", "Customer Engagement", "Admin", "HR", "Digital", "Finance", "Tech & IT",
 ]
 
 /* Careers module granular permissions. These strings double as the `page`
@@ -120,7 +144,8 @@ export const BUSINESS_GROWTH_PERMISSIONS = [
 ] as const
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
-  Admin: "Full access to all Control Centre features",
+  Admin: "Administrative department role; access follows the assigned Admin role permissions",
+  "Super Admin": "Full access to all Control Centre features",
   Finance: "Dashboard, finance, partner quotes, tracker, analytics, leads, customers, onboarding",
   "Digital Marketer": "Dashboard, SEO, blog, FAQs, tracker, analytics, leads, customers, onboarding",
   Sales: "Dashboard, leads, calendar, quotations, customers, businesses, onboarding and Azera chats",
@@ -131,10 +156,13 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   "Hiring Manager": "Assigned vacancies and their applicants — review and scoring",
   Reviewer: "Candidate review and scoring only",
   "Deployment Supervisor": "Assigned deployments, attendance and performance",
+  "Deployment Manager": "Manage deployment assignments and delivery operations",
+  "Partner Manager": "Manage partner applications, appointments and relationships",
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   Admin: ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "integrations", "users", "leads", "quotations", "customers", "finance", "approvals", "onboarding", "partners", "businesses", "support", "azera", "customer_success", "compliance", "tasks", "marketing", "status"],
+  "Super Admin": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "settings", "integrations", "users", "leads", "quotations", "customers", "finance", "approvals", "onboarding", "partners", "businesses", "support", "azera", "customer_success", "compliance", "tasks", "marketing", "status"],
   Finance: ["dashboard", "finance", "finance.invoices.view", "finance.payments.view", "approvals", "partner_quotes", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "compliance"],
   "Digital Marketer": ["dashboard", "seo", "blog", "faqs", "tracker", "analytics", "leads", "quotations", "customers", "onboarding", "businesses", "marketing", ...CREATOR_PERMISSIONS],
   Sales: ["dashboard", "finance.invoices.view", "finance.payments.view", "leads", "quotations", "customers", "onboarding", "businesses", "azera"],
@@ -162,6 +190,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     "careers.deployments.view",
     "careers.deployments.manage",
   ],
+  "Deployment Manager": ["dashboard", "careers.dashboard.view", "careers.deployments.view", "careers.deployments.manage"],
+  "Partner Manager": ["dashboard", "partners", "leads", "customers", "onboarding", "businesses", "compliance"],
 }
 
 // Finance also sees deployment compensation summaries and owns commission
@@ -176,7 +206,7 @@ ROLE_PERMISSIONS.Finance = [
   "careers.performance.view",
 ]
 
-export function hasPermission(role: UserRole, page: string): boolean {
+export function hasPermission(role: UserRole | UserRole[], page: string): boolean {
   // Mailbox visibility is granted per inbox membership in the API. The page
   // itself is available to every active staff role so department membership
   // stays configurable instead of being tied to role names here.
@@ -185,8 +215,9 @@ export function hasPermission(role: UserRole, page: string): boolean {
   // ROLE_PERMISSIONS.Admin list doesn't enumerate granular permissions like
   // the careers.* set, so without this an Admin would lose menu items and
   // fail PermissionGuard/API checks that call hasPermission directly.
-  if (role === "Admin") return true
-  return ROLE_PERMISSIONS[role]?.includes(page) ?? false
+  const roles = Array.isArray(role) ? role : [role]
+  if (roles.includes("Admin") || roles.includes("Super Admin")) return true
+  return roles.some((item) => ROLE_PERMISSIONS[item]?.includes(page) ?? false)
 }
 
 /* ───────────────────────────  Authorization  ───────────────────────────
@@ -221,16 +252,17 @@ export function authorize(
 ): boolean {
   if (!session) return false
   // Admin role bypasses granular checks for now.
-  if (session.role === "Admin") return true
+  const roles = session.roles?.length ? session.roles : [session.role]
+  if (roles.includes("Admin") || roles.includes("Super Admin")) return true
 
   // Business records: Sales can create/update records for sales handoff, but
   // only Finance/Admin can delete records or manage sensitive sub-resources
   // such as business users, branches and entitlements.
   if (page === "businesses" && action) {
-    if (action === "view") return hasPermission(session.role, "businesses")
-    if (session.role === "Sales") return action === "create" || action === "update"
-    return session.role === "Finance"
+    if (action === "view") return hasPermission(roles, "businesses")
+    if (roles.includes("Sales")) return action === "create" || action === "update"
+    return roles.includes("Finance")
   }
 
-  return hasPermission(session.role, page)
+  return hasPermission(roles, page)
 }

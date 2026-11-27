@@ -10,7 +10,7 @@ function err(message: string, status = 400) {
 export async function POST(request: Request) {
   const session = await getSession()
   if (!session) return err("Unauthorized", 401)
-  if (!hasSupportAdminAction(session.role, "support:create")) return err("Forbidden", 403)
+  if (!hasSupportAdminAction(session.roles?.length ? session.roles : [session.role], "support:create")) return err("Forbidden", 403)
 
   try {
     const body = await request.json()
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   const session = await getSession()
   if (!session) return err("Unauthorized", 401)
-  if (!hasSupportAdminAction(session.role, "support:view")) return err("Forbidden", 403)
+  if (!hasSupportAdminAction(session.roles?.length ? session.roles : [session.role], "support:view")) return err("Forbidden", 403)
 
   try {
     const { searchParams } = new URL(request.url)

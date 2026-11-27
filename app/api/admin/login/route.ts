@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
     await setSessionCookie(session)
 
-    return NextResponse.json({ success: true, user: { username: session.username, role: session.role, name: session.name } })
+    return NextResponse.json({ success: true, user: { username: session.username, role: session.role, roles: session.roles || [session.role], businessUnit: session.businessUnit || "", name: session.name } })
   } catch {
     return NextResponse.json({ error: "Failed to process login" }, { status: 500 })
   }

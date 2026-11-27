@@ -5,6 +5,7 @@ import { getSession } from "@/lib/admin-auth"
 import { sendEmail } from "@/lib/email"
 import { escapeHtml } from "@/lib/email-html"
 import { roleLabel } from "@/lib/utils"
+import { ALL_ROLES, BUSINESS_UNITS, type BusinessUnit, type UserRole } from "@/lib/admin-types"
 
 /* ─── GET ─── */
 export async function GET() {
@@ -26,20 +27,25 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { username, email, name, role, signatureHtml } = body
+    const { username, email, name, role, roles, businessUnit, signatureHtml } = body
+    const selectedRoles = Array.isArray(roles) ? [...new Set(roles)] : role ? [role] : []
 
-    if (!username || !name || !role || !email) {
-      return NextResponse.json({ error: "Username, email, name and role are required" }, { status: 400 })
+    if (!username || !name || !selectedRoles.length || !email || !businessUnit) {
+      return NextResponse.json({ error: "Username, email, name, Business Unit and at least one role are required" }, { status: 400 })
     }
+    if (selectedRoles.some((value) => !ALL_ROLES.includes(value as UserRole))) return NextResponse.json({ error: "Choose valid roles" }, { status: 400 })
+    if (selectedRoles.length > 1 && selectedRoles.some((value) => value === "Admin" || value === "Super Admin")) return NextResponse.json({ error: "Admin and Super Admin are full-access roles and must be assigned alone" }, { status: 400 })
+    if (businessUnit && !BUSINESS_UNITS.includes(businessUnit as BusinessUnit)) return NextResponse.json({ error: "Choose a valid Business Unit" }, { status: 400 })
 
-    const invitation = await createAdminInvitation(username, email, name, role, 48, signatureHtml || "")
+    const primaryRole = selectedRoles[0] as UserRole
+    const invitation = await createAdminInvitation(username, email, name, primaryRole, 48, signatureHtml || "", selectedRoles as UserRole[], (businessUnit || "") as BusinessUnit | "")
     const origin = new URL(request.url).origin
     const inviteUrl = `${origin}/admin/invite/${encodeURIComponent(invitation.token)}`
     const emailSent = await sendEmail({
       to: invitation.user.email,
       subject: "Your MartPoint Admin invitation",
-      text: `Hello ${invitation.user.name},\n\nYou have been invited to MartPoint Admin as ${roleLabel(invitation.user.role)}.\n\nUsername: ${invitation.user.username}\n\nSet your password and activate your account here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
-      html: `<p>Hello ${escapeHtml(invitation.user.name)},</p><p>You have been invited to MartPoint Admin as <strong>${escapeHtml(roleLabel(invitation.user.role))}</strong>.</p><p><strong>Username:</strong> ${escapeHtml(invitation.user.username)}</p><p><a href="${inviteUrl}">Set your password and activate your account</a></p><p>This link expires in 48 hours.</p>`,
+      text: `Hello ${invitation.user.name},\n\nYou have been invited to MartPoint Admin as ${(invitation.user.roles || [invitation.user.role]).map(roleLabel).join(", ")}${invitation.user.businessUnit ? ` in ${invitation.user.businessUnit}` : ""}.\n\nUsername: ${invitation.user.username}\n\nSet your password and activate your account here:\n${inviteUrl}\n\nThis link expires in 48 hours.`,
+      html: `<p>Hello ${escapeHtml(invitation.user.name)},</p><p>You have been invited to MartPoint Admin as <strong>${escapeHtml((invitation.user.roles || [invitation.user.role]).map(roleLabel).join(", "))}</strong>${invitation.user.businessUnit ? ` in ${escapeHtml(invitation.user.businessUnit)}` : ""}.</p><p><strong>Username:</strong> ${escapeHtml(invitation.user.username)}</p><p><a href="${inviteUrl}">Set your password and activate your account</a></p><p>This link expires in 48 hours.</p>`,
     })
     if (!emailSent) {
       return NextResponse.json({ error: "User was created, but the invitation email could not be sent." }, { status: 502 })
@@ -55,7 +61,7 @@ export async function POST(request: Request) {
       action: AUDIT_ACTIONS.ADMIN_USER_CREATED,
       entityType: AUDIT_ENTITIES.ADMIN_USER,
       entityId: user.id,
-      metadata: { username: user.username, role: user.role },
+      metadata: { username: user.username, role: user.role, roles: user.roles, businessUnit: user.businessUnit },
     })
 
     return NextResponse.json({ success: true, user: safe })
@@ -80,6 +86,20 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
+    if (updates.roles !== undefined) {
+      if (!Array.isArray(updates.roles) || !updates.roles.length || updates.roles.some((value: unknown) => typeof value !== "string" || !ALL_ROLES.includes(value as UserRole))) {
+        return NextResponse.json({ error: "Choose at least one valid role" }, { status: 400 })
+      }
+      updates.roles = [...new Set(updates.roles)]
+      if (updates.roles.length > 1 && updates.roles.some((value: string) => value === "Admin" || value === "Super Admin")) {
+        return NextResponse.json({ error: "Admin and Super Admin are full-access roles and must be assigned alone" }, { status: 400 })
+      }
+      updates.role = updates.roles[0]
+    }
+    if (updates.businessUnit !== undefined && updates.businessUnit !== "" && !BUSINESS_UNITS.includes(updates.businessUnit as BusinessUnit)) {
+      return NextResponse.json({ error: "Choose a valid Business Unit" }, { status: 400 })
+    }
+
     const previous = await getAllUsers().then((users) => users.find((u) => u.id === id))
     const user = await updateUser(id, updates)
     if (!user) {
@@ -92,7 +112,7 @@ export async function PUT(request: Request) {
       action: AUDIT_ACTIONS.ADMIN_USER_UPDATED,
       entityType: AUDIT_ENTITIES.ADMIN_USER,
       entityId: id,
-      metadata: { previousRole: previous?.role, newRole: user.role, updatedFields: Object.keys(updates) },
+      metadata: { previousRole: previous?.role, newRole: user.role, roles: user.roles, businessUnit: user.businessUnit, updatedFields: Object.keys(updates) },
     })
 
     return NextResponse.json({ success: true, user: safe })

@@ -2,12 +2,12 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { NextResponse } from "next/server"
 import crypto from "crypto"
-import type { User, UserRole, SessionPayload, AdminAction } from "./admin-types"
+import { ALL_ROLES, type BusinessUnit, type User, type UserRole, type SessionPayload, type AdminAction } from "./admin-types"
 import { authorize, hasPermission as roleHasPermission } from "./admin-types"
 import { supabase, isSupabaseConfigured } from "./supabase"
 import { hashPassword, verifyPassword } from "./crypto"
 import { signSession, verifySession } from "./session-secret"
-import { hasEffectivePermission } from "./permission-overrides"
+import { hasEffectivePermissionForRoles } from "./permission-overrides"
 export type { User, UserRole, SessionPayload }
 
 const ADMIN_COOKIE_NAME = "admin-session"
@@ -43,6 +43,9 @@ export function isAdminSessionExpired(payload: SessionPayload): boolean {
 /* ───────────────────────────  USER STORE (Supabase)  ─────────────────────────── */
 
 function mapUser(row: Record<string, unknown>): User {
+  const role = (ALL_ROLES.includes(row.role as UserRole) ? row.role : "Editor") as UserRole
+  const savedRoles = Array.isArray(row.roles) ? row.roles.filter((value): value is UserRole => ALL_ROLES.includes(value as UserRole)) : []
+  const roles = savedRoles.length ? [...new Set(savedRoles)] : [role]
   return {
     id: row.id as string,
     username: row.username as string,
@@ -53,7 +56,9 @@ function mapUser(row: Record<string, unknown>): User {
     phone: (row.phone as string) || "",
     signatureTemplate: (row.signature_template as User["signatureTemplate"]) || null,
     passwordHash: row.password_hash as string,
-    role: row.role as UserRole,
+    role,
+    roles,
+    businessUnit: typeof row.business_unit === "string" ? row.business_unit as BusinessUnit : "",
     status: (row.status as "ACTIVE" | "DISABLED") ?? "ACTIVE",
     createdAt: row.created_at as string,
   }
@@ -93,8 +98,10 @@ export async function createUser(
   password: string,
   name: string,
   role: UserRole,
-  options?: { email?: string; signatureHtml?: string },
+  options?: { email?: string; signatureHtml?: string; roles?: UserRole[]; businessUnit?: BusinessUnit | "" },
 ): Promise<User> {
+  const roles = [...new Set(options?.roles?.length ? options.roles : [role])]
+  const primaryRole: UserRole = roles.includes("Super Admin") || roles.includes("Admin") ? "Admin" : (roles[0] || role)
   const user: User = {
     id: crypto.randomUUID(),
     username: username.toLowerCase().trim(),
@@ -102,7 +109,9 @@ export async function createUser(
     name: name.trim(),
     signatureHtml: options?.signatureHtml || "",
     passwordHash: hashPassword(password),
-    role,
+    role: primaryRole,
+    roles,
+    businessUnit: options?.businessUnit || "",
     status: "ACTIVE",
     createdAt: new Date().toISOString(),
   }
@@ -115,6 +124,8 @@ export async function createUser(
       signature_html: user.signatureHtml,
       password_hash: user.passwordHash,
       role: user.role,
+      roles: user.roles,
+      business_unit: user.businessUnit || null,
       status: user.status,
       created_at: user.createdAt,
     })
@@ -145,7 +156,14 @@ export async function updateUser(
   if (updates.phone !== undefined) updateData.phone = updates.phone.trim()
   if (updates.avatarPath !== undefined) updateData.avatar_path = updates.avatarPath
   if (updates.signatureTemplate !== undefined) updateData.signature_template = updates.signatureTemplate
-  if (updates.role) updateData.role = updates.role
+  if (updates.roles?.length) {
+    updateData.roles = [...new Set(updates.roles)]
+    updateData.role = updates.roles.includes("Super Admin") || updates.roles.includes("Admin") ? "Admin" : updates.roles[0]
+  } else if (updates.role) {
+    updateData.role = updates.role
+    updateData.roles = [updates.role]
+  }
+  if (updates.businessUnit !== undefined) updateData.business_unit = updates.businessUnit || null
   if (updates.status) updateData.status = updates.status
   if (updates.password) updateData.password_hash = hashPassword(updates.password)
 
@@ -169,7 +187,11 @@ export async function createAdminInvitation(
   role: UserRole,
   expiresInHours = 48,
   signatureHtml = "",
+  assignedRoles?: UserRole[],
+  businessUnit: BusinessUnit | "" = "",
 ): Promise<AdminInvitation> {
+  const roles = [...new Set(assignedRoles?.length ? assignedRoles : [role])]
+  const primaryRole: UserRole = roles.includes("Super Admin") || roles.includes("Admin") ? "Admin" : (roles[0] || role)
   const token = crypto.randomBytes(32).toString("base64url")
   const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString()
   const user: User = {
@@ -179,7 +201,9 @@ export async function createAdminInvitation(
     name: name.trim(),
     signatureHtml,
     passwordHash: hashPassword(crypto.randomBytes(32).toString("hex")),
-    role,
+    role: primaryRole,
+    roles,
+    businessUnit,
     status: "ACTIVE",
     createdAt: new Date().toISOString(),
   }
@@ -193,6 +217,8 @@ export async function createAdminInvitation(
       signature_html: user.signatureHtml,
       password_hash: user.passwordHash,
       role: user.role,
+      roles: user.roles,
+      business_unit: user.businessUnit || null,
       status: user.status,
       invite_token_hash: crypto.createHash("sha256").update(token).digest("hex"),
       invite_expires_at: expiresAt,
@@ -292,10 +318,16 @@ function isSessionPayload(value: unknown): value is SessionPayload {
   )
 }
 
-async function sessionUserIsActive(userId: string): Promise<boolean> {
-  if (!isSupabaseConfigured()) return true
-  const { data, error } = await supabase.from("users").select("status").eq("id", userId).maybeSingle()
-  return !error && data?.status === "ACTIVE"
+async function syncSessionAccess(payload: SessionPayload): Promise<SessionPayload | null> {
+  if (!isSupabaseConfigured()) return payload
+  const user = await getUserById(payload.userId)
+  if (!user || user.status !== "ACTIVE") return null
+  return {
+    ...payload,
+    role: user.role,
+    roles: user.roles?.length ? user.roles : [user.role],
+    businessUnit: user.businessUnit || "",
+  }
 }
 
 export async function authenticateUser(username: string, password: string): Promise<SessionPayload | null> {
@@ -309,6 +341,8 @@ export async function authenticateUser(username: string, password: string): Prom
     userId: user.id,
     username: user.username,
     role: user.role,
+    roles: user.roles,
+    businessUnit: user.businessUnit,
     name: user.name,
     iat: now,
     lastActive: now,
@@ -345,8 +379,7 @@ export async function getSession(): Promise<SessionPayload | null> {
   if (isAdminSessionExpired(payload)) {
     return null
   }
-  if (!(await sessionUserIsActive(payload.userId))) return null
-  return payload
+  return syncSessionAccess(payload)
 }
 
 /**
@@ -364,11 +397,12 @@ export async function refreshSessionActivity(): Promise<SessionPayload | null> {
     cookieStore.delete(ADMIN_COOKIE_NAME)
     return null
   }
-  if (!(await sessionUserIsActive(payload.userId))) {
+  const currentAccess = await syncSessionAccess(payload)
+  if (!currentAccess) {
     cookieStore.delete(ADMIN_COOKIE_NAME)
     return null
   }
-  const refreshed: SessionPayload = { ...payload, lastActive: Date.now() }
+  const refreshed: SessionPayload = { ...currentAccess, lastActive: Date.now() }
   await setSessionCookie(refreshed)
   return refreshed
 }
@@ -388,7 +422,9 @@ export type { AdminAction } from "./admin-types"
 
 /** Server permission check for routes that use a custom session guard. */
 export async function hasPermissionForUser(userId: string, role: UserRole, page: string): Promise<boolean> {
-  return hasEffectivePermission(userId, role, page, roleHasPermission(role, page))
+  const user = await getUserById(userId)
+  const roles = user?.roles?.length ? user.roles : [role]
+  return hasEffectivePermissionForRoles(userId, roles, page, roles.some((item) => roleHasPermission(item, page)))
 }
 
 // Alias for backward compatibility
@@ -417,7 +453,7 @@ export async function authorizeAdmin(
   }
   const roleAllowed = authorize(session, page, action)
   const overrideKey = action ? `${page}:${action}` : page
-  if (!(await hasEffectivePermission(session.userId, session.role, overrideKey, roleAllowed))) {
+  if (!(await hasEffectivePermissionForRoles(session.userId, session.roles?.length ? session.roles : [session.role], overrideKey, roleAllowed))) {
     return {
       session: null,
       denied: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
@@ -440,7 +476,7 @@ export async function requireAdminPage(
   }
   const roleAllowed = authorize(session, page, action)
   const overrideKey = action ? `${page}:${action}` : page
-  if (!(await hasEffectivePermission(session.userId, session.role, overrideKey, roleAllowed))) {
+  if (!(await hasEffectivePermissionForRoles(session.userId, session.roles?.length ? session.roles : [session.role], overrideKey, roleAllowed))) {
     redirect("/admin")
   }
   return session as SessionPayload

@@ -27,7 +27,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (states.error || lastMessages.error || labelLinks.error) throw new Error(states.error?.message || lastMessages.error?.message || labelLinks.error?.message)
     const readMap = new Map((states.data || []).map((state) => [state.thread_id, state.is_read]))
     const latestDirection = new Map<string, string>()
-    for (const item of lastMessages.data || []) if (!latestDirection.has(item.thread_id)) latestDirection.set(item.thread_id, item.direction)
+    const messageCount = new Map<string, number>()
+    for (const item of lastMessages.data || []) {
+      messageCount.set(item.thread_id, (messageCount.get(item.thread_id) || 0) + 1)
+      if (!latestDirection.has(item.thread_id)) latestDirection.set(item.thread_id, item.direction)
+    }
     const labelsByThread = new Map<string, { id: string; name: string; color: string }[]>()
     for (const item of labelLinks.data || []) {
       if (!item.label) continue
@@ -46,6 +50,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       last_message_preview: thread.last_message_preview,
       unread: readMap.get(thread.id) === false,
       last_direction: latestDirection.get(thread.id) || "inbound",
+      message_count: messageCount.get(thread.id) || 0,
       labels: labelsByThread.get(thread.id) || [],
     })).filter((thread) => {
       if (folder === "starred" && !thread.is_starred) return false

@@ -11,7 +11,7 @@ import { useEffect, useState } from "react"
 const QUICK_HREFS = ["/admin", "/admin/tasks", "/admin/reports"]
 const QUICK_LABELS: Record<string, string> = { "/admin/tasks": "Actions" }
 
-export function AdminSidebarNav({ userId, userName, userRole }: { userId: string; userName: string; userRole: UserRole }) {
+export function AdminSidebarNav({ userId, userName, userRole }: { userId: string; userName: string; userRole: UserRole | UserRole[] }) {
   const pathname = usePathname()
   const router = useRouter()
   const [overrides, setOverrides] = useState<Record<string, "allow" | "deny">>({})

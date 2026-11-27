@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSession, type UserRole } from "@/lib/admin-auth"
+import { getSession } from "@/lib/admin-auth"
 import { supabase } from "@/lib/supabase"
 import { createTicket, type SupportPriority } from "@/lib/support"
 import { hasSupportAdminAction } from "@/lib/support-permissions"
@@ -10,7 +10,7 @@ const priorities = new Set<SupportPriority>(["LOW", "NORMAL", "HIGH", "URGENT"])
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!hasSupportAdminAction(session.role as UserRole, "support:create")) {
+  if (!hasSupportAdminAction(session.roles?.length ? session.roles : [session.role], "support:create")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

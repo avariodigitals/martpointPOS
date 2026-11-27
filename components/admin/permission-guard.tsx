@@ -85,6 +85,7 @@ export function PermissionGuard({
   children,
 }: {
   role: UserRole
+  | UserRole[]
   children: React.ReactNode
 }) {
   const pathname = usePathname()

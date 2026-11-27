@@ -33,7 +33,7 @@ function contextFor(pathname: string) {
   }
 }
 
-export function AdminTopbar({ userName, userRole }: { userName: string; userRole: UserRole }) {
+export function AdminTopbar({ userName, userRole }: { userName: string; userRole: UserRole | UserRole[] }) {
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -42,6 +42,7 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
   const [notificationSoundMessage, setNotificationSoundMessage] = useState("")
   const menuRef = useRef<HTMLDivElement>(null)
   const context = contextFor(pathname)
+  const rolesLabel = (Array.isArray(userRole) ? userRole : [userRole]).map(roleLabel).join(", ")
 
   useEffect(() => {
     setNotificationSoundEnabled(window.localStorage.getItem("mp-admin-notification-sound") === "enabled")
@@ -132,7 +133,7 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
             <AdminAvatar name={userName} className="h-9 w-9 rounded-full bg-retail-soft text-xs font-bold text-retail ring-1 ring-inset ring-retail/20" fallbackClassName="relative z-10" />
             <span className="hidden max-w-36 text-left lg:block">
               <span className="block truncate text-xs font-semibold text-slate-800">{userName}</span>
-              <span className="block truncate text-[10px] text-slate-500">{roleLabel(userRole)}</span>
+              <span className="block truncate text-[10px] text-slate-500">{rolesLabel}</span>
             </span>
             <ChevronDown className={`hidden h-4 w-4 text-slate-400 transition lg:block ${menuOpen ? "rotate-180" : ""}`} />
           </button>
@@ -141,7 +142,7 @@ export function AdminTopbar({ userName, userRole }: { userName: string; userRole
             <div className="absolute right-0 top-12 z-[80] w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 shadow-[0_22px_60px_rgba(15,23,42,0.18)]">
               <div className="border-b border-slate-100 px-4 py-3">
                 <p className="truncate text-sm font-semibold text-slate-900">{userName}</p>
-                <p className="mt-0.5 text-xs text-slate-500">{roleLabel(userRole)} · Administrator</p>
+                <p className="mt-0.5 text-xs text-slate-500">{rolesLabel} · MartPoint staff</p>
               </div>
               <Link href="/admin/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50">
                 <UserCircle className="h-4 w-4 text-slate-400" />

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Save, Trash2, Users, Plus, User, Shield, Pencil, UserCheck, UserX } from "lucide-react"
-import { ALL_ROLES, ROLE_DESCRIPTIONS, type UserRole } from "@/lib/admin-types"
+import { ALL_ROLES, BUSINESS_UNITS, ROLE_DESCRIPTIONS, type BusinessUnit, type UserRole } from "@/lib/admin-types"
 import { roleLabel } from "@/lib/utils"
 
 type AdminUser = {
@@ -15,6 +15,8 @@ type AdminUser = {
   name: string
   signatureHtml: string
   role: UserRole
+  roles: UserRole[]
+  businessUnit: BusinessUnit | ""
   status: "ACTIVE" | "DISABLED"
   createdAt: string
 }
@@ -30,6 +32,8 @@ export default function AdminUsersPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [busyUserId, setBusyUserId] = useState<string | null>(null)
+  const [rolesOpen, setRolesOpen] = useState(false)
+  const [businessUnitOpen, setBusinessUnitOpen] = useState(false)
 
   const emptyForm = {
     username: "",
@@ -38,6 +42,8 @@ export default function AdminUsersPage() {
     password: "",
     signatureHtml: "",
     role: "Editor" as AdminUser["role"],
+    roles: ["Editor"] as UserRole[],
+    businessUnit: "" as BusinessUnit | "",
   }
   const [form, setForm] = useState(emptyForm)
 
@@ -69,6 +75,10 @@ export default function AdminUsersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form.roles.length || !form.businessUnit) {
+      setMessage("Select at least one role and a Business Unit.")
+      return
+    }
     setSaving(true)
     setMessage("")
 
@@ -81,6 +91,8 @@ export default function AdminUsersPage() {
           name: form.name,
           signatureHtml: form.signatureHtml,
           role: form.role,
+          roles: form.roles,
+          businessUnit: form.businessUnit,
         }
         if (form.password.trim()) body.password = form.password.trim()
 
@@ -108,6 +120,8 @@ export default function AdminUsersPage() {
             email: form.email,
             name: form.name,
             role: form.role,
+            roles: form.roles,
+            businessUnit: form.businessUnit,
             signatureHtml: form.signatureHtml,
           }),
         })
@@ -187,6 +201,8 @@ export default function AdminUsersPage() {
       password: "",
       signatureHtml: user.signatureHtml || "",
       role: user.role,
+      roles: user.roles?.length ? user.roles : [user.role],
+      businessUnit: user.businessUnit || "",
     })
     setEditing(user)
     setShowForm(true)
@@ -201,7 +217,7 @@ export default function AdminUsersPage() {
             <Users className="w-5 h-5" />
             Team Members
           </h2>
-          <p className="text-muted-foreground">Manage admin users and assign roles.</p>
+          <p className="text-muted-foreground">Manage staff accounts, business units and combined departmental access.</p>
         </div>
         {!showForm && <div className="flex items-center gap-2">
           <Link href="/admin/users/roles" className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted">Edit role permissions</Link>
@@ -268,18 +284,33 @@ export default function AdminUsersPage() {
                     {...(editing ? {} : { disabled: true })}
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Role</label>
-                  <select
-                    value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value as AdminUser["role"] })}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    {roles.map((r) => (
-                      <option key={r} value={r}>{roleLabel(r)}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">{ROLE_DESCRIPTIONS[form.role]}</p>
+                <div className="relative">
+                  <label className="block text-sm font-medium mb-1">Roles <span className="text-muted-foreground font-normal">(select all that apply)</span></label>
+                  <button type="button" onClick={() => setRolesOpen((open) => !open)} aria-expanded={rolesOpen} className="w-full rounded-md border border-input bg-background px-3 py-2 text-left text-sm">
+                    {form.roles.length ? form.roles.map(roleLabel).join(", ") : "Select roles"}
+                  </button>
+                  {rolesOpen && <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border bg-background p-2 shadow-lg">
+                    {roles.map((r) => <label key={r} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-muted">
+                      <input type="checkbox" checked={form.roles.includes(r)} onChange={(e) => {
+                        const privileged = (role: UserRole) => role === "Admin" || role === "Super Admin"
+                        const next = e.target.checked
+                          ? privileged(r) || form.roles.some(privileged) ? [r] : [...form.roles, r]
+                          : form.roles.filter((item) => item !== r)
+                        if (!next.length) return
+                        setForm({ ...form, roles: next, role: next[0] || "Editor" })
+                      }} />
+                      <span>{roleLabel(r)}</span>
+                    </label>)}
+                  </div>}
+                  <p className="mt-1 text-xs text-muted-foreground">{form.roles.map((r) => ROLE_DESCRIPTIONS[r]).join(" · ")}</p>
+                </div>
+                <div className="relative">
+                  <label className="block text-sm font-medium mb-1">Business Unit</label>
+                  <button type="button" aria-expanded={businessUnitOpen} onClick={() => setBusinessUnitOpen((open) => !open)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-left text-sm">{form.businessUnit || "Select business unit"}</button>
+                  {businessUnitOpen && <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border bg-background p-2 shadow-lg">
+                    {BUSINESS_UNITS.map((unit) => <button key={unit} type="button" onClick={() => { setForm({ ...form, businessUnit: unit }); setBusinessUnitOpen(false) }} className={`block w-full rounded px-2 py-2 text-left text-sm hover:bg-muted ${form.businessUnit === unit ? "bg-retail-soft font-medium text-retail" : ""}`}>{unit}</button>)}
+                  </div>}
+                  <p className="mt-1 text-xs text-muted-foreground">Choose the staff member’s home department. Selected roles combine access. Admin and Super Admin each grant full system access and are assigned alone.</p>
                 </div>
               </div>
 
@@ -362,17 +393,15 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <Shield className="w-3.5 h-3.5 text-retail" />
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${user.status === "ACTIVE" ? "text-retail bg-retail-soft" : "text-muted-foreground bg-muted"}`}>
-                    {roleLabel(user.role)}
-                  </span>
+                  {(user.roles?.length ? user.roles : [user.role]).map((role) => <span key={role} className={`text-xs font-medium px-2 py-0.5 rounded-full ${user.status === "ACTIVE" ? "text-retail bg-retail-soft" : "text-muted-foreground bg-muted"}`}>{roleLabel(role)}</span>)}
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${user.status === "ACTIVE" ? "text-green-700 bg-green-50" : "text-amber-700 bg-amber-50"}`}>
                     {user.status === "ACTIVE" ? "Active" : "Deactivated"}
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {ROLE_DESCRIPTIONS[user.role]}
+                  {user.businessUnit && <span className="font-medium">{user.businessUnit} · </span>}{(user.roles?.length ? user.roles : [user.role]).map((role) => ROLE_DESCRIPTIONS[role]).join(" · ")}
                 </p>
-                {user.role !== "Admin" && <Link href={`/admin/users/${user.id}/permissions`} className="mt-2 inline-flex text-xs font-medium text-retail hover:underline">Personal permissions</Link>}
+                {!user.roles?.includes("Admin") && !user.roles?.includes("Super Admin") && user.role !== "Admin" && <Link href={`/admin/users/${user.id}/permissions`} className="mt-2 inline-flex text-xs font-medium text-retail hover:underline">Personal permissions</Link>}
                 <p className="mt-1 text-xs text-muted-foreground">
                   Created {new Date(user.createdAt).toLocaleDateString()}
                 </p>

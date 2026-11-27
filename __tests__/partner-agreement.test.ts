@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { generatePartnerAgreementPdf, type AgreementInput } from "@/lib/partner-agreement"
+import { generatePartnerAgreementPdf, normalizeAgreementInputForMaster, type AgreementInput } from "@/lib/partner-agreement"
 import { validateAgreementInput } from "@/lib/partner-agreement-validation"
 import {
   agreementTypeKeys,
@@ -9,6 +9,7 @@ import {
   CHANNEL_RENEWAL_COMMISSION_RATE,
   CHANNEL_RENEWAL_COMMISSION_RULE,
   commercialFieldDefaults,
+  commonTerms,
   defaultTrigger,
 } from "@/lib/partner-agreement-content"
 
@@ -218,6 +219,44 @@ describe("generatePartnerAgreementPdf", () => {
     expect(validateAgreementInput({ ...input, renewalRule: "5% commission on renewal subscriptions" })).toContain(
       "The Partner Agreement term clause must contain term-renewal wording only; subscription renewal commissions belong in the relevant Commercial Terms schedule."
     )
+  })
+
+  it("includes the 90-day activity minimum separately from grading eligibility", () => {
+    const clause = commonTerms({
+      effectiveDate: "2026-09-22", mpLegal: "MartPoint", mpReg: "RC1", mpAddr: "Lagos",
+      pLegal: "Partner", pReg: "RC2", pAddr: "Lagos", disputeDays: "30", securityNoticeHours: "4",
+      liabilityFloor: "NGN 5,000,000", initialTermMonths: "3", renewalRule: "automatic renewal",
+      noticeDays: "30", referralProtectionDays: "90", commercialRef: "Schedule Three",
+      techSolutionName: "", techSolutionVersion: "", techUseCase: "",
+    }).flatMap((part) => part.clauses).find((item) => item.num === "5")!.body
+    expect(clause).toContain("at least one verified qualifying business activity")
+    expect(clause).toContain("If the minimum is not met by day 90, Management shall review the available evidence")
+    expect(clause).toContain("This activity-monitoring requirement is separate from grading eligibility")
+    expect(clause.match(/Grade assignment requires assessment against the effective policy and written Management approval/g)).toBeNull()
+  })
+
+  it("states commission payout timing and earned payment survival in the generated agreement", () => {
+    const channel = commercialFieldDefaults("Channel commission", "Channel Partner")
+    const implementation = commercialFieldDefaults("Implementation fee", "Implementation Partner")
+    expect(channel.payoutTiming).toContain("Each eligible acquisition commission and renewal commission is payable within 15 days")
+    expect(channel.payoutTiming).toContain("Properly earned commissions remain payable after expiry or termination")
+    expect(implementation.payoutTiming).toContain("Approved implementation fees are included in the first applicable monthly statement")
+    expect(implementation.payoutTiming).toContain("Properly earned fees remain payable after expiry or termination")
+    const termClause = commonTerms({
+      effectiveDate: "2026-09-22", mpLegal: "MartPoint", mpReg: "RC1", mpAddr: "Lagos",
+      pLegal: "Partner", pReg: "RC2", pAddr: "Lagos", disputeDays: "30", securityNoticeHours: "4",
+      liabilityFloor: "NGN 5,000,000", initialTermMonths: "3", renewalRule: "automatic renewal",
+      noticeDays: "30", referralProtectionDays: "90", commercialRef: "Schedule Three",
+      techSolutionName: "", techSolutionVersion: "", techUseCase: "",
+    }).flatMap((part) => part.clauses).find((item) => item.num === "25")!.body
+    expect(termClause).toContain("properly earned before expiry or termination")
+  })
+
+  it("allows approved processing instructions while requiring an executed DPA", () => {
+    const normalized = normalizeAgreementInputForMaster(baseInput("CHANNEL_IMPLEMENTATION"))
+    const dpa = normalized.additionalSchedules!.find((schedule) => /data processing addendum/i.test(schedule.title))!.body
+    expect(dpa).toContain("approved written processing instruction")
+    expect(dpa).toContain("Processing and customer-environment access are prohibited until this Addendum is executed")
   })
 
   it("uses Work Order fee terms and no software licence revenue basis for Implementation", () => {

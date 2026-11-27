@@ -634,8 +634,9 @@ export const adminNavItems: AdminNavItem[] = [
   { href: "/admin/audit", label: "Audit Logs", icon: Command, page: "admin", section: "Administration" }
 ]
 
-export function getAdminNavigation(role: UserRole, overrides: Record<string, "allow" | "deny"> = {}) {
-  const can = (permission: string) => role === "Admin" || (overrides[permission] === "allow" ? true : overrides[permission] === "deny" ? false : hasPermission(role, permission))
+export function getAdminNavigation(role: UserRole | UserRole[], overrides: Record<string, "allow" | "deny"> = {}) {
+  const roles = Array.isArray(role) ? role : [role]
+  const can = (permission: string) => roles.includes("Admin") || roles.includes("Super Admin") || (overrides[permission] === "allow" ? true : overrides[permission] === "deny" ? false : hasPermission(roles, permission))
   const visibleItems = adminNavItems.filter((item) => can(item.page) && (item.permissions || []).every(can))
   const sections = ADMIN_SECTION_ORDER.map((label) => ({
     label,
@@ -647,7 +648,7 @@ export function getAdminNavigation(role: UserRole, overrides: Record<string, "al
 
 const GROWTH_WORKSPACE_PERMISSIONS = ["marketing", "blog", "faqs", "seo", "tracker", "analytics", "partners"] as const
 
-export function hasGrowthWorkspaceAccess(role: UserRole) {
+export function hasGrowthWorkspaceAccess(role: UserRole | UserRole[]) {
   return GROWTH_WORKSPACE_PERMISSIONS.some((permission) => hasPermission(role, permission))
 }
 

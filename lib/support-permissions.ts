@@ -25,6 +25,12 @@ const SUPPORT_ADMIN_PERMISSIONS: Record<UserRole, SupportAdminAction[]> = {
     "customer_success:view", "customer_success:manage",
     "compliance:view", "compliance:request", "compliance:review", "compliance:approve",
   ],
+  "Super Admin": [
+    "support:view", "support:create", "support:assign", "support:update", "support:resolve",
+    "support:close", "support:internal_notes", "support:sensitive", "support:sla_manage",
+    "customer_success:view", "customer_success:manage",
+    "compliance:view", "compliance:request", "compliance:review", "compliance:approve",
+  ],
   Finance: ["support:view", "customer_success:view"],
   "Digital Marketer": ["support:view", "customer_success:view"],
   Sales: ["support:view", "customer_success:view", "customer_success:manage"],
@@ -39,10 +45,13 @@ const SUPPORT_ADMIN_PERMISSIONS: Record<UserRole, SupportAdminAction[]> = {
   "Hiring Manager": [],
   Reviewer: [],
   "Deployment Supervisor": [],
+  "Deployment Manager": [],
+  "Partner Manager": ["support:view", "customer_success:view"],
 }
 
-export function hasSupportAdminAction(role: UserRole, action: SupportAdminAction): boolean {
-  return SUPPORT_ADMIN_PERMISSIONS[role]?.includes(action) ?? false
+export function hasSupportAdminAction(role: UserRole | UserRole[], action: SupportAdminAction): boolean {
+  const roles = Array.isArray(role) ? role : [role]
+  return roles.some((item) => SUPPORT_ADMIN_PERMISSIONS[item]?.includes(action) ?? false)
 }
 
 const SENSITIVE_CATEGORIES = new Set([

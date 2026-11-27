@@ -13,12 +13,13 @@ export const dynamic = "force-dynamic"
 
 const error = (message: string, status = 400) => NextResponse.json({ success: false, error: message }, { status })
 const cleanIds = (value: unknown) => Array.isArray(value) ? [...new Set(value.filter((item): item is string => typeof item === "string"))] : []
-const isApprover = (policy: { approver_roles?: unknown; approver_user_ids?: unknown }, userId: string, role: string) =>
-  cleanIds(policy.approver_roles).includes(role) || cleanIds(policy.approver_user_ids).includes(userId)
+const isApprover = (policy: { approver_roles?: unknown; approver_user_ids?: unknown }, userId: string, roles: string[]) =>
+  roles.some((role) => cleanIds(policy.approver_roles).includes(role)) || cleanIds(policy.approver_user_ids).includes(userId)
 
 export async function GET() {
   const session = await getSession()
   if (!session) return error("Unauthorized", 401)
+  const roles = session.roles?.length ? session.roles : [session.role]
   const explicitDeny = await supabase.from("user_permission_overrides").select("effect").eq("user_id", session.userId).eq("permission_key", "approvals").maybeSingle()
   if (explicitDeny.data?.effect === "deny") return error("Approval inbox access is denied for this user", 403)
   const [requests, policies] = await Promise.all([
@@ -26,10 +27,10 @@ export async function GET() {
     supabase.from("approval_policies").select("*").order("label"),
   ])
   if (requests.error || policies.error) return error("Apply migration 167 to use approval workflows", 503)
-  const financeAccess = await hasFinanceActionForUser(session.userId, session.role, "finance:view")
-  const eligibleKeys = (policies.data || []).filter((policy) => policy.enabled && (session.role === "Admin" || isApprover(policy, session.userId, session.role))).map((policy) => policy.action_key)
-  const pageAccess = await hasEffectivePermission(session.userId, session.role, "approvals", hasPermission(session.role, "approvals"))
-  const mappedInboxAccess = eligibleKeys.length > 0 && await hasEffectivePermission(session.userId, session.role, "approvals", true)
+  const financeAccess = await hasFinanceActionForUser(session.userId, roles, "finance:view")
+  const eligibleKeys = (policies.data || []).filter((policy) => policy.enabled && (roles.includes("Admin") || roles.includes("Super Admin") || isApprover(policy, session.userId, roles))).map((policy) => policy.action_key)
+  const pageAccess = await hasEffectivePermission(session.userId, roles, "approvals", hasPermission(roles, "approvals"))
+  const mappedInboxAccess = eligibleKeys.length > 0 && await hasEffectivePermission(session.userId, roles, "approvals", true)
   if (!financeAccess && !mappedInboxAccess && !pageAccess) return error("Finance access or an approver assignment is required", 403)
   if (eligibleKeys.length > 0 && !mappedInboxAccess) return error("Approval inbox access is denied for this user", 403)
   const visibleRequests = (requests.data || []).filter((item) => eligibleKeys.includes(item.action_key))
@@ -56,15 +57,16 @@ export async function GET() {
       },
     },
   }))
-  const users = session.role === "Admin"
+  const users = roles.includes("Admin") || roles.includes("Super Admin")
     ? await supabase.from("users").select("id,name,username,role,status").eq("status", "ACTIVE").order("name")
     : { data: [] as { id: string; name: string; username: string; role: string; status: string }[], error: null }
-  return NextResponse.json({ success: true, requests: hydratedRequests, policies: policies.data || [], users: users.data || [], currentUserId: session.userId, allowSelfApproval: session.role === "Admin", canManagePolicies: session.role === "Admin" })
+  return NextResponse.json({ success: true, requests: hydratedRequests, policies: policies.data || [], users: users.data || [], currentUserId: session.userId, allowSelfApproval: roles.includes("Admin") || roles.includes("Super Admin"), canManagePolicies: roles.includes("Admin") || roles.includes("Super Admin") })
 }
 
 export async function POST(request: Request) {
   const session = await getSession()
   if (!session) return error("Unauthorized", 401)
+  const roles = session.roles?.length ? session.roles : [session.role]
   try {
     const body = await request.json() as Record<string, unknown>
     const action = String(body.action || "")
@@ -72,9 +74,9 @@ export async function POST(request: Request) {
       const explicitDeny = await supabase.from("user_permission_overrides").select("effect").eq("user_id", session.userId).eq("permission_key", "approvals").maybeSingle()
       if (explicitDeny.data?.effect === "deny") return error("Approval inbox access is denied for this user", 403)
     }
-    if (!(["request_invoice_cancel", "decide"].includes(action)) && !await hasEffectivePermission(session.userId, session.role, "approvals", hasPermission(session.role, "approvals"))) return error("Approval inbox access is required", 403)
+    if (!(["request_invoice_cancel", "decide"].includes(action)) && !await hasEffectivePermission(session.userId, roles, "approvals", hasPermission(roles, "approvals"))) return error("Approval inbox access is required", 403)
     if (action === "request_invoice_cancel") {
-      if (!await hasFinanceActionForUser(session.userId, session.role, "finance:invoices:approval_request")) return error("You cannot request invoice approval", 403)
+      if (!await hasFinanceActionForUser(session.userId, roles, "finance:invoices:approval_request")) return error("You cannot request invoice approval", 403)
       const id = String(body.invoiceId || "")
       const reason = String(body.reason || "").trim()
       if (!id || reason.length < 5) return error("Invoice ID and a reason of at least 5 characters are required")
@@ -109,13 +111,13 @@ export async function POST(request: Request) {
       if (decision === "REJECTED" && note.length < 5) return error("Add a reason of at least 5 characters when rejecting")
       const { data: approval, error: approvalError } = await supabase.from("approval_requests").select("*").eq("id", id).eq("status", "PENDING").maybeSingle()
       if (approvalError || !approval) return error("Pending approval request not found", 404)
-      if (approval.requested_by === session.userId && session.role !== "Admin") return error("You cannot approve your own request", 403)
+      if (approval.requested_by === session.userId && !roles.includes("Admin") && !roles.includes("Super Admin")) return error("You cannot approve your own request", 403)
       const { data: policy, error: policyError } = await supabase.from("approval_policies").select("enabled,approver_roles,approver_user_ids").eq("action_key", approval.action_key).maybeSingle()
       if (policyError || !policy || !policy.enabled) return error("Approval policy is unavailable or disabled", 409)
       const allowedRoles = cleanIds(policy.approver_roles)
       const allowedUsers = cleanIds(policy.approver_user_ids)
-      if (session.role !== "Admin" && !allowedRoles.includes(session.role) && !allowedUsers.includes(session.userId)) return error("You are not an approver for this action", 403)
-      if (!await hasEffectivePermission(session.userId, session.role, "approvals", true)) return error("Approval inbox access is denied for this user", 403)
+      if (!roles.includes("Admin") && !roles.includes("Super Admin") && !roles.some((role) => allowedRoles.includes(role)) && !allowedUsers.includes(session.userId)) return error("You are not an approver for this action", 403)
+      if (!await hasEffectivePermission(session.userId, roles, "approvals", true)) return error("Approval inbox access is denied for this user", 403)
 
       if (decision === "APPROVED" && approval.action_key === "quotation.send") {
         const { data: quote, error: quoteError } = await supabase.from("lead_quotations").select("id,status,updated_at,creator_id,quote_number").eq("id", approval.entity_id).maybeSingle()
@@ -271,7 +273,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "save_policy") {
-      if (session.role !== "Admin") return error("Only Admin can configure approval policies", 403)
+      if (!roles.includes("Admin") && !roles.includes("Super Admin")) return error("Only Admin can configure approval policies", 403)
       const key = String(body.actionKey || "")
       const enabled = body.enabled === true
       const approverRoles = cleanIds(body.approverRoles)

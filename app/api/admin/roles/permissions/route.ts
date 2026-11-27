@@ -25,7 +25,7 @@ export async function GET() {
   if (auth.response || !auth.session) return auth.response
   const result = await supabase.from("role_permission_overrides").select("role_name,permission_key,effect,updated_at").order("role_name").order("permission_key")
   if (result.error) return fail("Apply migration 171 to edit role permissions", 503)
-  return NextResponse.json({ success: true, roles: ALL_ROLES.filter((role) => role !== "Admin"), permissionKeys, baselines: ROLE_PERMISSIONS, overrides: result.data || [] })
+  return NextResponse.json({ success: true, roles: ALL_ROLES.filter((role) => role !== "Admin" && role !== "Super Admin"), permissionKeys, baselines: ROLE_PERMISSIONS, overrides: result.data || [] })
 }
 
 export async function PUT(request: Request) {
@@ -34,7 +34,7 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json() as { role?: string; overrides?: { permission_key: string; effect: string }[] }
     const role = String(body.role || "") as UserRole
-    if (!ALL_ROLES.includes(role) || role === "Admin") return fail("Choose a valid non-Admin role")
+    if (!ALL_ROLES.includes(role) || role === "Admin" || role === "Super Admin") return fail("Choose a valid non-administrator role")
     const rows = Array.isArray(body.overrides) ? body.overrides : []
     if (rows.some((item) => !permissionKeys.includes(item.permission_key) || !["allow", "deny"].includes(item.effect))) return fail("One or more role permission rules are invalid")
     const unique = [...new Map(rows.map((item) => [item.permission_key, item])).values()]

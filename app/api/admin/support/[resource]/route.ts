@@ -78,7 +78,7 @@ function err(message: string, status = 400) {
 async function getActor() {
   const session = await getSession()
   if (!session) return null
-  return { id: session.userId, role: session.role, name: session.name }
+  return { id: session.userId, role: session.roles?.length ? session.roles : [session.role], name: session.name }
 }
 
 function now() {

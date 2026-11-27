@@ -23,6 +23,7 @@ import {
 } from "@/lib/partner-agreement"
 import { agreementTypeKeys } from "@/lib/partner-agreement-content"
 import { validateAgreementInput } from "@/lib/partner-agreement-validation"
+import { stableJsonStringify } from "@/lib/stable-json"
 
 /* ─── Partner agreement generation ───
  * Generates the clean partner signing copy from the current master template: Common
@@ -93,6 +94,10 @@ export async function GET(
     .from("partner_agreement_signing")
     .select("id", { count: "exact", head: true })
     .eq("application_id", id)
+  const { count: draftRevisionCount } = await supabase
+    .from("partner_agreement_drafts")
+    .select("id", { count: "exact", head: true })
+    .eq("application_id", id)
   const signingStatusByDocument = new Map<string, string>()
   for (const signing of signingRequests || []) {
     const sourceDocumentId = signing.source_document_id as string | null
@@ -116,7 +121,7 @@ export async function GET(
 
   const { data: draft } = await supabase
     .from("partner_agreement_drafts")
-    .select("id, agreement_id, agreement_payload, draft_document_path, created_at, status")
+    .select("id, agreement_id, agreement_revision_id, agreement_payload, terms_sha256, draft_document_path, created_at, status")
     .eq("application_id", id)
     .eq("status", "AWAITING_REVIEW")
     .order("created_at", { ascending: false })
@@ -124,11 +129,12 @@ export async function GET(
     .maybeSingle()
   const pendingDraft = draft ? {
     id: String(draft.id),
-    agreementId: String(draft.agreement_id),
+    agreementId: String(draft.agreement_revision_id || draft.agreement_id),
     createdAt: String(draft.created_at),
     previewUrl: await createSignedDocUrl(String(draft.draft_document_path), 300),
     payload: draft.agreement_payload,
     templateVersion: String((draft.agreement_payload as Record<string, unknown> | null)?.templateVersion || "legacy"),
+    integrityValid: crypto.createHash("sha256").update(stableJsonStringify(draft.agreement_payload)).digest("hex") === String(draft.terms_sha256 || ""),
   } : null
 
   return NextResponse.json({
@@ -141,9 +147,7 @@ export async function GET(
     agreements,
     pendingDraft,
     defaults: {
-      agreementId: issuedRevisionCount
-        ? `AGR-${app.reference_number}-R${issuedRevisionCount + 1}`
-        : `AGR-${app.reference_number}`,
+      agreementId: `AGR-${app.reference_number}-R${Math.max(issuedRevisionCount ?? 0, draftRevisionCount ?? 0) + 1}`,
       effectiveDate: new Date().toISOString().slice(0, 10),
       liabilityFloor: mp.liabilityFloor,
       coverage: (app.geographic_coverage as string[]) || [],
@@ -299,8 +303,12 @@ export async function POST(
       })
     }
 
+    const [signingRevisions, draftRevisions] = await Promise.all([
+      supabase.from("partner_agreement_signing").select("id", { count: "exact", head: true }).eq("application_id", id),
+      supabase.from("partner_agreement_drafts").select("id", { count: "exact", head: true }).eq("application_id", id),
+    ])
     const input = normalizeAgreementInputForMaster({
-      agreementId: `AGR-${app.reference_number}`,
+      agreementId: `AGR-${app.reference_number}-R${Math.max(signingRevisions.count ?? 0, draftRevisions.count ?? 0) + 1}`,
       effectiveDate: body.effectiveDate || "",
       initialTermMonths: body.initialTermMonths || "",
       renewalRule: body.renewalRule || "",
@@ -323,7 +331,7 @@ export async function POST(
       return NextResponse.json({ error: "Agreement cannot be generated until its mandatory terms are complete.", validationErrors }, { status: 400 })
     }
 
-    const termsSha256 = crypto.createHash("sha256").update(JSON.stringify(input)).digest("hex")
+    const termsSha256 = crypto.createHash("sha256").update(stableJsonStringify(input)).digest("hex")
 
     // jsPDF can't embed WebP — the committed PNG logo is used for the letterhead.
     let logoDataUrl: string | undefined
@@ -361,6 +369,7 @@ export async function POST(
         application_id: id,
         partner_id: (partnerRow?.id as string) || null,
         agreement_id: input.agreementId,
+        agreement_revision_id: input.agreementId,
         agreement_payload: input,
         terms_sha256: termsSha256,
         draft_document_path: upload.doc.storagePath,
@@ -399,6 +408,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       agreementId: input.agreementId,
+      templateVersion: AGREEMENT_TEMPLATE_VERSION,
       includedSchedules: generated.includedSchedules,
       draft: { id: draftRow.id, fileName: upload.doc.originalFilename, previewUrl: signedUrl },
     })
@@ -406,4 +416,48 @@ export async function POST(
     console.error("[agreement] generation failed:", err)
     return NextResponse.json({ error: "Failed to generate agreement" }, { status: 500 })
   }
+}
+
+/* ─── DELETE: cancel an unissued review draft without deleting its history ─── */
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { session, denied } = await authorizeAdmin("partners", "manage")
+  if (denied) return denied
+  if (!isSupabaseConfigured()) return NextResponse.json({ error: "Not configured" }, { status: 500 })
+
+  const { id: applicationId } = await params
+  const body = await request.json().catch(() => ({}))
+  const draftId = String(body.draftId || "")
+  if (!draftId) return NextResponse.json({ error: "Draft ID is required" }, { status: 400 })
+
+  const { data: draft, error: draftError } = await supabase
+    .from("partner_agreement_drafts")
+    .select("id,agreement_revision_id,agreement_id,status")
+    .eq("id", draftId)
+    .eq("application_id", applicationId)
+    .eq("status", "AWAITING_REVIEW")
+    .maybeSingle()
+  if (draftError || !draft) return NextResponse.json({ error: "This draft is no longer awaiting review" }, { status: 409 })
+
+  const now = new Date().toISOString()
+  const { data: cancelled, error: cancelError } = await supabase
+    .from("partner_agreement_drafts")
+    .update({ status: "CANCELLED", updated_at: now })
+    .eq("id", draftId)
+    .eq("application_id", applicationId)
+    .eq("status", "AWAITING_REVIEW")
+    .select("id")
+    .maybeSingle()
+  if (cancelError || !cancelled) return NextResponse.json({ error: "Draft could not be cancelled; reload and try again" }, { status: 409 })
+
+  const revisionId = String(draft.agreement_revision_id || draft.agreement_id)
+  await recordAudit(auditContextFromSession(session, request), {
+    action: AUDIT_ACTIONS.PARTNER_AGREEMENT_DRAFT_CANCELLED,
+    entityType: AUDIT_ENTITIES.PARTNER_APPLICATION,
+    entityId: applicationId,
+    metadata: { applicationId, draftId, agreementRevisionId: revisionId, status: "CANCELLED" },
+  })
+  return NextResponse.json({ success: true, agreementRevisionId: revisionId, message: "Draft cancelled. Its reviewed snapshot remains in agreement history." })
 }

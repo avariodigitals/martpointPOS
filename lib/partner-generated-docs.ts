@@ -108,6 +108,7 @@ export interface GeneratedDocRecord {
   title: string
   status: string
   templateVersion: string
+  agreementRevisionId: string | null
   generatedAt: string
   acknowledgedAt: string | null
   fileSize: number | null
@@ -126,6 +127,7 @@ function mapDoc(row: Record<string, unknown>): GeneratedDocRecord {
     title: row.title as string,
     status: row.status as string,
     templateVersion: row.template_version as string,
+    agreementRevisionId: (row.agreement_revision_id as string | null) ?? null,
     generatedAt: row.generated_at as string,
     acknowledgedAt: (row.acknowledged_at as string | null) ?? null,
     fileSize: (row.file_size as number | null) ?? null,
@@ -704,6 +706,7 @@ export async function registerAgreementDocument(opts: {
   partnerId: string | null
   applicationId: string
   agreementId: string
+  agreementRevisionId: string
   storagePath: string
   fileName: string
   fileSize: number
@@ -723,6 +726,7 @@ export async function registerAgreementDocument(opts: {
       partner_id: opts.partnerId,
       application_id: opts.applicationId,
       document_type: "MASTER_PARTNER_AGREEMENT",
+      agreement_revision_id: opts.agreementRevisionId,
       title: `Partner Agreement ${opts.agreementId}`,
       template_version: opts.templateVersion,
       source_record_type: "partner_application",
@@ -733,7 +737,12 @@ export async function registerAgreementDocument(opts: {
       checksum_sha256: opts.checksum,
       generated_by: opts.generatedBy,
       generated_at: now,
-      metadata: { agreementId: opts.agreementId, ...(opts.metadata || {}) },
+      metadata: {
+        ...(opts.metadata || {}),
+        agreementId: opts.agreementId,
+        agreementRevisionId: opts.agreementRevisionId,
+        masterTemplateVersion: opts.templateVersion,
+      },
       created_at: now,
       updated_at: now,
     })

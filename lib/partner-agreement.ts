@@ -374,7 +374,7 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
 
   /* ── Title + parties ── */
   centered("PARTNER AGREEMENT", 18, true, 4)
-  centered(`Agreement ${input.agreementId}`, 10, false, 14)
+  centered(`Agreement Revision ${input.agreementId} · Master Template v${AGREEMENT_TEMPLATE_VERSION}`, 10, false, 14)
 
   para(`This Partner Agreement is made on ${vars.effectiveDate} between:`)
   para(`(1) ${vars.mpLegal}, registration number ${vars.mpReg}, of ${vars.mpAddr} (MartPoint); and`, { gap: 4 })
@@ -409,7 +409,8 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
   const levelByType = typeKeys.map((k) => `${TYPE_LABELS[k]}: ${orBlank(input.appointment.levelByType)}`).join("; ")
   const gradeByType = typeKeys.map((k) => `${TYPE_LABELS[k]}: ${orBlank(input.appointment.gradeByType)}`).join("; ")
   fieldTable([
-    ["Agreement ID", input.agreementId],
+    ["Agreement Revision ID", input.agreementId],
+    ["Master template version", AGREEMENT_TEMPLATE_VERSION],
     ["Effective date", vars.effectiveDate],
     ["Initial term", `${vars.initialTermMonths} months`],
     ["MartPoint entity", `${vars.mpLegal} / ${vars.mpReg}`],
@@ -456,7 +457,8 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
         : `${c.holdingDays.trim()} days from ${orBlank(c.holdingStartEvent)}`
       : BLANK
     fieldTable([
-      ["Schedule ID and version", `${input.agreementId}-C${i + 1} / v${AGREEMENT_TEMPLATE_VERSION}`],
+      ["Schedule ID", `${input.agreementId}-C${i + 1}`],
+      ["Master template version", AGREEMENT_TEMPLATE_VERSION],
       ...COMMERCIAL_FIELD_ROWS.map((r): [string, string] => [
         r.label,
         r.key === "rateOrFee" ? orBlank(displayRateOrFee(c))
@@ -506,7 +508,8 @@ export function generatePartnerAgreementPdf(input: AgreementInput, opts?: Agreem
 
   clauseHeading("Electronic signature record")
   fieldTable([
-    ["Agreement ID", input.agreementId],
+    ["Agreement Revision ID", input.agreementId],
+    ["Master template version", AGREEMENT_TEMPLATE_VERSION],
     ["Agreement terms SHA-256", input.execution?.termsSha256 || BLANK],
     ["MartPoint signature event", input.execution?.martpointEventId || BLANK],
     ["MartPoint signed at", input.execution?.martpointSignedAt || BLANK],

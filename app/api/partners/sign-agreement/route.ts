@@ -182,6 +182,7 @@ export async function POST(request: Request) {
       partnerId: signing.partner_id as string | null,
       applicationId: signing.application_id as string,
       agreementId: String(signing.agreement_id),
+      agreementRevisionId: String(signing.agreement_revision_id || signing.agreement_id),
       storagePath: upload.doc.storagePath,
       fileName,
       fileSize: generated.bytes.length,

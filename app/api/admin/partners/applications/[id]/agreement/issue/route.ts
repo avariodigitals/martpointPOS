@@ -14,6 +14,7 @@ import { generatePartnerAgreementPdf, AGREEMENT_TEMPLATE_VERSION, type Agreement
 import { agreementTypeKeys } from "@/lib/partner-agreement-content"
 import { renderPartnerGradingPolicyPdf } from "@/lib/partner-grading-policy-pdf.mjs"
 import { validateAgreementInput } from "@/lib/partner-agreement-validation"
+import { stableJsonStringify } from "@/lib/stable-json"
 
 export const dynamic = "force-dynamic"
 
@@ -55,7 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (validationErrors.length) {
       return NextResponse.json({ error: "This saved draft does not meet the current agreement requirements. Regenerate and review it before issue.", validationErrors }, { status: 409 })
     }
-    const currentTermsHash = crypto.createHash("sha256").update(JSON.stringify(input)).digest("hex")
+    const currentTermsHash = crypto.createHash("sha256").update(stableJsonStringify(input)).digest("hex")
     if (currentTermsHash !== String(draft.terms_sha256)) {
       return NextResponse.json({ error: "The draft integrity check failed. Generate and review a fresh copy before issue." }, { status: 409 })
     }
@@ -143,6 +144,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       partnerId,
       applicationId,
       agreementId: String(draft.agreement_id),
+      agreementRevisionId: String(draft.agreement_revision_id || draft.agreement_id),
       storagePath: upload.doc.storagePath,
       fileName: generated.fileName,
       fileSize: generated.bytes.length,
@@ -188,6 +190,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       partner_id: partnerId,
       source_document_id: docRow.id,
       agreement_id: String(draft.agreement_id),
+      agreement_revision_id: String(draft.agreement_revision_id || draft.agreement_id),
       token_hash: crypto.createHash("sha256").update(signingToken).digest("hex"),
       token_expires_at: signingExpiresAt,
       status: "AWAITING_PARTNER",

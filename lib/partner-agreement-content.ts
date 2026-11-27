@@ -1,6 +1,6 @@
 import type { PartnerType } from "./partners"
 
-/* ───────────────────  Partner Agreement content (master template v1.4)  ───────────────────
+/* ───────────────────  Partner Agreement content (master template v1.6)  ───────────────────
  * Partner-facing wording ONLY. The master .docx is an internal "LEGAL AND AUTOMATION
  * MASTER" that also carries generation rules, internal approval logic, merge-field
  * documentation and a legal review checklist — none of which belongs in a partner's
@@ -8,7 +8,7 @@ import type { PartnerType } from "./partners"
  * schedules per approved partner type; unused schedules are omitted entirely.
  */
 
-export const AGREEMENT_TEMPLATE_VERSION = "1.5"
+export const AGREEMENT_TEMPLATE_VERSION = "1.6"
 
 export const CHANNEL_ACQUISITION_COMMISSION_RATE = "10%"
 export const CHANNEL_RENEWAL_COMMISSION_RATE = "5%"

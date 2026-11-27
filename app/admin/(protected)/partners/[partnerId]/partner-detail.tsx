@@ -1244,7 +1244,7 @@ export function PartnerDetail({ partnerId, role }: { partnerId: string; role: st
                     <div className="flex-1">
                       <p className="text-sm font-medium">{d.title as string}</p>
                       <p className="text-xs text-muted-foreground">
-                        {d.documentId as string} · {d.typeLabel as string} · v{d.templateVersion as string} · {new Date(d.generatedAt as string).toLocaleDateString()}
+                        {d.agreementRevisionId ? `${d.agreementRevisionId as string} · ` : ""}{d.documentId as string} · {d.typeLabel as string} · template v{d.templateVersion as string} · {new Date(d.generatedAt as string).toLocaleDateString()}
                         {d.acknowledgedAt ? ` · acknowledged ${new Date(d.acknowledgedAt as string).toLocaleDateString()}` : ""}
                       </p>
                     </div>

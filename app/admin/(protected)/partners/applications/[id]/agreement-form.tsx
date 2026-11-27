@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2, FileText, Download, Plus, Trash2 } from "lucide-react"
 import { COUNTRIES, STATES } from "@/lib/locations"
 import { enumLabel } from "@/lib/utils"
+import { AGREEMENT_TEMPLATE_VERSION } from "@/lib/partner-agreement-content"
 
 const inputCls = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
 const labelCls = "block text-xs font-medium mb-1"
@@ -92,6 +93,7 @@ interface PendingDraft {
   createdAt: string
   previewUrl: string | null
   templateVersion?: string
+  integrityValid?: boolean
 }
 
 interface AssignedUser {
@@ -310,7 +312,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
       })
       const data = await res.json()
       if (data.success) {
-        setPendingDraft({ id: data.draft.id, agreementId: data.agreementId, createdAt: new Date().toISOString(), previewUrl: data.draft.previewUrl || null })
+        setPendingDraft({ id: data.draft.id, agreementId: data.agreementId, createdAt: new Date().toISOString(), previewUrl: data.draft.previewUrl || null, templateVersion: data.templateVersion, integrityValid: true })
         setAuthorizeCompanySignature(false)
         setMsg(`Draft ${data.agreementId} is ready. Review the PDF before approving it for signature and sending.`)
         setOpen(false)
@@ -327,7 +329,7 @@ export function AgreementForm({ applicationId, onGenerated }: {
   }
 
   async function issueDraft() {
-    if (!pendingDraft || !authorizeCompanySignature) return
+    if (!pendingDraft || !authorizeCompanySignature || pendingDraft.integrityValid === false || pendingDraft.templateVersion !== AGREEMENT_TEMPLATE_VERSION) return
     setGenerating(true)
     setMsg("")
     setSigningUrl("")
@@ -351,6 +353,33 @@ export function AgreementForm({ applicationId, onGenerated }: {
       if (data.document?.previewUrl) window.open(data.document.previewUrl, "_blank")
       await load()
       onGenerated()
+    } catch {
+      setMsg("Network error. Please try again.")
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function cancelDraft() {
+    if (!pendingDraft || generating) return
+    setGenerating(true)
+    setMsg("")
+    try {
+      const res = await fetch(`/api/admin/partners/applications/${applicationId}/agreement`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId: pendingDraft.id }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setMsg(data.error || "Draft could not be cancelled")
+        return
+      }
+      setPendingDraft(null)
+      setAuthorizeCompanySignature(false)
+      setOpen(true)
+      setMsg(`Draft ${data.agreementRevisionId} cancelled. Its history is preserved. Review the details and generate a fresh agreement draft.`)
+      await load()
     } catch {
       setMsg("Network error. Please try again.")
     } finally {
@@ -425,17 +454,19 @@ export function AgreementForm({ applicationId, onGenerated }: {
           <div className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4">
             <div>
               <p className="font-medium text-amber-950">Draft awaiting your review · {pendingDraft.agreementId}</p>
-              <p className="mt-1 text-xs text-amber-900">The partner has not been emailed. This draft uses master template v{pendingDraft.templateVersion || "legacy"}; the current master is v1.5. Regenerate and review a current draft before approving it for signature.</p>
+              <p className="mt-1 text-xs text-amber-900">The partner has not been emailed. This draft uses master template v{pendingDraft.templateVersion || "legacy"}; the current master is v{AGREEMENT_TEMPLATE_VERSION}. {pendingDraft.templateVersion === AGREEMENT_TEMPLATE_VERSION && pendingDraft.integrityValid !== false ? "Review the PDF before authorizing issue." : "Regenerate and review a fresh copy before authorizing issue."}</p>
+              {pendingDraft.integrityValid === false && <p className="mt-2 text-xs font-medium text-red-700">This saved draft failed its integrity check and cannot be issued. Cancel it and generate a fresh draft; the old copy will remain in history.</p>}
             </div>
             <div className="flex flex-wrap gap-2">
               {pendingDraft.previewUrl && <a className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-white px-3 py-2 text-sm text-amber-950" href={pendingDraft.previewUrl} target="_blank" rel="noreferrer"><Download className="h-4 w-4" />Review draft PDF</a>}
               <Button variant="outline" onClick={() => { setOpen(true); setMsg("") }}>Edit and generate a new draft</Button>
+              <Button type="button" variant="outline" disabled={generating} onClick={() => void cancelDraft()}>{generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Cancel draft</Button>
             </div>
-            {pendingDraft.templateVersion === "1.5" && <label className="flex items-start gap-2 rounded-md border border-amber-300 bg-white p-3 text-sm">
+            {pendingDraft.templateVersion === AGREEMENT_TEMPLATE_VERSION && pendingDraft.integrityValid !== false && <label className="flex items-start gap-2 rounded-md border border-amber-300 bg-white p-3 text-sm">
               <input type="checkbox" checked={authorizeCompanySignature} onChange={(e) => setAuthorizeCompanySignature(e.target.checked)} />
               <span>I reviewed this agreement, confirm it is approved for issue, and authorize the configured MartPoint signatory to sign it electronically.</span>
             </label>}
-            {pendingDraft.templateVersion === "1.5" && <Button onClick={issueDraft} disabled={generating || !authorizeCompanySignature}>
+            {pendingDraft.templateVersion === AGREEMENT_TEMPLATE_VERSION && pendingDraft.integrityValid !== false && <Button onClick={issueDraft} disabled={generating || !authorizeCompanySignature}>
               {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
               Approve, sign and send to partner
             </Button>}

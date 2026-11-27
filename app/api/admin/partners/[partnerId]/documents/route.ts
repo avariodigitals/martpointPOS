@@ -38,6 +38,7 @@ export async function GET(
       title: d.title,
       status: d.status,
       templateVersion: d.templateVersion,
+      agreementRevisionId: d.agreementRevisionId,
       generatedAt: d.generatedAt,
       acknowledgedAt: d.acknowledgedAt,
       fileSize: d.fileSize,

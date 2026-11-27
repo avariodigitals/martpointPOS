@@ -2,9 +2,10 @@ import crypto from "crypto"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import { NextResponse } from "next/server"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkRateLimit, checkRateLimitSync } from "@/lib/rate-limit"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { createSignedDocUrl, uploadPartnerDocument } from "@/lib/partner-documents"
+import { withTimeout } from "@/lib/with-timeout"
 import { registerAgreementDocument } from "@/lib/partner-generated-docs"
 import { AGREEMENT_TEMPLATE_VERSION, generatePartnerAgreementPdf, type AgreementInput } from "@/lib/partner-agreement"
 import { sendEmail } from "@/lib/email"
@@ -28,36 +29,58 @@ async function loadRequest(token: string) {
     .maybeSingle()
 }
 
+async function loadPartnerApplication(applicationId: string) {
+  return supabase.from("partner_applications")
+    .select("business_name, full_name, email")
+    .eq("id", applicationId)
+    .maybeSingle()
+}
+
 export async function GET(request: Request) {
-  const limited = await checkRateLimit(request, { key: "partner-agreement-signing-view", max: 20, windowSeconds: 600 })
+  const limited = await withTimeout(
+    checkRateLimit(request, { key: "partner-agreement-signing-view", max: 20, windowSeconds: 600 }),
+    3000,
+    "Signing rate limit timed out"
+  ).catch(() => checkRateLimitSync(request, { key: "partner-agreement-signing-view", max: 20, windowSeconds: 600 }))
   if (!limited.allowed) return NextResponse.json({ error: "Too many requests. Please try again shortly." }, { status: 429 })
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Signing is not available" }, { status: 503 })
 
   const token = new URL(request.url).searchParams.get("token") || ""
   if (!validToken(token)) return NextResponse.json({ error: "This signing link is invalid or expired" }, { status: 404 })
-  const { data: signing, error } = await loadRequest(token)
-  if (error || !signing) return NextResponse.json({ error: "This signing link is invalid or expired" }, { status: 404 })
+  let signingResult: Awaited<ReturnType<typeof loadRequest>>
+  try {
+    signingResult = await withTimeout(loadRequest(token), 8000, "Agreement lookup timed out")
+  } catch (cause) {
+    console.error("[agreement signing view] lookup failed:", cause)
+    return NextResponse.json({ error: "We could not load this agreement right now. Please refresh in a moment." }, { status: 503 })
+  }
+  const { data: signing, error } = signingResult
+  if (error) {
+    console.error("[agreement signing view] database lookup failed:", error.message)
+    return NextResponse.json({ error: "We could not load this agreement right now. Please refresh in a moment." }, { status: 503 })
+  }
+  if (!signing) return NextResponse.json({ error: "This signing link is invalid or expired" }, { status: 404 })
 
   if (signing.status === "AWAITING_PARTNER" && new Date(signing.token_expires_at as string) <= new Date()) {
-    await supabase.from("partner_agreement_signing").update({ status: "EXPIRED", updated_at: new Date().toISOString() }).eq("id", signing.id)
+    void Promise.resolve(supabase.from("partner_agreement_signing").update({ status: "EXPIRED", updated_at: new Date().toISOString() }).eq("id", signing.id)).catch(() => undefined)
     return NextResponse.json({ error: "This signing link has expired. Contact MartPoint to request a new one." }, { status: 410 })
   }
   if (!["AWAITING_PARTNER", "EXECUTED"].includes(String(signing.status))) {
     return NextResponse.json({ error: "This signing link has been replaced. Contact MartPoint for a current link." }, { status: 410 })
   }
 
-  const { data: app } = await supabase
-    .from("partner_applications")
-    .select("business_name, full_name, email")
-    .eq("id", signing.application_id)
-    .maybeSingle()
-
-  const documentPath = signing.final_document_path || (await supabase
-    .from("partner_documents")
-    .select("storage_path")
-    .eq("id", signing.source_document_id)
-    .maybeSingle()).data?.storage_path
-  const documentUrl = documentPath ? await createSignedDocUrl(documentPath as string, 300) : null
+  let appResult: Awaited<ReturnType<typeof loadPartnerApplication>>
+  try {
+    appResult = await withTimeout(loadPartnerApplication(String(signing.application_id)), 8000, "Partner details lookup timed out")
+  } catch (cause) {
+    console.error("[agreement signing view] partner lookup failed:", cause)
+    return NextResponse.json({ error: "We could not load this agreement right now. Please refresh in a moment." }, { status: 503 })
+  }
+  if (appResult.error) {
+    console.error("[agreement signing view] partner query failed:", appResult.error.message)
+    return NextResponse.json({ error: "We could not load this agreement right now. Please refresh in a moment." }, { status: 503 })
+  }
+  const app = appResult.data
 
   return NextResponse.json({
     agreementId: signing.agreement_id,
@@ -70,7 +93,7 @@ export async function GET(request: Request) {
       signedAt: signing.martpoint_signed_at,
     },
     expiresAt: signing.token_expires_at,
-    documentUrl,
+    documentUrl: `/api/partners/sign-agreement/document?token=${encodeURIComponent(token)}`,
     partnerSignerName: signing.partner_signer_name || "",
   })
 }

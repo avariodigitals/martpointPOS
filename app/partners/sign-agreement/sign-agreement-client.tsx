@@ -38,6 +38,11 @@ export default function SignPartnerAgreementClient({
   useEffect(() => {
     if (!token || initialDetails) return
     const controller = new AbortController()
+    let didTimeOut = false
+    const timeout = window.setTimeout(() => {
+      didTimeOut = true
+      controller.abort()
+    }, 15000)
     fetch(`/api/partners/sign-agreement?token=${encodeURIComponent(token)}`, {
       cache: "no-store",
       signal: controller.signal,
@@ -48,12 +53,14 @@ export default function SignPartnerAgreementClient({
       setSignerName(data.partnerSignerName || "")
       setError("")
     }).catch((cause) => {
-      if (controller.signal.aborted) return
-      setError(cause instanceof Error ? cause.message : "Could not load the agreement. Refresh the page or contact MartPoint.")
+      if (controller.signal.aborted && !didTimeOut) return
+      setError(didTimeOut
+        ? "This is taking too long. Refresh the page or contact partners@martpoint.com.ng for a new working link."
+        : cause instanceof Error ? cause.message : "Could not load the agreement. Refresh the page or contact MartPoint.")
     }).finally(() => {
-      if (!controller.signal.aborted) setLoading(false)
+      if (!controller.signal.aborted || didTimeOut) setLoading(false)
     })
-    return () => controller.abort()
+    return () => { window.clearTimeout(timeout); controller.abort() }
   }, [initialDetails, token])
 
   async function signAgreement(event: FormEvent<HTMLFormElement>) {

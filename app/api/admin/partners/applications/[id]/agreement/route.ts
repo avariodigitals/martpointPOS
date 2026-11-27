@@ -442,22 +442,37 @@ export async function DELETE(
   if (draftError || !draft) return NextResponse.json({ error: "This draft is no longer awaiting review" }, { status: 409 })
 
   const now = new Date().toISOString()
-  const { data: cancelled, error: cancelError } = await supabase
+  const updateDraftStatus = (status: "CANCELLED" | "SUPERSEDED") => supabase
     .from("partner_agreement_drafts")
-    .update({ status: "CANCELLED", updated_at: now })
+    .update({ status, updated_at: now })
     .eq("id", draftId)
     .eq("application_id", applicationId)
     .eq("status", "AWAITING_REVIEW")
     .select("id")
     .maybeSingle()
-  if (cancelError || !cancelled) return NextResponse.json({ error: "Draft could not be cancelled; reload and try again" }, { status: 409 })
+
+  let cancellationStatus: "CANCELLED" | "SUPERSEDED" = "CANCELLED"
+  let { data: cancelled, error: cancelError } = await updateDraftStatus(cancellationStatus)
+  // Older databases may still have the original status constraint. Retire the
+  // draft as SUPERSEDED there; the separate cancellation audit event records
+  // the user's intent without deleting or changing its immutable content.
+  if (cancelError?.code === "23514") {
+    cancellationStatus = "SUPERSEDED"
+    const fallback = await updateDraftStatus(cancellationStatus)
+    cancelled = fallback.data
+    cancelError = fallback.error
+  }
+  if (cancelError || !cancelled) {
+    console.error("[agreement draft cancel] status update failed:", cancelError?.code, cancelError?.message)
+    return NextResponse.json({ error: "Draft could not be retired. Confirm migration 222 is applied, reload this panel, and try again." }, { status: 409 })
+  }
 
   const revisionId = String(draft.agreement_revision_id || draft.agreement_id)
   await recordAudit(auditContextFromSession(session, request), {
     action: AUDIT_ACTIONS.PARTNER_AGREEMENT_DRAFT_CANCELLED,
     entityType: AUDIT_ENTITIES.PARTNER_APPLICATION,
     entityId: applicationId,
-    metadata: { applicationId, draftId, agreementRevisionId: revisionId, status: "CANCELLED" },
+    metadata: { applicationId, draftId, agreementRevisionId: revisionId, status: cancellationStatus, cancellationRequested: true },
   })
-  return NextResponse.json({ success: true, agreementRevisionId: revisionId, message: "Draft cancelled. Its reviewed snapshot remains in agreement history." })
+  return NextResponse.json({ success: true, agreementRevisionId: revisionId, status: cancellationStatus, message: "Draft cancelled. Its reviewed snapshot remains in agreement history." })
 }

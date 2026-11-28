@@ -97,7 +97,16 @@ export default function SignPartnerAgreementClient({
               <p className="text-xs font-semibold uppercase tracking-widest">Partner Agreement</p>
             </div>
             {error && !details ? (
-              <div><h1 className="text-2xl font-bold">Signing link unavailable</h1><p className="mt-3 text-muted-foreground">{error}</p></div>
+              <div>
+                <h1 className="text-2xl font-bold">Signing link unavailable</h1>
+                <p className="mt-3 text-muted-foreground">{error}</p>
+                <a
+                  className="mt-5 inline-flex rounded-md bg-retail px-4 py-2 font-medium text-white hover:opacity-90"
+                  href="mailto:partners@martpoint.com.ng?subject=Request%20a%20new%20Partner%20Agreement%20signing%20link&body=The%20Partner%20Agreement%20signing%20page%20is%20not%20loading.%20Please%20send%20me%20a%20new%20signing%20link."
+                >
+                  Email MartPoint to request a new link
+                </a>
+              </div>
             ) : details ? (
               <>
                 <h1 className="text-2xl font-bold">{executed ? "Agreement signed" : "Review and sign your agreement"}</h1>
@@ -133,7 +142,18 @@ export default function SignPartnerAgreementClient({
                   </form>
                 )}
               </>
-            ) : loading ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /></div> : <div><h1 className="text-2xl font-bold">Signing link unavailable</h1><p className="mt-3 text-muted-foreground">This signing link is invalid or expired.</p></div>}
+            ) : loading ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /></div> : (
+              <div>
+                <h1 className="text-2xl font-bold">Signing link unavailable</h1>
+                <p className="mt-3 text-muted-foreground">This signing link is invalid or expired.</p>
+                <a
+                  className="mt-5 inline-flex rounded-md bg-retail px-4 py-2 font-medium text-white hover:opacity-90"
+                  href="mailto:partners@martpoint.com.ng?subject=Request%20a%20new%20Partner%20Agreement%20signing%20link&body=The%20Partner%20Agreement%20signing%20page%20is%20not%20loading.%20Please%20send%20me%20a%20new%20signing%20link."
+                >
+                  Email MartPoint to request a new link
+                </a>
+              </div>
+            )}
           </section>
         </div>
       </main>

@@ -48,19 +48,21 @@ export async function GET(request: Request) {
       }
     }
 
-    const { data: initialIntents, error } = await supabase.from("central_billing_intents").select("id,invoice_id,payment_id").eq("payment_status", "CONFIRMED").or("accounting_status.neq.POSTED,fulfillment_status.neq.ACKNOWLEDGED").limit(50)
+    // Only revisit intents with unfinished work. Scanning every confirmed
+    // payment here caused completed accounting work to run again each minute.
+    const { data: recoveryIntents, error } = await supabase.from("central_billing_intents")
+      .select("id,invoice_id,payment_id,accounting_status,fulfillment_status")
+      .eq("payment_status", "CONFIRMED")
+      .or("accounting_status.neq.POSTED,fulfillment_status.neq.ACKNOWLEDGED")
+      .limit(50)
     if (error) throw error
-    const { data: confirmedCentralPayments } = await supabase.from("payments").select("central_billing_intent_id").eq("status", "CONFIRMED").not("central_billing_intent_id", "is", null).limit(100)
-    const candidateIds = new Set([...(initialIntents || []).map((i) => i.id), ...(confirmedCentralPayments || []).map((p) => p.central_billing_intent_id).filter((id): id is string => !!id)])
-    for (const candidateId of candidateIds) {
-      const { data: intent } = await supabase.from("central_billing_intents").select("id,invoice_id,payment_id,payment_status").eq("id", candidateId).maybeSingle()
-      if (!intent) continue
+    for (const intent of recoveryIntents || []) {
       let paymentId = intent.payment_id
-      if (!paymentId) {
+      if (intent.accounting_status !== "POSTED" && !paymentId) {
         const { data: linkedPayment } = await supabase.from("payments").select("id,status").eq("central_billing_intent_id", intent.id).maybeSingle()
         if (linkedPayment?.status === "CONFIRMED") paymentId = linkedPayment.id
       }
-      if (paymentId) {
+      if (paymentId && intent.accounting_status !== "POSTED") {
         try {
           const { data: payment } = await supabase.from("payments").select("status").eq("id", paymentId).maybeSingle()
           if (payment?.status !== "CONFIRMED") continue
@@ -69,7 +71,6 @@ export async function GET(request: Request) {
           await confirmPayment(paymentId, "Central billing recovery")
           await createReceipt(paymentId, "Central billing recovery")
           await supabase.from("central_billing_intents").update({ payment_id: paymentId, payment_status: "CONFIRMED", updated_at: new Date().toISOString() }).eq("id", intent.id)
-          await queueCentralCreditFulfillment(intent.id)
           await syncInvoiceFinanceTransaction(intent.invoice_id)
           await postInvoiceJournal(intent.invoice_id)
           await postPaymentJournal(paymentId)
@@ -81,6 +82,9 @@ export async function GET(request: Request) {
         } catch (err) {
           await supabase.from("central_billing_intents").update({ accounting_status: "FAILED", last_error: err instanceof Error ? err.message.slice(0, 500) : "Finance recovery failed", updated_at: new Date().toISOString() }).eq("id", intent.id)
         }
+      }
+      if (intent.fulfillment_status !== "ACKNOWLEDGED") {
+        await queueCentralCreditFulfillment(intent.id)
       }
       const retryTime = new Date().toISOString()
       const { data: event } = await supabase.from("central_billing_fulfillment_outbox").select("id,payload,attempts").eq("intent_id", intent.id).neq("status", "ACKNOWLEDGED").or(`retry_at.is.null,retry_at.lte.${retryTime}`).maybeSingle()

@@ -440,11 +440,20 @@ export function AgreementForm({ applicationId, onGenerated }: {
                     <Download className="w-3.5 h-3.5" /> View
                   </a>
                 )}
-                {d.status === "AWAITING_PARTNER" && (
-                  <Button type="button" variant="outline" size="sm" className="ml-2 shrink-0" disabled={Boolean(resendingAgreementId)} onClick={() => void resendIssuedAgreement(d.id)}>
-                    {resendingAgreementId === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Resend PDF + link"}
-                  </Button>
-                )}
+                <div className="ml-2 flex w-40 shrink-0 justify-end">
+                  {d.status === "AWAITING_PARTNER" ? (
+                    <Button type="button" variant="outline" size="sm" disabled={Boolean(resendingAgreementId)} onClick={() => void resendIssuedAgreement(d.id)}>
+                      {resendingAgreementId === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Resend PDF + link"}
+                    </Button>
+                  ) : (
+                    <span className="text-right text-xs text-muted-foreground" title="Only the current unsigned agreement can be resent for signature">
+                      {d.status === "SUPERSEDED" ? "Resend unavailable · superseded" :
+                        d.status === "EXECUTED" ? "Already signed" :
+                          d.status === "VERIFIED" ? "Verified · no signing link" :
+                          d.status === "EXPIRED" ? "Expired · issue a new copy" : "Resend unavailable"}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
